@@ -3,18 +3,21 @@ package main
 import (
 	"context"
 	"fmt"
-	"idp/internal/server"
-	"log"
-	"os"
+	"log/slog"
 	"os/signal"
-	"strconv"
+	"runtime"
 	"syscall"
 	"time"
 
-	_ "github.com/joho/godotenv/autoload"
+	"github.com/tugascript/devlogs/idp/internal/config"
+	"github.com/tugascript/devlogs/idp/internal/server"
 )
 
-func gracefulShutdown(fiberServer *server.FiberServer, done chan bool) {
+func gracefulShutdown(
+	logger *slog.Logger,
+	fiberServer *server.FiberServer,
+	done chan bool,
+) {
 	// Create context that listens for the interrupt signal from the OS.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -22,25 +25,36 @@ func gracefulShutdown(fiberServer *server.FiberServer, done chan bool) {
 	// Listen for the interrupt signal.
 	<-ctx.Done()
 
-	log.Println("shutting down gracefully, press Ctrl+C again to force")
+	logger.InfoContext(ctx, "shutting down gracefully, press Ctrl+C again to force")
 
 	// The context is used to inform the server it has 5 seconds to finish
 	// the request it is currently handling
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := fiberServer.ShutdownWithContext(ctx); err != nil {
-		log.Printf("Server forced to shutdown with error: %v", err)
+		logger.ErrorContext(ctx, "Server forced to shutdown with error", "error", err)
 	}
 
-	log.Println("Server exiting")
+	logger.InfoContext(ctx, "Server exiting")
 
 	// Notify the main goroutine that the shutdown is complete
 	done <- true
 }
 
 func main() {
+	logger := server.DefaultLogger()
+	ctx := context.Background()
+	logger.InfoContext(ctx, "Loading configuration...")
+	cfg := config.NewConfig(logger, "./.env")
 
-	server := server.New()
+	logger = server.ConfigLogger(cfg.LoggerConfig())
+	logger.InfoContext(ctx, "Setting GOMAXPROCS...", "maxProcs", cfg.MaxProcs())
+	runtime.GOMAXPROCS(int(cfg.MaxProcs()))
+	logger.InfoContext(ctx, "Finished setting GOMAXPROCS")
+
+	logger.InfoContext(ctx, "Building server...")
+	server := server.New(ctx, logger, cfg)
+	logger.InfoContext(ctx, "Server built")
 
 	server.RegisterFiberRoutes()
 
@@ -48,17 +62,17 @@ func main() {
 	done := make(chan bool, 1)
 
 	go func() {
-		port, _ := strconv.Atoi(os.Getenv("PORT"))
-		err := server.Listen(fmt.Sprintf(":%d", port))
+		err := server.Listen(fmt.Sprintf(":%d", cfg.Port()))
 		if err != nil {
+			logger.ErrorContext(ctx, "http server error", "error", err)
 			panic(fmt.Sprintf("http server error: %s", err))
 		}
 	}()
 
 	// Run graceful shutdown in a separate goroutine
-	go gracefulShutdown(server, done)
+	go gracefulShutdown(logger, server, done)
 
 	// Wait for the graceful shutdown to complete
 	<-done
-	log.Println("Graceful shutdown complete.")
+	logger.InfoContext(ctx, "Graceful shutdown complete.")
 }

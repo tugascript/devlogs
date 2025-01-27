@@ -1,12 +1,12 @@
 version: "2"
 sql:
-  - schema: "internal/database/migrations"
-    queries: "internal/database/queries"
+  - schema: "internal/providers/database/migrations"
+    queries: "internal/providers/database/queries"
     engine: "postgresql"
     gen:
       go:
         package: "database"
-        out: "internal/database"
+        out: "internal/providers/database"
         sql_package: "pgx/v5"
         emit_empty_slices: true
         overrides:

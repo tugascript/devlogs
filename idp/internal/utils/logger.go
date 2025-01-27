@@ -1,19 +1,29 @@
 package utils
 
-import "log/slog"
+import (
+	"log/slog"
+)
+
+type LogLayer = string
+
+const (
+	ControllersLogLayer LogLayer = "controllers"
+	ServicesLogLayer    LogLayer = "services"
+	ProvidersLogLayer   LogLayer = "providers"
+)
 
 type LoggerOptions struct {
 	Layer     string
 	Location  string
-	Function  string
+	Method    string
 	RequestID string
 }
 
-func BuildLogger(log *slog.Logger, opts LoggerOptions) *slog.Logger {
-	return log.With(
+func BuildLogger(logger *slog.Logger, opts LoggerOptions) *slog.Logger {
+	return logger.With(
 		"layer", opts.Layer,
 		"location", opts.Location,
-		"function", opts.Function,
+		"method", opts.Method,
 		"requestId", opts.RequestID,
 	)
 }

@@ -9,7 +9,7 @@ create-migration-file:
 
 create-db-schema:
 	@echo "Creating initial schema..."
-	dbml2sql initial_schema.dbml --postgres -o internal/database/migrations/20241213231542_create_initial_schema.up.sql
+	dbml2sql initial_schema.dbml --postgres -o internal/providers/database/migrations/20241213231542_create_initial_schema.up.sql
 
 sqlc:
 	@echo "Generating SQLC bindings..."
@@ -24,6 +24,7 @@ build:
 # Run the application
 run:
 	@go run cmd/api/main.go
+	
 # Create DB container
 docker-run:
 	@if docker compose up --build 2>/dev/null; then \

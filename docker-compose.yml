@@ -1,0 +1,55 @@
+services:
+  redis:
+    container_name: redis
+    image: "valkey/valkey:latest"
+    command: valkey-server
+    ports:
+      - "6379:6379"
+    networks:
+      - provider_net
+
+  postgres:
+    container_name: postgres
+    image: "postgres:latest"
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: general
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    networks:
+      - provider_net
+
+  localstack:
+    container_name: localstack
+    image: localstack/localstack
+    ports:
+      - "4566:4566" # LocalStack exposes services on this port
+    environment:
+      - SERVICES=s3
+      - DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    volumes:
+      - ./localstack_data/bootstrap:/opt/bootstrap/
+      - ./localstack_data:/tmp/localstack_data
+    networks:
+      - provider_net
+
+  mailhog:
+    image: mailhog/mailhog
+    platform: linux/amd64
+    restart: always
+    command: MailHog -auth-file=/etc/mailhog-auth.txt
+    volumes:
+      - ./mailhog-auth.txt:/etc/mailhog-auth.txt
+
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+networks:
+  provider_net:
+    driver: bridge
