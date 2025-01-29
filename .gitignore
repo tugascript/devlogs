@@ -33,3 +33,6 @@ main
 .DS_Store
 
 keys
+
+# Docker data
+postgres_data/

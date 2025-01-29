@@ -22,22 +22,6 @@ services:
     networks:
       - provider_net
 
-  localstack:
-    container_name: localstack
-    image: localstack/localstack
-    ports:
-      - "4566:4566" # LocalStack exposes services on this port
-    environment:
-      - SERVICES=s3
-      - DEFAULT_REGION=us-east-1
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
-    volumes:
-      - ./localstack_data/bootstrap:/opt/bootstrap/
-      - ./localstack_data:/tmp/localstack_data
-    networks:
-      - provider_net
-
   mailhog:
     image: mailhog/mailhog
     platform: linux/amd64
