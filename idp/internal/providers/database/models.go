@@ -25,7 +25,7 @@ type Account struct {
 type AccountKey struct {
 	ID           int32
 	AccountID    int32
-	Scopes       []string
+	Scopes       []byte
 	ClientID     string
 	ClientSecret string
 	CreatedAt    pgtype.Timestamp

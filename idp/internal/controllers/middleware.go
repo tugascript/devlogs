@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"log/slog"
+	"slices"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -59,6 +60,21 @@ func (c *Controllers) ScopeMiddleware(scope tokens.AccountScope) func(*fiber.Ctx
 
 		return serviceErrorResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
+}
+
+func (c *Controllers) AdminScopeMiddleware(ctx *fiber.Ctx) error {
+	logger := c.buildLogger(getRequestID(ctx), middlewareLocation, "AdminScopeMiddleware")
+
+	scopes, serviceErr := getScopes(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	if !slices.Contains(scopes, tokens.AccountScopeAdmin) {
+		return serviceErrorResponse(logger, ctx, exceptions.NewForbiddenError())
+	}
+
+	return ctx.Next()
 }
 
 func getAccountClaims(ctx *fiber.Ctx) (tokens.AccountClaims, *exceptions.ServiceError) {

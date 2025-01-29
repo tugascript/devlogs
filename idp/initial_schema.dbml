@@ -38,7 +38,7 @@ Table account_keys as ACK {
 
     account_id integer [not null]
 
-    scopes "varchar(30)[]" [not null]
+    scopes jsonb [not null]
 
     client_id varchar(22) [not null]
     client_secret text [not null]

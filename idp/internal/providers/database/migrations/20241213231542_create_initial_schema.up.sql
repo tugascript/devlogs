@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-01-27T09:14:56.280Z
+-- Generated at: 2025-01-28T08:52:02.914Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -27,7 +27,7 @@ CREATE TABLE "accounts_totps" (
 CREATE TABLE "account_keys" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
-  "scopes" varchar(30)[] NOT NULL,
+  "scopes" jsonb NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
   "created_at" timestamp NOT NULL DEFAULT (now()),

@@ -1017,7 +1017,7 @@ func (s *Services) ClientCredentialsLoginAccount(
 	)
 	logger.InfoContext(ctx, "Client credentials logging in account...")
 
-	accountKeysDTO, serviceErr := s.GetAccountKeysByID(ctx, GetAccountKeysByIDOptions{
+	accountKeysDTO, serviceErr := s.GetAccountKeysByClientID(ctx, GetAccountKeysByClientIDOptions{
 		RequestID: opts.RequestID,
 		ClientID:  opts.ClientID,
 	})

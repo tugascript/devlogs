@@ -28,10 +28,9 @@ func NewFullAuthDTO(accessToken, refreshToken string, expiresIn int64) AuthDTO {
 
 func NewTempAuthDTO(accessToken, message string, expiresIn int64) AuthDTO {
 	return AuthDTO{
-		AccessToken:  accessToken,
-		RefreshToken: "",
-		ExpiresIn:    int(expiresIn),
-		TokenType:    tokenType,
-		Message:      message,
+		AccessToken: accessToken,
+		ExpiresIn:   int(expiresIn),
+		TokenType:   tokenType,
+		Message:     message,
 	}
 }

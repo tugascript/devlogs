@@ -14,7 +14,8 @@ import (
 const confirmAccount = `-- name: ConfirmAccount :one
 UPDATE "accounts" SET
     "is_confirmed" = true,
-    "version" = "version" + 1
+    "version" = "version" + 1,
+    "updated_at" = now()
 WHERE "id" = $1
 RETURNING id, first_name, last_name, email, password, version, is_confirmed, two_factor_type, created_at, updated_at
 `
@@ -168,7 +169,8 @@ func (q *Queries) FindAccountById(ctx context.Context, id int32) (Account, error
 const updateAccountEmail = `-- name: UpdateAccountEmail :one
 UPDATE "accounts" SET
     "email" = $1,
-    "version" = "version" + 1
+    "version" = "version" + 1,
+    "updated_at" = now()
 WHERE "id" = $2
 RETURNING id, first_name, last_name, email, password, version, is_confirmed, two_factor_type, created_at, updated_at
 `
@@ -199,7 +201,8 @@ func (q *Queries) UpdateAccountEmail(ctx context.Context, arg UpdateAccountEmail
 const updateAccountPassword = `-- name: UpdateAccountPassword :one
 UPDATE "accounts" SET
     "password" = $1,
-    "version" = "version" + 1
+    "version" = "version" + 1,
+    "updated_at" = now()
 WHERE "id" = $2
 RETURNING id, first_name, last_name, email, password, version, is_confirmed, two_factor_type, created_at, updated_at
 `

@@ -1,6 +1,8 @@
 package dtos
 
 import (
+	"encoding/json"
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 )
 
@@ -21,21 +23,50 @@ func (ak *AccountKeysDTO) AccountID() int {
 	return ak.accountId
 }
 
-func MapAccountKeysToDTO(accountKeys *database.AccountKey) AccountKeysDTO {
-	return AccountKeysDTO{
-		ClientID:     accountKeys.ClientID,
-		Scopes:       accountKeys.Scopes,
-		hashedSecret: accountKeys.ClientSecret,
-		accountId:    int(accountKeys.AccountID),
+func mapAccountKeysScopes(jsonScopes []byte) ([]string, *exceptions.ServiceError) {
+	scopesMap := make(map[string]bool)
+	if err := json.Unmarshal(jsonScopes, &scopesMap); err != nil {
+		return nil, exceptions.NewServerError()
 	}
+
+	scopes := make([]string, 0, len(scopesMap))
+	for k, v := range scopesMap {
+		if v {
+			scopes = append(scopes, k)
+		}
+	}
+
+	return scopes, nil
 }
 
-func MapAccountKeysToDTOWithSecret(accountKeys *database.AccountKey, secret string) AccountKeysDTO {
+func MapAccountKeysToDTO(accountKeys *database.AccountKey) (AccountKeysDTO, *exceptions.ServiceError) {
+	scopes, serviceErr := mapAccountKeysScopes(accountKeys.Scopes)
+	if serviceErr != nil {
+		return AccountKeysDTO{}, serviceErr
+	}
+
+	return AccountKeysDTO{
+		ClientID:     accountKeys.ClientID,
+		Scopes:       scopes,
+		hashedSecret: accountKeys.ClientSecret,
+		accountId:    int(accountKeys.AccountID),
+	}, nil
+}
+
+func MapAccountKeysToDTOWithSecret(
+	accountKeys *database.AccountKey,
+	secret string,
+) (AccountKeysDTO, *exceptions.ServiceError) {
+	scopes, serviceErr := mapAccountKeysScopes(accountKeys.Scopes)
+	if serviceErr != nil {
+		return AccountKeysDTO{}, serviceErr
+	}
+
 	return AccountKeysDTO{
 		ClientID:     accountKeys.ClientID,
 		ClientSecret: secret,
-		Scopes:       accountKeys.Scopes,
+		Scopes:       scopes,
 		hashedSecret: accountKeys.ClientSecret,
 		accountId:    int(accountKeys.AccountID),
-	}
+	}, nil
 }
