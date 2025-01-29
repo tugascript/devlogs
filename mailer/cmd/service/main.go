@@ -17,27 +17,35 @@ import (
 	"github.com/tugascript/devlogs/mailer/internal/utils"
 )
 
-func gracefulShutdown(ctx context.Context, logger *slog.Logger, done chan bool) {
-	logger.InfoContext(ctx, "Starting graceful shutdown...")
+func gracefullyShutdown(
+	logger *slog.Logger,
+	ctx context.Context,
+	queueService *queue.Queue,
+	done chan bool,
+) {
+	// Listen for the interrupt signal.
+	<-ctx.Done()
 
-	// Create context that listens for the interrupt signal from the OS.
-	c, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	logger.InfoContext(ctx, "shutting down gracefully, press Ctrl+C again to force")
 
-	<-c.Done()
-
-	logger.InfoContext(c, "Shutting down gracefully, press Ctrl+C again to force...")
-
-	c, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// The context is used to inform the server it has 5 seconds to finish
+	// the request it is currently handling
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	if err := queueService.Stop(ctx); err != nil {
+		logger.ErrorContext(ctx, "Service forced to shutdown with error", "error", err)
+	}
 
-	logger.InfoContext(c, "Service exiting")
+	logger.InfoContext(ctx, "Service exiting")
+
+	// Notify the main goroutine that the shutdown is complete
 	done <- true
 }
 
 func main() {
 	logger := utils.DefaultLogger()
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 	logger.InfoContext(ctx, "Loading configuration...")
 
 	config := utils.NewConfig(logger, "./.env")
@@ -70,15 +78,14 @@ func main() {
 	queueService := queue.NewQueue(redisClient, mail, logger, validator.New())
 	logger.InfoContext(ctx, "Queue initialized")
 
-	// Create a done channel to signal when the shutdown is complete
 	done := make(chan bool, 1)
 
 	go func() {
 		queueService.Start(ctx)
 	}()
 
-	go gracefulShutdown(ctx, logger, done)
+	go gracefullyShutdown(logger, ctx, queueService, done)
 
 	<-done
-	logger.InfoContext(ctx, "Service stopped")
+	logger.Info("Graceful shutdown complete.")
 }

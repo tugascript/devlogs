@@ -18,6 +18,7 @@ type Queue struct {
 	mail        *email.Mail
 	logger      *slog.Logger
 	validate    *validator.Validate
+	pubsub      *r.PubSub
 }
 
 func NewQueue(
@@ -42,16 +43,7 @@ func (q *Queue) Start(ctx context.Context) {
 	})
 	logger.InfoContext(ctx, "Starting mailer queue...")
 
-	pubsub := q.redisClient.Subscribe(ctx)
-	subChan := pubsub.Channel()
-	defer func() {
-		if err := pubsub.Close(); err != nil {
-			logger.ErrorContext(ctx, "Failed to close redis pubsub", "error", err)
-			return
-		}
-
-		logger.InfoContext(ctx, "Queue stopped")
-	}()
+	q.pubsub = q.redisClient.Subscribe(ctx)
 
 	go func(ch <-chan *r.Message) {
 		for {
@@ -102,5 +94,30 @@ func (q *Queue) Start(ctx context.Context) {
 				}
 			}
 		}
-	}(subChan)
+	}(q.pubsub.Channel())
+
+	<-ctx.Done()
+	logger.ErrorContext(ctx, "Stopped running")
+}
+
+func (q *Queue) Stop(ctx context.Context) error {
+	// Block until ctx is canceled.
+	logger := utils.BuildLogger(q.logger, utils.LoggerOptions{
+		Service:  "mailer",
+		Location: "queue",
+		Function: "Stop",
+	})
+
+	if q.pubsub == nil {
+		logger.WarnContext(ctx, "Queue not started. Nothing to do.")
+		return nil
+	}
+
+	if err := q.pubsub.Close(); err != nil {
+		logger.ErrorContext(ctx, "Failed to close redis pubsub", "error", err)
+		return err
+	}
+
+	logger.InfoContext(ctx, "Pubsub closed")
+	return nil
 }
