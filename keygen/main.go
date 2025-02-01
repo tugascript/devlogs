@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
@@ -10,11 +12,12 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 )
 
 func getLog() *slog.Logger {
 	if os.Getenv("DEBUG") == "true" {
-		return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
 		}))
 	}
@@ -22,111 +25,229 @@ func getLog() *slog.Logger {
 	return slog.Default()
 }
 
-func main() {
-	logger := getLog()
-	// Check if the keys directory exists
-	logger.Debug("Checking if the keys directory exists...")
-	if _, err := os.Stat("../keys"); os.IsNotExist(err) {
-		logger.Debug("Keys directory does not exist, creating it...")
-		err := os.Mkdir("../keys", 0755)
+func createDirectory(logger *slog.Logger, name string) {
+	logger = logger.With("name", name)
+	loc := fmt.Sprintf("../%s", name)
+
+	logger.Debug("Checking if directory exists")
+	if _, err := os.Stat(loc); os.IsNotExist(err) {
+		logger.Debug("Directory does not exist, creating it...")
+		err := os.Mkdir(loc, 0755)
 
 		if err != nil {
-			logger.Error("Failed to create keys directory", "error", err)
+			logger.Error("Failed to create directory", "error", err)
 			fmt.Println(err)
 			return
 		}
-		logger.Debug("Keys directory created")
+		logger.Debug("Directory created")
 	} else {
 		logger.Debug("Keys directory already exists")
 	}
+}
 
-	// Generate a new key pair
-	logger.Debug("Generating a new ED25519 key pair...")
-	pub, priv, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		logger.Error("Failed to generate a new ED25519 key pair", "error", err)
-		return
-	}
-	logger.Debug("ED25519 key pair generated")
-
-	// Encode the public key to PEM format
+func encodePublicKey(logger *slog.Logger, publicKey interface{}) pem.Block {
 	logger.Debug("Encoding the public key to PEM format...")
-	pubKey, err := x509.MarshalPKIXPublicKey(pub)
+	pubKey, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
 		logger.Error("Failed to encode the public key to PEM format", "error", err)
-		return
+		panic(err)
 	}
-	pubBlock := pem.Block{
+
+	logger.Debug("Public key encoded to PEM format")
+	return pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: pubKey,
 	}
-	logger.Debug("Public key encoded to PEM format")
+}
 
-	// Encode the private key to PEM format
+func encodePrivateKey(logger *slog.Logger, privateKey interface{}) pem.Block {
 	logger.Debug("Encoding the private key to PEM format...")
-	privKey, err := x509.MarshalPKCS8PrivateKey(priv)
+	privKey, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
 		logger.Error("Failed to encode the private key to PEM format", "error", err)
-		return
+		panic(err)
 	}
-	privBlock := pem.Block{
+	return pem.Block{
 		Type:  "PRIVATE KEY",
 		Bytes: privKey,
 	}
-	logger.Debug("Private key encoded to PEM format")
+}
 
-	// Write public and private keys to files
-	logger.Debug("Writing public key to ../keys/public.key ...")
-	pubFile, err := os.Create("../keys/public.key")
+func generateEd25519KeyPair(logger *slog.Logger) (pem.Block, pem.Block) {
+	logger.Debug("Generating a new ED25519 key pair...")
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+
 	if err != nil {
-		logger.Error("Failed to create public key file", "error", err)
+		logger.Error("Failed to generate a new ED25519 key pair", "error", err)
+		panic(err)
+	}
+
+	logger.Debug("ED25519 key pair generated")
+	return encodePublicKey(logger, pub), encodePrivateKey(logger, priv)
+}
+
+func generateEs256KeyPair(logger *slog.Logger) (pem.Block, pem.Block) {
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+
+	if err != nil {
+		logger.Error("Failed to generate a new ES256 key pair", "error", err)
+		panic(err)
+	}
+
+	return encodePublicKey(logger, &priv.PublicKey), encodePrivateKey(logger, priv)
+}
+
+func writeKeyToFile(logger *slog.Logger, name string, block *pem.Block) {
+	logger = logger.With("name", name)
+	loc := fmt.Sprintf("../keys/%s.key", name)
+
+	logger.Debug("Writing key")
+	file, err := os.Create(loc)
+	if err != nil {
+		logger.Error("Failed to key file", "error", err)
 		return
 	}
-	defer pubFile.Close()
-	pem.Encode(pubFile, &pubBlock)
-	logger.Debug("Public key written to ../keys/public.key")
 
-	logger.Debug("Writing private key to ../keys/private.key ...")
-	privFile, err := os.Create("../keys/private.key")
+	defer file.Close()
+	pem.Encode(file, block)
+	logger.Debug("Public key written")
+}
+
+func encodeKeyPemToJson(logger *slog.Logger, block *pem.Block) string {
+	logger.Debug("Encoding key pem into json")
+	keyPEM := pem.EncodeToMemory(block)
+
+	jsonKey, err := json.Marshal(string(keyPEM))
 	if err != nil {
-		logger.Error("Failed to create private key file", "error", err)
-		return
+		logger.Error("Failed to encoding pem into json", "error", err)
+		panic(err)
 	}
-	defer privFile.Close()
-	pem.Encode(privFile, &privBlock)
-	logger.Debug("Private key written to ../keys/private.key")
 
-	// Generate random 32 base64 encoded bytes
-	cookieSecret := make([]byte, 32)
-	_, err = rand.Read(cookieSecret)
+	return string(jsonKey)
+}
+
+func generateSecret(logger *slog.Logger) string {
+	logger.Debug("Generating base64 encoded 32 byte secret")
+	bytes := make([]byte, 32)
+
+	_, err := rand.Read(bytes)
 	if err != nil {
-		logger.Error("Failed to generate random 32 base64 encoded bytes", "error", err)
-		return
+		logger.Error("Failed to generate secret bytes", "error", err)
+		panic(err)
 	}
-	logger.Debug("Random 32 base64 encoded bytes generated")
-	// base64 encode the key
-	encodedSecret := make([]byte, 44)
-	base64.StdEncoding.Encode(encodedSecret, cookieSecret)
-	logger.Debug("Key base64 encoded")
-	// right key to txt file
-	logger.Debug("Writing key to ../keys/cookie_secret.txt ...")
-	keyFile, err := os.Create("../keys/cookie_secret.txt")
+
+	logger.Debug("Secret generated successfully")
+	return base64.StdEncoding.EncodeToString(bytes)
+}
+
+func writeSecretToFile(logger *slog.Logger, name, secret string) {
+	logger = logger.With("name", name)
+	loc := fmt.Sprintf("../keys/%s.txt", name)
+	logger.Debug("Writing secret to file")
+
+	file, err := os.Create(loc)
 	if err != nil {
-		logger.Error("Failed to create key file", "error", err)
-		return
+		logger.Error("Failed to create secret file", "error", err)
+		panic(err)
 	}
-	defer keyFile.Close()
-	keyFile.Write(encodedSecret)
+	defer file.Close()
 
-	logger.Info("Key pair generated successfully")
-	pubPEM := pem.EncodeToMemory(&pubBlock)
-	publicKey, _ := json.Marshal(string(pubPEM))
-	fmt.Println("\nPublic key value:\n", string(publicKey))
+	file.Write([]byte(secret))
+}
 
-	privPEM := pem.EncodeToMemory(&privBlock)
-	privateKey, _ := json.Marshal(string(privPEM))
-	fmt.Println("\nPrivate key value:\n", string(privateKey))
+func createEnvFile(
+	logger *slog.Logger,
+	accessPubKey,
+	accessPrivKey,
+	accountKeysPubKey,
+	accountKeysPrivKey,
+	refreshPubKey,
+	refreshPrivKey,
+	confirmPubKey,
+	confirmPrivKey,
+	resetPubKey,
+	resetPrivKey,
+	oauthPubKey,
+	oauthPrivKey,
+	twoFAPubKey,
+	twoFAPrivKey,
+	cookieSecret string,
+) {
+	logger.Debug("Creating .env file")
 
-	fmt.Println("\nCookie secret value:\n", string(encodedSecret))
-	fmt.Println("")
+	file, err := os.Create("../keys/.env")
+	if err != nil {
+		logger.Error("Failed to key file", "error", err)
+		panic(err)
+	}
+	defer file.Close()
+
+	envVars := []string{
+		fmt.Sprintf("JWT_ACCESS_PUBLIC_KEY=%s", accessPubKey),
+		fmt.Sprintf("JWT_ACCESS_PUBLIC_KEY=%s", accessPrivKey),
+		fmt.Sprintf("JWT_ACCOUNT_KEYS_PUBLIC_KEY=%s", accountKeysPubKey),
+		fmt.Sprintf("JWT_ACCOUNT_KEYS_PUBLIC_KEY=%s", accountKeysPrivKey),
+		fmt.Sprintf("JWT_REFRESH_PUBLIC_KEY=%s", refreshPubKey),
+		fmt.Sprintf("JWT_REFRESH_PUBLIC_KEY=%s", refreshPrivKey),
+		fmt.Sprintf("JWT_CONFIRM_PUBLIC_KEY=%s", confirmPubKey),
+		fmt.Sprintf("JWT_CONFIRM_PUBLIC_KEY=%s", confirmPrivKey),
+		fmt.Sprintf("JWT_RESET_PUBLIC_KEY=%s", resetPubKey),
+		fmt.Sprintf("JWT_RESET_PUBLIC_KEY=%s", resetPrivKey),
+		fmt.Sprintf("JWT_OAUTH_PUBLIC_KEY=%s", oauthPubKey),
+		fmt.Sprintf("JWT_OAUTH_PUBLIC_KEY=%s", oauthPrivKey),
+		fmt.Sprintf("JWT_2FA_PUBLIC_KEY=%s", twoFAPubKey),
+		fmt.Sprintf("JWT_2FA_PUBLIC_KEY=%s", twoFAPrivKey),
+		fmt.Sprintf("COOKIE_SECRET=\"%s\"", cookieSecret),
+	}
+	file.Write([]byte(strings.Join(envVars, "\n")))
+	logger.Debug("Wrote env")
+}
+
+func main() {
+	logger := getLog()
+	// Check if the keys directory exists
+	createDirectory(logger, "keys")
+	accessPubKey, accessPrivKey := generateEs256KeyPair(logger)
+	accountKeysPubKey, accountKeysPrivKey := generateEs256KeyPair(logger)
+	refreshPubKey, refreshPrivKey := generateEd25519KeyPair(logger)
+	confirmPubKey, confirmPrivKey := generateEd25519KeyPair(logger)
+	resetPubKey, resetPrivKey := generateEd25519KeyPair(logger)
+	oauthPubKey, oauthPrivKey := generateEd25519KeyPair(logger)
+	twoFactorPubKey, twoFactorPrivKey := generateEd25519KeyPair(logger)
+	writeKeyToFile(logger, "access_public", &accessPubKey)
+	writeKeyToFile(logger, "access_private", &accessPrivKey)
+	writeKeyToFile(logger, "account_keys_public", &accountKeysPubKey)
+	writeKeyToFile(logger, "account_keys_private", &accountKeysPrivKey)
+	writeKeyToFile(logger, "refresh_public", &refreshPubKey)
+	writeKeyToFile(logger, "refresh_private", &refreshPrivKey)
+	writeKeyToFile(logger, "confirm_public", &confirmPubKey)
+	writeKeyToFile(logger, "confirm_private", &confirmPrivKey)
+	writeKeyToFile(logger, "reset_public", &resetPubKey)
+	writeKeyToFile(logger, "reset_private", &resetPrivKey)
+	writeKeyToFile(logger, "oauth_public", &oauthPubKey)
+	writeKeyToFile(logger, "oauth_private", &oauthPrivKey)
+	writeKeyToFile(logger, "two_factor_public", &twoFactorPubKey)
+	writeKeyToFile(logger, "two_factor_private", &twoFactorPrivKey)
+
+	cookieSecret := generateSecret(logger)
+	writeSecretToFile(logger, "cookie_secret", cookieSecret)
+
+	createEnvFile(
+		logger,
+		encodeKeyPemToJson(logger, &accessPubKey),
+		encodeKeyPemToJson(logger, &accessPrivKey),
+		encodeKeyPemToJson(logger, &accountKeysPubKey),
+		encodeKeyPemToJson(logger, &accountKeysPrivKey),
+		encodeKeyPemToJson(logger, &refreshPubKey),
+		encodeKeyPemToJson(logger, &refreshPrivKey),
+		encodeKeyPemToJson(logger, &confirmPubKey),
+		encodeKeyPemToJson(logger, &confirmPrivKey),
+		encodeKeyPemToJson(logger, &resetPubKey),
+		encodeKeyPemToJson(logger, &resetPrivKey),
+		encodeKeyPemToJson(logger, &oauthPubKey),
+		encodeKeyPemToJson(logger, &oauthPrivKey),
+		encodeKeyPemToJson(logger, &twoFactorPubKey),
+		encodeKeyPemToJson(logger, &twoFactorPrivKey),
+		cookieSecret,
+	)
 }
