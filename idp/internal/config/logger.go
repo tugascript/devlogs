@@ -9,6 +9,7 @@ type LoggerConfig struct {
 func NewLoggerConfig(isDebug bool, env, serviceName string) LoggerConfig {
 	return LoggerConfig{
 		isDebug:     isDebug,
+		env:         env,
 		serviceName: serviceName,
 	}
 }
