@@ -74,4 +74,8 @@ watch:
             fi; \
         fi
 
+keygen-debug:
+	@echo "Generating debug key..."
+	DEBUG=true go run ../keygen/main.go
+
 .PHONY: all build run test clean watch docker-run docker-down itest

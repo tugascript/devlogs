@@ -2,6 +2,7 @@ package dtos
 
 import (
 	"encoding/json"
+
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 )

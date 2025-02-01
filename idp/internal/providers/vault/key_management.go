@@ -86,15 +86,6 @@ func (v *Vault) GetEd25519PrivateKey(accountId int, kid uuid.UUID) (ed25519.Priv
 	return privateKey, nil
 }
 
-func (v *Vault) DeleteEd25519KeyPair(accountId int, kid uuid.UUID) error {
-	_, err := v.client.Secrets().Delete(infisical.DeleteSecretOptions{
-		SecretKey:   kid.String(),
-		SecretPath:  fmt.Sprintf("%s/accounts/%d", kmsBasePath, accountId),
-		Environment: v.env,
-	})
-	return err
-}
-
 func (v *Vault) GenerateEs256KeyPair(accountId int) (Es256KeyPair, error) {
 	var keyPair Es256KeyPair
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -152,4 +143,13 @@ func (v *Vault) GetEs256PrivateKey(accountId int, kid uuid.UUID) (*ecdsa.Private
 	}
 
 	return privateKey, nil
+}
+
+func (v *Vault) DeleteKeyPair(accountId int, kid uuid.UUID) error {
+	_, err := v.client.Secrets().Delete(infisical.DeleteSecretOptions{
+		SecretKey:   kid.String(),
+		SecretPath:  fmt.Sprintf("%s/accounts/%d", kmsBasePath, accountId),
+		Environment: v.env,
+	})
+	return err
 }

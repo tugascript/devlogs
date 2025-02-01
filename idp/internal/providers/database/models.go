@@ -13,6 +13,7 @@ type Account struct {
 	ID            int32
 	FirstName     string
 	LastName      string
+	Username      string
 	Email         string
 	Password      pgtype.Text
 	Version       int32
@@ -42,14 +43,14 @@ type AccountsTotp struct {
 }
 
 type App struct {
-	ID             uuid.UUID
+	ID             int32
 	AccountID      int32
 	Name           string
-	Slug           string
-	RedirectUris   []string
-	SignOutUri     pgtype.Text
+	ClientID       string
+	ClientSecret   string
+	CallbackUris   []string
+	LogoutUris     []string
 	IDTokenTtl     int32
-	Secret         string
 	JwtCryptoSuite string
 	CreatedAt      pgtype.Timestamp
 	UpdatedAt      pgtype.Timestamp
@@ -70,19 +71,15 @@ type AppAuthProvider struct {
 }
 
 type AppKey struct {
-	ID               int32
-	AppID            uuid.UUID
-	AccountID        int32
-	JwtCryptoSuite   string
-	AccessPublicKey  []byte
-	AccessKeyID      uuid.UUID
-	IDPublicKey      []byte
-	IDKeyID          uuid.UUID
-	RefreshPublicKey string
-	RefreshKeyID     uuid.UUID
-	ExpiresAt        pgtype.Timestamp
-	CreatedAt        pgtype.Timestamp
-	UpdatedAt        pgtype.Timestamp
+	ID             int32
+	AppID          int32
+	AccountID      int32
+	Name           string
+	JwtCryptoSuite string
+	PublicKey      []byte
+	KeyID          uuid.UUID
+	CreatedAt      pgtype.Timestamp
+	UpdatedAt      pgtype.Timestamp
 }
 
 type AppUserSchema struct {

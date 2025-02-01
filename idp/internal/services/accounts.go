@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -59,6 +60,30 @@ func (s *Services) CreateAccount(
 		return dtos.AccountDTO{}, exceptions.NewServerError()
 	}
 
+	email := utils.Lowered(opts.Email)
+	if _, err := s.database.FindAccountByEmail(ctx, email); err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to get account by email", "error", serviceErr)
+			return dtos.AccountDTO{}, serviceErr
+		}
+	} else {
+		logger.WarnContext(ctx, "Account already exists for given email")
+		return dtos.AccountDTO{}, exceptions.NewConflictError("Email already in use")
+	}
+
+	firstName := utils.Capitalized(opts.FirstName)
+	lastName := utils.Capitalized(opts.LastName)
+	username := utils.Slugify(fmt.Sprintf("%s %s", firstName, lastName))
+	count, err := s.database.CountAccountAlikeUsernames(ctx, username)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count usernames that are alike", "error", err)
+		return dtos.AccountDTO{}, exceptions.NewServerError()
+	}
+	if count > 0 {
+		username = fmt.Sprintf("%s%d", username, count+1)
+	}
+
 	var serviceErr *exceptions.ServiceError
 	qrs, txn, err := s.database.BeginTx(ctx)
 	if err != nil {
@@ -70,14 +95,12 @@ func (s *Services) CreateAccount(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	firstName := utils.Capitalized(opts.FirstName)
-	lastName := utils.Capitalized(opts.LastName)
-	email := utils.Lowered(opts.Email)
 	var account database.Account
 	if provider == AuthProviderEmail {
 		account, err = qrs.CreateAccountWithPassword(ctx, database.CreateAccountWithPasswordParams{
 			FirstName: firstName,
 			LastName:  lastName,
+			Username:  username,
 			Email:     email,
 			Password:  password,
 		})
@@ -85,6 +108,7 @@ func (s *Services) CreateAccount(
 		account, err = qrs.CreateAccountWithoutPassword(ctx, database.CreateAccountWithoutPasswordParams{
 			FirstName: firstName,
 			LastName:  lastName,
+			Username:  username,
 			Email:     email,
 		})
 	}

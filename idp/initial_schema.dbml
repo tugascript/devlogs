@@ -2,6 +2,7 @@ Table accounts as A {
     id serial [pk]
     first_name varchar(50) [not null]
     last_name varchar(50) [not null]
+    username varchar(109) [not null]
     email varchar(250) [not null]
     password text
     version integer [not null, default: 1]
@@ -14,6 +15,7 @@ Table accounts as A {
 
     Indexes {
         (email) [unique, name: 'accounts_email_uidx']
+        (username) [unique, name: 'accounts_username_uidx']
     }
 }
 
@@ -70,27 +72,28 @@ Table auth_providers as AP {
 Ref: AP.email > A.email [delete: cascade, update: cascade]
 
 Table apps as APP {
-    id uuid [pk]
+    id serial [pk]
 
     account_id integer [not null]
 
     name varchar(50) [not null]
-    slug varchar(60) [not null]
+    client_id varchar(22) [not null]
+    client_secret text [not null]
 
-    redirect_uris "varchar(250)[]" [not null, default: '[]']
-    sign_out_uri varchar(250)
+    callback_uris "varchar(250)[]" [not null, default: '[]']
+    logout_uris "varchar(250)[]" [not null, default: '[]']
+
+
     id_token_ttl integer [not null, default: 3600]
 
-    secret text [not null]
-
-    jwt_crypto_suite varchar(10) [not null, default: 'ecdsa']
+    jwt_crypto_suite varchar(7) [not null, default: 'ES256']
 
     created_at timestamp [not null, default: `now()`]
     updated_at timestamp [not null, default: `now()`]
 
     Indexes {
         (account_id) [name: 'apps_account_id_idx']
-        (slug) [unique, name: 'apps_slug_uidx']
+        (client_id) [unique, name: 'client_id_uidx']
     }
 }
 Ref: APP.account_id > A.id [delete: cascade]
@@ -98,27 +101,23 @@ Ref: APP.account_id > A.id [delete: cascade]
 Table app_keys as AK {
     id serial [pk]
     
-    app_id uuid [not null]
+    app_id integer [not null]
     account_id integer [not null]
-    jwt_crypto_suite varchar(10) [not null]
 
-    access_public_key jsonb [not null]
-    access_key_id uuid [not null]
+    name varchar(10) [not null]
+    jwt_crypto_suite varchar(7) [not null]
 
-    id_public_key jsonb [not null]
-    id_key_id uuid [not null]
-
-    refresh_public_key text [not null]
-    refresh_key_id uuid [not null]
-
-    expires_at timestamp [not null]
+    public_key jsonb [not null]
+    key_id uuid [not null]
 
     created_at timestamp [not null, default: `now()`]
     updated_at timestamp [not null, default: `now()`]
 
     Indexes {
-        (app_id) [unique, name: 'app_keys_app_id_uidx']
+        (app_id) [name: 'app_keys_app_id_idx']
         (account_id) [name: 'app_keys_account_id_idx']
+
+        (name, app_id) [unique, name: 'app_keys_name_app_id_uidx']
     }
 }
 Ref: AK.app_id > APP.id [delete: cascade]

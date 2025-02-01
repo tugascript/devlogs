@@ -2,25 +2,29 @@
 INSERT INTO "accounts" (
     "first_name",
     "last_name",
+    "username",
     "email", 
     "password"
 ) VALUES (
     $1, 
     $2, 
-    $3, 
-    $4
+    $3,
+    $4,
+    $5
 ) RETURNING *;
 
 -- name: CreateAccountWithoutPassword :one
 INSERT INTO "accounts" (
     "first_name",
     "last_name",
+    "username",
     "email",
     "is_confirmed"
 ) VALUES (
     $1, 
     $2, 
     $3,
+    $4,
     true
 ) RETURNING *;
 
@@ -47,6 +51,10 @@ WHERE "email" = $1 LIMIT 1;
 -- name: FindAccountById :one
 SELECT * FROM "accounts"
 WHERE "id" = $1 LIMIT 1;
+
+-- name: CountAccountAlikeUsernames :one
+SELECT COUNT("id") FROM "accounts"
+WHERE "username" ILIKE $1 LIMIT 1;
 
 -- name: ConfirmAccount :one
 UPDATE "accounts" SET

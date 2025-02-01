@@ -8,7 +8,6 @@ import (
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
-	"github.com/tugascript/devlogs/idp/internal/services"
 )
 
 const middlewareLocation string = "middleware"
@@ -94,32 +93,4 @@ func getScopes(ctx *fiber.Ctx) ([]tokens.AccountScope, *exceptions.ServiceError)
 	}
 
 	return scopes, nil
-}
-
-func (c *Controllers) AppIDMiddleware(ctx *fiber.Ctx) error {
-	requestID := getRequestID(ctx)
-	userContext := ctx.UserContext()
-	logger := c.buildLogger(requestID, "middleware", "AppIDMiddleware")
-	logger.DebugContext(userContext, "Getting app AccountID...")
-
-	hostname := ctx.Hostname()
-	slug := hostname[:len(hostname)-len(c.backendDomain)-1]
-
-	if slug == "" {
-		logger.WarnContext(userContext, "Slug not found")
-		return ctx.Next()
-	}
-
-	appID, err := c.services.GetAppIDBySlug(ctx.Context(), services.GetAppIDBySlugOptions{
-		RequestID: requestID,
-		Slug:      slug,
-	})
-	if err != nil {
-		logger.ErrorContext(userContext, "Error getting app AccountID", "error", err)
-		return ctx.Next()
-	}
-
-	logger.DebugContext(userContext, "App AccountID found", "appID", appID)
-	ctx.Locals("appID", appID)
-	return ctx.Next()
 }

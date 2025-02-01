@@ -40,7 +40,6 @@ type TokensConfig struct {
 	reset       SingleJwtConfig
 	oAuth       SingleJwtConfig
 	twoFA       SingleJwtConfig
-	app         SingleJwtConfig
 }
 
 func NewTokensConfig(
@@ -50,7 +49,6 @@ func NewTokensConfig(
 	confirm SingleJwtConfig,
 	oAuth SingleJwtConfig,
 	twoFA SingleJwtConfig,
-	app SingleJwtConfig,
 ) TokensConfig {
 	return TokensConfig{
 		access:      access,
@@ -59,7 +57,6 @@ func NewTokensConfig(
 		confirm:     confirm,
 		oAuth:       oAuth,
 		twoFA:       twoFA,
-		app:         app,
 	}
 }
 
@@ -89,8 +86,4 @@ func (t *TokensConfig) OAuth() SingleJwtConfig {
 
 func (t *TokensConfig) TwoFA() SingleJwtConfig {
 	return t.twoFA
-}
-
-func (t *TokensConfig) App() SingleJwtConfig {
-	return t.app
 }

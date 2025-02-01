@@ -136,10 +136,6 @@ var variables = [63]string{
 	"JWT_2FA_PRIVATE_KEY",
 	"JWT_2FA_TTL_SEC",
 	"JWT_2FA_KID",
-	"JWT_APP_PUBLIC_KEY",
-	"JWT_APP_PRIVATE_KEY",
-	"JWT_APP_TTL_SEC",
-	"JWT_APP_KID",
 	"GITHUB_CLIENT_ID",
 	"GITHUB_CLIENT_SECRET",
 	"GOOGLE_CLIENT_ID",
@@ -237,10 +233,10 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 				intMap["JWT_REFRESH_TTL_SEC"],
 			),
 			NewSingleJwtConfig(
-				variablesMap["JWT_EMAIL_PUBLIC_KEY"],
-				variablesMap["JWT_EMAIL_PRIVATE_KEY"],
-				variablesMap["JWT_EMAIL_KID"],
-				intMap["JWT_EMAIL_TTL_SEC"],
+				variablesMap["JWT_CONFIRM_PUBLIC_KEY"],
+				variablesMap["JWT_CONFIRM_PRIVATE_KEY"],
+				variablesMap["JWT_CONFIRM_KID"],
+				intMap["JWT_CONFIRM_TTL_SEC"],
 			),
 			NewSingleJwtConfig(
 				variablesMap["JWT_OAUTH_PUBLIC_KEY"],
@@ -253,12 +249,6 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 				variablesMap["JWT_2FA_PRIVATE_KEY"],
 				variablesMap["JWT_2FA_KID"],
 				intMap["JWT_2FA_TTL_SEC"],
-			),
-			NewSingleJwtConfig(
-				variablesMap["JWT_APP_PUBLIC_KEY"],
-				variablesMap["JWT_APP_PRIVATE_KEY"],
-				variablesMap["JWT_APP_KID"],
-				intMap["JWT_APP_TTL_SEC"],
 			),
 		),
 		oAuthProvidersConfig: NewOAuthProviders(

@@ -5,11 +5,11 @@ import (
 	"crypto/ed25519"
 	"crypto/x509"
 	"encoding/pem"
+	"github.com/tugascript/devlogs/idp/internal/config"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
-	"github.com/tugascript/devlogs/idp/internal/config"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -173,7 +173,6 @@ type Tokens struct {
 	resetData        TokenSecretData
 	oauthData        TokenSecretData
 	twoFAData        TokenSecretData
-	appData          Es256TokenSecretData
 	jwks             []utils.P256JWK
 }
 
@@ -184,8 +183,7 @@ func NewTokens(
 	confirmationCfg,
 	resetCfg,
 	oauthCfg,
-	twoFACfg,
-	appCfg config.SingleJwtConfig,
+	twoFACfg config.SingleJwtConfig,
 	frontendDomain,
 	backendDomain string,
 ) *Tokens {
@@ -267,13 +265,6 @@ func NewTokens(
 			twoFACfg.TtlSec(),
 			uuid.MustParse(twoFACfg.KID()),
 			nil,
-			nil,
-			nil,
-		),
-		appData: newEs256TokenSecretData(
-			appCfg.PrivateKey(),
-			appCfg.TtlSec(),
-			uuid.MustParse(appCfg.KID()),
 			nil,
 			nil,
 		),

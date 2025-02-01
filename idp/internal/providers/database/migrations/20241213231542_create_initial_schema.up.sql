@@ -1,11 +1,12 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-01-28T08:52:02.914Z
+-- Generated at: 2025-02-01T10:32:06.170Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
   "first_name" varchar(50) NOT NULL,
   "last_name" varchar(50) NOT NULL,
+  "username" varchar(109) NOT NULL,
   "email" varchar(250) NOT NULL,
   "password" text,
   "version" integer NOT NULL DEFAULT 1,
@@ -43,31 +44,27 @@ CREATE TABLE "auth_providers" (
 );
 
 CREATE TABLE "apps" (
-  "id" uuid PRIMARY KEY,
+  "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "name" varchar(50) NOT NULL,
-  "slug" varchar(60) NOT NULL,
-  "redirect_uris" varchar(250)[] NOT NULL DEFAULT '[]',
-  "sign_out_uri" varchar(250),
+  "client_id" varchar(22) NOT NULL,
+  "client_secret" text NOT NULL,
+  "callback_uris" varchar(250)[] NOT NULL DEFAULT '[]',
+  "logout_uris" varchar(250)[] NOT NULL DEFAULT '[]',
   "id_token_ttl" integer NOT NULL DEFAULT 3600,
-  "secret" text NOT NULL,
-  "jwt_crypto_suite" varchar(10) NOT NULL DEFAULT 'ecdsa',
+  "jwt_crypto_suite" varchar(7) NOT NULL DEFAULT 'ES256',
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "app_keys" (
   "id" serial PRIMARY KEY,
-  "app_id" uuid NOT NULL,
+  "app_id" integer NOT NULL,
   "account_id" integer NOT NULL,
-  "jwt_crypto_suite" varchar(10) NOT NULL,
-  "access_public_key" jsonb NOT NULL,
-  "access_key_id" uuid NOT NULL,
-  "id_public_key" jsonb NOT NULL,
-  "id_key_id" uuid NOT NULL,
-  "refresh_public_key" text NOT NULL,
-  "refresh_key_id" uuid NOT NULL,
-  "expires_at" timestamp NOT NULL,
+  "name" varchar(10) NOT NULL,
+  "jwt_crypto_suite" varchar(7) NOT NULL,
+  "public_key" jsonb NOT NULL,
+  "key_id" uuid NOT NULL,
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
@@ -137,6 +134,8 @@ CREATE TABLE "blacklisted_tokens" (
 
 CREATE UNIQUE INDEX "accounts_email_uidx" ON "accounts" ("email");
 
+CREATE UNIQUE INDEX "accounts_username_uidx" ON "accounts" ("username");
+
 CREATE UNIQUE INDEX "accounts_totps_account_id_uidx" ON "accounts_totps" ("account_id");
 
 CREATE UNIQUE INDEX "account_keys_client_id_uidx" ON "account_keys" ("client_id");
@@ -149,11 +148,13 @@ CREATE UNIQUE INDEX "auth_providers_email_provider_uidx" ON "auth_providers" ("e
 
 CREATE INDEX "apps_account_id_idx" ON "apps" ("account_id");
 
-CREATE UNIQUE INDEX "apps_slug_uidx" ON "apps" ("slug");
+CREATE UNIQUE INDEX "client_id_uidx" ON "apps" ("client_id");
 
-CREATE UNIQUE INDEX "app_keys_app_id_uidx" ON "app_keys" ("app_id");
+CREATE INDEX "app_keys_app_id_idx" ON "app_keys" ("app_id");
 
 CREATE INDEX "app_keys_account_id_idx" ON "app_keys" ("account_id");
+
+CREATE UNIQUE INDEX "app_keys_name_app_id_uidx" ON "app_keys" ("name", "app_id");
 
 CREATE UNIQUE INDEX "app_auth_providers_app_id_uidx" ON "app_auth_providers" ("app_id");
 
