@@ -4,15 +4,13 @@ type SingleJwtConfig struct {
 	publicKey  string
 	privateKey string
 	ttlSec     int64
-	kid        string
 }
 
-func NewSingleJwtConfig(publicKey, privateKey, kid string, ttlSec int64) SingleJwtConfig {
+func NewSingleJwtConfig(publicKey, privateKey string, ttlSec int64) SingleJwtConfig {
 	return SingleJwtConfig{
 		publicKey:  publicKey,
 		privateKey: privateKey,
 		ttlSec:     ttlSec,
-		kid:        kid,
 	}
 }
 
@@ -26,10 +24,6 @@ func (s *SingleJwtConfig) PrivateKey() string {
 
 func (s *SingleJwtConfig) TtlSec() int64 {
 	return s.ttlSec
-}
-
-func (s *SingleJwtConfig) KID() string {
-	return s.kid
 }
 
 type TokensConfig struct {

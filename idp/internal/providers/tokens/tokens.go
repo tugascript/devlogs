@@ -3,20 +3,20 @@ package tokens
 import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
-	"github.com/tugascript/devlogs/idp/internal/config"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 
+	"github.com/tugascript/devlogs/idp/internal/config"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type TokenKeyPair struct {
 	publicKey  ed25519.PublicKey
 	privateKey ed25519.PrivateKey
-	kid        uuid.UUID
+	kid        string
 }
 
 type TokenSecretData struct {
@@ -25,7 +25,12 @@ type TokenSecretData struct {
 	ttlSec      int64
 }
 
-func extractEd25519PublicKey(publicKey string) ed25519.PublicKey {
+func extractKeyID(keyBytes []byte) string {
+	hash := sha256.Sum256(keyBytes)
+	return utils.Base62Encode(hash[:16])
+}
+
+func extractEd25519PublicKey(publicKey string) (ed25519.PublicKey, string) {
 	publicKeyBlock, _ := pem.Decode([]byte(publicKey))
 	if publicKeyBlock == nil || publicKeyBlock.Type != "PUBLIC KEY" {
 		panic("Invalid public key")
@@ -41,7 +46,7 @@ func extractEd25519PublicKey(publicKey string) ed25519.PublicKey {
 		panic("Invalid public key")
 	}
 
-	return publicKeyValue
+	return publicKeyValue, extractKeyID(publicKeyValue)
 }
 
 func extractEd25519PrivateKey(privateKey string) ed25519.PrivateKey {
@@ -63,22 +68,19 @@ func extractEd25519PrivateKey(privateKey string) ed25519.PrivateKey {
 	return privateKeyValue
 }
 
-func extractEd25519PublicPrivateKeyPair(
-	publicKey,
-	privateKey string,
-	keyID uuid.UUID,
-) TokenKeyPair {
+func extractEd25519PublicPrivateKeyPair(publicKey, privateKey string) TokenKeyPair {
+	pubKey, kid := extractEd25519PublicKey(publicKey)
 	return TokenKeyPair{
-		publicKey:  extractEd25519PublicKey(publicKey),
+		publicKey:  pubKey,
 		privateKey: extractEd25519PrivateKey(privateKey),
-		kid:        keyID,
+		kid:        kid,
 	}
 }
 
 type Es256TokenKeyPair struct {
-	privateKey ecdsa.PrivateKey
-	publicKey  ecdsa.PublicKey
-	kid        uuid.UUID
+	privateKey *ecdsa.PrivateKey
+	publicKey  *ecdsa.PublicKey
+	kid        string
 }
 
 type Es256TokenSecretData struct {
@@ -87,7 +89,7 @@ type Es256TokenSecretData struct {
 	ttlSec      int64
 }
 
-func extractEs256KeyPair(privateKey string, keyID uuid.UUID) Es256TokenKeyPair {
+func extractEs256KeyPair(privateKey string) Es256TokenKeyPair {
 	privateKeyBlock, _ := pem.Decode([]byte(privateKey))
 	if privateKeyBlock == nil || privateKeyBlock.Type != "PRIVATE KEY" {
 		panic("Invalid private key")
@@ -106,10 +108,15 @@ func extractEs256KeyPair(privateKey string, keyID uuid.UUID) Es256TokenKeyPair {
 		panic("Invalid private key")
 	}
 
+	publicKeyValue, err := x509.MarshalPKIXPublicKey(&privateKeyValue.PublicKey)
+	if err != nil {
+		panic(err)
+	}
+
 	return Es256TokenKeyPair{
-		privateKey: *privateKeyValue,
-		publicKey:  privateKeyValue.PublicKey,
-		kid:        keyID,
+		privateKey: privateKeyValue,
+		publicKey:  &privateKeyValue.PublicKey,
+		kid:        extractKeyID(publicKeyValue),
 	}
 }
 
@@ -117,15 +124,13 @@ func newTokenSecretData(
 	publicKey,
 	privateKey string,
 	ttlSec int64,
-	keyID uuid.UUID,
 	prevPublicKey,
 	prevPrivateKey *string,
-	prevKeyID *uuid.UUID,
 ) TokenSecretData {
-	curKeyPair := extractEd25519PublicPrivateKeyPair(publicKey, privateKey, keyID)
+	curKeyPair := extractEd25519PublicPrivateKeyPair(publicKey, privateKey)
 
-	if prevPublicKey != nil && prevPrivateKey != nil && prevKeyID != nil {
-		prevKeyPair := extractEd25519PublicPrivateKeyPair(*prevPublicKey, *prevPrivateKey, *prevKeyID)
+	if prevPublicKey != nil && prevPrivateKey != nil {
+		prevKeyPair := extractEd25519PublicPrivateKeyPair(*prevPublicKey, *prevPrivateKey)
 		return TokenSecretData{
 			curKeyPair:  curKeyPair,
 			prevKeyPair: &prevKeyPair,
@@ -139,17 +144,11 @@ func newTokenSecretData(
 	}
 }
 
-func newEs256TokenSecretData(
-	privateKey string,
-	ttlSec int64,
-	keyID uuid.UUID,
-	prevPrivateKey *string,
-	prevKeyId *uuid.UUID,
-) Es256TokenSecretData {
-	curKeyPair := extractEs256KeyPair(privateKey, keyID)
+func newEs256TokenSecretData(privateKey string, ttlSec int64, prevPrivateKey *string) Es256TokenSecretData {
+	curKeyPair := extractEs256KeyPair(privateKey)
 
-	if prevPrivateKey != nil && prevKeyId != nil {
-		prevKeyPair := extractEs256KeyPair(*prevPrivateKey, *prevKeyId)
+	if prevPrivateKey != nil {
+		prevKeyPair := extractEs256KeyPair(*prevPrivateKey)
 		return Es256TokenSecretData{
 			curKeyPair:  curKeyPair,
 			prevKeyPair: &prevKeyPair,
@@ -190,15 +189,11 @@ func NewTokens(
 	accessData := newEs256TokenSecretData(
 		accessCfg.PrivateKey(),
 		accessCfg.TtlSec(),
-		uuid.MustParse(accessCfg.KID()),
-		nil,
 		nil,
 	)
 	accountKeysData := newEs256TokenSecretData(
 		accountKeysCfg.PrivateKey(),
 		accountKeysCfg.TtlSec(),
-		uuid.MustParse(accessCfg.KID()),
-		nil,
 		nil,
 	)
 
@@ -227,8 +222,6 @@ func NewTokens(
 			refreshCfg.PublicKey(),
 			refreshCfg.PrivateKey(),
 			refreshCfg.TtlSec(),
-			uuid.MustParse(refreshCfg.KID()),
-			nil,
 			nil,
 			nil,
 		),
@@ -236,8 +229,6 @@ func NewTokens(
 			confirmationCfg.PublicKey(),
 			confirmationCfg.PrivateKey(),
 			confirmationCfg.TtlSec(),
-			uuid.MustParse(confirmationCfg.KID()),
-			nil,
 			nil,
 			nil,
 		),
@@ -245,8 +236,6 @@ func NewTokens(
 			resetCfg.PublicKey(),
 			resetCfg.PrivateKey(),
 			resetCfg.TtlSec(),
-			uuid.MustParse(resetCfg.KID()),
-			nil,
 			nil,
 			nil,
 		),
@@ -254,8 +243,6 @@ func NewTokens(
 			oauthCfg.PublicKey(),
 			oauthCfg.PrivateKey(),
 			oauthCfg.TtlSec(),
-			uuid.MustParse(oauthCfg.KID()),
-			nil,
 			nil,
 			nil,
 		),
@@ -263,8 +250,6 @@ func NewTokens(
 			twoFACfg.PublicKey(),
 			twoFACfg.PrivateKey(),
 			twoFACfg.TtlSec(),
-			uuid.MustParse(twoFACfg.KID()),
-			nil,
 			nil,
 			nil,
 		),
@@ -278,11 +263,11 @@ func (t *Tokens) JWKs() []utils.P256JWK {
 	return t.jwks
 }
 
-func extractUserTokenKID(token *jwt.Token) (uuid.UUID, error) {
+func extractUserTokenKID(token *jwt.Token) (string, error) {
 	kid, ok := token.Header["kid"].(string)
 	if !ok {
-		return uuid.Nil, jwt.ErrInvalidKey
+		return "", jwt.ErrInvalidKey
 	}
 
-	return uuid.Parse(kid)
+	return kid, nil
 }

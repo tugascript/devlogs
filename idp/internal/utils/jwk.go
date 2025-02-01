@@ -8,8 +8,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/big"
-
-	"github.com/google/uuid"
 )
 
 type Ed25519JWK struct {
@@ -51,15 +49,14 @@ const (
 	verify string = "verify"
 )
 
-// GenerateJWK generates a JWK from the given public key.
-func EncodeEd25519Jwk(publicKey ed25519.PublicKey, kid uuid.UUID) Ed25519JWK {
+func EncodeEd25519Jwk(publicKey ed25519.PublicKey, kid string) Ed25519JWK {
 	return Ed25519JWK{
 		Kty:    kty,
 		Crv:    crv,
 		X:      base64.RawURLEncoding.EncodeToString(publicKey),
 		Use:    use,
 		Alg:    alg,
-		Kid:    kid.String(),
+		Kid:    kid,
 		KeyOps: []string{verify},
 	}
 }
@@ -73,7 +70,7 @@ func DecodeEd25519Jwk(jwk Ed25519JWK) (ed25519.PublicKey, error) {
 	return publicKey, nil
 }
 
-func EncodeP256Jwk(publicKey ecdsa.PublicKey, kid uuid.UUID) P256JWK {
+func EncodeP256Jwk(publicKey *ecdsa.PublicKey, kid string) P256JWK {
 	return P256JWK{
 		Kty:    "EC",
 		Crv:    "P-256",
@@ -81,7 +78,7 @@ func EncodeP256Jwk(publicKey ecdsa.PublicKey, kid uuid.UUID) P256JWK {
 		Y:      base64.RawURLEncoding.EncodeToString(publicKey.Y.Bytes()),
 		Use:    "sig",
 		Alg:    "ES256",
-		Kid:    kid.String(),
+		Kid:    kid,
 		KeyOps: []string{"verify"},
 	}
 }

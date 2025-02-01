@@ -8,7 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func (t *Tokens) getAccessTokenPrivateKey(scopes []AccountScope) ecdsa.PrivateKey {
+func (t *Tokens) getAccessTokenPrivateKey(scopes []AccountScope) *ecdsa.PrivateKey {
 	if slices.Contains(scopes, AccountScopeClientID) {
 		return t.accountKeysData.curKeyPair.privateKey
 	}

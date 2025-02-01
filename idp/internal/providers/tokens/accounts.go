@@ -48,7 +48,7 @@ type accountTokenClaims struct {
 type accountTokenOptions struct {
 	method         jwt.SigningMethod
 	privateKey     interface{}
-	kid            uuid.UUID
+	kid            string
 	ttlSec         int64
 	accountID      int
 	accountVersion int
@@ -107,7 +107,7 @@ func (t *Tokens) createToken(opts accountTokenOptions) (string, error) {
 		},
 		Scopes: scopes,
 	})
-	token.Header["kid"] = opts.kid.String()
+	token.Header["kid"] = opts.kid
 	return token.SignedString(opts.privateKey)
 }
 
