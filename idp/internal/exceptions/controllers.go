@@ -1,6 +1,7 @@
 package exceptions
 
 import (
+	"net/http"
 	"strings"
 	"unicode"
 
@@ -11,6 +12,7 @@ const (
 	StatusConflict     string = "Conflict"
 	StatusInvalidEnum  string = "BadRequest"
 	StatusNotFound     string = "NotFound"
+	StatusServerError  string = "InternalServerError"
 	StatusUnknown      string = "InternalServerError"
 	StatusUnauthorized string = "Unauthorized"
 	StatusForbidden    string = "Forbidden"
@@ -28,6 +30,11 @@ type ErrorResponse struct {
 
 func NewErrorResponse(err *ServiceError) ErrorResponse {
 	switch err.Code {
+	case CodeServerError:
+		return ErrorResponse{
+			Code:    StatusServerError,
+			Message: err.Message,
+		}
 	case CodeConflict:
 		return ErrorResponse{
 			Code:    StatusConflict,
@@ -51,7 +58,7 @@ func NewErrorResponse(err *ServiceError) ErrorResponse {
 	case CodeUnknown:
 		return ErrorResponse{
 			Code:    StatusUnknown,
-			Message: StatusUnknown,
+			Message: err.Message,
 		}
 	case CodeUnauthorized:
 		return ErrorResponse{
@@ -238,21 +245,21 @@ func NewEmptyValidationErrorResponse(location string) ValidationErrorResponse {
 func NewRequestErrorStatus(code string) int {
 	switch code {
 	case CodeConflict:
-		return 409
+		return http.StatusConflict
 	case CodeInvalidEnum, CodeValidation:
-		return 400
+		return http.StatusBadRequest
 	case CodeNotFound:
-		return 404
+		return http.StatusNotFound
 	case CodeForbidden:
-		return 403
+		return http.StatusForbidden
 	case CodeUnauthorized:
-		return 401
-	case CodeUnknown:
-		return 500
+		return http.StatusUnauthorized
+	case CodeUnknown, CodeServerError:
+		return http.StatusInternalServerError
 	case CodeUnsupportedMediaType:
-		return 415
+		return http.StatusUnsupportedMediaType
 	default:
-		return 500
+		return http.StatusInternalServerError
 	}
 }
 

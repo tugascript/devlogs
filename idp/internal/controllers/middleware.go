@@ -12,7 +12,7 @@ import (
 
 const middlewareLocation string = "middleware"
 
-func (c *Controllers) processClaimsMiddleware(
+func processClaimsMiddleware(
 	logger *slog.Logger,
 	ctx *fiber.Ctx,
 	processAH func(string) (tokens.AccountClaims, []tokens.AccountScope, *exceptions.ServiceError),
@@ -34,12 +34,12 @@ func (c *Controllers) processClaimsMiddleware(
 
 func (c *Controllers) AccountAccessClaimsMiddleware(ctx *fiber.Ctx) error {
 	logger := c.buildLogger(getRequestID(ctx), middlewareLocation, "AccountAccessClaimsMiddleware")
-	return c.processClaimsMiddleware(logger, ctx, c.services.ProcessAccountAuthHeader)
+	return processClaimsMiddleware(logger, ctx, c.services.ProcessAccountAuthHeader)
 }
 
 func (c *Controllers) TwoFAAccessClaimsMiddleware(ctx *fiber.Ctx) error {
 	logger := c.buildLogger(getRequestID(ctx), middlewareLocation, "TwoFAAccessClaimsMiddleware")
-	return c.processClaimsMiddleware(logger, ctx, c.services.Process2FAAuthHeader)
+	return processClaimsMiddleware(logger, ctx, c.services.Process2FAAuthHeader)
 }
 
 func (c *Controllers) ScopeMiddleware(scope tokens.AccountScope) func(*fiber.Ctx) error {
