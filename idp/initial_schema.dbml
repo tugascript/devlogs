@@ -23,7 +23,7 @@ Table accounts_totps as AT {
     id serial [pk]
     
     account_id integer [not null]
-    topt_url varchar(250) [not null]
+    totp_url varchar(250) [not null]
     secret_vault_id uuid [not null]
 
     created_at timestamp [not null, default: `now()`]
@@ -194,7 +194,7 @@ Table user_totps as UT {
     id serial [pk]
     
     user_id integer [not null]
-    topt_url varchar(250) [not null]
+    totp_url varchar(250) [not null]
     secret_vault_id uuid [not null]
 
     created_at timestamp [not null, default: `now()`]
