@@ -19,14 +19,14 @@ type email struct {
 }
 
 type EmailPublisher struct {
-	client         *redis.Client
+	client         redis.UniversalClient
 	pubChannel     string
 	frontendDomain string
 	logger         *slog.Logger
 }
 
 func NewEmailPublisher(
-	client *redis.Client,
+	client redis.UniversalClient,
 	pubChannel,
 	frontendDomain string,
 	logger *slog.Logger,

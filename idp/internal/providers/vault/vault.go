@@ -9,10 +9,13 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/config"
 )
 
+const logLayer string = "vault"
+
 type Vault struct {
 	logger *slog.Logger
 	client infisical.InfisicalClientInterface
 	env    string
+	url    string
 }
 
 func NewVault(
@@ -20,8 +23,9 @@ func NewVault(
 	logger *slog.Logger,
 	config config.VaultConfig,
 ) *Vault {
+	url := config.Url()
 	client := infisical.NewInfisicalClient(ctx, infisical.Config{
-		SiteUrl:          config.Url(),
+		SiteUrl:          url,
 		AutoTokenRefresh: true,
 	})
 
@@ -34,6 +38,7 @@ func NewVault(
 	return &Vault{
 		logger: logger,
 		client: client,
+		url:    url,
 		env:    config.Env(),
 	}
 }

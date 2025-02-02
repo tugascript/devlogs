@@ -21,8 +21,8 @@ func NewDatabase(connPool *pgxpool.Pool) *Database {
 	}
 }
 
-func (database *Database) BeginTx(ctx context.Context) (*Queries, pgx.Tx, error) {
-	txn, err := database.connPool.BeginTx(ctx, pgx.TxOptions{
+func (d *Database) BeginTx(ctx context.Context) (*Queries, pgx.Tx, error) {
+	txn, err := d.connPool.BeginTx(ctx, pgx.TxOptions{
 		DeferrableMode: pgx.Deferrable,
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
@@ -32,10 +32,10 @@ func (database *Database) BeginTx(ctx context.Context) (*Queries, pgx.Tx, error)
 		return nil, nil, err
 	}
 
-	return database.WithTx(txn), txn, nil
+	return d.WithTx(txn), txn, nil
 }
 
-func (database *Database) FinalizeTx(ctx context.Context, txn pgx.Tx, err error, serviceErr *exceptions.ServiceError) {
+func (d *Database) FinalizeTx(ctx context.Context, txn pgx.Tx, err error, serviceErr *exceptions.ServiceError) {
 	if serviceErr != nil || err != nil {
 		if err := txn.Rollback(ctx); err != nil {
 			panic(err)
@@ -53,10 +53,14 @@ func (database *Database) FinalizeTx(ctx context.Context, txn pgx.Tx, err error,
 	}
 }
 
-func (database *Database) RawQuery(ctx context.Context, sql string, args []interface{}) (pgx.Rows, error) {
-	return database.connPool.Query(ctx, sql, args...)
+func (d *Database) RawQuery(ctx context.Context, sql string, args []interface{}) (pgx.Rows, error) {
+	return d.connPool.Query(ctx, sql, args...)
 }
 
-func (database *Database) RawQueryRow(ctx context.Context, sql string, args []interface{}) pgx.Row {
-	return database.connPool.QueryRow(ctx, sql, args...)
+func (d *Database) RawQueryRow(ctx context.Context, sql string, args []interface{}) pgx.Row {
+	return d.connPool.QueryRow(ctx, sql, args...)
+}
+
+func (d *Database) Ping(ctx context.Context) error {
+	return d.Ping(ctx)
 }

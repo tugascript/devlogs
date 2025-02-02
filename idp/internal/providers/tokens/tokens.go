@@ -3,7 +3,6 @@ package tokens
 import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 
@@ -25,11 +24,6 @@ type TokenSecretData struct {
 	ttlSec      int64
 }
 
-func extractKeyID(keyBytes []byte) string {
-	hash := sha256.Sum256(keyBytes)
-	return utils.Base62Encode(hash[:16])
-}
-
 func extractEd25519PublicKey(publicKey string) (ed25519.PublicKey, string) {
 	publicKeyBlock, _ := pem.Decode([]byte(publicKey))
 	if publicKeyBlock == nil || publicKeyBlock.Type != "PUBLIC KEY" {
@@ -46,7 +40,7 @@ func extractEd25519PublicKey(publicKey string) (ed25519.PublicKey, string) {
 		panic("Invalid public key")
 	}
 
-	return publicKeyValue, extractKeyID(publicKeyValue)
+	return publicKeyValue, utils.ExtractKeyID(publicKeyValue)
 }
 
 func extractEd25519PrivateKey(privateKey string) ed25519.PrivateKey {
@@ -116,7 +110,7 @@ func extractEs256KeyPair(privateKey string) Es256TokenKeyPair {
 	return Es256TokenKeyPair{
 		privateKey: privateKeyValue,
 		publicKey:  &privateKeyValue.PublicKey,
-		kid:        extractKeyID(publicKeyValue),
+		kid:        utils.ExtractKeyID(publicKeyValue),
 	}
 }
 

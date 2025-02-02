@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-02-01T10:32:06.170Z
+-- Generated at: 2025-02-02T01:00:03.330Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -64,7 +64,7 @@ CREATE TABLE "app_keys" (
   "name" varchar(10) NOT NULL,
   "jwt_crypto_suite" varchar(7) NOT NULL,
   "public_key" jsonb NOT NULL,
-  "key_id" uuid NOT NULL,
+  "key_id" varchar(22) NOT NULL,
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );

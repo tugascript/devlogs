@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -8,148 +9,222 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 
-	"github.com/google/uuid"
 	infisical "github.com/infisical/go-sdk"
 
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const kmsBasePath = "auth/jwt/keys"
+const (
+	keyManagementLocation string = "key_management"
+
+	kmsBasePath string = "auth/jwt/keys"
+)
 
 type Ed25519KeyPair struct {
-	Kid       uuid.UUID
+	Kid       string
 	PublicKey utils.Ed25519JWK
 }
 
-type Es256KeyPair struct {
-	Kid       uuid.UUID
+type ES256KeyPair struct {
+	Kid       string
 	PublicKey utils.P256JWK
 }
 
-func (v *Vault) GenerateEd25519KeyPair(accountId int) (Ed25519KeyPair, error) {
-	var keyPair Ed25519KeyPair
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-
-	if err != nil {
-		return keyPair, err
-	}
-
-	kid, err := uuid.NewRandom()
-	if err != nil {
-		return keyPair, err
-	}
-	privKey, err := x509.MarshalPKCS8PrivateKey(priv)
-	if err != nil {
-		return keyPair, err
-	}
-
-	privKeyBase64 := base64.StdEncoding.EncodeToString(privKey)
-	v.client.Secrets().Create(infisical.CreateSecretOptions{
-		SecretKey:   kid.String(),
-		SecretPath:  fmt.Sprintf("%s/accounts/%d", kmsBasePath, accountId),
-		SecretValue: privKeyBase64,
-		Environment: v.env,
-	})
-
-	keyPair = Ed25519KeyPair{
-		Kid:       kid,
-		PublicKey: utils.EncodeEd25519Jwk(pub, kid),
-	}
-	return keyPair, nil
+type GenerateKeyPairOptions struct {
+	RequestID string
+	AccountID int
 }
 
-func (v *Vault) GetEd25519PrivateKey(accountId int, kid uuid.UUID) (ed25519.PrivateKey, error) {
+type GetPrivateKeyOptions struct {
+	RequestID string
+	AccountID int
+	KID       string
+}
+
+func (v *Vault) GenerateEd25519KeyPair(ctx context.Context, opts GenerateKeyPairOptions) (Ed25519KeyPair, error) {
+	logger := utils.BuildLogger(v.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  keyManagementLocation,
+		Method:    "GenerateEd25519KeyPair",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Generating Ed25519 key pair...")
+
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate key pair", "error", err)
+		return Ed25519KeyPair{}, err
+	}
+
+	privKey, err := x509.MarshalPKCS8PrivateKey(priv)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to parse private key", "error", err)
+		return Ed25519KeyPair{}, err
+	}
+
+	kid := utils.ExtractKeyID(pub)
+	privKeyBase64 := base64.StdEncoding.EncodeToString(privKey)
+	if _, err := v.client.Secrets().Create(infisical.CreateSecretOptions{
+		SecretKey:   kid,
+		SecretPath:  fmt.Sprintf("%s/accounts/%d", kmsBasePath, opts.AccountID),
+		SecretValue: privKeyBase64,
+		Environment: v.env,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to create private key secret", "error", err)
+		return Ed25519KeyPair{}, err
+	}
+
+	return Ed25519KeyPair{
+		Kid:       kid,
+		PublicKey: utils.EncodeEd25519Jwk(pub, kid),
+	}, nil
+}
+
+func (v *Vault) getDecodedPrivateKey(
+	logger *slog.Logger,
+	ctx context.Context,
+	opts GetPrivateKeyOptions,
+) (interface{}, error) {
 	secret, err := v.client.Secrets().Retrieve(infisical.RetrieveSecretOptions{
-		SecretPath:  fmt.Sprintf("%s/accounts/%d/%s", kmsBasePath, accountId, kid.String()),
+		SecretPath:  fmt.Sprintf("%s/accounts/%d", kmsBasePath, opts.AccountID),
+		SecretKey:   opts.KID,
 		Environment: v.env,
 	})
 	if err != nil {
+		logger.ErrorContext(ctx, "Failed to find key", "error", err)
 		return nil, err
 	}
 
 	decoded, err := base64.StdEncoding.DecodeString(secret.SecretValue)
 	if err != nil {
+		logger.ErrorContext(ctx, "Failed to decode key", "error", err)
 		return nil, err
 	}
 
 	privateKeyData, err := x509.ParsePKCS8PrivateKey(decoded)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to parse key", "error", err)
+		return nil, err
+	}
+
+	return privateKeyData, nil
+}
+
+func (v *Vault) GetEd25519PrivateKey(ctx context.Context, opts GetPrivateKeyOptions) (ed25519.PrivateKey, error) {
+	logger := utils.BuildLogger(v.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  keyManagementLocation,
+		Method:    "GetEd25519KeyPair",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Getting Ed25519 private key...")
+
+	privateKeyData, err := v.getDecodedPrivateKey(logger, ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	privateKey, ok := privateKeyData.(ed25519.PrivateKey)
 	if !ok {
+		logger.ErrorContext(ctx, "Key is not a valid Ed25519 private key")
 		return nil, fmt.Errorf("invalid private key")
 	}
 
 	return privateKey, nil
 }
 
-func (v *Vault) GenerateEs256KeyPair(accountId int) (Es256KeyPair, error) {
-	var keyPair Es256KeyPair
+func (v *Vault) GenerateES256KeyPair(ctx context.Context, opts GenerateKeyPairOptions) (ES256KeyPair, error) {
+	logger := utils.BuildLogger(v.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  keyManagementLocation,
+		Method:    "GenerateES256KeyPair",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Generating ES256 key pair...")
+
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return keyPair, err
-	}
-
-	kid, err := uuid.NewRandom()
-	if err != nil {
-		return keyPair, err
+		logger.ErrorContext(ctx, "Failed to generate ES256 private key", "error", err)
+		return ES256KeyPair{}, err
 	}
 
 	privKey, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
-		return keyPair, err
+		logger.ErrorContext(ctx, "Failed to encode ES256 private key", "error", err)
+		return ES256KeyPair{}, err
 	}
 
+	publicKeyValue, err := x509.MarshalPKIXPublicKey(&priv.PublicKey)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to parse ES256 public key", "error", err)
+		return ES256KeyPair{}, err
+	}
+
+	kid := utils.ExtractKeyID(publicKeyValue)
 	privKeyBase64 := base64.StdEncoding.EncodeToString(privKey)
-	v.client.Secrets().Create(infisical.CreateSecretOptions{
-		SecretKey:   kid.String(),
-		SecretPath:  fmt.Sprintf("%s/accounts/%d", kmsBasePath, accountId),
+	if _, err := v.client.Secrets().Create(infisical.CreateSecretOptions{
+		SecretKey:   kid,
+		SecretPath:  fmt.Sprintf("%s/accounts/%d", kmsBasePath, opts.AccountID),
 		SecretValue: privKeyBase64,
 		Environment: v.env,
-	})
-
-	keyPair = Es256KeyPair{
-		Kid:       kid,
-		PublicKey: utils.EncodeP256Jwk(priv.PublicKey, kid),
+	}); err != nil {
+		return ES256KeyPair{}, err
 	}
-	return keyPair, nil
+
+	return ES256KeyPair{
+		Kid:       kid,
+		PublicKey: utils.EncodeP256Jwk(&priv.PublicKey, kid),
+	}, nil
 }
 
-func (v *Vault) GetEs256PrivateKey(accountId int, kid uuid.UUID) (*ecdsa.PrivateKey, error) {
-	secret, err := v.client.Secrets().Retrieve(infisical.RetrieveSecretOptions{
-		SecretPath:  fmt.Sprintf("%s/accounts/%d/%s", kmsBasePath, accountId, kid.String()),
-		Environment: v.env,
+func (v *Vault) GetES256PrivateKey(ctx context.Context, opts GetPrivateKeyOptions) (*ecdsa.PrivateKey, error) {
+	logger := utils.BuildLogger(v.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  keyManagementLocation,
+		Method:    "GetES256KeyPair",
+		RequestID: opts.RequestID,
 	})
-	if err != nil {
-		return nil, err
-	}
+	logger.DebugContext(ctx, "Getting ES256 private key...")
 
-	decoded, err := base64.StdEncoding.DecodeString(secret.SecretValue)
-	if err != nil {
-		return nil, err
-	}
-
-	privateKeyData, err := x509.ParsePKCS8PrivateKey(decoded)
+	privateKeyData, err := v.getDecodedPrivateKey(logger, ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	privateKey, ok := privateKeyData.(*ecdsa.PrivateKey)
 	if !ok {
+		logger.ErrorContext(ctx, "Key is not a valid ES256 private key")
 		return nil, fmt.Errorf("invalid private key")
 	}
 
 	return privateKey, nil
 }
 
-func (v *Vault) DeleteKeyPair(accountId int, kid uuid.UUID) error {
-	_, err := v.client.Secrets().Delete(infisical.DeleteSecretOptions{
-		SecretKey:   kid.String(),
-		SecretPath:  fmt.Sprintf("%s/accounts/%d", kmsBasePath, accountId),
-		Environment: v.env,
+type DeletePrivateKeyOptions struct {
+	RequestID string
+	AccountID int
+	KID       string
+}
+
+func (v *Vault) DeletePrivateKey(ctx context.Context, opts DeletePrivateKeyOptions) error {
+	logger := utils.BuildLogger(v.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  keyManagementLocation,
+		Method:    "DeletePrivateKey",
+		RequestID: opts.RequestID,
 	})
-	return err
+	logger.DebugContext(ctx, "Deleting private key...")
+
+	if _, err := v.client.Secrets().Delete(infisical.DeleteSecretOptions{
+		SecretKey:   opts.KID,
+		SecretPath:  fmt.Sprintf("%s/accounts/%d", kmsBasePath, opts.KID),
+		Environment: v.env,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to delete private key", "error", err)
+		return err
+	}
+
+	return nil
 }
