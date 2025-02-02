@@ -52,7 +52,7 @@ const (
 
 func ExtractKeyID(keyBytes []byte) string {
 	hash := sha256.Sum256(keyBytes)
-	return Base62Encode(hash[:16])
+	return Base62Encode(hash[:12])
 }
 
 func EncodeEd25519Jwk(publicKey ed25519.PublicKey, kid string) Ed25519JWK {
