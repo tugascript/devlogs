@@ -9,9 +9,8 @@ import (
 )
 
 type UserClaims struct {
-	AppID   uuid.UUID
-	ID      int32
-	Version int32
+	ID      int32 `json:"id"`
+	Version int32 `json:"version"`
 }
 
 type userTokenClaims struct {
@@ -20,14 +19,14 @@ type userTokenClaims struct {
 }
 
 type UserTokenOptions struct {
-	Method      jwt.SigningMethod
-	PrivateKey  interface{}
-	KID         uuid.UUID
-	TTLSec      int64
-	AppID       uuid.UUID
-	UserID      int32
-	UserVersion int32
-	UserEmail   string
+	Method          jwt.SigningMethod
+	PrivateKey      interface{}
+	KID             string
+	TTLSec          int64
+	AccountUsername string
+	UserID          int32
+	UserVersion     int32
+	UserEmail       string
 }
 
 func (t *Tokens) CreateUserToken(opts UserTokenOptions) (string, error) {
@@ -35,13 +34,12 @@ func (t *Tokens) CreateUserToken(opts UserTokenOptions) (string, error) {
 	iat := jwt.NewNumericDate(now)
 	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(opts.TTLSec)))
 	iss := fmt.Sprintf(
-		"%s/api/v1/apps/%s",
+		"https://%s.%s",
+		opts.AccountUsername,
 		t.frontendDomain,
-		opts.AppID.String(),
 	)
 	token := jwt.NewWithClaims(opts.Method, userTokenClaims{
 		User: UserClaims{
-			AppID:   opts.AppID,
 			ID:      opts.UserID,
 			Version: opts.UserVersion,
 		},
@@ -55,6 +53,6 @@ func (t *Tokens) CreateUserToken(opts UserTokenOptions) (string, error) {
 			ID:        uuid.NewString(),
 		},
 	})
-	token.Header["kid"] = opts.KID.String()
+	token.Header["kid"] = opts.KID
 	return token.SignedString(opts.PrivateKey)
 }
