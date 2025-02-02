@@ -15,7 +15,6 @@ import (
 	fiberRedis "github.com/gofiber/storage/redis/v3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/tugascript/devlogs/idp/internal/config"
 	"github.com/tugascript/devlogs/idp/internal/controllers"
@@ -59,13 +58,8 @@ func New(
 	logger.InfoContext(ctx, "Finished building database connection pool")
 
 	logger.InfoContext(ctx, "Building mailer...")
-	redisCfg, err := redis.ParseURL(cfg.RedisURL())
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to parse redis url", "error", err)
-		panic(err)
-	}
 	mail := mailer.NewEmailPublisher(
-		redis.NewClient(redisCfg),
+		cc.Client(),
 		cfg.EmailPubChannel(),
 		cfg.FrontendDomain(),
 		logger,

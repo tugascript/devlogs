@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"math/big"
@@ -48,6 +49,11 @@ const (
 	alg    string = "EdDSA"
 	verify string = "verify"
 )
+
+func ExtractKeyID(keyBytes []byte) string {
+	hash := sha256.Sum256(keyBytes)
+	return Base62Encode(hash[:16])
+}
 
 func EncodeEd25519Jwk(publicKey ed25519.PublicKey, kid string) Ed25519JWK {
 	return Ed25519JWK{

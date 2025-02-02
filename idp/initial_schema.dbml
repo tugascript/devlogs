@@ -108,7 +108,7 @@ Table app_keys as AK {
     jwt_crypto_suite varchar(7) [not null]
 
     public_key jsonb [not null]
-    key_id uuid [not null]
+    key_id varchar(22) [not null]
 
     created_at timestamp [not null, default: `now()`]
     updated_at timestamp [not null, default: `now()`]
