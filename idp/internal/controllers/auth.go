@@ -391,7 +391,6 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 		ID:        int32(account.ID),
 		Version:   account.Version,
 		Code:      body.Code,
-		State:     body.State,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)

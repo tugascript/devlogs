@@ -755,29 +755,15 @@ func (s *Services) generateOAuthQueryParams(
 		return "", exceptions.NewServerError()
 	}
 
-	state, err := oauth.GenerateState()
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate oauth state", "error", err)
-		return "", exceptions.NewServerError()
-	}
+	queryParams := make(url.Values)
+	queryParams.Add("code", code)
 
-	if err := s.cache.AddOAuthState(ctx, cache.AddOAuthStateOptions{
-		RequestID:       opts.requestID,
-		State:           state,
-		Provider:        AuthProviderEmail,
-		DurationSeconds: oauthTtl,
-	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to cache oauth state", "error", err)
-		return "", exceptions.NewServerError()
-	}
+	fragmentParams := make(url.Values)
+	fragmentParams.Add("token_type", "Bearer")
+	fragmentParams.Add("access_token", opts.token)
+	fragmentParams.Add("expires_in", strconv.FormatInt(oauthTtl, 10))
 
-	params := make(url.Values)
-	params.Add("code", code)
-	params.Add("state", state)
-	params.Add("access_token", opts.token)
-	params.Add("token_type", "Bearer")
-	params.Add("expires_in", strconv.FormatInt(oauthTtl, 10))
-	return params.Encode(), nil
+	return fmt.Sprintf("%s#%s", queryParams.Encode(), fragmentParams.Encode()), nil
 }
 
 type ExtLoginAccountOptions struct {
@@ -932,7 +918,6 @@ type OAuthLoginAccountOptions struct {
 	ID        int32
 	Version   int
 	Code      string
-	State     string
 }
 
 func (s *Services) OAuthLoginAccount(
@@ -964,21 +949,7 @@ func (s *Services) OAuthLoginAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	ok, err := s.cache.VerifyOAuthState(ctx, cache.VerifyOAuthStateOptions{
-		RequestID: opts.RequestID,
-		State:     opts.State,
-		Provider:  AuthProviderEmail,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to verify OAuth state", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
-	}
-	if !ok {
-		logger.WarnContext(ctx, "OAuth state verification failed")
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-	}
-
-	ok, err = s.cache.VerifyOAuthCode(ctx, cache.VerifyOAuthCodeOptions{
+	ok, err := s.cache.VerifyOAuthCode(ctx, cache.VerifyOAuthCodeOptions{
 		RequestID: opts.RequestID,
 		Email:     accountDTO.Email,
 		Code:      opts.Code,

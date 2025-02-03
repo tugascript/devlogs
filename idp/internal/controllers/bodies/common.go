@@ -24,9 +24,8 @@ type GrantRefreshTokenBody struct {
 
 type AuthCodeLoginBody struct {
 	GrantType   string `json:"grant_type" validate:"required,eq=authorization_code"`
-	Code        string `json:"code" validate:"required,min=1,max=30,alphanum"`
-	State       string `json:"state" validate:"required,min=1,hexadecimal"`
 	RedirectURI string `json:"redirect_uri" validate:"required,url"`
+	Code        string `json:"code" validate:"required,min=1,max=30,alphanum"`
 }
 
 type ClientCredentialsBody struct {
