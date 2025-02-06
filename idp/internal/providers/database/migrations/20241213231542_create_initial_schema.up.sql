@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-02-02T09:35:16.508Z
+-- Generated at: 2025-02-06T09:15:37.789Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -25,7 +25,7 @@ CREATE TABLE "accounts_totps" (
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
 
-CREATE TABLE "account_keys" (
+CREATE TABLE "account_credentials" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "scopes" jsonb NOT NULL,
@@ -51,6 +51,8 @@ CREATE TABLE "apps" (
   "client_secret" text NOT NULL,
   "callback_uris" varchar(250)[] NOT NULL DEFAULT '[]',
   "logout_uris" varchar(250)[] NOT NULL DEFAULT '[]',
+  "user_scopes" jsonb NOT NULL DEFAULT '{ "email": true, "name": true }',
+  "app_providers" jsonb NOT NULL DEFAULT '{ "email_password": true }',
   "id_token_ttl" integer NOT NULL DEFAULT 3600,
   "jwt_crypto_suite" varchar(7) NOT NULL DEFAULT 'ES256',
   "created_at" timestamp NOT NULL DEFAULT (now()),
@@ -69,38 +71,13 @@ CREATE TABLE "app_keys" (
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
 
-CREATE TABLE "app_auth_providers" (
-  "id" serial PRIMARY KEY,
-  "app_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
-  "email_password" boolean NOT NULL DEFAULT true,
-  "google" boolean NOT NULL DEFAULT false,
-  "facebook" boolean NOT NULL DEFAULT false,
-  "github" boolean NOT NULL DEFAULT false,
-  "apple" boolean NOT NULL DEFAULT false,
-  "microsoft" boolean NOT NULL DEFAULT false,
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
-);
-
-CREATE TABLE "app_user_schemas" (
-  "id" serial PRIMARY KEY,
-  "app_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
-  "name" boolean NOT NULL DEFAULT false,
-  "gender" boolean NOT NULL DEFAULT false,
-  "location" boolean NOT NULL DEFAULT false,
-  "birth_date" boolean NOT NULL DEFAULT false,
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
-);
-
 CREATE TABLE "users" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "email" varchar(250) NOT NULL,
   "password" text,
   "version" integer NOT NULL DEFAULT 1,
+  "two_factor_type" varchar(5) NOT NULL DEFAULT 'none',
   "user_data" jsonb NOT NULL DEFAULT '{}',
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())
@@ -126,10 +103,8 @@ CREATE TABLE "user_auth_provider" (
 
 CREATE TABLE "blacklisted_tokens" (
   "id" uuid PRIMARY KEY,
-  "jwt" text NOT NULL,
   "expires_at" timestamp NOT NULL,
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamp NOT NULL DEFAULT (now())
 );
 
 CREATE UNIQUE INDEX "accounts_email_uidx" ON "accounts" ("email");
@@ -138,9 +113,9 @@ CREATE UNIQUE INDEX "accounts_username_uidx" ON "accounts" ("username");
 
 CREATE UNIQUE INDEX "accounts_totps_account_id_uidx" ON "accounts_totps" ("account_id");
 
-CREATE UNIQUE INDEX "account_keys_client_id_uidx" ON "account_keys" ("client_id");
+CREATE UNIQUE INDEX "account_credentials_client_id_uidx" ON "account_credentials" ("client_id");
 
-CREATE INDEX "account_keys_account_id_idx" ON "account_keys" ("account_id");
+CREATE INDEX "account_credentials_account_id_idx" ON "account_credentials" ("account_id");
 
 CREATE INDEX "auth_providers_email_idx" ON "auth_providers" ("email");
 
@@ -156,14 +131,6 @@ CREATE INDEX "app_keys_account_id_idx" ON "app_keys" ("account_id");
 
 CREATE UNIQUE INDEX "app_keys_name_app_id_uidx" ON "app_keys" ("name", "app_id");
 
-CREATE UNIQUE INDEX "app_auth_providers_app_id_uidx" ON "app_auth_providers" ("app_id");
-
-CREATE INDEX "app_auth_providers_account_id_idx" ON "app_auth_providers" ("account_id");
-
-CREATE UNIQUE INDEX "app_user_schemas_app_id_uidx" ON "app_user_schemas" ("app_id");
-
-CREATE INDEX "app_user_schemas_account_id_idx" ON "app_user_schemas" ("account_id");
-
 CREATE UNIQUE INDEX "users_account_id_email_uidx" ON "users" ("account_id", "email");
 
 CREATE INDEX "users_account_id_idx" ON "users" ("account_id");
@@ -178,7 +145,7 @@ CREATE INDEX "user_auth_provider_account_id_idx" ON "user_auth_provider" ("accou
 
 ALTER TABLE "accounts_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "account_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "auth_providers" ADD FOREIGN KEY ("email") REFERENCES "accounts" ("email") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -187,14 +154,6 @@ ALTER TABLE "apps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") O
 ALTER TABLE "app_keys" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "app_auth_providers" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "app_auth_providers" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "app_user_schemas" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "app_user_schemas" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "users" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

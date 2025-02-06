@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	accountKeysLocation string = "account_keys"
+	accountCredentialsLocation string = "account_keys"
 
 	accountSecretBytes int = 32
 )
@@ -37,17 +37,17 @@ func mapAndEncodeAccountScopes(
 	return scopesJson, nil
 }
 
-type CreateAccountKeysOptions struct {
+type CreateAccountCredentialsOptions struct {
 	RequestID string
 	AccountID int32
 	Scopes    []tokens.AccountScope
 }
 
-func (s *Services) CreateAccountKeys(
+func (s *Services) CreateAccountCredentials(
 	ctx context.Context,
-	opts CreateAccountKeysOptions,
-) (dtos.AccountKeysDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountKeysLocation, "CreateAccountKeys").With(
+	opts CreateAccountCredentialsOptions,
+) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "CreateAccountCredentials").With(
 		"accountId", opts.AccountID,
 		"scopes", opts.Scopes,
 	)
@@ -56,27 +56,27 @@ func (s *Services) CreateAccountKeys(
 	clientID, err := utils.Base62UUID()
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate client id", "error", err)
-		return dtos.AccountKeysDTO{}, exceptions.NewServerError()
+		return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
 	}
 
 	clientSecret, err := utils.GenerateBase64Secret(accountSecretBytes)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate client secret", "error", err)
-		return dtos.AccountKeysDTO{}, exceptions.NewServerError()
+		return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
 	}
 
 	hashedSecret, err := utils.HashString(clientSecret)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash client secret", "error", err)
-		return dtos.AccountKeysDTO{}, exceptions.NewServerError()
+		return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
 	}
 
 	scopesJson, serviceErr := mapAndEncodeAccountScopes(logger, ctx, opts.Scopes)
 	if serviceErr != nil {
-		return dtos.AccountKeysDTO{}, serviceErr
+		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	accountKeys, err := s.database.CreateAccountKeys(ctx, database.CreateAccountKeysParams{
+	accountCredentials, err := s.database.CreateAccountCredentials(ctx, database.CreateAccountCredentialsParams{
 		ClientID:     clientID,
 		ClientSecret: hashedSecret,
 		AccountID:    opts.AccountID,
@@ -84,77 +84,77 @@ func (s *Services) CreateAccountKeys(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create account keys", "error", err)
-		return dtos.AccountKeysDTO{}, exceptions.FromDBError(err)
+		return dtos.AccountCredentialsDTO{}, exceptions.FromDBError(err)
 	}
 
 	logger.InfoContext(ctx, "Account keys created successfully")
-	return dtos.MapAccountKeysToDTOWithSecret(&accountKeys, clientSecret)
+	return dtos.MapAccountCredentialsToDTOWithSecret(&accountCredentials, clientSecret)
 }
 
-type GetAccountKeysByClientIDOptions struct {
+type GetAccountCredentialsByClientIDOptions struct {
 	RequestID string
 	ClientID  string
 }
 
-func (s *Services) GetAccountKeysByClientID(
+func (s *Services) GetAccountCredentialsByClientID(
 	ctx context.Context,
-	opts GetAccountKeysByClientIDOptions,
-) (dtos.AccountKeysDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountKeysLocation, "GetAccountKeysByClientID").With(
+	opts GetAccountCredentialsByClientIDOptions,
+) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "GetAccountCredentialsByClientID").With(
 		"clientId", opts.ClientID,
 	)
 	logger.InfoContext(ctx, "Getting account keys by client id...")
 
-	accountKeys, err := s.database.FindAccountKeysByClientID(ctx, opts.ClientID)
+	accountCredentials, err := s.database.FindAccountCredentialsByClientID(ctx, opts.ClientID)
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code == exceptions.CodeNotFound {
 			logger.InfoContext(ctx, "Account keys not found", "error", err)
-			return dtos.AccountKeysDTO{}, serviceErr
+			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
 		logger.ErrorContext(ctx, "Failed to get account keys", "error", err)
-		return dtos.AccountKeysDTO{}, serviceErr
+		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
 	logger.InfoContext(ctx, "Got account keys by client id successfully")
-	return dtos.MapAccountKeysToDTO(&accountKeys)
+	return dtos.MapAccountCredentialsToDTO(&accountCredentials)
 }
 
-type GetAccountKeysByClientIDAndAccountIDOptions struct {
+type GetAccountCredentialsByClientIDAndAccountIDOptions struct {
 	RequestID string
 	AccountID int
 	ClientID  string
 }
 
-func (s *Services) GetAccountKeysByClientIDAndAccountID(
+func (s *Services) GetAccountCredentialsByClientIDAndAccountID(
 	ctx context.Context,
-	opts GetAccountKeysByClientIDAndAccountIDOptions,
-) (dtos.AccountKeysDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountKeysLocation, "GetAccountKeysByClientIDAndAccountID").With(
+	opts GetAccountCredentialsByClientIDAndAccountIDOptions,
+) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "GetAccountCredentialsByClientIDAndAccountID").With(
 		"clientId", opts.ClientID,
 		"accountId", opts.AccountID,
 	)
 	logger.InfoContext(ctx, "Getting account keys by client id and account id...")
 
-	accountKeysDTO, serviceErr := s.GetAccountKeysByClientID(ctx, GetAccountKeysByClientIDOptions{
+	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsByClientID(ctx, GetAccountCredentialsByClientIDOptions{
 		RequestID: opts.RequestID,
 		ClientID:  opts.ClientID,
 	})
 	if serviceErr != nil {
-		return dtos.AccountKeysDTO{}, serviceErr
+		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	akAccountID := accountKeysDTO.AccountID()
+	akAccountID := accountCredentialsDTO.AccountID()
 	if akAccountID != opts.AccountID {
 		logger.WarnContext(ctx, "Account keys is not owned by the account",
-			"accountKeysAccountId", akAccountID,
+			"accountCredentialsAccountId", akAccountID,
 		)
-		return dtos.AccountKeysDTO{}, exceptions.NewNotFoundError()
+		return dtos.AccountCredentialsDTO{}, exceptions.NewNotFoundError()
 	}
 
 	logger.InfoContext(ctx, "Got account keys by client id and account id successfully")
-	return accountKeysDTO, nil
+	return accountCredentialsDTO, nil
 }
 
 type ListAccountKeyByAccountID struct {
@@ -164,19 +164,19 @@ type ListAccountKeyByAccountID struct {
 	Limit     int
 }
 
-func (s *Services) ListAccountKeysByAccountID(
+func (s *Services) ListAccountCredentialsByAccountID(
 	ctx context.Context,
 	opts ListAccountKeyByAccountID,
-) ([]dtos.AccountKeysDTO, int64, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountKeysLocation, "ListAccountKeysByAccountID").With(
+) ([]dtos.AccountCredentialsDTO, int64, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "ListAccountCredentialsByAccountID").With(
 		"accountId", opts.AccountID,
 	)
 	logger.InfoContext(ctx, "Listing account keys by account id...")
 
 	accountID := int32(opts.AccountID)
-	accountKeys, err := s.database.FindPaginatedAccountKeysByAccountID(
+	accountCredentials, err := s.database.FindPaginatedAccountCredentialsByAccountID(
 		ctx,
-		database.FindPaginatedAccountKeysByAccountIDParams{
+		database.FindPaginatedAccountCredentialsByAccountIDParams{
 			AccountID: accountID,
 			Offset:    int32(opts.Offset),
 			Limit:     int32(opts.Limit),
@@ -187,140 +187,140 @@ func (s *Services) ListAccountKeysByAccountID(
 		return nil, 0, exceptions.NewServerError()
 	}
 
-	count, err := s.database.CountAccountKeysByAccountID(ctx, accountID)
+	count, err := s.database.CountAccountCredentialsByAccountID(ctx, accountID)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count account keys", "error", err)
 		return nil, 0, exceptions.NewServerError()
 	}
 
-	accountKeysDTOs, serviceErr := utils.MapSliceWithErr(accountKeys, dtos.MapAccountKeysToDTO)
+	accountCredentialsDTOs, serviceErr := utils.MapSliceWithErr(accountCredentials, dtos.MapAccountCredentialsToDTO)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map account keys to DTOs", "error", serviceErr)
 		return nil, 0, exceptions.NewServerError()
 	}
 
 	logger.InfoContext(ctx, "Successfully listed account keys by account id")
-	return accountKeysDTOs, count, nil
+	return accountCredentialsDTOs, count, nil
 }
 
-type UpdateAccountKeysSecretOptions struct {
+type UpdateAccountCredentialsSecretOptions struct {
 	RequestID string
 	AccountID int
 	ClientID  string
 }
 
-func (s *Services) UpdateAccountKeysSecret(
+func (s *Services) UpdateAccountCredentialsSecret(
 	ctx context.Context,
-	opts UpdateAccountKeysSecretOptions,
-) (dtos.AccountKeysDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountKeysLocation, "UpdateAccountKeysSecret").With(
+	opts UpdateAccountCredentialsSecretOptions,
+) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "UpdateAccountCredentialsSecret").With(
 		"clientId", opts.ClientID,
 		"accountId", opts.AccountID,
 	)
 	logger.InfoContext(ctx, "Updating account keys secret...")
 
-	accountKeysDTO, serviceErr := s.GetAccountKeysByClientIDAndAccountID(
+	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsByClientIDAndAccountID(
 		ctx,
-		GetAccountKeysByClientIDAndAccountIDOptions(opts),
+		GetAccountCredentialsByClientIDAndAccountIDOptions(opts),
 	)
 	if serviceErr != nil {
-		return dtos.AccountKeysDTO{}, serviceErr
+		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
 	clientSecret, err := utils.GenerateBase64Secret(accountSecretBytes)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate client secret", "error", err)
-		return dtos.AccountKeysDTO{}, exceptions.NewServerError()
+		return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
 	}
 
 	hashedSecret, err := utils.HashString(clientSecret)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash client secret", "error", err)
-		return dtos.AccountKeysDTO{}, exceptions.NewServerError()
+		return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
 	}
 
-	accountKeys, err := s.database.UpdateAccountKeysClientSecret(ctx, database.UpdateAccountKeysClientSecretParams{
+	accountCredentials, err := s.database.UpdateAccountCredentialsClientSecret(ctx, database.UpdateAccountCredentialsClientSecretParams{
 		ClientSecret: hashedSecret,
-		ClientID:     accountKeysDTO.ClientID,
+		ClientID:     accountCredentialsDTO.ClientID,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account keys secret", "error", err)
-		return dtos.AccountKeysDTO{}, exceptions.NewServerError()
+		return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
 	}
 
 	logger.InfoContext(ctx, "Successfully updated account keys secret")
-	return dtos.MapAccountKeysToDTOWithSecret(&accountKeys, clientSecret)
+	return dtos.MapAccountCredentialsToDTOWithSecret(&accountCredentials, clientSecret)
 }
 
-type UpdateAccountKeysScopesOptions struct {
+type UpdateAccountCredentialsScopesOptions struct {
 	RequestID string
 	AccountID int
 	ClientID  string
 	Scopes    []tokens.AccountScope
 }
 
-func (s *Services) UpdateAccountKeysScopes(
+func (s *Services) UpdateAccountCredentialsScopes(
 	ctx context.Context,
-	opts UpdateAccountKeysScopesOptions,
-) (dtos.AccountKeysDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountKeysLocation, "UpdateAccountKeysScopes").With(
+	opts UpdateAccountCredentialsScopesOptions,
+) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "UpdateAccountCredentialsScopes").With(
 		"clientId", opts.ClientID,
 		"accountId", opts.AccountID,
 		"scopes", opts.Scopes,
 	)
 	logger.InfoContext(ctx, "Updating account keys scopes...")
 
-	accountKeysDTO, serviceErr := s.GetAccountKeysByClientIDAndAccountID(
+	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsByClientIDAndAccountID(
 		ctx,
-		GetAccountKeysByClientIDAndAccountIDOptions{
+		GetAccountCredentialsByClientIDAndAccountIDOptions{
 			RequestID: opts.RequestID,
 			AccountID: opts.AccountID,
 			ClientID:  opts.ClientID,
 		},
 	)
 	if serviceErr != nil {
-		return dtos.AccountKeysDTO{}, serviceErr
+		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
 	scopesJson, serviceErr := mapAndEncodeAccountScopes(logger, ctx, opts.Scopes)
 	if serviceErr != nil {
-		return dtos.AccountKeysDTO{}, serviceErr
+		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	accountKeys, err := s.database.UpdateAccountKeysScope(ctx, database.UpdateAccountKeysScopeParams{
+	accountCredentials, err := s.database.UpdateAccountCredentialsScope(ctx, database.UpdateAccountCredentialsScopeParams{
 		Scopes:   scopesJson,
-		ClientID: accountKeysDTO.ClientID,
+		ClientID: accountCredentialsDTO.ClientID,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account keys scopes", "error", err)
-		return dtos.AccountKeysDTO{}, exceptions.FromDBError(err)
+		return dtos.AccountCredentialsDTO{}, exceptions.FromDBError(err)
 	}
 
-	return dtos.MapAccountKeysToDTO(&accountKeys)
+	return dtos.MapAccountCredentialsToDTO(&accountCredentials)
 }
 
-type DeleteAccountKeysOptions struct {
+type DeleteAccountCredentialsOptions struct {
 	RequestID string
 	AccountID int
 	ClientID  string
 }
 
-func (s *Services) DeleteAccountKeys(ctx context.Context, opts DeleteAccountKeysOptions) *exceptions.ServiceError {
-	logger := s.buildLogger(opts.RequestID, accountKeysLocation, "DeleteAccountKeys").With(
+func (s *Services) DeleteAccountCredentials(ctx context.Context, opts DeleteAccountCredentialsOptions) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "DeleteAccountCredentials").With(
 		"clientId", opts.ClientID,
 		"accountId", opts.AccountID,
 	)
 	logger.InfoContext(ctx, "Deleting account keys...")
 
-	accountKeysDTO, serviceErr := s.GetAccountKeysByClientIDAndAccountID(
+	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsByClientIDAndAccountID(
 		ctx,
-		GetAccountKeysByClientIDAndAccountIDOptions(opts),
+		GetAccountCredentialsByClientIDAndAccountIDOptions(opts),
 	)
 	if serviceErr != nil {
 		return serviceErr
 	}
 
-	if err := s.database.DeleteAccountKeys(ctx, accountKeysDTO.ClientID); err != nil {
+	if err := s.database.DeleteAccountCredentials(ctx, accountCredentialsDTO.ClientID); err != nil {
 		logger.ErrorContext(ctx, "Failed to delete account keys", "error", err)
 		return exceptions.FromDBError(err)
 	}

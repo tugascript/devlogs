@@ -35,7 +35,7 @@ Table accounts_totps as AT {
 }
 Ref: AT.account_id > A.id [delete: cascade]
 
-Table account_keys as ACK {
+Table account_credentials as ACK {
     id serial [pk]
 
     account_id integer [not null]
@@ -49,8 +49,8 @@ Table account_keys as ACK {
     updated_at timestamp [not null, default: `now()`]
 
     Indexes {
-        (client_id) [unique, name: 'account_keys_client_id_uidx']
-        (account_id) [name: 'account_keys_account_id_idx']
+        (client_id) [unique, name: 'account_credentials_client_id_uidx']
+        (account_id) [name: 'account_credentials_account_id_idx']
     }
 }
 Ref: ACK.account_id > A.id [delete: cascade]
@@ -83,6 +83,8 @@ Table apps as APP {
     callback_uris "varchar(250)[]" [not null, default: '[]']
     logout_uris "varchar(250)[]" [not null, default: '[]']
 
+    user_scopes jsonb [not null, default: '{ "email": true, "name": true }']
+    app_providers jsonb [not null, default: '{ "email_password": true }']
 
     id_token_ttl integer [not null, default: 3600]
 
@@ -123,52 +125,6 @@ Table app_keys as AK {
 Ref: AK.app_id > APP.id [delete: cascade]
 Ref: AK.account_id > A.id [delete: cascade]
 
-Table app_auth_providers as AAP {
-    id serial [pk]
-    
-    app_id integer [not null]
-    account_id integer [not null]
-
-    email_password boolean [not null, default: true]
-    google boolean [not null, default: false]
-    facebook boolean [not null, default: false]
-    github boolean [not null, default: false]
-    apple boolean [not null, default: false]
-    microsoft boolean [not null, default: false]
-
-    created_at timestamp [not null, default: `now()`]
-    updated_at timestamp [not null, default: `now()`]
-
-    Indexes {
-        (app_id) [unique, name: 'app_auth_providers_app_id_uidx']
-        (account_id) [name: 'app_auth_providers_account_id_idx']
-    }
-}
-Ref: AAP.app_id > APP.id [delete: cascade]
-Ref: AAP.account_id > A.id [delete: cascade]
-
-Table app_user_schemas as AUS {
-    id serial [pk]
-    
-    app_id integer [not null]
-    account_id integer [not null]
-
-    name boolean [not null, default: false]
-    gender boolean [not null, default: false]
-    location boolean [not null, default: false]
-    birth_date boolean [not null, default: false]
-
-    created_at timestamp [not null, default: `now()`]
-    updated_at timestamp [not null, default: `now()`]
-
-    Indexes {
-        (app_id) [unique, name: 'app_user_schemas_app_id_uidx']
-        (account_id) [name: 'app_user_schemas_account_id_idx']
-    }
-}
-Ref: AUS.app_id > APP.id [delete: cascade]
-Ref: AUS.account_id > A.id [delete: cascade]
-
 Table users as U {
     id serial [pk]
     
@@ -177,6 +133,7 @@ Table users as U {
     email varchar(250) [not null]
     password text
     version integer [not null, default: 1]
+    two_factor_type varchar(5) [not null, default: 'none']
 
     user_data jsonb [not null, default: '{}']
 
@@ -229,9 +186,7 @@ Ref: UAP.email > U.email [delete: cascade]
 Table blacklisted_tokens as BT {
     id uuid [pk]
 
-    jwt text [not null]
     expires_at timestamp [not null]
 
     created_at timestamp [not null, default: `now()`]
-    updated_at timestamp [not null, default: `now()`]
 }

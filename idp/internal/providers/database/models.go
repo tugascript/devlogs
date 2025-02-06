@@ -23,7 +23,7 @@ type Account struct {
 	UpdatedAt     pgtype.Timestamp
 }
 
-type AccountKey struct {
+type AccountCredential struct {
 	ID           int32
 	AccountID    int32
 	Scopes       []byte
@@ -36,7 +36,7 @@ type AccountKey struct {
 type AccountsTotp struct {
 	ID            int32
 	AccountID     int32
-	ToptUrl       string
+	TotpUrl       string
 	SecretVaultID uuid.UUID
 	CreatedAt     pgtype.Timestamp
 	UpdatedAt     pgtype.Timestamp
@@ -50,24 +50,12 @@ type App struct {
 	ClientSecret   string
 	CallbackUris   []string
 	LogoutUris     []string
+	UserScopes     []byte
+	AppProviders   []byte
 	IDTokenTtl     int32
 	JwtCryptoSuite string
 	CreatedAt      pgtype.Timestamp
 	UpdatedAt      pgtype.Timestamp
-}
-
-type AppAuthProvider struct {
-	ID            int32
-	AppID         int32
-	AccountID     int32
-	EmailPassword bool
-	Google        bool
-	Facebook      bool
-	Github        bool
-	Apple         bool
-	Microsoft     bool
-	CreatedAt     pgtype.Timestamp
-	UpdatedAt     pgtype.Timestamp
 }
 
 type AppKey struct {
@@ -77,21 +65,9 @@ type AppKey struct {
 	Name           string
 	JwtCryptoSuite string
 	PublicKey      []byte
-	KeyID          uuid.UUID
+	KeyID          string
 	CreatedAt      pgtype.Timestamp
 	UpdatedAt      pgtype.Timestamp
-}
-
-type AppUserSchema struct {
-	ID        int32
-	AppID     int32
-	AccountID int32
-	Name      bool
-	Gender    bool
-	Location  bool
-	BirthDate bool
-	CreatedAt pgtype.Timestamp
-	UpdatedAt pgtype.Timestamp
 }
 
 type AuthProvider struct {
@@ -104,21 +80,20 @@ type AuthProvider struct {
 
 type BlacklistedToken struct {
 	ID        uuid.UUID
-	Jwt       string
 	ExpiresAt pgtype.Timestamp
 	CreatedAt pgtype.Timestamp
-	UpdatedAt pgtype.Timestamp
 }
 
 type User struct {
-	ID        int32
-	AccountID int32
-	Email     string
-	Password  pgtype.Text
-	Version   int32
-	UserData  []byte
-	CreatedAt pgtype.Timestamp
-	UpdatedAt pgtype.Timestamp
+	ID            int32
+	AccountID     int32
+	Email         string
+	Password      pgtype.Text
+	Version       int32
+	TwoFactorType string
+	UserData      []byte
+	CreatedAt     pgtype.Timestamp
+	UpdatedAt     pgtype.Timestamp
 }
 
 type UserAuthProvider struct {
@@ -133,7 +108,7 @@ type UserAuthProvider struct {
 type UserTotp struct {
 	ID            int32
 	UserID        int32
-	ToptUrl       string
+	TotpUrl       string
 	SecretVaultID uuid.UUID
 	CreatedAt     pgtype.Timestamp
 	UpdatedAt     pgtype.Timestamp

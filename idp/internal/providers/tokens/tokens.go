@@ -157,21 +157,21 @@ func newEs256TokenSecretData(privateKey string, ttlSec int64, prevPrivateKey *st
 }
 
 type Tokens struct {
-	frontendDomain   string
-	backendDomain    string
-	accessData       Es256TokenSecretData
-	accountKeysData  Es256TokenSecretData
-	refreshData      TokenSecretData
-	confirmationData TokenSecretData
-	resetData        TokenSecretData
-	oauthData        TokenSecretData
-	twoFAData        TokenSecretData
-	jwks             []utils.P256JWK
+	frontendDomain         string
+	backendDomain          string
+	accessData             Es256TokenSecretData
+	accountCredentialsData Es256TokenSecretData
+	refreshData            TokenSecretData
+	confirmationData       TokenSecretData
+	resetData              TokenSecretData
+	oauthData              TokenSecretData
+	twoFAData              TokenSecretData
+	jwks                   []utils.P256JWK
 }
 
 func NewTokens(
 	accessCfg,
-	accountKeysCfg,
+	accountCredentialsCfg,
 	refreshCfg,
 	confirmationCfg,
 	resetCfg,
@@ -186,8 +186,8 @@ func NewTokens(
 		nil,
 	)
 	accountKeysData := newEs256TokenSecretData(
-		accountKeysCfg.PrivateKey(),
-		accountKeysCfg.TtlSec(),
+		accountCredentialsCfg.PrivateKey(),
+		accountCredentialsCfg.TtlSec(),
 		nil,
 	)
 
@@ -210,8 +210,8 @@ func NewTokens(
 	}
 
 	return &Tokens{
-		accessData:      accessData,
-		accountKeysData: accountKeysData,
+		accessData:             accessData,
+		accountCredentialsData: accountKeysData,
 		refreshData: newTokenSecretData(
 			refreshCfg.PublicKey(),
 			refreshCfg.PrivateKey(),

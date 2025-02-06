@@ -10,7 +10,7 @@ import (
 
 func (t *Tokens) getAccessTokenPrivateKey(scopes []AccountScope) *ecdsa.PrivateKey {
 	if slices.Contains(scopes, AccountScopeClientID) {
-		return t.accountKeysData.curKeyPair.privateKey
+		return t.accountCredentialsData.curKeyPair.privateKey
 	}
 
 	return t.accessData.curKeyPair.privateKey
@@ -41,14 +41,14 @@ func (t *Tokens) VerifyAccessToken(token string) (AccountClaims, []AccountScope,
 		if t.accessData.prevKeyPair != nil && t.accessData.prevKeyPair.kid == kid {
 			return t.accessData.prevKeyPair.publicKey, nil
 		}
-		if t.accountKeysData.prevKeyPair != nil && t.accountKeysData.prevKeyPair.kid == kid {
-			return t.accountKeysData.prevKeyPair.publicKey, nil
+		if t.accountCredentialsData.prevKeyPair != nil && t.accountCredentialsData.prevKeyPair.kid == kid {
+			return t.accountCredentialsData.prevKeyPair.publicKey, nil
 		}
 		if t.accessData.curKeyPair.kid == kid {
 			return t.accessData.curKeyPair.publicKey, nil
 		}
-		if t.accountKeysData.curKeyPair.kid == kid {
-			return t.accountKeysData.curKeyPair.publicKey, nil
+		if t.accountCredentialsData.curKeyPair.kid == kid {
+			return t.accountCredentialsData.curKeyPair.publicKey, nil
 		}
 
 		return ecdsa.PublicKey{}, errors.New("no key found for kid")
@@ -69,6 +69,6 @@ func (t *Tokens) GetAccessTTL() int64 {
 	return t.accessData.ttlSec
 }
 
-func (t *Tokens) GetAccountKeysTTL() int64 {
-	return t.accountKeysData.ttlSec
+func (t *Tokens) GetAccountCredentialsTTL() int64 {
+	return t.accountCredentialsData.ttlSec
 }

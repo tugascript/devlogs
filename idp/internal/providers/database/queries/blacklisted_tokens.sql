@@ -1,12 +1,10 @@
 -- name: BlacklistToken :exec
 INSERT INTO "blacklisted_tokens" (
   "id",
-  "jwt",
   "expires_at"
 ) VALUES (
   $1,
-    $2,
-  $3
+    $2
 );
 
 -- name: GetBlacklistedToken :one

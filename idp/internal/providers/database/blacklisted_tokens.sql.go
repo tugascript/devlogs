@@ -15,40 +15,31 @@ import (
 const blacklistToken = `-- name: BlacklistToken :exec
 INSERT INTO "blacklisted_tokens" (
   "id",
-  "jwt",
   "expires_at"
 ) VALUES (
   $1,
-    $2,
-  $3
+    $2
 )
 `
 
 type BlacklistTokenParams struct {
 	ID        uuid.UUID
-	Jwt       string
 	ExpiresAt pgtype.Timestamp
 }
 
 func (q *Queries) BlacklistToken(ctx context.Context, arg BlacklistTokenParams) error {
-	_, err := q.db.Exec(ctx, blacklistToken, arg.ID, arg.Jwt, arg.ExpiresAt)
+	_, err := q.db.Exec(ctx, blacklistToken, arg.ID, arg.ExpiresAt)
 	return err
 }
 
 const getBlacklistedToken = `-- name: GetBlacklistedToken :one
-SELECT id, jwt, expires_at, created_at, updated_at FROM "blacklisted_tokens"
+SELECT id, expires_at, created_at FROM "blacklisted_tokens"
 WHERE "id" = $1 LIMIT 1
 `
 
 func (q *Queries) GetBlacklistedToken(ctx context.Context, id uuid.UUID) (BlacklistedToken, error) {
 	row := q.db.QueryRow(ctx, getBlacklistedToken, id)
 	var i BlacklistedToken
-	err := row.Scan(
-		&i.ID,
-		&i.Jwt,
-		&i.ExpiresAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
+	err := row.Scan(&i.ID, &i.ExpiresAt, &i.CreatedAt)
 	return i, err
 }

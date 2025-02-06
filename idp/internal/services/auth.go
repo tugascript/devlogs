@@ -427,7 +427,6 @@ func (s *Services) LogoutAccount(
 	}
 	if err := s.database.BlacklistToken(ctx, database.BlacklistTokenParams{
 		ID:        tokenID,
-		Jwt:       opts.RefreshToken,
 		ExpiresAt: expiresAt,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to blacklist the token", "error", err)
@@ -497,7 +496,6 @@ func (s *Services) RefreshTokenAccount(
 	}
 	if err := s.database.BlacklistToken(ctx, database.BlacklistTokenParams{
 		ID:        id,
-		Jwt:       opts.RefreshToken,
 		ExpiresAt: expiresAt,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to blacklist previous refresh token", "error", err)
@@ -988,7 +986,7 @@ func (s *Services) ClientCredentialsLoginAccount(
 	)
 	logger.InfoContext(ctx, "Client credentials logging in account...")
 
-	accountKeysDTO, serviceErr := s.GetAccountKeysByClientID(ctx, GetAccountKeysByClientIDOptions{
+	accountKeysDTO, serviceErr := s.GetAccountCredentialsByClientID(ctx, GetAccountCredentialsByClientIDOptions{
 		RequestID: opts.RequestID,
 		ClientID:  opts.ClientID,
 	})
@@ -1033,7 +1031,7 @@ func (s *Services) ClientCredentialsLoginAccount(
 	}
 
 	logger.InfoContext(ctx, "Client credential logged in successfully")
-	return dtos.NewAuthDTO(accessToken, s.jwt.GetAccountKeysTTL()), nil
+	return dtos.NewAuthDTO(accessToken, s.jwt.GetAccountCredentialsTTL()), nil
 }
 
 func (s *Services) GetAccountPublicJWKs(ctx context.Context, requestID string) dtos.JWKsDTO {

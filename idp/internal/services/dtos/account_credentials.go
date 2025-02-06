@@ -7,7 +7,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 )
 
-type AccountKeysDTO struct {
+type AccountCredentialsDTO struct {
 	ClientID     string   `json:"id"`
 	ClientSecret string   `json:"secret,omitempty"`
 	Scopes       []string `json:"scopes"`
@@ -16,15 +16,15 @@ type AccountKeysDTO struct {
 	hashedSecret string
 }
 
-func (ak *AccountKeysDTO) HashedSecret() string {
+func (ak *AccountCredentialsDTO) HashedSecret() string {
 	return ak.hashedSecret
 }
 
-func (ak *AccountKeysDTO) AccountID() int {
+func (ak *AccountCredentialsDTO) AccountID() int {
 	return ak.accountId
 }
 
-func mapAccountKeysScopes(jsonScopes []byte) ([]string, *exceptions.ServiceError) {
+func mapAccountCredentialsScopes(jsonScopes []byte) ([]string, *exceptions.ServiceError) {
 	scopesMap := make(map[string]bool)
 	if err := json.Unmarshal(jsonScopes, &scopesMap); err != nil {
 		return nil, exceptions.NewServerError()
@@ -40,13 +40,15 @@ func mapAccountKeysScopes(jsonScopes []byte) ([]string, *exceptions.ServiceError
 	return scopes, nil
 }
 
-func MapAccountKeysToDTO(accountKeys *database.AccountKey) (AccountKeysDTO, *exceptions.ServiceError) {
-	scopes, serviceErr := mapAccountKeysScopes(accountKeys.Scopes)
+func MapAccountCredentialsToDTO(
+	accountKeys *database.AccountCredential,
+) (AccountCredentialsDTO, *exceptions.ServiceError) {
+	scopes, serviceErr := mapAccountCredentialsScopes(accountKeys.Scopes)
 	if serviceErr != nil {
-		return AccountKeysDTO{}, serviceErr
+		return AccountCredentialsDTO{}, serviceErr
 	}
 
-	return AccountKeysDTO{
+	return AccountCredentialsDTO{
 		ClientID:     accountKeys.ClientID,
 		Scopes:       scopes,
 		hashedSecret: accountKeys.ClientSecret,
@@ -54,16 +56,16 @@ func MapAccountKeysToDTO(accountKeys *database.AccountKey) (AccountKeysDTO, *exc
 	}, nil
 }
 
-func MapAccountKeysToDTOWithSecret(
-	accountKeys *database.AccountKey,
+func MapAccountCredentialsToDTOWithSecret(
+	accountKeys *database.AccountCredential,
 	secret string,
-) (AccountKeysDTO, *exceptions.ServiceError) {
-	scopes, serviceErr := mapAccountKeysScopes(accountKeys.Scopes)
+) (AccountCredentialsDTO, *exceptions.ServiceError) {
+	scopes, serviceErr := mapAccountCredentialsScopes(accountKeys.Scopes)
 	if serviceErr != nil {
-		return AccountKeysDTO{}, serviceErr
+		return AccountCredentialsDTO{}, serviceErr
 	}
 
-	return AccountKeysDTO{
+	return AccountCredentialsDTO{
 		ClientID:     accountKeys.ClientID,
 		ClientSecret: secret,
 		Scopes:       scopes,
