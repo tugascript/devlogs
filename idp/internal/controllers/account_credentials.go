@@ -10,11 +10,11 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 )
 
-const accountKeysLocation string = "account_keys"
+const accountCredentialsLocation string = "account_credentials"
 
-func (c *Controllers) CreateAccountKeys(ctx *fiber.Ctx) error {
+func (c *Controllers) CreateAccountCredentials(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, accountKeysLocation, "CreateAccountKeys")
+	logger := c.buildLogger(requestID, accountCredentialsLocation, "CreateAccountCredentials")
 	logRequest(logger, ctx)
 
 	accountClaims, serviceErr := getAccountClaims(ctx)
@@ -22,7 +22,7 @@ func (c *Controllers) CreateAccountKeys(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	body := new(bodies.AccountKeysBody)
+	body := new(bodies.AccountCredentialsBody)
 	if err := ctx.BodyParser(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
@@ -30,7 +30,7 @@ func (c *Controllers) CreateAccountKeys(ctx *fiber.Ctx) error {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	accountKeysDTO, serviceErr := c.services.CreateAccountKeys(ctx.UserContext(), services.CreateAccountKeysOptions{
+	accountKeysDTO, serviceErr := c.services.CreateAccountCredentials(ctx.UserContext(), services.CreateAccountCredentialsOptions{
 		RequestID: requestID,
 		AccountID: int32(accountClaims.ID),
 		Scopes:    body.Scopes,
@@ -43,9 +43,9 @@ func (c *Controllers) CreateAccountKeys(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusCreated).JSON(&accountKeysDTO)
 }
 
-func (c *Controllers) ListAccountKeys(ctx *fiber.Ctx) error {
+func (c *Controllers) ListAccountCredentials(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, accountKeysLocation, "ListAccountKeys")
+	logger := c.buildLogger(requestID, accountCredentialsLocation, "ListAccountCredentials")
 	logRequest(logger, ctx)
 
 	accountClaims, serviceErr := getAccountClaims(ctx)
@@ -61,7 +61,7 @@ func (c *Controllers) ListAccountKeys(ctx *fiber.Ctx) error {
 		return validateQueryParamsErrorResponse(logger, ctx, err)
 	}
 
-	accountKeysDTOs, count, serviceErr := c.services.ListAccountKeysByAccountID(
+	accountKeysDTOs, count, serviceErr := c.services.ListAccountCredentialsByAccountID(
 		ctx.UserContext(),
 		services.ListAccountKeyByAccountID{
 			RequestID: requestID,
@@ -78,7 +78,7 @@ func (c *Controllers) ListAccountKeys(ctx *fiber.Ctx) error {
 		accountKeysDTOs,
 		count,
 		c.backendDomain,
-		paths.AccountKeysBase,
+		paths.AccountCredentialsBase,
 		queryParams.Limit,
 		queryParams.Offset,
 	)
@@ -86,9 +86,9 @@ func (c *Controllers) ListAccountKeys(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&paginationDTO)
 }
 
-func (c *Controllers) GetSingleAccountKeys(ctx *fiber.Ctx) error {
+func (c *Controllers) GetSingleAccountCredentials(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, accountKeysLocation, "GetSingleAccountKeys")
+	logger := c.buildLogger(requestID, accountCredentialsLocation, "GetSingleAccountCredentials")
 	logRequest(logger, ctx)
 
 	accountClaims, serviceErr := getAccountClaims(ctx)
@@ -96,14 +96,14 @@ func (c *Controllers) GetSingleAccountKeys(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	urlParams := params.AccountKeysURLParams{ClientID: ctx.Params("clientID")}
+	urlParams := params.AccountCredentialsURLParams{ClientID: ctx.Params("clientID")}
 	if err := c.validate.StructCtx(ctx.UserContext(), urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	accountKeysDTO, serviceErr := c.services.GetAccountKeysByClientIDAndAccountID(
+	accountKeysDTO, serviceErr := c.services.GetAccountCredentialsByClientIDAndAccountID(
 		ctx.UserContext(),
-		services.GetAccountKeysByClientIDAndAccountIDOptions{
+		services.GetAccountCredentialsByClientIDAndAccountIDOptions{
 			RequestID: requestID,
 			AccountID: accountClaims.ID,
 			ClientID:  urlParams.ClientID,
@@ -118,9 +118,9 @@ func (c *Controllers) GetSingleAccountKeys(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&accountKeysDTO)
 }
 
-func (c *Controllers) RefreshAccountKeysSecret(ctx *fiber.Ctx) error {
+func (c *Controllers) RefreshAccountCredentialsSecret(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, accountKeysLocation, "RefreshAccountKeysSecret")
+	logger := c.buildLogger(requestID, accountCredentialsLocation, "RefreshAccountCredentialsSecret")
 	logRequest(logger, ctx)
 
 	accountClaims, serviceErr := getAccountClaims(ctx)
@@ -128,14 +128,14 @@ func (c *Controllers) RefreshAccountKeysSecret(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	urlParams := params.AccountKeysURLParams{ClientID: ctx.Params("clientID")}
+	urlParams := params.AccountCredentialsURLParams{ClientID: ctx.Params("clientID")}
 	if err := c.validate.StructCtx(ctx.UserContext(), urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	accountKeysDTO, serviceErr := c.services.UpdateAccountKeysSecret(
+	accountKeysDTO, serviceErr := c.services.UpdateAccountCredentialsSecret(
 		ctx.UserContext(),
-		services.UpdateAccountKeysSecretOptions{
+		services.UpdateAccountCredentialsSecretOptions{
 			RequestID: requestID,
 			AccountID: accountClaims.ID,
 			ClientID:  urlParams.ClientID,
@@ -149,9 +149,9 @@ func (c *Controllers) RefreshAccountKeysSecret(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&accountKeysDTO)
 }
 
-func (c *Controllers) UpdateAccountKeys(ctx *fiber.Ctx) error {
+func (c *Controllers) UpdateAccountCredentials(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, accountKeysLocation, "UpdateAccountKeys")
+	logger := c.buildLogger(requestID, accountCredentialsLocation, "UpdateAccountCredentials")
 	logRequest(logger, ctx)
 
 	accountClaims, serviceErr := getAccountClaims(ctx)
@@ -159,12 +159,12 @@ func (c *Controllers) UpdateAccountKeys(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	urlParams := params.AccountKeysURLParams{ClientID: ctx.Params("clientID")}
+	urlParams := params.AccountCredentialsURLParams{ClientID: ctx.Params("clientID")}
 	if err := c.validate.StructCtx(ctx.UserContext(), urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	body := new(bodies.AccountKeysBody)
+	body := new(bodies.AccountCredentialsBody)
 	if err := ctx.BodyParser(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
@@ -172,9 +172,9 @@ func (c *Controllers) UpdateAccountKeys(ctx *fiber.Ctx) error {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	accountKeysDTO, serviceErr := c.services.UpdateAccountKeysScopes(
+	accountKeysDTO, serviceErr := c.services.UpdateAccountCredentialsScopes(
 		ctx.UserContext(),
-		services.UpdateAccountKeysScopesOptions{
+		services.UpdateAccountCredentialsScopesOptions{
 			RequestID: requestID,
 			AccountID: accountClaims.ID,
 			ClientID:  urlParams.ClientID,
@@ -189,9 +189,9 @@ func (c *Controllers) UpdateAccountKeys(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&accountKeysDTO)
 }
 
-func (c *Controllers) DeleteAccountKeys(ctx *fiber.Ctx) error {
+func (c *Controllers) DeleteAccountCredentials(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, accountKeysLocation, "DeleteAccountKeys")
+	logger := c.buildLogger(requestID, accountCredentialsLocation, "DeleteAccountCredentials")
 	logRequest(logger, ctx)
 
 	accountClaims, serviceErr := getAccountClaims(ctx)
@@ -199,12 +199,12 @@ func (c *Controllers) DeleteAccountKeys(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	urlParams := params.AccountKeysURLParams{ClientID: ctx.Params("clientID")}
+	urlParams := params.AccountCredentialsURLParams{ClientID: ctx.Params("clientID")}
 	if err := c.validate.StructCtx(ctx.UserContext(), urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	if serviceErr := c.services.DeleteAccountKeys(ctx.UserContext(), services.DeleteAccountKeysOptions{
+	if serviceErr := c.services.DeleteAccountCredentials(ctx.UserContext(), services.DeleteAccountCredentialsOptions{
 		RequestID: requestID,
 		AccountID: accountClaims.ID,
 		ClientID:  urlParams.ClientID,

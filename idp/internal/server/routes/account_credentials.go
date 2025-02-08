@@ -6,43 +6,43 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 )
 
-func (r *Routes) AccountKeysRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.AccountKeysBase)
+func (r *Routes) AccountCredentialsRoutes(app *fiber.App) {
+	router := v1PathRouter(app).Group(paths.AccountCredentialsBase)
 
 	router.Post(
 		paths.Base,
 		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
-		r.controllers.CreateAccountKeys,
+		r.controllers.CreateAccountCredentials,
 	)
 	router.Get(
 		paths.Base,
 		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
-		r.controllers.ListAccountKeys,
+		r.controllers.ListAccountCredentials,
 	)
 	router.Get(
-		paths.AccountKeysSingle,
+		paths.AccountCredentialsSingle,
 		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
-		r.controllers.GetSingleAccountKeys,
+		r.controllers.GetSingleAccountCredentials,
 	)
 	router.Patch(
-		paths.AccountKeysRefreshSecret,
+		paths.AccountCredentialsRefreshSecret,
 		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
-		r.controllers.RefreshAccountKeysSecret,
+		r.controllers.RefreshAccountCredentialsSecret,
 	)
 	router.Patch(
-		paths.AccountKeysSingle,
+		paths.AccountCredentialsSingle,
 		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
-		r.controllers.UpdateAccountKeys,
+		r.controllers.UpdateAccountCredentials,
 	)
 	router.Delete(
-		paths.AccountKeysSingle,
+		paths.AccountCredentialsSingle,
 		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
-		r.controllers.DeleteAccountKeys,
+		r.controllers.DeleteAccountCredentials,
 	)
 }
