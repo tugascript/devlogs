@@ -2,8 +2,6 @@ package tokens
 
 import (
 	"errors"
-	"fmt"
-
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -17,7 +15,6 @@ func (t *Tokens) CreateOAuthToken(opts AccountTokenOptions) (string, error) {
 		accountVersion: opts.Version,
 		accountEmail:   opts.Email,
 		scopes:         []AccountScope{AccountScopeOAuth},
-		subject:        fmt.Sprintf("%s-OAuth", opts.Email),
 	})
 }
 

@@ -26,7 +26,6 @@ func (t *Tokens) CreateAccessToken(opts AccountTokenOptions) (string, error) {
 		accountVersion: opts.Version,
 		accountEmail:   opts.Email,
 		audience:       opts.Audience,
-		subject:        opts.Email,
 		scopes:         opts.Scopes,
 	})
 }

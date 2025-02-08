@@ -9,6 +9,8 @@ import (
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
+	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 )
 
@@ -121,7 +123,7 @@ func TestRegister(t *testing.T) {
 		{
 			Name: "Should return 409 CONFLICT if email is already taken",
 			ReqFn: func(t *testing.T) (bodies.RegisterAccountBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				data := generateFakeRegisterData(t)
 				data.Email = account.Email
 				return data, ""
@@ -132,6 +134,101 @@ func TestRegister(t *testing.T) {
 				AssertEqual(t, "Email already in use", resBody.Message)
 				AssertEqual(t, exceptions.StatusConflict, resBody.Code)
 			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, registerPath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+func assertAuthAccessResponse[T any](t *testing.T, _ T, res *http.Response) {
+	resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+	AssertEqual(t, "Bearer", resBody.TokenType)
+	AssertNotEmpty(t, resBody.AccessToken)
+	AssertNotEmpty(t, resBody.RefreshToken)
+	AssertEqual(t, GetTestTokens(t).GetAccessTTL(), int64(resBody.ExpiresIn))
+}
+
+func TestConfirm(t *testing.T) {
+	const registerPath = "/v1/auth/confirm-email"
+
+	generateConfirmationToken := func(t *testing.T, accountDTO dtos.AccountDTO) bodies.ConfirmationTokenBody {
+		testTokens := GetTestTokens(t)
+		token, err := testTokens.CreateConfirmationToken(tokens.AccountTokenOptions{
+			ID:      accountDTO.ID,
+			Version: accountDTO.Version(),
+			Email:   accountDTO.Email,
+		})
+		if err != nil {
+			t.Fatal("Failed to create confirmation token", err)
+		}
+
+		return bodies.ConfirmationTokenBody{ConfirmationToken: token}
+	}
+
+	testCases := []TestRequestCase[bodies.ConfirmationTokenBody]{
+		{
+			Name: "Should return 200 OK with access and refresh tokens",
+			ReqFn: func(t *testing.T) (bodies.ConfirmationTokenBody, string) {
+				return generateConfirmationToken(
+					t,
+					CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail)),
+				), ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[bodies.ConfirmationTokenBody],
+		},
+		{
+			Name: "Should return 400 BAD REQUEST if confirmation token is invalid",
+			ReqFn: func(t *testing.T) (bodies.ConfirmationTokenBody, string) {
+				return bodies.ConfirmationTokenBody{ConfirmationToken: "invalidToken"}, ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req bodies.ConfirmationTokenBody, resp *http.Response) {
+				resBody := AssertTestResponseBody(t, resp, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "confirmation_token", resBody.Fields[0].Param)
+				AssertEqual(t, exceptions.StrFieldErrMessageJWT, resBody.Fields[0].Message)
+				AssertEqual(t, req.ConfirmationToken, resBody.Fields[0].Value.(string))
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if user is not found",
+			ReqFn: func(t *testing.T) (bodies.ConfirmationTokenBody, string) {
+				return generateConfirmationToken(t, dtos.AccountDTO{}), ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.ConfirmationTokenBody],
+		},
+		{
+			Name: "Should return 409 FORBIDDEN if user is already confirmed",
+			ReqFn: func(t *testing.T) (bodies.ConfirmationTokenBody, string) {
+				return generateConfirmationToken(
+					t,
+					CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle)),
+				), ""
+			},
+			ExpStatus: http.StatusForbidden,
+			AssertFn:  AssertForbiddenError[bodies.ConfirmationTokenBody],
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if user version mismatch",
+			ReqFn: func(t *testing.T) (bodies.ConfirmationTokenBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
+				return generateConfirmationToken(t, dtos.AccountDTO{
+					ID:        account.ID,
+					FirstName: account.FirstName,
+					LastName:  account.LastName,
+					Email:     account.Email,
+				}), ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.ConfirmationTokenBody],
 		},
 	}
 

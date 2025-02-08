@@ -19,6 +19,7 @@ const (
 	AccountScope2FA          AccountScope = "2fa"
 	AccountScopeOAuth        AccountScope = "oauth"
 	AccountScopeConfirmation AccountScope = "confirmation"
+	AccountScopeRefresh      AccountScope = "refresh"
 
 	AccountScopeUsersRead  AccountScope = "users:read"
 	AccountScopeUsersWrite AccountScope = "users:write"
@@ -56,7 +57,6 @@ type accountTokenOptions struct {
 	accountEmail   string
 	audience       string
 	scopes         []AccountScope
-	subject        string
 }
 
 func processAccountScopes(scopes []AccountScope) (string, error) {
@@ -100,7 +100,7 @@ func (t *Tokens) createToken(opts accountTokenOptions) (string, error) {
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    t.frontendDomain,
 			Audience:  t.getDefaultAudience(opts.audience),
-			Subject:   opts.subject,
+			Subject:   opts.accountEmail,
 			IssuedAt:  iat,
 			NotBefore: iat,
 			ExpiresAt: exp,

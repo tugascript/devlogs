@@ -53,6 +53,8 @@ func (s *Services) CreateAccount(
 			logger.ErrorContext(ctx, "Failed pass password to text", "error", err)
 			return dtos.AccountDTO{}, exceptions.NewServerError()
 		}
+
+		provider = AuthProviderEmail
 	case AuthProviderApple, AuthProviderFacebook, AuthProviderGoogle, AuthProviderGitHub, AuthProviderMicrosoft:
 		provider = opts.Provider
 	default:

@@ -19,12 +19,14 @@ INSERT INTO "accounts" (
     "last_name",
     "username",
     "email",
+    "version",
     "is_confirmed"
 ) VALUES (
     $1, 
     $2, 
     $3,
     $4,
+    1,
     true
 ) RETURNING *;
 

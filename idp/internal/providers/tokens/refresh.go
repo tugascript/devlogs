@@ -2,7 +2,6 @@ package tokens
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -17,7 +16,7 @@ func (t *Tokens) CreateRefreshToken(opts AccountTokenOptions) (string, error) {
 		accountID:      opts.ID,
 		accountVersion: opts.Version,
 		accountEmail:   opts.Email,
-		subject:        fmt.Sprintf("%s-refresh", opts.Email),
+		scopes:         []AccountScope{AccountScopeRefresh},
 	})
 }
 

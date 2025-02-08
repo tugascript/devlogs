@@ -2,8 +2,6 @@ package tokens
 
 import (
 	"errors"
-	"fmt"
-
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -17,7 +15,6 @@ func (t *Tokens) Create2FAToken(opts AccountTokenOptions) (string, error) {
 		accountVersion: opts.Version,
 		accountEmail:   opts.Email,
 		scopes:         []AccountScope{AccountScope2FA},
-		subject:        fmt.Sprintf("%s-2FA", opts.Email),
 	})
 }
 

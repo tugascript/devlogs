@@ -96,7 +96,7 @@ func (c *Controllers) GetSingleAccountCredentials(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	urlParams := params.AccountCredentialsURLParams{ClientID: ctx.Params("clientID")}
+	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
 	if err := c.validate.StructCtx(ctx.UserContext(), urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
@@ -128,7 +128,7 @@ func (c *Controllers) RefreshAccountCredentialsSecret(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	urlParams := params.AccountCredentialsURLParams{ClientID: ctx.Params("clientID")}
+	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
 	if err := c.validate.StructCtx(ctx.UserContext(), urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
@@ -159,7 +159,7 @@ func (c *Controllers) UpdateAccountCredentials(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	urlParams := params.AccountCredentialsURLParams{ClientID: ctx.Params("clientID")}
+	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
 	if err := c.validate.StructCtx(ctx.UserContext(), urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
@@ -199,7 +199,7 @@ func (c *Controllers) DeleteAccountCredentials(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	urlParams := params.AccountCredentialsURLParams{ClientID: ctx.Params("clientID")}
+	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
 	if err := c.validate.StructCtx(ctx.UserContext(), urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}

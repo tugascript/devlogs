@@ -199,6 +199,11 @@ func (s *Services) ConfirmAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
+	if accountDTO.IsConfirmed() {
+		logger.WarnContext(ctx, "Account is already confirmed")
+		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
+	}
+
 	return s.generateFullAuthDTO(
 		ctx,
 		logger,

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"github.com/go-faker/faker/v4"
 	"github.com/google/uuid"
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"io"
 	"net/http"
@@ -161,6 +162,14 @@ func GetTestServer(t *testing.T) *server.FiberServer {
 	return _testServer
 }
 
+func GetTestTokens(t *testing.T) *tokens.Tokens {
+	if _testTokens == nil {
+		initTestServicesAndApp(t)
+	}
+
+	return _testTokens
+}
+
 func CreateTestJSONRequestBody(t *testing.T, reqBody interface{}) *bytes.Reader {
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
@@ -261,7 +270,7 @@ type fakeAccountData struct {
 	Password  string `faker:"oneof: Pas@w0rd123, P@sW0rd456, P@ssw0rd789, P@ssW0rd012, P@ssw0rd!345"`
 }
 
-func GenerateFakeAccountData(t *testing.T) services.CreateAccountOptions {
+func GenerateFakeAccountData(t *testing.T, provider string) services.CreateAccountOptions {
 	fakeData := fakeAccountData{}
 	if err := faker.FakeData(&fakeData); err != nil {
 		t.Fatal("Failed to generate fake data", err)
@@ -272,7 +281,8 @@ func GenerateFakeAccountData(t *testing.T) services.CreateAccountOptions {
 		Email:     fakeData.Email,
 		FirstName: fakeData.FirstName,
 		LastName:  fakeData.LastName,
-		Provider:  services.AuthProviderGoogle,
+		Provider:  provider,
+		Password:  fakeData.Password,
 	}
 }
 
@@ -286,4 +296,18 @@ func CreateTestAccount(t *testing.T, userData services.CreateAccountOptions) dto
 	}
 
 	return account
+}
+
+func assertErrorResponse(t *testing.T, res *http.Response, code, message string) {
+	resBody := AssertTestResponseBody(t, res, exceptions.ErrorResponse{})
+	AssertEqual(t, message, resBody.Message)
+	AssertEqual(t, code, resBody.Code)
+}
+
+func AssertUnauthorizedError[T any](t *testing.T, _ T, res *http.Response) {
+	assertErrorResponse(t, res, exceptions.StatusUnauthorized, exceptions.MessageUnauthorized)
+}
+
+func AssertForbiddenError[T any](t *testing.T, _ T, res *http.Response) {
+	assertErrorResponse(t, res, exceptions.StatusForbidden, exceptions.MessageForbidden)
 }
