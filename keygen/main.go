@@ -184,19 +184,19 @@ func createEnvFile(
 
 	envVars := []string{
 		fmt.Sprintf("JWT_ACCESS_PUBLIC_KEY=%s", accessPubKey),
-		fmt.Sprintf("JWT_ACCESS_PUBLIC_KEY=%s", accessPrivKey),
+		fmt.Sprintf("JWT_ACCESS_PRIVATE_KEY=%s", accessPrivKey),
 		fmt.Sprintf("JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY=%s", accountKeysPubKey),
-		fmt.Sprintf("JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY=%s", accountKeysPrivKey),
+		fmt.Sprintf("JWT_ACCOUNT_CREDENTIALS_PRIVATE_KEY=%s", accountKeysPrivKey),
 		fmt.Sprintf("JWT_REFRESH_PUBLIC_KEY=%s", refreshPubKey),
-		fmt.Sprintf("JWT_REFRESH_PUBLIC_KEY=%s", refreshPrivKey),
+		fmt.Sprintf("JWT_REFRESH_PRIVATE_KEY=%s", refreshPrivKey),
 		fmt.Sprintf("JWT_CONFIRM_PUBLIC_KEY=%s", confirmPubKey),
-		fmt.Sprintf("JWT_CONFIRM_PUBLIC_KEY=%s", confirmPrivKey),
+		fmt.Sprintf("JWT_CONFIRM_PRIVATE_KEY=%s", confirmPrivKey),
 		fmt.Sprintf("JWT_RESET_PUBLIC_KEY=%s", resetPubKey),
-		fmt.Sprintf("JWT_RESET_PUBLIC_KEY=%s", resetPrivKey),
+		fmt.Sprintf("JWT_RESET_PRIVATE_KEY=%s", resetPrivKey),
 		fmt.Sprintf("JWT_OAUTH_PUBLIC_KEY=%s", oauthPubKey),
-		fmt.Sprintf("JWT_OAUTH_PUBLIC_KEY=%s", oauthPrivKey),
+		fmt.Sprintf("JWT_OAUTH_PRIVATE_KEY=%s", oauthPrivKey),
 		fmt.Sprintf("JWT_2FA_PUBLIC_KEY=%s", twoFAPubKey),
-		fmt.Sprintf("JWT_2FA_PUBLIC_KEY=%s", twoFAPrivKey),
+		fmt.Sprintf("JWT_2FA_PRIVATE_KEY=%s", twoFAPrivKey),
 		fmt.Sprintf("COOKIE_SECRET=\"%s\"", cookieSecret),
 	}
 	file.Write([]byte(strings.Join(envVars, "\n")))
