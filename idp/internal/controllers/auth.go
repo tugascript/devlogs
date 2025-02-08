@@ -216,6 +216,14 @@ func (c *Controllers) acceptCallback(logger *slog.Logger, ctx *fiber.Ctx, oauthP
 	)
 }
 
+func (c *Controllers) errorCallback(logger *slog.Logger, ctx *fiber.Ctx, errStr string) error {
+	logResponse(logger, ctx, fiber.StatusFound)
+	return ctx.Redirect(
+		fmt.Sprintf("https://%s/auth/callback?error=%s", c.frontendDomain, errStr),
+		fiber.StatusFound,
+	)
+}
+
 func (c *Controllers) AccountOAuthCallback(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "AccountOAuthCallback")
@@ -226,12 +234,17 @@ func (c *Controllers) AccountOAuthCallback(ctx *fiber.Ctx) error {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	queryParams := params.ExtLoginAccountQueryParams{
+	queryParams := params.OAuthCallbackQueryParams{
 		Code:  ctx.Query("code"),
 		State: ctx.Query("state"),
 	}
 	if err := c.validate.StructCtx(ctx.UserContext(), queryParams); err != nil {
-		return validateQueryParamsErrorResponse(logger, ctx, err)
+		errQuery := ctx.Query("error")
+		if errQuery != "" {
+			return c.errorCallback(logger, ctx, errQuery)
+		}
+
+		return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
 	oauthParams, serviceErr := c.services.ExtLoginAccount(ctx.UserContext(), services.ExtLoginAccountOptions{
@@ -242,7 +255,14 @@ func (c *Controllers) AccountOAuthCallback(ctx *fiber.Ctx) error {
 		RedirectURL: formatAccountRedirectURL(c.backendDomain, urlParams.Provider),
 	})
 	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
+		switch serviceErr.Code {
+		case exceptions.CodeUnauthorized, exceptions.CodeForbidden:
+			return c.errorCallback(logger, ctx, exceptions.OAuthErrorAccessDenied)
+		case exceptions.CodeNotFound:
+			return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+		default:
+			return c.errorCallback(logger, ctx, exceptions.OAuthServerError)
+		}
 	}
 
 	return c.acceptCallback(logger, ctx, oauthParams)
@@ -261,30 +281,19 @@ func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
 
 	body := new(bodies.AppleLoginBody)
 	if err := ctx.BodyParser(body); err != nil {
-		return parseRequestErrorResponse(logger, ctx, err)
+		return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
-		return validateBodyErrorResponse(logger, ctx, err)
+		return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
 	user := new(bodies.AppleUser)
 	if err := json.Unmarshal([]byte(body.User), user); err != nil {
-		return serviceErrorResponse(logger, ctx, exceptions.NewValidationError("Invalid user data"))
+		return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidScope)
 	}
 	if err := c.validate.StructCtx(ctx.UserContext(), user); err != nil {
 		logger.WarnContext(ctx.UserContext(), "Failed to parse apple user data")
-		logResponse(logger, ctx, fiber.StatusBadRequest)
-		return ctx.
-			Status(fiber.StatusBadRequest).
-			JSON(exceptions.NewValidationErrorResponse(
-				exceptions.ValidationResponseLocationBody,
-				[]exceptions.FieldError{
-					{
-						Param:   "user",
-						Message: "must contain a name and email fields",
-					},
-				},
-			))
+		return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidScope)
 	}
 
 	oauthParams, serviceErr := c.services.AppleLoginAccount(ctx.UserContext(), services.AppleLoginAccountOptions{
@@ -296,7 +305,14 @@ func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
 		State:     body.State,
 	})
 	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
+		switch serviceErr.Code {
+		case exceptions.CodeUnauthorized, exceptions.CodeForbidden:
+			return c.errorCallback(logger, ctx, exceptions.OAuthErrorAccessDenied)
+		case exceptions.CodeNotFound:
+			return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+		default:
+			return c.errorCallback(logger, ctx, exceptions.OAuthServerError)
+		}
 	}
 
 	return c.acceptCallback(logger, ctx, oauthParams)

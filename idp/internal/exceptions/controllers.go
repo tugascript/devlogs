@@ -20,6 +20,8 @@ const (
 
 	OAuthErrorInvalidRequest string = "invalid_request"
 	OAuthErrorInvalidGrant   string = "invalid_grant"
+	OAuthErrorAccessDenied   string = "access_denied"
+	OAuthServerError         string = "server_error"
 	OAuthErrorInvalidScope   string = "invalid_scope"
 )
 
