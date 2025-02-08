@@ -3,6 +3,7 @@ package oauth
 import (
 	"context"
 	"encoding/json"
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"strings"
 
 	"github.com/biter777/countries"
@@ -136,7 +137,7 @@ func (gu *GitHubUserResponse) ToUserData() UserData {
 func (p *Providers) GetGithubAuthorizationURL(
 	ctx context.Context,
 	opts AuthorizationURLOptions,
-) (string, string, error) {
+) (string, string, *exceptions.ServiceError) {
 	return getAuthorizationURL(ctx, getAuthorizationURLOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
 			Layer:     logLayer,
@@ -151,7 +152,10 @@ func (p *Providers) GetGithubAuthorizationURL(
 	})
 }
 
-func (p *Providers) GetGithubAccessToken(ctx context.Context, opts AccessTokenOptions) (string, error) {
+func (p *Providers) GetGithubAccessToken(
+	ctx context.Context,
+	opts AccessTokenOptions,
+) (string, *exceptions.ServiceError) {
 	return getAccessToken(ctx, getAccessTokenOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
 			Layer:     logLayer,
@@ -167,7 +171,10 @@ func (p *Providers) GetGithubAccessToken(ctx context.Context, opts AccessTokenOp
 	})
 }
 
-func (p *Providers) GetGithubUserData(ctx context.Context, opts UserDataOptions) (UserData, int, error) {
+func (p *Providers) GetGithubUserData(
+	ctx context.Context,
+	opts UserDataOptions,
+) (UserData, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  githubLocation,
@@ -179,14 +186,19 @@ func (p *Providers) GetGithubUserData(ctx context.Context, opts UserDataOptions)
 	body, status, err := getUserResponse(logger, ctx, githubUserURL, opts.Token)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get GitHub user data", "error", err)
-		return UserData{}, status, err
+
+		if status > 0 && status < 500 {
+			return UserData{}, exceptions.NewUnauthorizedError()
+		}
+
+		return UserData{}, exceptions.NewServerError()
 	}
 
 	userRes := GitHubUserResponse{}
 	if err := json.Unmarshal(body, &userRes); err != nil {
 		logger.ErrorContext(ctx, "Failed to parse GitHub user data", "error", err)
-		return UserData{}, status, err
+		return UserData{}, exceptions.NewServerError()
 	}
 
-	return userRes.ToUserData(), status, nil
+	return userRes.ToUserData(), nil
 }

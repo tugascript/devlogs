@@ -14,11 +14,11 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: general
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
     networks:
       - provider_net
 
@@ -29,10 +29,36 @@ services:
     command: MailHog -auth-file=/etc/mailhog-auth.txt
     volumes:
       - ./mailhog-auth.txt:/etc/mailhog-auth.txt
-
     ports:
       - "1025:1025"
       - "8025:8025"
+    networks:
+      - provider_net
+
+  infisical:
+    container_name: infisical
+    image: infisical/infisical:latest-postgres
+    ports:
+      - "8080:8080"
+    environment:
+      DB_CONNECTION_URI: "postgres://postgres:postgres@postgres:5432/infisical"
+      REDIS_URL: "redis://redis:6379"
+      ENCRYPTION_KEY: "5129b98f0b42ea03c01e41886af25ea1"
+      AUTH_SECRET: "X/uTLTprw2bN6K11kIUNF0GM9M1Jw0zz1y9OofQfi04="
+      SITE_URL: "http://localhost:8080"
+      TELEMETRY_ENABLED: "false"
+      SMTP_HOST: "mailhog"
+      SMTP_PORT: 1025
+      SMTP_USERNAME: "noreply@example.com"
+      SMTP_PASSWORD: "password"
+      SMTP_FROM_NAME: "Infisical"
+      SMTP_FROM_ADDRESS: "noreply@example.com"
+    depends_on:
+      - postgres
+      - mailhog
+    networks:
+      - provider_net
+    command: sh -c "sleep 5 && npm run migration:latest && npm start"
 
 networks:
   provider_net:

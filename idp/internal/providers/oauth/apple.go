@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"io"
 	"net/http"
 	"slices"
@@ -41,7 +42,7 @@ func NewAppleUserData(email, firstName, lastName string) UserData {
 func (p *Providers) GetAppleAuthorizationURL(
 	ctx context.Context,
 	opts AuthorizationURLOptions,
-) (string, string, error) {
+) (string, string, *exceptions.ServiceError) {
 	return getAuthorizationURL(ctx, getAuthorizationURLOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
 			Layer:     logLayer,
@@ -56,7 +57,7 @@ func (p *Providers) GetAppleAuthorizationURL(
 	})
 }
 
-func (p *Providers) GetAppleIDToken(ctx context.Context, opts AccessTokenOptions) (string, error) {
+func (p *Providers) GetAppleIDToken(ctx context.Context, opts AccessTokenOptions) (string, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  appleLocation,
@@ -69,19 +70,19 @@ func (p *Providers) GetAppleIDToken(ctx context.Context, opts AccessTokenOptions
 	token, err := cfg.Exchange(ctx, opts.Code)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to exchange the code for a token", "error", err)
-		return "", err
+		return "", exceptions.NewUnauthorizedError()
 	}
 
 	idToken := token.Extra("id_token")
 	if idToken != nil {
 		logger.ErrorContext(ctx, "AccountID token not present on exchange request")
-		return "", errors.New("missing AccountID token")
+		return "", exceptions.NewServerError()
 	}
 
 	idTokenStr, ok := idToken.(string)
 	if !ok {
 		logger.ErrorContext(ctx, "AccountID token is not a string")
-		return "", errors.New("AccountID token is invalid")
+		return "", exceptions.NewServerError()
 	}
 
 	logger.DebugContext(ctx, "AccountID token exchanged successfully")
@@ -109,7 +110,10 @@ type ValidateAppleIDTokenOptions struct {
 	Email     string
 }
 
-func (p *Providers) ValidateAppleIDToken(ctx context.Context, opts ValidateAppleIDTokenOptions) (bool, error) {
+func (p *Providers) ValidateAppleIDToken(
+	ctx context.Context,
+	opts ValidateAppleIDTokenOptions,
+) (bool, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  appleLocation,
@@ -121,7 +125,7 @@ func (p *Providers) ValidateAppleIDToken(ctx context.Context, opts ValidateApple
 	req, err := http.NewRequest(http.MethodGet, appleKeysURL, nil)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to build Keys request", "error", err)
-		return false, err
+		return false, exceptions.NewServerError()
 	}
 
 	req.Header.Set("Accept", "application/json")
@@ -130,19 +134,24 @@ func (p *Providers) ValidateAppleIDToken(ctx context.Context, opts ValidateApple
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to request the token data", "error", err)
-		return false, err
+		return false, exceptions.NewServerError()
 	}
 
 	if res.StatusCode != http.StatusOK {
 		logger.ErrorContext(ctx, "Responded with a non 200 OK status", "status", res.StatusCode)
-		return false, fmt.Errorf("responded with non 200 OK status: %d", res.StatusCode)
+
+		if res.StatusCode < 500 {
+			return false, exceptions.NewUnauthorizedError()
+		}
+
+		return false, exceptions.NewServerError()
 	}
 
 	logger.DebugContext(ctx, "Reading the body...")
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to read the body", "error", err)
-		return false, err
+		return false, exceptions.NewServerError()
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
@@ -153,12 +162,12 @@ func (p *Providers) ValidateAppleIDToken(ctx context.Context, opts ValidateApple
 	jwksRes := AppleJWKsResponse{}
 	if err := json.Unmarshal(body, &jwksRes); err != nil {
 		logger.ErrorContext(ctx, "Failed to parse Apple JWKs data", "error", err)
-		return false, err
+		return false, exceptions.NewServerError()
 	}
 
-	if jwksRes.Keys == nil || len(jwksRes.Keys) == 0 {
+	if len(jwksRes.Keys) == 0 {
 		logger.ErrorContext(ctx, "No public JWKs found")
-		return false, errors.New("no public JWKs found")
+		return false, exceptions.NewServerError()
 	}
 
 	claims := AppleIDTokenClaims{}
@@ -190,7 +199,7 @@ func (p *Providers) ValidateAppleIDToken(ctx context.Context, opts ValidateApple
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify AccountID token", "error", err)
-		return false, err
+		return false, exceptions.NewServerError()
 	}
 
 	var emailVerified bool

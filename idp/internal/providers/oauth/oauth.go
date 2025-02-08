@@ -9,13 +9,14 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/tugascript/devlogs/idp/internal/config"
-
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/facebook"
 	"golang.org/x/oauth2/github"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/microsoft"
+
+	"github.com/tugascript/devlogs/idp/internal/config"
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 )
 
 type oauthScopes struct {
@@ -37,12 +38,17 @@ const (
 	ScopeGender   Scope = "gender"
 )
 
+type Config struct {
+	Enabled bool
+	oauth2.Config
+}
+
 type Providers struct {
-	gitHub    oauth2.Config
-	google    oauth2.Config
-	facebook  oauth2.Config
-	apple     oauth2.Config
-	microsoft oauth2.Config
+	gitHub    Config
+	google    Config
+	facebook  Config
+	apple     Config
+	microsoft Config
 	logger    *slog.Logger
 }
 
@@ -72,7 +78,7 @@ func mapScopes(scopes []Scope, oas oauthScopes) []string {
 	return mappedScopes
 }
 
-func appendScopes(cfg oauth2.Config, scopes []string) oauth2.Config {
+func appendScopes(cfg Config, scopes []string) Config {
 	cfg.Scopes = append(cfg.Scopes, scopes...)
 	return cfg
 }
@@ -87,7 +93,7 @@ func GenerateState() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-func getConfig(cfg oauth2.Config, redirectURL string, oas oauthScopes, scopes []Scope) oauth2.Config {
+func getConfig(cfg Config, redirectURL string, oas oauthScopes, scopes []Scope) Config {
 	cfg.RedirectURL = redirectURL
 
 	if scopes != nil {
@@ -99,21 +105,26 @@ func getConfig(cfg oauth2.Config, redirectURL string, oas oauthScopes, scopes []
 
 type getAccessTokenOptions struct {
 	logger      *slog.Logger
-	cfg         oauth2.Config
+	cfg         Config
 	redirectURL string
 	oas         oauthScopes
 	scopes      []Scope
 	code        string
 }
 
-func getAccessToken(ctx context.Context, opts getAccessTokenOptions) (string, error) {
+func getAccessToken(ctx context.Context, opts getAccessTokenOptions) (string, *exceptions.ServiceError) {
 	opts.logger.DebugContext(ctx, "Getting access token...")
+
+	if !opts.cfg.Enabled {
+		opts.logger.DebugContext(ctx, "OAuth config is disabled")
+		return "", exceptions.NewNotFoundError()
+	}
 
 	cfg := getConfig(opts.cfg, opts.redirectURL, opts.oas, opts.scopes)
 	token, err := cfg.Exchange(ctx, opts.code)
 	if err != nil {
 		opts.logger.ErrorContext(ctx, "Failed to exchange the code for a token", "error", err)
-		return "", err
+		return "", exceptions.NewUnauthorizedError()
 	}
 
 	opts.logger.DebugContext(ctx, "Access token exchanged successfully")
@@ -122,19 +133,27 @@ func getAccessToken(ctx context.Context, opts getAccessTokenOptions) (string, er
 
 type getAuthorizationURLOptions struct {
 	logger      *slog.Logger
-	cfg         oauth2.Config
 	redirectURL string
+	cfg         Config
 	oas         oauthScopes
 	scopes      []Scope
 }
 
-func getAuthorizationURL(ctx context.Context, opts getAuthorizationURLOptions) (string, string, error) {
+func getAuthorizationURL(
+	ctx context.Context,
+	opts getAuthorizationURLOptions,
+) (string, string, *exceptions.ServiceError) {
 	opts.logger.DebugContext(ctx, "Getting authorization url...")
+
+	if !opts.cfg.Enabled {
+		opts.logger.DebugContext(ctx, "OAuth config is disabled")
+		return "", "", exceptions.NewNotFoundError()
+	}
 
 	state, err := GenerateState()
 	if err != nil {
 		opts.logger.ErrorContext(ctx, "Failed to generate state", "error", err)
-		return "", "", err
+		return "", "", exceptions.NewServerError()
 	}
 
 	cfg := getConfig(opts.cfg, opts.redirectURL, opts.oas, opts.scopes)
@@ -152,38 +171,53 @@ func NewProviders(
 	microsoftCfg config.OAuthProviderConfig,
 ) *Providers {
 	return &Providers{
-		gitHub: oauth2.Config{
-			ClientID:     githubCfg.ClientID(),
-			ClientSecret: githubCfg.ClientSecret(),
-			Endpoint:     github.Endpoint,
-			Scopes:       []string{gitHubScopes.email},
-		},
-		google: oauth2.Config{
-			ClientID:     googleCfg.ClientID(),
-			ClientSecret: googleCfg.ClientSecret(),
-			Endpoint:     google.Endpoint,
-			Scopes:       []string{googleScopes.email},
-		},
-		facebook: oauth2.Config{
-			ClientID:     facebookCfg.ClientID(),
-			ClientSecret: facebookCfg.ClientSecret(),
-			Endpoint:     facebook.Endpoint,
-			Scopes:       []string{googleScopes.email},
-		},
-		apple: oauth2.Config{
-			ClientID:     appleCfg.ClientID(),
-			ClientSecret: appleCfg.ClientSecret(),
-			Endpoint: oauth2.Endpoint{
-				AuthURL:  "https://appleid.apple.com/auth/authorize",
-				TokenURL: "https://appleid.apple.com/auth/token",
+		gitHub: Config{
+			Config: oauth2.Config{
+				ClientID:     githubCfg.ClientID(),
+				ClientSecret: githubCfg.ClientSecret(),
+				Endpoint:     github.Endpoint,
+				Scopes:       []string{gitHubScopes.email},
 			},
-			Scopes: []string{appleScopes.email},
+			Enabled: githubCfg.Enabled(),
 		},
-		microsoft: oauth2.Config{
-			ClientID:     microsoftCfg.ClientID(),
-			ClientSecret: microsoftCfg.ClientSecret(),
-			Endpoint:     microsoft.LiveConnectEndpoint,
-			Scopes:       []string{microsoftScopes.email},
+		google: Config{
+			Config: oauth2.Config{
+				ClientID:     googleCfg.ClientID(),
+				ClientSecret: googleCfg.ClientSecret(),
+				Endpoint:     google.Endpoint,
+				Scopes:       []string{googleScopes.email},
+			},
+			Enabled: googleCfg.Enabled(),
+		},
+		facebook: Config{
+			Config: oauth2.Config{
+				ClientID:     facebookCfg.ClientID(),
+				ClientSecret: facebookCfg.ClientSecret(),
+				Endpoint:     facebook.Endpoint,
+				Scopes:       []string{facebookScopes.email},
+			},
+			Enabled: facebookCfg.Enabled(),
+		},
+		apple: Config{
+			Config: oauth2.Config{
+				ClientID:     appleCfg.ClientID(),
+				ClientSecret: appleCfg.ClientSecret(),
+				Endpoint: oauth2.Endpoint{
+					AuthURL:  "https://appleid.apple.com/auth/authorize",
+					TokenURL: "https://appleid.apple.com/auth/token",
+				},
+				Scopes: []string{appleScopes.email},
+			},
+			Enabled: appleCfg.Enabled(),
+		},
+		microsoft: Config{
+			Config: oauth2.Config{
+				ClientID:     microsoftCfg.ClientID(),
+				ClientSecret: microsoftCfg.ClientSecret(),
+				Endpoint:     microsoft.LiveConnectEndpoint,
+				Scopes:       []string{microsoftScopes.email},
+			},
+			Enabled: microsoftCfg.Enabled(),
 		},
 		logger: log,
 	}

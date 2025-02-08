@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-02-06T09:15:37.789Z
+-- Generated at: 2025-02-06T09:25:04.377Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,

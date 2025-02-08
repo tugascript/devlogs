@@ -3,6 +3,7 @@ package oauth
 import (
 	"context"
 	"encoding/json"
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -45,7 +46,7 @@ func (mu *MicrosoftUserResponse) ToUserData() UserData {
 func (p *Providers) GetMicrosoftAuthorizationURL(
 	ctx context.Context,
 	opts AuthorizationURLOptions,
-) (string, string, error) {
+) (string, string, *exceptions.ServiceError) {
 	return getAuthorizationURL(ctx, getAuthorizationURLOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
 			Layer:     logLayer,
@@ -60,7 +61,10 @@ func (p *Providers) GetMicrosoftAuthorizationURL(
 	})
 }
 
-func (p *Providers) GetMicrosoftAccessToken(ctx context.Context, opts AccessTokenOptions) (string, error) {
+func (p *Providers) GetMicrosoftAccessToken(
+	ctx context.Context,
+	opts AccessTokenOptions,
+) (string, *exceptions.ServiceError) {
 	return getAccessToken(ctx, getAccessTokenOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
 			Layer:     logLayer,
@@ -76,7 +80,10 @@ func (p *Providers) GetMicrosoftAccessToken(ctx context.Context, opts AccessToke
 	})
 }
 
-func (p *Providers) GetMicrosoftUserData(ctx context.Context, opts UserDataOptions) (UserData, int, error) {
+func (p *Providers) GetMicrosoftUserData(
+	ctx context.Context,
+	opts UserDataOptions,
+) (UserData, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  microsoftLocation,
@@ -88,14 +95,19 @@ func (p *Providers) GetMicrosoftUserData(ctx context.Context, opts UserDataOptio
 	body, status, err := getUserResponse(logger, ctx, microsoftUserURL, opts.Token)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get Microsoft user data", "error", err)
-		return UserData{}, status, err
+
+		if status > 0 && status < 500 {
+			return UserData{}, exceptions.NewUnauthorizedError()
+		}
+
+		return UserData{}, exceptions.NewServerError()
 	}
 
 	userRes := MicrosoftUserResponse{}
 	if err := json.Unmarshal(body, &userRes); err != nil {
 		logger.ErrorContext(ctx, "Failed to parse Microsoft user data", "error", err)
-		return UserData{}, status, err
+		return UserData{}, exceptions.NewServerError()
 	}
 
-	return userRes.ToUserData(), status, nil
+	return userRes.ToUserData(), nil
 }

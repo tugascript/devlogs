@@ -88,7 +88,7 @@ func (c *Config) RateLimiterConfig() RateLimiterConfig {
 	return c.rateLimiterConfig
 }
 
-var variables = [52]string{
+var variables = [42]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -129,6 +129,11 @@ var variables = [52]string{
 	"JWT_2FA_PUBLIC_KEY",
 	"JWT_2FA_PRIVATE_KEY",
 	"JWT_2FA_TTL_SEC",
+	"RATE_LIMITER_MAX",
+	"RATE_LIMITER_EXP_SEC",
+}
+
+var optionalVariables = [10]string{
 	"GITHUB_CLIENT_ID",
 	"GITHUB_CLIENT_SECRET",
 	"GOOGLE_CLIENT_ID",
@@ -139,8 +144,6 @@ var variables = [52]string{
 	"APPLE_CLIENT_SECRET",
 	"MICROSOFT_CLIENT_ID",
 	"MICROSOFT_CLIENT_SECRET",
-	"RATE_LIMITER_MAX",
-	"RATE_LIMITER_EXP_SEC",
 }
 
 var numerics = [11]string{
@@ -170,6 +173,11 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 			logger.Error(variable + " is not set")
 			panic(variable + " is not set")
 		}
+		variablesMap[variable] = value
+	}
+
+	for _, variable := range optionalVariables {
+		value := os.Getenv(variable)
 		variablesMap[variable] = value
 	}
 

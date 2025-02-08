@@ -533,25 +533,25 @@ func (s *Services) AccountOAuthURL(ctx context.Context, opts AccountOAuthURLOpti
 		RedirectURL: opts.RedirectURL,
 	}
 	var oauthUrl, state string
-	var err error
+	var serviceErr *exceptions.ServiceError
 	switch opts.Provider {
 	case AuthProviderApple:
-		oauthUrl, state, err = s.oauthProviders.GetAppleAuthorizationURL(ctx, authUrlOpts)
+		oauthUrl, state, serviceErr = s.oauthProviders.GetAppleAuthorizationURL(ctx, authUrlOpts)
 	case AuthProviderFacebook:
-		oauthUrl, state, err = s.oauthProviders.GetFacebookAuthorizationURL(ctx, authUrlOpts)
+		oauthUrl, state, serviceErr = s.oauthProviders.GetFacebookAuthorizationURL(ctx, authUrlOpts)
 	case AuthProviderGitHub:
-		oauthUrl, state, err = s.oauthProviders.GetGithubAuthorizationURL(ctx, authUrlOpts)
+		oauthUrl, state, serviceErr = s.oauthProviders.GetGithubAuthorizationURL(ctx, authUrlOpts)
 	case AuthProviderGoogle:
-		oauthUrl, state, err = s.oauthProviders.GetGoogleAuthorizationURL(ctx, authUrlOpts)
+		oauthUrl, state, serviceErr = s.oauthProviders.GetGoogleAuthorizationURL(ctx, authUrlOpts)
 	case AuthProviderMicrosoft:
-		oauthUrl, state, err = s.oauthProviders.GetMicrosoftAuthorizationURL(ctx, authUrlOpts)
+		oauthUrl, state, serviceErr = s.oauthProviders.GetMicrosoftAuthorizationURL(ctx, authUrlOpts)
 	default:
 		logger.ErrorContext(ctx, "Provider must be 'apple', 'facebook', 'github', 'google' and 'microsoft'")
 		return "", exceptions.NewServerError()
 	}
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to get authorization url or state", "error", err)
-		return "", exceptions.NewServerError()
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get authorization url or state", "error", serviceErr)
+		return "", serviceErr
 	}
 
 	if err := s.cache.AddOAuthState(ctx, cache.AddOAuthStateOptions{
@@ -602,22 +602,23 @@ func (s *Services) extOAuthToken(
 		RedirectURL: opts.redirectURL,
 	}
 	var token string
+	var serviceErr *exceptions.ServiceError
 	switch opts.provider {
 	case AuthProviderFacebook:
-		token, err = s.oauthProviders.GetFacebookAccessToken(ctx, accessTokenOpts)
+		token, serviceErr = s.oauthProviders.GetFacebookAccessToken(ctx, accessTokenOpts)
 	case AuthProviderGitHub:
-		token, err = s.oauthProviders.GetGithubAccessToken(ctx, accessTokenOpts)
+		token, serviceErr = s.oauthProviders.GetGithubAccessToken(ctx, accessTokenOpts)
 	case AuthProviderGoogle:
-		token, err = s.oauthProviders.GetGoogleAccessToken(ctx, accessTokenOpts)
+		token, serviceErr = s.oauthProviders.GetGoogleAccessToken(ctx, accessTokenOpts)
 	case AuthProviderMicrosoft:
-		token, err = s.oauthProviders.GetMicrosoftAccessToken(ctx, accessTokenOpts)
+		token, serviceErr = s.oauthProviders.GetMicrosoftAccessToken(ctx, accessTokenOpts)
 	default:
 		logger.ErrorContext(ctx, "Provider must be 'facebook', 'github', 'google' and 'microsoft'")
 		return "", exceptions.NewServerError()
 	}
-	if err != nil {
-		logger.WarnContext(ctx, "Failed to get oauth access token", "error", err)
-		return "", exceptions.NewUnauthorizedError()
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to get oauth access token", "error", serviceErr)
+		return "", serviceErr
 	}
 
 	logger.InfoContext(ctx, "Got access token successfully")
@@ -640,30 +641,23 @@ func (s *Services) extOAuthUser(
 		Token:     opts.token,
 	}
 	var userData oauth.UserData
-	var status int
-	var err error
+	var serviceErr *exceptions.ServiceError
 	switch opts.provider {
 	case AuthProviderFacebook:
-		userData, status, err = s.oauthProviders.GetFacebookUserData(ctx, userDataOpts)
+		userData, serviceErr = s.oauthProviders.GetFacebookUserData(ctx, userDataOpts)
 	case AuthProviderGitHub:
-		userData, status, err = s.oauthProviders.GetGithubUserData(ctx, userDataOpts)
+		userData, serviceErr = s.oauthProviders.GetGithubUserData(ctx, userDataOpts)
 	case AuthProviderGoogle:
-		userData, status, err = s.oauthProviders.GetGoogleUserData(ctx, userDataOpts)
+		userData, serviceErr = s.oauthProviders.GetGoogleUserData(ctx, userDataOpts)
 	case AuthProviderMicrosoft:
-		userData, status, err = s.oauthProviders.GetMicrosoftUserData(ctx, userDataOpts)
+		userData, serviceErr = s.oauthProviders.GetMicrosoftUserData(ctx, userDataOpts)
 	default:
 		logger.ErrorContext(ctx, "Provider must be 'github' or 'google'")
 		return oauth.UserData{}, exceptions.NewServerError()
 	}
-
-	if err != nil {
-		if status > 0 && status < 500 {
-			logger.WarnContext(ctx, "User data got non 200 status code", "error", err, "status", status)
-			return oauth.UserData{}, exceptions.NewUnauthorizedError()
-		}
-
-		logger.ErrorContext(ctx, "Failed to fetch userData data", "error", err)
-		return oauth.UserData{}, exceptions.NewServerError()
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to fetch userData data", "error", serviceErr)
+		return oauth.UserData{}, serviceErr
 	}
 
 	if !userData.IsVerified {
@@ -860,24 +854,24 @@ func (s *Services) AppleLoginAccount(
 		return "", exceptions.NewUnauthorizedError()
 	}
 
-	idToken, err := s.oauthProviders.GetAppleIDToken(ctx, oauth.AccessTokenOptions{
+	idToken, serviceErr := s.oauthProviders.GetAppleIDToken(ctx, oauth.AccessTokenOptions{
 		RequestID: opts.RequestID,
 		Code:      opts.Code,
 		Scopes:    oauthScopes,
 	})
-	if err != nil {
-		logger.WarnContext(ctx, "Failed to get apple AccountID token", "error", err)
-		return "", exceptions.NewUnauthorizedError()
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to get apple AccountID token", "error", serviceErr)
+		return "", serviceErr
 	}
 
-	ok, err = s.oauthProviders.ValidateAppleIDToken(ctx, oauth.ValidateAppleIDTokenOptions{
+	ok, serviceErr = s.oauthProviders.ValidateAppleIDToken(ctx, oauth.ValidateAppleIDTokenOptions{
 		RequestID: opts.RequestID,
 		Token:     idToken,
 		Email:     opts.Email,
 	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to validate apple AccountID token", "error", err)
-		return "", exceptions.NewServerError()
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to validate apple AccountID token", "error", serviceErr)
+		return "", serviceErr
 	}
 	if !ok {
 		logger.WarnContext(ctx, "Apple account is not verified")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 
 	"google.golang.org/api/people/v1"
 
@@ -102,7 +103,7 @@ type GoogleMeResponse struct {
 func (p *Providers) GetGoogleAuthorizationURL(
 	ctx context.Context,
 	opts AuthorizationURLOptions,
-) (string, string, error) {
+) (string, string, *exceptions.ServiceError) {
 	return getAuthorizationURL(ctx, getAuthorizationURLOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
 			Layer:     logLayer,
@@ -117,7 +118,10 @@ func (p *Providers) GetGoogleAuthorizationURL(
 	})
 }
 
-func (p *Providers) GetGoogleAccessToken(ctx context.Context, opts AccessTokenOptions) (string, error) {
+func (p *Providers) GetGoogleAccessToken(
+	ctx context.Context,
+	opts AccessTokenOptions,
+) (string, *exceptions.ServiceError) {
 	return getAccessToken(ctx, getAccessTokenOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
 			Layer:     logLayer,
@@ -133,7 +137,10 @@ func (p *Providers) GetGoogleAccessToken(ctx context.Context, opts AccessTokenOp
 	})
 }
 
-func (p *Providers) GetGoogleUserData(ctx context.Context, opts UserDataOptions) (UserData, int, error) {
+func (p *Providers) GetGoogleUserData(
+	ctx context.Context,
+	opts UserDataOptions,
+) (UserData, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  googleLocation,
@@ -145,13 +152,18 @@ func (p *Providers) GetGoogleUserData(ctx context.Context, opts UserDataOptions)
 	body, status, err := getUserResponse(logger, ctx, googleUserURL, opts.Token)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get Google user data", "error", err)
-		return UserData{}, status, err
+		return UserData{}, exceptions.NewServerError()
 	}
 
 	userRes := GoogleUserResponse{}
 	if err := json.Unmarshal(body, &userRes); err != nil {
 		logger.ErrorContext(ctx, "Failed to parse Google user data", "error", err)
-		return UserData{}, status, err
+
+		if status > 0 && status < 500 {
+			return UserData{}, exceptions.NewUnauthorizedError()
+		}
+
+		return UserData{}, exceptions.NewServerError()
 	}
 
 	if opts.Scopes != nil {
@@ -171,26 +183,31 @@ func (p *Providers) GetGoogleUserData(ctx context.Context, opts UserDataOptions)
 			body, status, err := getUserResponse(logger, ctx, googleMeURL, opts.Token)
 			if err != nil {
 				logger.ErrorContext(ctx, "Failed to get ME data", "error", err)
-				return UserData{}, status, err
+
+				if status > 0 && status < 500 {
+					return UserData{}, exceptions.NewForbiddenError()
+				}
+
+				return UserData{}, exceptions.NewServerError()
 			}
 
 			meRes := GoogleMeResponse{}
 			if err := json.Unmarshal(body, &meRes); err != nil {
 				logger.ErrorContext(ctx, "Failed to parse Google ME data", "error", err)
-				return UserData{}, status, err
+				return UserData{}, exceptions.NewServerError()
 			}
 
-			if meRes.Addresses != nil && len(meRes.Addresses) > 0 {
+			if len(meRes.Addresses) > 0 {
 				userRes.setLocation(meRes.Addresses[0])
 			}
-			if meRes.Birthdays != nil && len(meRes.Birthdays) > 0 {
+			if len(meRes.Birthdays) > 0 {
 				userRes.setBirthday(meRes.Birthdays[0])
 			}
-			if meRes.Genders != nil && len(meRes.Genders) > 0 {
+			if len(meRes.Genders) > 0 {
 				userRes.setGender(meRes.Genders[0])
 			}
 		}
 	}
 
-	return userRes.ToUserData(), status, nil
+	return userRes.ToUserData(), nil
 }

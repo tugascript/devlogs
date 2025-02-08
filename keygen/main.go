@@ -185,8 +185,8 @@ func createEnvFile(
 	envVars := []string{
 		fmt.Sprintf("JWT_ACCESS_PUBLIC_KEY=%s", accessPubKey),
 		fmt.Sprintf("JWT_ACCESS_PUBLIC_KEY=%s", accessPrivKey),
-		fmt.Sprintf("JWT_ACCOUNT_KEYS_PUBLIC_KEY=%s", accountKeysPubKey),
-		fmt.Sprintf("JWT_ACCOUNT_KEYS_PUBLIC_KEY=%s", accountKeysPrivKey),
+		fmt.Sprintf("JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY=%s", accountKeysPubKey),
+		fmt.Sprintf("JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY=%s", accountKeysPrivKey),
 		fmt.Sprintf("JWT_REFRESH_PUBLIC_KEY=%s", refreshPubKey),
 		fmt.Sprintf("JWT_REFRESH_PUBLIC_KEY=%s", refreshPrivKey),
 		fmt.Sprintf("JWT_CONFIRM_PUBLIC_KEY=%s", confirmPubKey),
@@ -208,7 +208,7 @@ func main() {
 	// Check if the keys directory exists
 	createDirectory(logger, "keys")
 	accessPubKey, accessPrivKey := generateEs256KeyPair(logger)
-	accountKeysPubKey, accountKeysPrivKey := generateEs256KeyPair(logger)
+	accountCredsPubKey, accountKeysPrivKey := generateEs256KeyPair(logger)
 	refreshPubKey, refreshPrivKey := generateEd25519KeyPair(logger)
 	confirmPubKey, confirmPrivKey := generateEd25519KeyPair(logger)
 	resetPubKey, resetPrivKey := generateEd25519KeyPair(logger)
@@ -216,7 +216,7 @@ func main() {
 	twoFactorPubKey, twoFactorPrivKey := generateEd25519KeyPair(logger)
 	writeKeyToFile(logger, "access_public", &accessPubKey)
 	writeKeyToFile(logger, "access_private", &accessPrivKey)
-	writeKeyToFile(logger, "account_keys_public", &accountKeysPubKey)
+	writeKeyToFile(logger, "account_keys_public", &accountCredsPubKey)
 	writeKeyToFile(logger, "account_keys_private", &accountKeysPrivKey)
 	writeKeyToFile(logger, "refresh_public", &refreshPubKey)
 	writeKeyToFile(logger, "refresh_private", &refreshPrivKey)
@@ -236,7 +236,7 @@ func main() {
 		logger,
 		encodeKeyPemToJson(logger, &accessPubKey),
 		encodeKeyPemToJson(logger, &accessPrivKey),
-		encodeKeyPemToJson(logger, &accountKeysPubKey),
+		encodeKeyPemToJson(logger, &accountCredsPubKey),
 		encodeKeyPemToJson(logger, &accountKeysPrivKey),
 		encodeKeyPemToJson(logger, &refreshPubKey),
 		encodeKeyPemToJson(logger, &refreshPrivKey),

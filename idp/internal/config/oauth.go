@@ -3,12 +3,18 @@ package config
 type OAuthProviderConfig struct {
 	clientID     string
 	clientSecret string
+	enabled      bool
 }
 
 func NewOAuthProvider(clientID, clientSecret string) OAuthProviderConfig {
+	if clientID == "" || clientSecret == "" {
+		return OAuthProviderConfig{enabled: false}
+	}
+
 	return OAuthProviderConfig{
 		clientID:     clientID,
 		clientSecret: clientSecret,
+		enabled:      true,
 	}
 }
 
@@ -18,6 +24,10 @@ func (o *OAuthProviderConfig) ClientID() string {
 
 func (o *OAuthProviderConfig) ClientSecret() string {
 	return o.clientSecret
+}
+
+func (o *OAuthProviderConfig) Enabled() bool {
+	return o.enabled
 }
 
 type OAuthProvidersConfig struct {

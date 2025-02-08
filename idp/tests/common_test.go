@@ -152,6 +152,7 @@ func GetTestCache(t *testing.T) *cache.Cache {
 func GetTestServer(t *testing.T) *server.FiberServer {
 	if _testServer == nil {
 		initTestServicesAndApp(t)
+		_testServer.RegisterFiberRoutes()
 	}
 
 	return _testServer

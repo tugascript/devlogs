@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"strings"
 
 	"github.com/biter777/countries"
@@ -114,7 +115,7 @@ var facebookProfileParams = [8]string{
 func (p *Providers) GetFacebookAuthorizationURL(
 	ctx context.Context,
 	opts AuthorizationURLOptions,
-) (string, string, error) {
+) (string, string, *exceptions.ServiceError) {
 	return getAuthorizationURL(ctx, getAuthorizationURLOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
 			Layer:     logLayer,
@@ -129,7 +130,10 @@ func (p *Providers) GetFacebookAuthorizationURL(
 	})
 }
 
-func (p *Providers) GetFacebookAccessToken(ctx context.Context, opts AccessTokenOptions) (string, error) {
+func (p *Providers) GetFacebookAccessToken(
+	ctx context.Context,
+	opts AccessTokenOptions,
+) (string, *exceptions.ServiceError) {
 	return getAccessToken(ctx, getAccessTokenOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
 			Layer:     logLayer,
@@ -145,7 +149,10 @@ func (p *Providers) GetFacebookAccessToken(ctx context.Context, opts AccessToken
 	})
 }
 
-func (p *Providers) GetFacebookUserData(ctx context.Context, opts UserDataOptions) (UserData, int, error) {
+func (p *Providers) GetFacebookUserData(
+	ctx context.Context,
+	opts UserDataOptions,
+) (UserData, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  facebookLocation,
@@ -178,14 +185,19 @@ func (p *Providers) GetFacebookUserData(ctx context.Context, opts UserDataOption
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get Facebook user data", "error", err)
-		return UserData{}, status, err
+
+		if status > 0 && status < 500 {
+			return UserData{}, exceptions.NewUnauthorizedError()
+		}
+
+		return UserData{}, exceptions.NewServerError()
 	}
 
 	userRes := FacebookUserResponse{}
 	if err := json.Unmarshal(body, &userRes); err != nil {
 		logger.ErrorContext(ctx, "Failed to parse Facebook user data", "error", err)
-		return UserData{}, status, err
+		return UserData{}, exceptions.NewServerError()
 	}
 
-	return userRes.ToUserData(), status, nil
+	return userRes.ToUserData(), nil
 }
