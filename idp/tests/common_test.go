@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/go-faker/faker/v4"
+	"github.com/google/uuid"
+	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -214,11 +217,18 @@ func AssertEqual[V comparable](t *testing.T, actual, expected V) {
 	}
 }
 
+func AssertNotEmpty[V comparable](t *testing.T, actual V) {
+	var empty V
+	if actual == empty {
+		t.Fatal("Value is empty")
+	}
+}
+
 type TestRequestCase[R any] struct {
 	Name      string
 	ReqFn     func(t *testing.T) (R, string)
 	ExpStatus int
-	AssertFn  func(t *testing.T, req R, resp *http.Response)
+	AssertFn  func(t *testing.T, req R, res *http.Response)
 	DelayMs   int
 	Path      string
 	PathFn    func() string
@@ -242,4 +252,38 @@ func PerformTestRequestCase[R any](t *testing.T, method, path string, tc TestReq
 	// Assert
 	AssertTestStatusCode(t, resp, tc.ExpStatus)
 	tc.AssertFn(t, reqBody, resp)
+}
+
+type fakeAccountData struct {
+	Email     string `faker:"email"`
+	FirstName string `faker:"first_name"`
+	LastName  string `faker:"last_name"`
+	Password  string `faker:"oneof: Pas@w0rd123, P@sW0rd456, P@ssw0rd789, P@ssW0rd012, P@ssw0rd!345"`
+}
+
+func GenerateFakeAccountData(t *testing.T) services.CreateAccountOptions {
+	fakeData := fakeAccountData{}
+	if err := faker.FakeData(&fakeData); err != nil {
+		t.Fatal("Failed to generate fake data", err)
+	}
+
+	return services.CreateAccountOptions{
+		RequestID: uuid.NewString(),
+		Email:     fakeData.Email,
+		FirstName: fakeData.FirstName,
+		LastName:  fakeData.LastName,
+		Provider:  services.AuthProviderGoogle,
+	}
+}
+
+func CreateTestAccount(t *testing.T, userData services.CreateAccountOptions) dtos.AccountDTO {
+	serv := GetTestServices(t)
+	ctx := context.Background()
+
+	account, err := serv.CreateAccount(ctx, userData)
+	if err != nil {
+		t.Fatal("Failed to create account", err)
+	}
+
+	return account
 }

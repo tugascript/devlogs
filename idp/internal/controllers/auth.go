@@ -4,12 +4,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/gofiber/fiber/v2"
 	"log/slog"
 	"slices"
 	"strings"
-	"unicode"
-
-	"github.com/gofiber/fiber/v2"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
@@ -26,32 +24,6 @@ const (
 	grantTypeAuthorization     string = "authorization_code"
 	grantTypeClientCredentials string = "client_credentials"
 )
-
-type passwordValidity struct {
-	hasLowercase bool
-	hasUppercase bool
-	hasNumber    bool
-	hasSymbol    bool
-}
-
-func passwordValidator(password string) bool {
-	validity := passwordValidity{}
-
-	for _, char := range password {
-		switch {
-		case unicode.IsLower(char):
-			validity.hasLowercase = true
-		case unicode.IsUpper(char):
-			validity.hasUppercase = true
-		case unicode.IsNumber(char):
-			validity.hasNumber = true
-		case unicode.IsPunct(char) || unicode.IsSymbol(char):
-			validity.hasSymbol = true
-		}
-	}
-
-	return validity.hasLowercase && validity.hasUppercase && validity.hasNumber && validity.hasSymbol
-}
 
 func saveAccountRefreshCookie(ctx *fiber.Ctx, name, token string) {
 	ctx.Cookie(&fiber.Cookie{
@@ -75,21 +47,6 @@ func (c *Controllers) RegisterAccount(ctx *fiber.Ctx) error {
 	}
 	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
-	}
-	if !passwordValidator(body.Password) {
-		logger.WarnContext(ctx.UserContext(), "Failed to validate password")
-		logResponse(logger, ctx, fiber.StatusBadRequest)
-		return ctx.
-			Status(fiber.StatusBadRequest).
-			JSON(exceptions.NewValidationErrorResponse(
-				exceptions.ValidationResponseLocationBody,
-				[]exceptions.FieldError{
-					{
-						Param:   "password",
-						Message: "Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol",
-					},
-				},
-			))
 	}
 
 	messageDTO, serviceErr := c.services.RegisterAccount(ctx.UserContext(), services.RegisterAccountOptions{

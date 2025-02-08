@@ -16,8 +16,9 @@ const (
 	AccountScopeAdmin    AccountScope = "admin"
 	AccountScopeClientID AccountScope = "client_id"
 
-	AccountScope2FA   AccountScope = "2fa"
-	AccountScopeOAuth AccountScope = "oauth"
+	AccountScope2FA          AccountScope = "2fa"
+	AccountScopeOAuth        AccountScope = "oauth"
+	AccountScopeConfirmation AccountScope = "confirmation"
 
 	AccountScopeUsersRead  AccountScope = "users:read"
 	AccountScopeUsersWrite AccountScope = "users:write"
@@ -40,8 +41,8 @@ type AccountClaims struct {
 }
 
 type accountTokenClaims struct {
-	Account AccountClaims
-	Scopes  string
+	Account AccountClaims `json:"account"`
+	Scopes  string        `json:"scopes"`
 	jwt.RegisteredClaims
 }
 

@@ -2,10 +2,10 @@ package server
 
 import (
 	"context"
+	"github.com/tugascript/devlogs/idp/internal/server/validations"
 	"log/slog"
 	"time"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/encryptcookie"
@@ -97,7 +97,7 @@ func New(
 	)
 	logger.InfoContext(ctx, "Finished building OAuth provider")
 
-	logger.InfoContext(ctx, "Building newServices...")
+	logger.InfoContext(ctx, "Building services...")
 	newServices := services.NewServices(
 		logger,
 		db,
@@ -107,7 +107,11 @@ func New(
 		vaultStg,
 		oauthProviders,
 	)
-	logger.InfoContext(ctx, "Finished building newServices")
+	logger.InfoContext(ctx, "Finished building services")
+
+	logger.InfoContext(ctx, "Loading validators...")
+	vld := validations.NewValidator(logger)
+	logger.InfoContext(ctx, "Finished loading validators")
 
 	server := &FiberServer{
 		App: fiber.New(fiber.Config{
@@ -117,7 +121,7 @@ func New(
 		routes: routes.NewRoutes(controllers.NewControllers(
 			logger,
 			newServices,
-			validator.New(),
+			vld,
 			cfg.FrontendDomain(),
 			cfg.BackendDomain(),
 			cfg.CookieName(),

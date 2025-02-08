@@ -133,6 +133,8 @@ const (
 	strFieldErrTagUrl   string = "url"
 	strFieldNumber      string = "number"
 	strFieldUUID        string = "uuid"
+	strFieldPassword    string = "password"
+	strFieldSlug        string = "slug"
 
 	intFieldErrTagGte string = "gte"
 	intFieldErrTagLte string = "lte"
@@ -142,13 +144,15 @@ const (
 	FieldErrMessageEqField  string = "does not match equivalent field"
 	FieldErrMessageEq       string = "does not match expected value"
 
-	StrFieldErrMessageEmail  string = "must be a valid email"
-	StrFieldErrMessageMin    string = "must be longer"
-	StrFieldErrMessageMax    string = "must be shorter"
-	StrFieldErrMessageJWT    string = "must be a valid JWT token"
-	StrFieldErrMessageUrl    string = "must be a valid URL"
-	StrFieldErrMessageNumber string = "must be a number"
-	StrFieldErrMessageUUID   string = "must be a valid UUID"
+	StrFieldErrMessageEmail    string = "must be a valid email"
+	StrFieldErrMessageMin      string = "must be longer"
+	StrFieldErrMessageMax      string = "must be shorter"
+	StrFieldErrMessageJWT      string = "must be a valid JWT token"
+	StrFieldErrMessageUrl      string = "must be a valid URL"
+	StrFieldErrMessageNumber   string = "must be a number"
+	StrFieldErrMessageUUID     string = "must be a valid UUID"
+	StrFieldErrMessagePassword string = "must contain at least one lowercase letter, one uppercase letter, one number, and one symbol"
+	StrFieldErrMessageSlug     string = "must be a valid slug"
 
 	IntFieldErrMessageLte string = "must be less"
 	IntFieldErrMessageGte string = "must be greater"
@@ -174,6 +178,10 @@ func selectStrErrMessage(tag string) string {
 		return StrFieldErrMessageNumber
 	case strFieldUUID:
 		return StrFieldErrMessageUUID
+	case strFieldPassword:
+		return StrFieldErrMessagePassword
+	case strFieldSlug:
+		return StrFieldErrMessageSlug
 	case fieldErrTagEq:
 		return FieldErrMessageEq
 	default:

@@ -98,6 +98,7 @@ type User struct {
 
 type UserAuthProvider struct {
 	ID        int32
+	UserID    int32
 	Email     string
 	Provider  string
 	AccountID int32

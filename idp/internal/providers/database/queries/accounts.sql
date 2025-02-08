@@ -63,3 +63,6 @@ UPDATE "accounts" SET
     "updated_at" = now()
 WHERE "id" = $1
 RETURNING *;
+
+-- name: DeleteAllAccounts :exec
+DELETE FROM "accounts";

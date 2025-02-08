@@ -14,6 +14,7 @@ func (t *Tokens) CreateConfirmationToken(opts AccountTokenOptions) (string, erro
 		accountID:      opts.ID,
 		accountVersion: opts.Version,
 		accountEmail:   opts.Email,
+		scopes:         []AccountScope{AccountScopeConfirmation},
 	})
 }
 

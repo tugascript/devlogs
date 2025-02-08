@@ -147,6 +147,15 @@ func (q *Queries) CreateAccountWithoutPassword(ctx context.Context, arg CreateAc
 	return i, err
 }
 
+const deleteAllAccounts = `-- name: DeleteAllAccounts :exec
+DELETE FROM "accounts"
+`
+
+func (q *Queries) DeleteAllAccounts(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteAllAccounts)
+	return err
+}
+
 const findAccountByEmail = `-- name: FindAccountByEmail :one
 SELECT id, first_name, last_name, username, email, password, version, is_confirmed, two_factor_type, created_at, updated_at FROM "accounts"
 WHERE "email" = $1 LIMIT 1
