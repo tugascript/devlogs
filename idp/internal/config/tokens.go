@@ -27,30 +27,32 @@ func (s *SingleJwtConfig) TtlSec() int64 {
 }
 
 type TokensConfig struct {
-	access      SingleJwtConfig
-	accountKeys SingleJwtConfig
-	refresh     SingleJwtConfig
-	confirm     SingleJwtConfig
-	reset       SingleJwtConfig
-	oAuth       SingleJwtConfig
-	twoFA       SingleJwtConfig
+	access             SingleJwtConfig
+	accountCredentials SingleJwtConfig
+	refresh            SingleJwtConfig
+	confirm            SingleJwtConfig
+	reset              SingleJwtConfig
+	oAuth              SingleJwtConfig
+	twoFA              SingleJwtConfig
 }
 
 func NewTokensConfig(
 	access SingleJwtConfig,
-	accountKeys SingleJwtConfig,
+	accountCredentials SingleJwtConfig,
 	refresh SingleJwtConfig,
 	confirm SingleJwtConfig,
+	reset SingleJwtConfig,
 	oAuth SingleJwtConfig,
 	twoFA SingleJwtConfig,
 ) TokensConfig {
 	return TokensConfig{
-		access:      access,
-		accountKeys: accountKeys,
-		refresh:     refresh,
-		confirm:     confirm,
-		oAuth:       oAuth,
-		twoFA:       twoFA,
+		access:             access,
+		accountCredentials: accountCredentials,
+		refresh:            refresh,
+		confirm:            confirm,
+		reset:              reset,
+		oAuth:              oAuth,
+		twoFA:              twoFA,
 	}
 }
 
@@ -58,8 +60,8 @@ func (t *TokensConfig) Access() SingleJwtConfig {
 	return t.access
 }
 
-func (t *TokensConfig) AccountKeys() SingleJwtConfig {
-	return t.accountKeys
+func (t *TokensConfig) AccountCredentials() SingleJwtConfig {
+	return t.accountCredentials
 }
 
 func (t *TokensConfig) Refresh() SingleJwtConfig {

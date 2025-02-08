@@ -62,5 +62,5 @@ func (d *Database) RawQueryRow(ctx context.Context, sql string, args []interface
 }
 
 func (d *Database) Ping(ctx context.Context) error {
-	return d.Ping(ctx)
+	return d.connPool.Ping(ctx)
 }

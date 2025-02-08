@@ -35,10 +35,15 @@ func NewVault(
 		panic(err)
 	}
 
+	env := config.Env()
+	if !(env == "prod" || env == "production") {
+		env = "development"
+	}
+
 	return &Vault{
 		logger: logger,
 		client: client,
 		url:    url,
-		env:    config.Env(),
+		env:    env,
 	}
 }

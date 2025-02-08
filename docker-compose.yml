@@ -42,7 +42,7 @@ services:
       - "8080:8080"
     environment:
       DB_CONNECTION_URI: "postgres://postgres:postgres@postgres:5432/infisical"
-      REDIS_URL: "redis://redis:6379"
+      REDIS_URL: "redis://redis:6379/0"
       ENCRYPTION_KEY: "5129b98f0b42ea03c01e41886af25ea1"
       AUTH_SECRET: "X/uTLTprw2bN6K11kIUNF0GM9M1Jw0zz1y9OofQfi04="
       SITE_URL: "http://localhost:8080"
@@ -53,8 +53,10 @@ services:
       SMTP_PASSWORD: "password"
       SMTP_FROM_NAME: "Infisical"
       SMTP_FROM_ADDRESS: "noreply@example.com"
+      NODE_ENV: "development"
     depends_on:
       - postgres
+      - redis
       - mailhog
     networks:
       - provider_net

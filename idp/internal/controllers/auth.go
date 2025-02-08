@@ -191,6 +191,7 @@ func (c *Controllers) TwoFactorLoginAccount(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
+	saveAccountRefreshCookie(ctx, c.refreshCookieName, authDTO.RefreshToken)
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }

@@ -70,7 +70,7 @@ func New(
 	tokensCfg := cfg.TokensConfig()
 	jwts := tokens.NewTokens(
 		tokensCfg.Access(),
-		tokensCfg.AccountKeys(),
+		tokensCfg.AccountCredentials(),
 		tokensCfg.Refresh(),
 		tokensCfg.Confirm(),
 		tokensCfg.Reset(),

@@ -43,15 +43,6 @@ docker-down:
 		docker-compose down; \
 	fi
 
-# Test the application
-test:
-	@echo "Testing..."
-	@go test ./... -v
-# Integrations Tests for the application
-itest:
-	@echo "Running integration tests..."
-	@go test ./internal/database -v
-
 # Clean the binary
 clean:
 	@echo "Cleaning..."
@@ -74,8 +65,15 @@ watch:
             fi; \
         fi
 
-keygen-debug:
-	@echo "Generating debug key..."
+keygen:
+	@echo "Generating keys..."
 	DEBUG=true go run ../keygen/main.go
+
+test-verbose:
+	@echo "Testing..."
+	@go test -v ./tests
+
+test:
+	go test ./tests
 
 .PHONY: all build run test clean watch docker-run docker-down itest

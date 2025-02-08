@@ -88,7 +88,7 @@ func (c *Config) RateLimiterConfig() RateLimiterConfig {
 	return c.rateLimiterConfig
 }
 
-var variables = [42]string{
+var variables = [39]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -101,12 +101,11 @@ var variables = [42]string{
 	"BACKEND_DOMAIN",
 	"COOKIE_SECRET",
 	"COOKIE_NAME",
+	"RATE_LIMITER_MAX",
+	"RATE_LIMITER_EXP_SEC",
 	"INFISICAL_URL",
 	"INFISICAL_CLIENT_ID",
 	"INFISICAL_CLIENT_SECRET",
-	"FRONTEND_DOMAIN",
-	"COOKIE_SECRET",
-	"REFRESH_COOKIE_NAME",
 	"EMAIL_PUB_CHANNEL",
 	"JWT_ACCESS_PUBLIC_KEY",
 	"JWT_ACCESS_PRIVATE_KEY",
@@ -129,8 +128,6 @@ var variables = [42]string{
 	"JWT_2FA_PUBLIC_KEY",
 	"JWT_2FA_PRIVATE_KEY",
 	"JWT_2FA_TTL_SEC",
-	"RATE_LIMITER_MAX",
-	"RATE_LIMITER_EXP_SEC",
 }
 
 var optionalVariables = [10]string{
@@ -152,10 +149,10 @@ var numerics = [11]string{
 	"JWT_ACCESS_TTL_SEC",
 	"JWT_ACCOUNT_CREDENTIALS_TTL_SEC",
 	"JWT_REFRESH_TTL_SEC",
-	"JWT_EMAIL_TTL_SEC",
+	"JWT_CONFIRM_TTL_SEC",
+	"JWT_RESET_TTL_SEC",
 	"JWT_OAUTH_TTL_SEC",
 	"JWT_2FA_TTL_SEC",
-	"JWT_APP_TTL_SEC",
 	"RATE_LIMITER_MAX",
 	"RATE_LIMITER_EXP_SEC",
 }
@@ -234,6 +231,11 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 				variablesMap["JWT_CONFIRM_PUBLIC_KEY"],
 				variablesMap["JWT_CONFIRM_PRIVATE_KEY"],
 				intMap["JWT_CONFIRM_TTL_SEC"],
+			),
+			NewSingleJwtConfig(
+				variablesMap["JWT_RESET_PUBLIC_KEY"],
+				variablesMap["JWT_RESET_PRIVATE_KEY"],
+				intMap["JWT_RESET_TTL_SEC"],
 			),
 			NewSingleJwtConfig(
 				variablesMap["JWT_OAUTH_PUBLIC_KEY"],

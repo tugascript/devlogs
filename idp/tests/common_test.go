@@ -77,7 +77,7 @@ func initTestServicesAndApp(t *testing.T) {
 	tokensCfg := _testConfig.TokensConfig()
 	_testTokens = tokens.NewTokens(
 		tokensCfg.Access(),
-		tokensCfg.AccountKeys(),
+		tokensCfg.AccountCredentials(),
 		tokensCfg.Refresh(),
 		tokensCfg.Confirm(),
 		tokensCfg.Reset(),
@@ -212,4 +212,34 @@ func AssertEqual[V comparable](t *testing.T, actual, expected V) {
 	if expected != actual {
 		t.Fatalf("Actual: %v, Expected: %v", actual, expected)
 	}
+}
+
+type TestRequestCase[R any] struct {
+	Name      string
+	ReqFn     func(t *testing.T) (R, string)
+	ExpStatus int
+	AssertFn  func(t *testing.T, req R, resp *http.Response)
+	DelayMs   int
+	Path      string
+	PathFn    func() string
+	Method    string
+}
+
+func PerformTestRequestCase[R any](t *testing.T, method, path string, tc TestRequestCase[R]) {
+	// Arrange
+	reqBody, accessToken := tc.ReqFn(t)
+	jsonBody := CreateTestJSONRequestBody(t, reqBody)
+	fiberApp := GetTestServer(t).App
+
+	// Act
+	resp := PerformTestRequest(t, fiberApp, tc.DelayMs, method, path, accessToken, "application/json", jsonBody)
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// Assert
+	AssertTestStatusCode(t, resp, tc.ExpStatus)
+	tc.AssertFn(t, reqBody, resp)
 }
