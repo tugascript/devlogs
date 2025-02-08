@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-02-06T09:25:04.377Z
+-- Generated at: 2025-02-08T08:58:04.802Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -49,8 +49,8 @@ CREATE TABLE "apps" (
   "name" varchar(50) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
-  "callback_uris" varchar(250)[] NOT NULL DEFAULT '[]',
-  "logout_uris" varchar(250)[] NOT NULL DEFAULT '[]',
+  "callback_uris" varchar(250)[] NOT NULL DEFAULT '{}',
+  "logout_uris" varchar(250)[] NOT NULL DEFAULT '{}',
   "user_scopes" jsonb NOT NULL DEFAULT '{ "email": true, "name": true }',
   "app_providers" jsonb NOT NULL DEFAULT '{ "email_password": true }',
   "id_token_ttl" integer NOT NULL DEFAULT 3600,
@@ -94,6 +94,7 @@ CREATE TABLE "user_totps" (
 
 CREATE TABLE "user_auth_provider" (
   "id" serial PRIMARY KEY,
+  "user_id" integer NOT NULL,
   "email" varchar(250) NOT NULL,
   "provider" varchar(10) NOT NULL,
   "account_id" integer NOT NULL,
@@ -139,7 +140,9 @@ CREATE UNIQUE INDEX "user_totps_user_id_uidx" ON "user_totps" ("user_id");
 
 CREATE INDEX "user_auth_provider_email_idx" ON "user_auth_provider" ("email");
 
-CREATE UNIQUE INDEX "user_auth_provider_email_provider_uidx" ON "user_auth_provider" ("email", "provider");
+CREATE INDEX "user_auth_provider_user_id_idx" ON "user_auth_provider" ("user_id");
+
+CREATE UNIQUE INDEX "user_auth_provider_account_id_provider_uidx" ON "user_auth_provider" ("email", "account_id", "provider");
 
 CREATE INDEX "user_auth_provider_account_id_idx" ON "user_auth_provider" ("account_id");
 
@@ -161,4 +164,4 @@ ALTER TABLE "user_totps" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") O
 
 ALTER TABLE "user_auth_provider" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "user_auth_provider" ADD FOREIGN KEY ("email") REFERENCES "users" ("email") ON DELETE CASCADE;
+ALTER TABLE "user_auth_provider" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
