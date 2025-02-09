@@ -12,10 +12,11 @@ import (
 const logLayer string = "vault"
 
 type Vault struct {
-	logger *slog.Logger
-	client infisical.InfisicalClientInterface
-	env    string
-	url    string
+	logger        *slog.Logger
+	client        infisical.InfisicalClientInterface
+	env           string
+	url           string
+	backendDomain string
 }
 
 func NewVault(

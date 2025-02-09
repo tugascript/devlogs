@@ -3,15 +3,15 @@ package dtos
 import "github.com/tugascript/devlogs/idp/internal/providers/database"
 
 type AccountDTO struct {
-	ID        int    `json:"id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"`
+	ID            int    `json:"id"`
+	FirstName     string `json:"first_name"`
+	LastName      string `json:"last_name"`
+	Email         string `json:"email"`
+	TwoFactorType string `json:"two_factor_type"`
 
-	version       int
-	isConfirmed   bool
-	password      string
-	twoFactorType string
+	version     int
+	isConfirmed bool
+	password    string
 }
 
 func (a *AccountDTO) Version() int {
@@ -26,10 +26,6 @@ func (a *AccountDTO) IsConfirmed() bool {
 	return a.isConfirmed
 }
 
-func (a *AccountDTO) TwoFactorType() string {
-	return a.twoFactorType
-}
-
 func MapAccountToDTO(account *database.Account) AccountDTO {
 	return AccountDTO{
 		ID:            int(account.ID),
@@ -37,8 +33,8 @@ func MapAccountToDTO(account *database.Account) AccountDTO {
 		FirstName:     account.FirstName,
 		LastName:      account.LastName,
 		Email:         account.Email,
+		TwoFactorType: account.TwoFactorType,
 		isConfirmed:   account.IsConfirmed,
 		password:      account.Password.String,
-		twoFactorType: account.TwoFactorType,
 	}
 }

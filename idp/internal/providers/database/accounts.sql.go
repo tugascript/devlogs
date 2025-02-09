@@ -271,3 +271,36 @@ func (q *Queries) UpdateAccountPassword(ctx context.Context, arg UpdateAccountPa
 	)
 	return i, err
 }
+
+const updateAccountTwoFactorType = `-- name: UpdateAccountTwoFactorType :one
+UPDATE "accounts" SET
+    "two_factor_type" = $1,
+    "version" = "version" + 1,
+    "updated_at" = now()
+WHERE "id" = $2
+RETURNING id, first_name, last_name, username, email, password, version, is_confirmed, two_factor_type, created_at, updated_at
+`
+
+type UpdateAccountTwoFactorTypeParams struct {
+	TwoFactorType string
+	ID            int32
+}
+
+func (q *Queries) UpdateAccountTwoFactorType(ctx context.Context, arg UpdateAccountTwoFactorTypeParams) (Account, error) {
+	row := q.db.QueryRow(ctx, updateAccountTwoFactorType, arg.TwoFactorType, arg.ID)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Username,
+		&i.Email,
+		&i.Password,
+		&i.Version,
+		&i.IsConfirmed,
+		&i.TwoFactorType,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

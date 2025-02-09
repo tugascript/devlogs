@@ -3,10 +3,6 @@
 # Build the application
 all: build test
 
-create-migration-file:
-	@echo "Creating migration..."
-	migrate create -ext sql -dir internal/database/migrations
-
 create-db-schema:
 	@echo "Creating initial schema..."
 	dbml2sql initial_schema.dbml --postgres -o internal/providers/database/migrations/20241213231542_create_initial_schema.up.sql

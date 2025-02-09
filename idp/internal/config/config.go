@@ -209,6 +209,7 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 			variablesMap["INFISICAL_URL"],
 			variablesMap["INFISICAL_CLIENT_ID"],
 			variablesMap["INFISICAL_CLIENT_SECRET"],
+			variablesMap["BACKEND_DOMAIN"],
 			env,
 		),
 		tokensConfig: NewTokensConfig(

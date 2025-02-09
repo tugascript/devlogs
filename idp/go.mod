@@ -12,7 +12,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/joho/godotenv v1.5.1
 	github.com/redis/go-redis/v9 v9.7.0
-	golang.org/x/crypto v0.32.0
+	golang.org/x/crypto v0.33.0
 )
 
 require (
@@ -77,7 +77,7 @@ require (
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/oauth2 v0.25.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
 	google.golang.org/api v0.217.0 // indirect

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/argon2"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const memory uint32 = 65_536
@@ -55,4 +56,21 @@ func CompareHash(str, hash string) (bool, error) {
 
 	comparisonHash := argon2.IDKey([]byte(str), salt, iterations, memory, parallelism, keySize)
 	return bytes.Equal(decodedHash, comparisonHash), nil
+}
+
+func BcryptHashString(str string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(str), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+
+	return string(hash), nil
+}
+
+func BcryptCompareHash(str, hash string) bool {
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(str)); err != nil {
+		return false
+	}
+
+	return true
 }

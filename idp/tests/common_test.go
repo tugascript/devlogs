@@ -233,6 +233,13 @@ func AssertNotEmpty[V comparable](t *testing.T, actual V) {
 	}
 }
 
+func AssertEmpty[V comparable](t *testing.T, actual V) {
+	var empty V
+	if actual != empty {
+		t.Fatal("Value is not empty")
+	}
+}
+
 type TestRequestCase[R any] struct {
 	Name      string
 	ReqFn     func(t *testing.T) (R, string)

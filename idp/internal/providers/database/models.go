@@ -33,6 +33,14 @@ type AccountCredential struct {
 	UpdatedAt    pgtype.Timestamp
 }
 
+type AccountRecoveryKey struct {
+	ID        int32
+	AccountID int32
+	Keys      []byte
+	CreatedAt pgtype.Timestamp
+	UpdatedAt pgtype.Timestamp
+}
+
 type AccountsTotp struct {
 	ID            int32
 	AccountID     int32
@@ -102,6 +110,14 @@ type UserAuthProvider struct {
 	Email     string
 	Provider  string
 	AccountID int32
+	CreatedAt pgtype.Timestamp
+	UpdatedAt pgtype.Timestamp
+}
+
+type UserRecoveryKey struct {
+	ID        int32
+	UserID    int32
+	Keys      []byte
 	CreatedAt pgtype.Timestamp
 	UpdatedAt pgtype.Timestamp
 }

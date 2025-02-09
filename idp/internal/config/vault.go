@@ -1,18 +1,20 @@
 package config
 
 type VaultConfig struct {
-	url          string
-	clientID     string
-	clientSecret string
-	env          string
+	url           string
+	clientID      string
+	clientSecret  string
+	env           string
+	backendDomain string
 }
 
-func NewVaultConfig(url, clientID, clientSecret, env string) VaultConfig {
+func NewVaultConfig(url, clientID, clientSecret, backendDomain, env string) VaultConfig {
 	return VaultConfig{
-		url:          url,
-		clientID:     clientID,
-		clientSecret: clientSecret,
-		env:          env,
+		url:           url,
+		clientID:      clientID,
+		clientSecret:  clientSecret,
+		backendDomain: backendDomain,
+		env:           env,
 	}
 }
 

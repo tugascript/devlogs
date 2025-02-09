@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"net/http"
 	"testing"
 
@@ -154,6 +155,15 @@ func assertAuthAccessResponse[T any](t *testing.T, _ T, res *http.Response) {
 	AssertEqual(t, GetTestTokens(t).GetAccessTTL(), int64(resBody.ExpiresIn))
 }
 
+func assertTempAccessResponse[T any](t *testing.T, _ T, res *http.Response) {
+	resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+	AssertEqual(t, "Bearer", resBody.TokenType)
+	AssertNotEmpty(t, resBody.AccessToken)
+	AssertEmpty(t, resBody.RefreshToken)
+	AssertNotEmpty(t, resBody.Message)
+	AssertNotEmpty(t, resBody.ExpiresIn)
+}
+
 func TestConfirm(t *testing.T) {
 	const registerPath = "/v1/auth/confirm-email"
 
@@ -235,6 +245,88 @@ func TestConfirm(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			PerformTestRequestCase(t, http.MethodPost, registerPath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+func TestLogin(t *testing.T) {
+	const loginPath = "/v1/auth/login"
+
+	testCases := []TestRequestCase[bodies.LoginBody]{
+		{
+			Name: "Should return 200 OK with access and refresh tokens",
+			ReqFn: func(t *testing.T) (bodies.LoginBody, string) {
+				data := GenerateFakeAccountData(t, services.AuthProviderEmail)
+				account := CreateTestAccount(t, data)
+				return bodies.LoginBody{
+					Email:    account.Email,
+					Password: data.Password,
+				}, ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[bodies.LoginBody],
+		},
+		{
+			Name: "Should return 200 OK with temporary access token if user has 2FA enabled",
+			ReqFn: func(t *testing.T) (bodies.LoginBody, string) {
+				data := GenerateFakeAccountData(t, services.AuthProviderEmail)
+				account := CreateTestAccount(t, data)
+				testS := GetTestServices(t)
+
+				if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
+					RequestID:     uuid.NewString(),
+					ID:            int32(account.ID),
+					TwoFactorType: services.TwoFactorEmail,
+					Password:      data.Password,
+				}); err != nil {
+					t.Fatal("Failed to enable 2FA", err)
+				}
+
+				return bodies.LoginBody{
+					Email:    account.Email,
+					Password: data.Password,
+				}, ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertTempAccessResponse[bodies.LoginBody],
+		},
+		{
+			Name: "Should return 400 BAD REQUEST if request validation fails",
+			ReqFn: func(t *testing.T) (bodies.LoginBody, string) {
+				data := GenerateFakeAccountData(t, services.AuthProviderEmail)
+				return bodies.LoginBody{
+					Email:    "not-an-email",
+					Password: data.Password,
+				}, ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req bodies.LoginBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "email", resBody.Fields[0].Param)
+				AssertEqual(t, exceptions.StrFieldErrMessageEmail, resBody.Fields[0].Message)
+				AssertEqual(t, req.Email, resBody.Fields[0].Value.(string))
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if user is not found",
+			ReqFn: func(t *testing.T) (bodies.LoginBody, string) {
+				data := GenerateFakeAccountData(t, services.AuthProviderEmail)
+				return bodies.LoginBody{
+					Email:    data.Email,
+					Password: data.Password,
+				}, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.LoginBody],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, loginPath, tc)
 		})
 	}
 

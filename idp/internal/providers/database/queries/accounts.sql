@@ -66,5 +66,13 @@ UPDATE "accounts" SET
 WHERE "id" = $1
 RETURNING *;
 
+-- name: UpdateAccountTwoFactorType :one
+UPDATE "accounts" SET
+    "two_factor_type" = $1,
+    "version" = "version" + 1,
+    "updated_at" = now()
+WHERE "id" = $2
+RETURNING *;
+
 -- name: DeleteAllAccounts :exec
 DELETE FROM "accounts";
