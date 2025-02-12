@@ -2,8 +2,8 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"log/slog"
 	"net/url"
 	"strconv"
@@ -346,12 +346,41 @@ func (s *Services) TwoFactorLoginAccount(
 
 	var ok bool
 	var err error
+	var newDEK string
 	switch accountDTO.TwoFactorType {
 	case TwoFactorNone:
 		logger.WarnContext(ctx, "User has two factor inactive")
 		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 	case TwoFactorTotp:
-		ok, err = s.vault.VerifyAccountTotpKey(accountDTO.ID, opts.Code)
+		var accountTOTP database.AccountTotp
+		accountTOTP, err = s.database.FindAccountTotpByAccountID(ctx, int32(accountDTO.ID))
+		if err != nil {
+			serviceErr := exceptions.FromDBError(err)
+			if serviceErr.Code == exceptions.CodeNotFound {
+				logger.WarnContext(ctx, "Account TOTP not found", "error", err)
+				return dtos.AuthDTO{}, exceptions.NewForbiddenError()
+			}
+
+			logger.ErrorContext(ctx, "Failed to find account TOTP", "error", err)
+			return dtos.AuthDTO{}, serviceErr
+		}
+
+		ok, newDEK, err = s.encrypt.VerifyAccountTotpCode(ctx, encryption.VerifyAccountTotpCodeOptions{
+			RequestID:       opts.RequestID,
+			EncryptedSecret: accountTOTP.Secret,
+			StoredDEK:       accountTOTP.Dek,
+			Code:            opts.Code,
+		})
+		if err == nil && newDEK != "" {
+			logger.InfoContext(ctx, "Saving new DEK")
+			if err := s.database.UpdateAccountTotpByAccountID(ctx, database.UpdateAccountTotpByAccountIDParams{
+				Dek:       newDEK,
+				AccountID: int32(accountDTO.ID),
+			}); err != nil {
+				logger.ErrorContext(ctx, "Failed to update account TOTP DEK", "error", err)
+				return dtos.AuthDTO{}, exceptions.FromDBError(err)
+			}
+		}
 	case TwoFactorEmail:
 		ok, err = s.cache.VerifyTwoFactorCode(ctx, cache.VerifyTwoFactorCodeOptions{
 			RequestID: opts.RequestID,
@@ -1043,52 +1072,6 @@ func (s *Services) GetAccountPublicJWKs(ctx context.Context, requestID string) d
 	return dtos.NewJWKsDTO(jwks)
 }
 
-func formatRecoveryCode(code string) string {
-	var parts []string
-	for i := 0; i < len(code); i += 4 {
-		end := i + 4
-		if end > len(code) {
-			end = len(code)
-		}
-		parts = append(parts, code[i:end])
-	}
-	return strings.Join(parts, "-")
-}
-
-func generateRecoveryCodes(
-	logger *slog.Logger,
-	ctx context.Context,
-) (string, []byte, *exceptions.ServiceError) {
-	codes := make([]string, 8)
-	hashedCodes := make(map[string]bool)
-
-	for i, _ := range codes {
-		code, err := utils.GenerateBase32Secret(7)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to generate code", "error", err)
-			return "", nil, exceptions.NewServerError()
-		}
-
-		code = fmt.Sprintf("%012s", code)
-		hashedCode, err := utils.BcryptHashString(code)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to hash code", "error", err)
-			return "", nil, exceptions.NewServerError()
-		}
-
-		codes[i] = formatRecoveryCode(code)
-		hashedCodes[hashedCode] = false
-	}
-
-	codesJson, err := json.Marshal(hashedCodes)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to marshal the hashed codes map", "error", err)
-		return "", nil, exceptions.NewServerError()
-	}
-
-	return strings.Join(codes, "\n"), codesJson, nil
-}
-
 type updateAccount2FAOptions struct {
 	requestID   string
 	id          int
@@ -1165,17 +1148,16 @@ func (s *Services) updateAccountTOTP2FA(
 	)
 	logger.InfoContext(ctx, "Update account TOTP 2FA...")
 
-	totpImg, err := s.vault.GenerateAccountTotpKey(opts.id, opts.email)
+	totpKey, err := s.encrypt.GenerateAccountTotpKey(ctx, encryption.GenerateAccountTotpKeyOptions{
+		RequestID: opts.requestID,
+		Email:     opts.email,
+	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate TOTP", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
-	recoveryCodes, recoveryJson, serviceErr := generateRecoveryCodes(logger, ctx)
-	if serviceErr != nil {
-		return dtos.AuthDTO{}, serviceErr
-	}
-
+	var serviceErr *exceptions.ServiceError
 	qrs, txn, err := s.database.BeginTx(ctx)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
@@ -1196,9 +1178,12 @@ func (s *Services) updateAccountTOTP2FA(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if err := qrs.CreateAccountRecoveryKeys(ctx, database.CreateAccountRecoveryKeysParams{
-		AccountID: account.ID,
-		Keys:      recoveryJson,
+	if err := qrs.CreateAccountTotps(ctx, database.CreateAccountTotpsParams{
+		AccountID:     account.ID,
+		Url:           totpKey.URL(),
+		Secret:        totpKey.EncryptedSecret(),
+		Dek:           totpKey.EncryptedDEK(),
+		RecoveryCodes: totpKey.HashedCodes(),
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create account recovery keys", "error", err)
 		serviceErr = exceptions.FromDBError(err)
@@ -1215,15 +1200,13 @@ func (s *Services) updateAccountTOTP2FA(
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
-	data := map[string]string{
-		"image":         totpImg,
-		"recovery_keys": recoveryCodes,
-	}
-
 	return dtos.NewAuthDTOWithData(
 		token,
 		"Please scan QR code with your authentication app",
-		data,
+		map[string]string{
+			"image":         totpKey.Img(),
+			"recovery_keys": totpKey.Codes(),
+		},
 		s.jwt.Get2FATTL(),
 	), nil
 }

@@ -20,12 +20,13 @@ type Config struct {
 	cookieSecret         string
 	cookieName           string
 	emailPubChannel      string
+	encryptionSecret     string
 	serviceID            uuid.UUID
 	loggerConfig         LoggerConfig
-	vaultConfig          VaultConfig
 	tokensConfig         TokensConfig
 	oAuthProvidersConfig OAuthProvidersConfig
 	rateLimiterConfig    RateLimiterConfig
+	encryptionConfig     EncryptionConfig
 }
 
 func (c *Config) Port() int64 {
@@ -64,16 +65,16 @@ func (c *Config) EmailPubChannel() string {
 	return c.emailPubChannel
 }
 
+func (c *Config) EncryptionSecret() string {
+	return c.encryptionSecret
+}
+
 func (c *Config) ServiceID() uuid.UUID {
 	return c.serviceID
 }
 
 func (c *Config) LoggerConfig() LoggerConfig {
 	return c.loggerConfig
-}
-
-func (c *Config) VaultConfig() VaultConfig {
-	return c.vaultConfig
 }
 
 func (c *Config) TokensConfig() TokensConfig {
@@ -88,7 +89,11 @@ func (c *Config) RateLimiterConfig() RateLimiterConfig {
 	return c.rateLimiterConfig
 }
 
-var variables = [39]string{
+func (c *Config) EncryptionConfig() EncryptionConfig {
+	return c.encryptionConfig
+}
+
+var variables = [40]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -103,9 +108,6 @@ var variables = [39]string{
 	"COOKIE_NAME",
 	"RATE_LIMITER_MAX",
 	"RATE_LIMITER_EXP_SEC",
-	"INFISICAL_URL",
-	"INFISICAL_CLIENT_ID",
-	"INFISICAL_CLIENT_SECRET",
 	"EMAIL_PUB_CHANNEL",
 	"JWT_ACCESS_PUBLIC_KEY",
 	"JWT_ACCESS_PRIVATE_KEY",
@@ -128,9 +130,13 @@ var variables = [39]string{
 	"JWT_2FA_PUBLIC_KEY",
 	"JWT_2FA_PRIVATE_KEY",
 	"JWT_2FA_TTL_SEC",
+	"ACCOUNT_SECRET",
+	"APP_SECRET",
+	"USER_SECRET",
+	"OLD_SECRETS",
 }
 
-var optionalVariables = [10]string{
+var optionalVariables = [28]string{
 	"GITHUB_CLIENT_ID",
 	"GITHUB_CLIENT_SECRET",
 	"GOOGLE_CLIENT_ID",
@@ -141,6 +147,24 @@ var optionalVariables = [10]string{
 	"APPLE_CLIENT_SECRET",
 	"MICROSOFT_CLIENT_ID",
 	"MICROSOFT_CLIENT_SECRET",
+	"OLD_JWT_ACCESS_PUBLIC_KEY",
+	"OLD_JWT_ACCESS_PRIVATE_KEY",
+	"OLD_JWT_ACCESS_TTL_SEC",
+	"OLD_JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY",
+	"OLD_JWT_ACCOUNT_CREDENTIALS_PRIVATE_KEY",
+	"OLD_JWT_ACCOUNT_CREDENTIALS_TTL_SEC",
+	"OLD_JWT_REFRESH_PUBLIC_KEY",
+	"OLD_JWT_REFRESH_PRIVATE_KEY",
+	"OLD_JWT_REFRESH_TTL_SEC",
+	"OLD_JWT_CONFIRM_PUBLIC_KEY",
+	"OLD_JWT_CONFIRM_PRIVATE_KEY",
+	"OLD_JWT_CONFIRM_TTL_SEC",
+	"OLD_JWT_RESET_PUBLIC_KEY",
+	"OLD_JWT_RESET_PRIVATE_KEY",
+	"OLD_JWT_RESET_TTL_SEC",
+	"OLD_JWT_OAUTH_PUBLIC_KEY",
+	"OLD_JWT_OAUTH_PRIVATE_KEY",
+	"OLD_JWT_OAUTH_TTL_SEC",
 }
 
 var numerics = [11]string{
@@ -205,13 +229,6 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 			env,
 			variablesMap["SERVICE_NAME"],
 		),
-		vaultConfig: NewVaultConfig(
-			variablesMap["INFISICAL_URL"],
-			variablesMap["INFISICAL_CLIENT_ID"],
-			variablesMap["INFISICAL_CLIENT_SECRET"],
-			variablesMap["BACKEND_DOMAIN"],
-			env,
-		),
 		tokensConfig: NewTokensConfig(
 			NewSingleJwtConfig(
 				variablesMap["JWT_ACCESS_PUBLIC_KEY"],
@@ -259,6 +276,12 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 		rateLimiterConfig: NewRateLimiterConfig(
 			intMap["RATE_LIMITER_MAX"],
 			intMap["RATE_LIMITER_EXP_SEC"],
+		),
+		encryptionConfig: NewEncryptionConfig(
+			variablesMap["ACCOUNT_SECRET"],
+			variablesMap["APP_SECRET"],
+			variablesMap["USER_SECRET"],
+			variablesMap["OLD_SECRETS"],
 		),
 	}
 }

@@ -19,12 +19,14 @@ Table accounts as A {
     }
 }
 
-Table accounts_totps as AT {
+Table account_totps as AT {
     id serial [pk]
     
     account_id integer [not null]
-    totp_url varchar(250) [not null]
-    secret_vault_id uuid [not null]
+    url varchar(250) [not null]
+    secret text [not null]
+    dek text [not null]
+    recovery_codes jsonb [not null]
 
     created_at timestamp [not null, default: `now()`]
     updated_at timestamp [not null, default: `now()`]
@@ -44,6 +46,7 @@ Table account_credentials as ACK {
 
     client_id varchar(22) [not null]
     client_secret text [not null]
+    dek text [not null]
 
     created_at timestamp [not null, default: `now()`]
     updated_at timestamp [not null, default: `now()`]
@@ -79,6 +82,7 @@ Table apps as APP {
     name varchar(50) [not null]
     client_id varchar(22) [not null]
     client_secret text [not null]
+    dek text [not null]
 
     callback_uris "varchar(250)[]" [not null, default: '{}']
     logout_uris "varchar(250)[]" [not null, default: '{}']
@@ -110,7 +114,7 @@ Table app_keys as AK {
     jwt_crypto_suite varchar(7) [not null]
 
     public_key jsonb [not null]
-    key_id varchar(16) [not null]
+    private_key text [not null]
 
     created_at timestamp [not null, default: `now()`]
     updated_at timestamp [not null, default: `now()`]
@@ -151,8 +155,10 @@ Table user_totps as UT {
     id serial [pk]
     
     user_id integer [not null]
-    totp_url varchar(250) [not null]
-    secret_vault_id uuid [not null]
+    url varchar(250) [not null]
+    secret text [not null]
+    dek text [not null]
+    recovery_codes jsonb [not null]
 
     created_at timestamp [not null, default: `now()`]
     updated_at timestamp [not null, default: `now()`]

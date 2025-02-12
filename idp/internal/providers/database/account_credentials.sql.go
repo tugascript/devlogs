@@ -33,7 +33,7 @@ INSERT INTO "account_credentials" (
     $2,
     $3,
     $4
-) RETURNING id, account_id, scopes, client_id, client_secret, created_at, updated_at
+) RETURNING id, account_id, scopes, client_id, client_secret, dek, created_at, updated_at
 `
 
 type CreateAccountCredentialsParams struct {
@@ -57,6 +57,7 @@ func (q *Queries) CreateAccountCredentials(ctx context.Context, arg CreateAccoun
 		&i.Scopes,
 		&i.ClientID,
 		&i.ClientSecret,
+		&i.Dek,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -74,7 +75,7 @@ func (q *Queries) DeleteAccountCredentials(ctx context.Context, clientID string)
 }
 
 const findAccountCredentialsByClientID = `-- name: FindAccountCredentialsByClientID :one
-SELECT id, account_id, scopes, client_id, client_secret, created_at, updated_at FROM "account_credentials"
+SELECT id, account_id, scopes, client_id, client_secret, dek, created_at, updated_at FROM "account_credentials"
 WHERE "client_id" = $1
 LIMIT 1
 `
@@ -88,6 +89,7 @@ func (q *Queries) FindAccountCredentialsByClientID(ctx context.Context, clientID
 		&i.Scopes,
 		&i.ClientID,
 		&i.ClientSecret,
+		&i.Dek,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -95,7 +97,7 @@ func (q *Queries) FindAccountCredentialsByClientID(ctx context.Context, clientID
 }
 
 const findPaginatedAccountCredentialsByAccountID = `-- name: FindPaginatedAccountCredentialsByAccountID :many
-SELECT id, account_id, scopes, client_id, client_secret, created_at, updated_at FROM "account_credentials"
+SELECT id, account_id, scopes, client_id, client_secret, dek, created_at, updated_at FROM "account_credentials"
 WHERE "account_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3
@@ -122,6 +124,7 @@ func (q *Queries) FindPaginatedAccountCredentialsByAccountID(ctx context.Context
 			&i.Scopes,
 			&i.ClientID,
 			&i.ClientSecret,
+			&i.Dek,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -140,7 +143,7 @@ UPDATE "account_credentials" SET
     "client_secret" = $1,
     "updated_at" = now()
 WHERE "client_id" = $2
-RETURNING id, account_id, scopes, client_id, client_secret, created_at, updated_at
+RETURNING id, account_id, scopes, client_id, client_secret, dek, created_at, updated_at
 `
 
 type UpdateAccountCredentialsClientSecretParams struct {
@@ -157,6 +160,7 @@ func (q *Queries) UpdateAccountCredentialsClientSecret(ctx context.Context, arg 
 		&i.Scopes,
 		&i.ClientID,
 		&i.ClientSecret,
+		&i.Dek,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -168,7 +172,7 @@ UPDATE "account_credentials" SET
     "scopes" = $1,
     "updated_at" = now()
 WHERE "client_id" = $2
-RETURNING id, account_id, scopes, client_id, client_secret, created_at, updated_at
+RETURNING id, account_id, scopes, client_id, client_secret, dek, created_at, updated_at
 `
 
 type UpdateAccountCredentialsScopeParams struct {
@@ -185,6 +189,7 @@ func (q *Queries) UpdateAccountCredentialsScope(ctx context.Context, arg UpdateA
 		&i.Scopes,
 		&i.ClientID,
 		&i.ClientSecret,
+		&i.Dek,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

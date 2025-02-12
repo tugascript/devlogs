@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-02-08T08:58:04.802Z
+-- Generated at: 2025-02-11T19:49:03.520Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -16,11 +16,13 @@ CREATE TABLE "accounts" (
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
 
-CREATE TABLE "accounts_totps" (
+CREATE TABLE "account_totps" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
-  "totp_url" varchar(250) NOT NULL,
-  "secret_vault_id" uuid NOT NULL,
+  "url" varchar(250) NOT NULL,
+  "secret" text NOT NULL,
+  "dek" text NOT NULL,
+  "recovery_codes" jsonb NOT NULL,
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
@@ -31,6 +33,7 @@ CREATE TABLE "account_credentials" (
   "scopes" jsonb NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
+  "dek" text NOT NULL,
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
@@ -49,6 +52,7 @@ CREATE TABLE "apps" (
   "name" varchar(50) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
+  "dek" text NOT NULL,
   "callback_uris" varchar(250)[] NOT NULL DEFAULT '{}',
   "logout_uris" varchar(250)[] NOT NULL DEFAULT '{}',
   "user_scopes" jsonb NOT NULL DEFAULT '{ "email": true, "name": true }',
@@ -66,7 +70,7 @@ CREATE TABLE "app_keys" (
   "name" varchar(10) NOT NULL,
   "jwt_crypto_suite" varchar(7) NOT NULL,
   "public_key" jsonb NOT NULL,
-  "key_id" varchar(16) NOT NULL,
+  "private_key" text NOT NULL,
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
@@ -86,8 +90,10 @@ CREATE TABLE "users" (
 CREATE TABLE "user_totps" (
   "id" serial PRIMARY KEY,
   "user_id" integer NOT NULL,
-  "totp_url" varchar(250) NOT NULL,
-  "secret_vault_id" uuid NOT NULL,
+  "url" varchar(250) NOT NULL,
+  "secret" text NOT NULL,
+  "dek" text NOT NULL,
+  "recovery_codes" jsonb NOT NULL,
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
@@ -112,7 +118,7 @@ CREATE UNIQUE INDEX "accounts_email_uidx" ON "accounts" ("email");
 
 CREATE UNIQUE INDEX "accounts_username_uidx" ON "accounts" ("username");
 
-CREATE UNIQUE INDEX "accounts_totps_account_id_uidx" ON "accounts_totps" ("account_id");
+CREATE UNIQUE INDEX "accounts_totps_account_id_uidx" ON "account_totps" ("account_id");
 
 CREATE UNIQUE INDEX "account_credentials_client_id_uidx" ON "account_credentials" ("client_id");
 
@@ -146,7 +152,7 @@ CREATE UNIQUE INDEX "user_auth_provider_account_id_provider_uidx" ON "user_auth_
 
 CREATE INDEX "user_auth_provider_account_id_idx" ON "user_auth_provider" ("account_id");
 
-ALTER TABLE "accounts_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

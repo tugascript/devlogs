@@ -29,23 +29,18 @@ type AccountCredential struct {
 	Scopes       []byte
 	ClientID     string
 	ClientSecret string
+	Dek          string
 	CreatedAt    pgtype.Timestamp
 	UpdatedAt    pgtype.Timestamp
 }
 
-type AccountRecoveryKey struct {
-	ID        int32
-	AccountID int32
-	Keys      []byte
-	CreatedAt pgtype.Timestamp
-	UpdatedAt pgtype.Timestamp
-}
-
-type AccountsTotp struct {
+type AccountTotp struct {
 	ID            int32
 	AccountID     int32
-	TotpUrl       string
-	SecretVaultID uuid.UUID
+	Url           string
+	Secret        string
+	Dek           string
+	RecoveryCodes []byte
 	CreatedAt     pgtype.Timestamp
 	UpdatedAt     pgtype.Timestamp
 }
@@ -56,6 +51,7 @@ type App struct {
 	Name           string
 	ClientID       string
 	ClientSecret   string
+	Dek            string
 	CallbackUris   []string
 	LogoutUris     []string
 	UserScopes     []byte
@@ -73,7 +69,7 @@ type AppKey struct {
 	Name           string
 	JwtCryptoSuite string
 	PublicKey      []byte
-	KeyID          string
+	PrivateKey     string
 	CreatedAt      pgtype.Timestamp
 	UpdatedAt      pgtype.Timestamp
 }
@@ -114,19 +110,13 @@ type UserAuthProvider struct {
 	UpdatedAt pgtype.Timestamp
 }
 
-type UserRecoveryKey struct {
-	ID        int32
-	UserID    int32
-	Keys      []byte
-	CreatedAt pgtype.Timestamp
-	UpdatedAt pgtype.Timestamp
-}
-
 type UserTotp struct {
 	ID            int32
 	UserID        int32
-	TotpUrl       string
-	SecretVaultID uuid.UUID
+	Url           string
+	Secret        string
+	Dek           string
+	RecoveryCodes []byte
 	CreatedAt     pgtype.Timestamp
 	UpdatedAt     pgtype.Timestamp
 }

@@ -61,9 +61,6 @@ watch:
             fi; \
         fi
 
-migrate-test-up:
-	migrate -path ./internal/providers/database/migrations -database "postgres://postgres:postgres@localhost:5432/idp_test?sslmode=disable" -verbose up
-
 keygen:
 	@echo "Generating keys..."
 	DEBUG=true go run ../keygen/main.go
@@ -74,5 +71,8 @@ test-verbose:
 
 test:
 	go test ./tests
+
+migrate-test-up:
+	migrate -path ./internal/providers/database/migrations -database "postgres://postgres:postgres@127.0.0.1:5432/idp_test?sslmode=disable" -verbose up
 
 .PHONY: all build run test clean watch docker-run docker-down itest

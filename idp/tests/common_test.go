@@ -4,30 +4,30 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/go-faker/faker/v4"
-	"github.com/google/uuid"
-	"github.com/tugascript/devlogs/idp/internal/exceptions"
-	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/go-faker/faker/v4"
 	"github.com/gofiber/fiber/v2"
 	fiberRedis "github.com/gofiber/storage/redis/v3"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/tugascript/devlogs/idp/internal/config"
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
+	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
-	"github.com/tugascript/devlogs/idp/internal/providers/vault"
 	"github.com/tugascript/devlogs/idp/internal/server"
 	"github.com/tugascript/devlogs/idp/internal/services"
+	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 )
 
 var _testConfig *config.Config
@@ -92,9 +92,9 @@ func initTestServicesAndApp(t *testing.T) {
 	)
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")
 
-	logger.InfoContext(ctx, "Building vault...")
-	vaultStg := vault.NewVault(ctx, logger, _testConfig.VaultConfig())
-	logger.InfoContext(ctx, "Finished building vault")
+	logger.InfoContext(ctx, "Building encryption...")
+	encryp := encryption.NewEncryption(logger, cfg.EncryptionConfig(), cfg.BackendDomain())
+	logger.InfoContext(ctx, "Finished building encryption")
 
 	logger.InfoContext(ctx, "Building OAuth provider...")
 	oauthProvidersCfg := _testConfig.OAuthProvidersConfig()
@@ -114,7 +114,7 @@ func initTestServicesAndApp(t *testing.T) {
 		_testCache,
 		mail,
 		_testTokens,
-		vaultStg,
+		encryp,
 		oauthProviders,
 	)
 

@@ -278,7 +278,7 @@ func TestLogin(t *testing.T) {
 				if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
 					RequestID:     uuid.NewString(),
 					ID:            int32(account.ID),
-					TwoFactorType: services.TwoFactorEmail,
+					TwoFactorType: services.TwoFactorTotp,
 					Password:      data.Password,
 				}); err != nil {
 					t.Fatal("Failed to enable 2FA", err)

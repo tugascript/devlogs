@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"github.com/tugascript/devlogs/idp/internal/server/validations"
 	"log/slog"
 	"time"
@@ -23,7 +24,6 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
-	"github.com/tugascript/devlogs/idp/internal/providers/vault"
 	"github.com/tugascript/devlogs/idp/internal/server/routes"
 	"github.com/tugascript/devlogs/idp/internal/services"
 )
@@ -81,9 +81,9 @@ func New(
 	)
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")
 
-	logger.InfoContext(ctx, "Building vault...")
-	vaultStg := vault.NewVault(ctx, logger, cfg.VaultConfig())
-	logger.InfoContext(ctx, "Finished building vault")
+	logger.InfoContext(ctx, "Building encryption...")
+	encryp := encryption.NewEncryption(logger, cfg.EncryptionConfig(), cfg.BackendDomain())
+	logger.InfoContext(ctx, "Finished encryption")
 
 	logger.InfoContext(ctx, "Building OAuth provider...")
 	oauthProvidersCfg := cfg.OAuthProvidersConfig()
@@ -104,7 +104,7 @@ func New(
 		cc,
 		mail,
 		jwts,
-		vaultStg,
+		encryp,
 		oauthProviders,
 	)
 	logger.InfoContext(ctx, "Finished building services")

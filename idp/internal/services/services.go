@@ -5,10 +5,10 @@ import (
 
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
+	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
-	"github.com/tugascript/devlogs/idp/internal/providers/vault"
 )
 
 type Services struct {
@@ -17,7 +17,7 @@ type Services struct {
 	cache          *cache.Cache
 	mail           *mailer.EmailPublisher
 	jwt            *tokens.Tokens
-	vault          *vault.Vault
+	encrypt        *encryption.Encryption
 	oauthProviders *oauth.Providers
 }
 
@@ -27,7 +27,7 @@ func NewServices(
 	cache *cache.Cache,
 	mail *mailer.EmailPublisher,
 	jwt *tokens.Tokens,
-	vault *vault.Vault,
+	encrypt *encryption.Encryption,
 	oauthProv *oauth.Providers,
 ) *Services {
 	return &Services{
@@ -36,7 +36,7 @@ func NewServices(
 		cache:          cache,
 		mail:           mail,
 		jwt:            jwt,
-		vault:          vault,
+		encrypt:        encrypt,
 		oauthProviders: oauthProv,
 	}
 }

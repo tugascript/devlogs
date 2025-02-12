@@ -20,10 +20,6 @@ func (s *Services) HealthCheck(ctx context.Context, requestID string) *exception
 		logger.ErrorContext(ctx, "Failed to ping cache", "error", err)
 		return exceptions.NewServerError()
 	}
-	if err := s.vault.Ping(ctx, requestID); err != nil {
-		logger.ErrorContext(ctx, "Failed to ping vault", "error", err)
-		return exceptions.NewServerError()
-	}
 
 	logger.InfoContext(ctx, "Service is healthy")
 	return nil
