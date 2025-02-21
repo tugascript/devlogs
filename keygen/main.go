@@ -171,7 +171,10 @@ func createEnvFile(
 	oauthPrivKey,
 	twoFAPubKey,
 	twoFAPrivKey,
-	cookieSecret string,
+	cookieSecret,
+	accountSecret,
+	appSecret,
+	userSecret string,
 ) {
 	logger.Debug("Creating .env file")
 
@@ -198,6 +201,9 @@ func createEnvFile(
 		fmt.Sprintf("JWT_2FA_PUBLIC_KEY=%s", twoFAPubKey),
 		fmt.Sprintf("JWT_2FA_PRIVATE_KEY=%s", twoFAPrivKey),
 		fmt.Sprintf("COOKIE_SECRET=\"%s\"", cookieSecret),
+		fmt.Sprintf("ACCOUNT_SECRET=\"%s\"", accountSecret),
+		fmt.Sprintf("APP_SECRET=\"%s\"", appSecret),
+		fmt.Sprintf("USER_SECRET=\"%s\"", userSecret),
 	}
 	file.Write([]byte(strings.Join(envVars, "\n")))
 	logger.Debug("Wrote env")
@@ -231,6 +237,12 @@ func main() {
 
 	cookieSecret := generateSecret(logger)
 	writeSecretToFile(logger, "cookie_secret", cookieSecret)
+	accountSecret := generateSecret(logger)
+	writeSecretToFile(logger, "account_secret", accountSecret)
+	appSecret := generateSecret(logger)
+	writeSecretToFile(logger, "app_secret", appSecret)
+	userSecret := generateSecret(logger)
+	writeSecretToFile(logger, "user_secret", userSecret)
 
 	createEnvFile(
 		logger,
@@ -249,5 +261,8 @@ func main() {
 		encodeKeyPemToJson(logger, &twoFactorPubKey),
 		encodeKeyPemToJson(logger, &twoFactorPrivKey),
 		cookieSecret,
+		accountSecret,
+		appSecret,
+		userSecret,
 	)
 }
