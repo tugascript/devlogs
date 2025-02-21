@@ -274,9 +274,7 @@ func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
 	logRequest(logger, ctx)
 
 	if ctx.Get("Content-Type") != "application/x-www-form-urlencoded" {
-		return serviceErrorResponse(logger, ctx, exceptions.NewUnsupportedMediaTypeError(
-			"Content-Type must be application/x-www-form-urlencoded",
-		))
+		return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
 	body := new(bodies.AppleLoginBody)

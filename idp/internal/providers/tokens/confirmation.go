@@ -25,8 +25,8 @@ func (t *Tokens) VerifyConfirmationToken(token string) (AccountClaims, error) {
 			return nil, err
 		}
 
-		if t.confirmationData.prevKeyPair != nil && t.confirmationData.prevKeyPair.kid == kid {
-			return t.confirmationData.prevKeyPair.publicKey, nil
+		if t.confirmationData.prevPubKey != nil && t.confirmationData.prevPubKey.kid == kid {
+			return t.confirmationData.prevPubKey.publicKey, nil
 		}
 		if t.confirmationData.curKeyPair.kid == kid {
 			return t.confirmationData.curKeyPair.publicKey, nil

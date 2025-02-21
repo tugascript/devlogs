@@ -1,16 +1,18 @@
 package config
 
 type SingleJwtConfig struct {
-	publicKey  string
-	privateKey string
-	ttlSec     int64
+	publicKey         string
+	privateKey        string
+	previousPublicKey string
+	ttlSec            int64
 }
 
-func NewSingleJwtConfig(publicKey, privateKey string, ttlSec int64) SingleJwtConfig {
+func NewSingleJwtConfig(publicKey, privateKey, previousPublicKey string, ttlSec int64) SingleJwtConfig {
 	return SingleJwtConfig{
-		publicKey:  publicKey,
-		privateKey: privateKey,
-		ttlSec:     ttlSec,
+		publicKey:         publicKey,
+		privateKey:        privateKey,
+		previousPublicKey: previousPublicKey,
+		ttlSec:            ttlSec,
 	}
 }
 
@@ -24,6 +26,10 @@ func (s *SingleJwtConfig) PrivateKey() string {
 
 func (s *SingleJwtConfig) TtlSec() int64 {
 	return s.ttlSec
+}
+
+func (s *SingleJwtConfig) PreviousPublicKey() string {
+	return s.previousPublicKey
 }
 
 type TokensConfig struct {

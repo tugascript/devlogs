@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,6 +125,7 @@ func initTestServicesAndApp(t *testing.T) {
 func GetTestConfig(t *testing.T) *config.Config {
 	if _testConfig == nil {
 		initTestServicesAndApp(t)
+		_testServer.RegisterFiberRoutes()
 	}
 
 	return _testConfig
@@ -132,6 +134,7 @@ func GetTestConfig(t *testing.T) *config.Config {
 func GetTestServices(t *testing.T) *services.Services {
 	if _testServices == nil {
 		initTestServicesAndApp(t)
+		_testServer.RegisterFiberRoutes()
 	}
 
 	return _testServices
@@ -140,6 +143,7 @@ func GetTestServices(t *testing.T) *services.Services {
 func GetTestDatabase(t *testing.T) *database.Database {
 	if _testDatabase == nil {
 		initTestServicesAndApp(t)
+		_testServer.RegisterFiberRoutes()
 	}
 
 	return _testDatabase
@@ -148,6 +152,7 @@ func GetTestDatabase(t *testing.T) *database.Database {
 func GetTestCache(t *testing.T) *cache.Cache {
 	if _testCache == nil {
 		initTestServicesAndApp(t)
+		_testServer.RegisterFiberRoutes()
 	}
 
 	return _testCache
@@ -165,6 +170,7 @@ func GetTestServer(t *testing.T) *server.FiberServer {
 func GetTestTokens(t *testing.T) *tokens.Tokens {
 	if _testTokens == nil {
 		initTestServicesAndApp(t)
+		_testServer.RegisterFiberRoutes()
 	}
 
 	return _testTokens
@@ -240,6 +246,12 @@ func AssertEmpty[V comparable](t *testing.T, actual V) {
 	}
 }
 
+func AssertStringContains(t *testing.T, actual string, expected string) {
+	if !strings.Contains(actual, expected) {
+		t.Fatalf("Actual: %s, Expected: %s", actual, expected)
+	}
+}
+
 type TestRequestCase[R any] struct {
 	Name      string
 	ReqFn     func(t *testing.T) (R, string)
@@ -303,6 +315,30 @@ func CreateTestAccount(t *testing.T, userData services.CreateAccountOptions) dto
 	}
 
 	return account
+}
+
+func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (string, string) {
+	tks := GetTestTokens(t)
+	accessToken, err := tks.CreateAccessToken(tokens.AccountTokenOptions{
+		ID:      account.ID,
+		Version: account.Version(),
+		Email:   account.Email,
+		Scopes:  []tokens.AccountScope{tokens.AccountScopeAdmin},
+	})
+	if err != nil {
+		t.Fatal("Failed to create access token", err)
+	}
+
+	refreshToken, err := tks.CreateRefreshToken(tokens.AccountTokenOptions{
+		ID:      account.ID,
+		Version: account.Version(),
+		Email:   account.Email,
+		Scopes:  []tokens.AccountScope{tokens.AccountScopeRefresh},
+	})
+	if err != nil {
+		t.Fatal("Failed to create refresh token", err)
+	}
+	return accessToken, refreshToken
 }
 
 func assertErrorResponse(t *testing.T, res *http.Response, code, message string) {

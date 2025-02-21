@@ -5,5 +5,6 @@ DROP TABLE IF EXISTS "app_keys";
 DROP TABLE IF EXISTS "apps";
 DROP TABLE IF EXISTS "auth_providers";
 DROP TABLE IF EXISTS "account_credentials";
+DROP TABLE IF EXISTS "account_totps";
 DROP TABLE IF EXISTS "accounts";
 DROP TABLE IF EXISTS "blacklisted_tokens";

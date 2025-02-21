@@ -145,7 +145,7 @@ func (p *Providers) GetGithubAuthorizationURL(
 			Method:    "GetGithubAuthorizationURL",
 			RequestID: opts.RequestID,
 		}),
-		cfg:         p.google,
+		cfg:         p.gitHub,
 		redirectURL: opts.RedirectURL,
 		oas:         gitHubScopes,
 		scopes:      opts.Scopes,

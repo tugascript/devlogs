@@ -37,11 +37,11 @@ func (t *Tokens) VerifyAccessToken(token string) (AccountClaims, []AccountScope,
 			return ecdsa.PublicKey{}, err
 		}
 
-		if t.accessData.prevKeyPair != nil && t.accessData.prevKeyPair.kid == kid {
-			return t.accessData.prevKeyPair.publicKey, nil
+		if t.accessData.prevPubKey != nil && t.accessData.prevPubKey.kid == kid {
+			return t.accessData.prevPubKey.publicKey, nil
 		}
-		if t.accountCredentialsData.prevKeyPair != nil && t.accountCredentialsData.prevKeyPair.kid == kid {
-			return t.accountCredentialsData.prevKeyPair.publicKey, nil
+		if t.accountCredentialsData.prevPubKey != nil && t.accountCredentialsData.prevPubKey.kid == kid {
+			return t.accountCredentialsData.prevPubKey.publicKey, nil
 		}
 		if t.accessData.curKeyPair.kid == kid {
 			return t.accessData.curKeyPair.publicKey, nil

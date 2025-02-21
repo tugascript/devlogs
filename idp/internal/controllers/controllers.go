@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/go-playground/validator/v10"
+
 	"github.com/tugascript/devlogs/idp/internal/services"
 )
 

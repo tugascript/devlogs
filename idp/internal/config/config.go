@@ -136,7 +136,7 @@ var variables = [40]string{
 	"OLD_SECRETS",
 }
 
-var optionalVariables = [28]string{
+var optionalVariables = [17]string{
 	"GITHUB_CLIENT_ID",
 	"GITHUB_CLIENT_SECRET",
 	"GOOGLE_CLIENT_ID",
@@ -148,23 +148,12 @@ var optionalVariables = [28]string{
 	"MICROSOFT_CLIENT_ID",
 	"MICROSOFT_CLIENT_SECRET",
 	"OLD_JWT_ACCESS_PUBLIC_KEY",
-	"OLD_JWT_ACCESS_PRIVATE_KEY",
-	"OLD_JWT_ACCESS_TTL_SEC",
 	"OLD_JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY",
-	"OLD_JWT_ACCOUNT_CREDENTIALS_PRIVATE_KEY",
-	"OLD_JWT_ACCOUNT_CREDENTIALS_TTL_SEC",
 	"OLD_JWT_REFRESH_PUBLIC_KEY",
-	"OLD_JWT_REFRESH_PRIVATE_KEY",
-	"OLD_JWT_REFRESH_TTL_SEC",
 	"OLD_JWT_CONFIRM_PUBLIC_KEY",
-	"OLD_JWT_CONFIRM_PRIVATE_KEY",
-	"OLD_JWT_CONFIRM_TTL_SEC",
 	"OLD_JWT_RESET_PUBLIC_KEY",
-	"OLD_JWT_RESET_PRIVATE_KEY",
-	"OLD_JWT_RESET_TTL_SEC",
 	"OLD_JWT_OAUTH_PUBLIC_KEY",
-	"OLD_JWT_OAUTH_PRIVATE_KEY",
-	"OLD_JWT_OAUTH_TTL_SEC",
+	"OLD_JWT_2FA_PUBLIC_KEY",
 }
 
 var numerics = [11]string{
@@ -233,36 +222,43 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 			NewSingleJwtConfig(
 				variablesMap["JWT_ACCESS_PUBLIC_KEY"],
 				variablesMap["JWT_ACCESS_PRIVATE_KEY"],
+				variablesMap["OLD_JWT_ACCESS_PUBLIC_KEY"],
 				intMap["JWT_ACCESS_TTL_SEC"],
 			),
 			NewSingleJwtConfig(
 				variablesMap["JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY"],
 				variablesMap["JWT_ACCOUNT_CREDENTIALS_PRIVATE_KEY"],
+				variablesMap["OLD_JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY"],
 				intMap["JWT_ACCOUNT_CREDENTIALS_TTL_SEC"],
 			),
 			NewSingleJwtConfig(
 				variablesMap["JWT_REFRESH_PUBLIC_KEY"],
 				variablesMap["JWT_REFRESH_PRIVATE_KEY"],
+				variablesMap["OLD_JWT_REFRESH_PUBLIC_KEY"],
 				intMap["JWT_REFRESH_TTL_SEC"],
 			),
 			NewSingleJwtConfig(
 				variablesMap["JWT_CONFIRM_PUBLIC_KEY"],
 				variablesMap["JWT_CONFIRM_PRIVATE_KEY"],
+				variablesMap["OLD_JWT_CONFIRM_PUBLIC_KEY"],
 				intMap["JWT_CONFIRM_TTL_SEC"],
 			),
 			NewSingleJwtConfig(
 				variablesMap["JWT_RESET_PUBLIC_KEY"],
 				variablesMap["JWT_RESET_PRIVATE_KEY"],
+				variablesMap["OLD_JWT_RESET_PUBLIC_KEY"],
 				intMap["JWT_RESET_TTL_SEC"],
 			),
 			NewSingleJwtConfig(
 				variablesMap["JWT_OAUTH_PUBLIC_KEY"],
 				variablesMap["JWT_OAUTH_PRIVATE_KEY"],
+				variablesMap["OLD_JWT_OAUTH_PUBLIC_KEY"],
 				intMap["JWT_OAUTH_TTL_SEC"],
 			),
 			NewSingleJwtConfig(
 				variablesMap["JWT_2FA_PUBLIC_KEY"],
 				variablesMap["JWT_2FA_PRIVATE_KEY"],
+				variablesMap["OLD_JWT_2FA_PUBLIC_KEY"],
 				intMap["JWT_2FA_TTL_SEC"],
 			),
 		),

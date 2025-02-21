@@ -137,6 +137,7 @@ const (
 	strFieldUUID        string = "uuid"
 	strFieldPassword    string = "password"
 	strFieldSlug        string = "slug"
+	strFieldNumeric     string = "numeric"
 
 	intFieldErrTagGte string = "gte"
 	intFieldErrTagLte string = "lte"
@@ -155,6 +156,7 @@ const (
 	StrFieldErrMessageUUID     string = "must be a valid UUID"
 	StrFieldErrMessagePassword string = "must contain at least one lowercase letter, one uppercase letter, one number, and one symbol"
 	StrFieldErrMessageSlug     string = "must be a valid slug"
+	StrFieldErrMessageNumeric  string = "must be a numeric value"
 
 	IntFieldErrMessageLte string = "must be less"
 	IntFieldErrMessageGte string = "must be greater"
@@ -184,6 +186,8 @@ func selectStrErrMessage(tag string) string {
 		return StrFieldErrMessagePassword
 	case strFieldSlug:
 		return StrFieldErrMessageSlug
+	case strFieldNumeric:
+		return StrFieldErrMessageNumeric
 	case fieldErrTagEq:
 		return FieldErrMessageEq
 	default:

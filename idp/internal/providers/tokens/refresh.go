@@ -12,6 +12,7 @@ func (t *Tokens) CreateRefreshToken(opts AccountTokenOptions) (string, error) {
 	return t.createToken(accountTokenOptions{
 		method:         jwt.SigningMethodEdDSA,
 		privateKey:     t.refreshData.curKeyPair.privateKey,
+		kid:            t.refreshData.curKeyPair.kid,
 		ttlSec:         t.refreshData.ttlSec,
 		accountID:      opts.ID,
 		accountVersion: opts.Version,
@@ -27,8 +28,8 @@ func (t *Tokens) VerifyRefreshToken(token string) (AccountClaims, []AccountScope
 			return nil, err
 		}
 
-		if t.refreshData.prevKeyPair != nil && t.refreshData.prevKeyPair.kid == kid {
-			return t.refreshData.prevKeyPair.publicKey, nil
+		if t.refreshData.prevPubKey != nil && t.refreshData.prevPubKey.kid == kid {
+			return t.refreshData.prevPubKey.publicKey, nil
 		}
 		if t.refreshData.curKeyPair.kid == kid {
 			return t.refreshData.curKeyPair.publicKey, nil

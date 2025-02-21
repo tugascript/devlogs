@@ -25,8 +25,8 @@ func (t *Tokens) VerifyOAuthToken(token string) (AccountClaims, []AccountScope, 
 			return nil, err
 		}
 
-		if t.oauthData.prevKeyPair != nil && t.oauthData.prevKeyPair.kid == kid {
-			return t.oauthData.prevKeyPair.publicKey, nil
+		if t.oauthData.prevPubKey != nil && t.oauthData.prevPubKey.kid == kid {
+			return t.oauthData.prevPubKey.publicKey, nil
 		}
 		if t.accessData.curKeyPair.kid == kid {
 			return t.oauthData.curKeyPair.publicKey, nil

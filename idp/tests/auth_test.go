@@ -2,14 +2,19 @@ package tests
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/go-faker/faker/v4"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/encryptcookie"
+	"github.com/google/uuid"
+	"github.com/h2non/gock"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
@@ -331,4 +336,322 @@ func TestLogin(t *testing.T) {
 	}
 
 	t.Cleanup(accountsCleanUp(t))
+}
+
+func TestTwoFactorLogin(t *testing.T) {
+	const login2FAPath = "/v1/auth/login/2fa"
+
+	genTwoFactorAccount := func(t *testing.T, twoFactorType string) (dtos.AccountDTO, string) {
+		data := GenerateFakeAccountData(t, services.AuthProviderEmail)
+		account := CreateTestAccount(t, data)
+		testS := GetTestServices(t)
+		requestID := uuid.NewString()
+
+		token, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
+			RequestID:     requestID,
+			ID:            int32(account.ID),
+			TwoFactorType: twoFactorType,
+			Password:      data.Password,
+		})
+		if err != nil {
+			t.Fatal("Failed to enable 2FA", err)
+		}
+
+		return account, token.AccessToken
+	}
+
+	genEmailCode := func(t *testing.T, account dtos.AccountDTO) string {
+		testCache := GetTestCache(t)
+		code, err := testCache.AddTwoFactorCode(context.Background(), cache.AddTwoFactorCodeOptions{
+			RequestID: uuid.NewString(),
+			AccountID: account.ID,
+		})
+		if err != nil {
+			t.Fatal("Failed to create email code", err)
+		}
+		return code
+	}
+
+	testCases := []TestRequestCase[bodies.TwoFactorLoginBody]{
+		{
+			Name: "Should return 200 OK with access and refresh tokens",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				account, token := genTwoFactorAccount(t, services.TwoFactorEmail)
+				return bodies.TwoFactorLoginBody{
+					Code: genEmailCode(t, account),
+				}, token
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[bodies.TwoFactorLoginBody],
+		},
+		{
+			Name: "Should return 400 BAD REQUEST if request validation fails",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				_, token := genTwoFactorAccount(t, services.TwoFactorEmail)
+				return bodies.TwoFactorLoginBody{Code: "invalidCode"}, token
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req bodies.TwoFactorLoginBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "code", resBody.Fields[0].Param)
+				AssertEqual(t, req.Code, resBody.Fields[0].Value.(string))
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if user does not have a 2FA access token",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				account, _ := genTwoFactorAccount(t, services.TwoFactorEmail)
+				return bodies.TwoFactorLoginBody{Code: genEmailCode(t, account)}, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.TwoFactorLoginBody],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, login2FAPath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+type cookieTestCase struct {
+	Name      string
+	ExpStatus int
+	TokenFn   func(t *testing.T) (string, string)
+	AssertFn  func(t *testing.T, resp *http.Response)
+}
+
+func performCookieRequest(t *testing.T, app *fiber.App, path, accessToken, refreshToken string) *http.Response {
+	config := GetTestConfig(t)
+	req := httptest.NewRequest(http.MethodPost, path, nil)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	if refreshToken != "" {
+		encryptedRefreshToken, err := encryptcookie.EncryptCookie(refreshToken, config.CookieSecret())
+		if err != nil {
+			t.Fatal("Failed to encrypt cookie", err)
+		}
+
+		req.AddCookie(&http.Cookie{
+			Name:  config.CookieName(),
+			Value: encryptedRefreshToken,
+			Path:  "/api/auth",
+		})
+	}
+	if accessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+	}
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal("Failed to perform request", err)
+	}
+
+	return resp
+}
+
+func TestLogoutAccount(t *testing.T) {
+	const logoutPath = "/v1/auth/logout"
+
+	testCases := []TestRequestCase[bodies.RefreshTokenBody]{
+		{
+			Name: "Should return 204 NO CONTENT",
+			ReqFn: func(t *testing.T) (bodies.RefreshTokenBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
+				accessToken, refreshToken := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.RefreshTokenBody{RefreshToken: refreshToken}, accessToken
+			},
+			ExpStatus: http.StatusNoContent,
+			AssertFn:  func(t *testing.T, _ bodies.RefreshTokenBody, _ *http.Response) {},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST if request validation fails",
+			ReqFn: func(t *testing.T) (bodies.RefreshTokenBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.RefreshTokenBody{RefreshToken: "not-valid-token"}, accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req bodies.RefreshTokenBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "refresh_token", resBody.Fields[0].Param)
+				AssertEqual(t, req.RefreshToken, resBody.Fields[0].Value.(string))
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST if request validation fails",
+			ReqFn: func(t *testing.T) (bodies.RefreshTokenBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.RefreshTokenBody{RefreshToken: "not-valid-token"}, accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req bodies.RefreshTokenBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "refresh_token", resBody.Fields[0].Param)
+				AssertEqual(t, req.RefreshToken, resBody.Fields[0].Value.(string))
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if user has no access token",
+			ReqFn: func(t *testing.T) (bodies.RefreshTokenBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
+				_, refreshToken := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.RefreshTokenBody{RefreshToken: refreshToken}, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.RefreshTokenBody],
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if user is not found",
+			ReqFn: func(t *testing.T) (bodies.RefreshTokenBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
+				account.ID = 10000000
+				_, refreshToken := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.RefreshTokenBody{RefreshToken: refreshToken}, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.RefreshTokenBody],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, logoutPath, tc)
+		})
+	}
+
+	cookieTestCases := []cookieTestCase{
+		{
+			Name:      "Should return 204 NO CONTENT when refresh token is passed in a cookie",
+			ExpStatus: http.StatusNoContent,
+			TokenFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
+				accessToken, refreshToken := GenerateTestAccountAuthTokens(t, &account)
+				return accessToken, refreshToken
+			},
+			AssertFn: func(t *testing.T, resp *http.Response) {},
+		},
+		{
+			Name:      "Should return 401 UNAUTHORIZED if access token is invalid even if refresh token is passed in a cookie",
+			ExpStatus: http.StatusUnauthorized,
+			TokenFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
+				_, refreshToken := GenerateTestAccountAuthTokens(t, &account)
+				return "invalid", refreshToken
+			},
+			AssertFn: func(t *testing.T, resp *http.Response) {
+				AssertUnauthorizedError[string](t, "", resp)
+			},
+		},
+	}
+
+	for _, tc := range cookieTestCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			accessToken, refreshToken := tc.TokenFn(t)
+			server := GetTestServer(t)
+
+			resp := performCookieRequest(t, server.App, logoutPath, accessToken, refreshToken)
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}()
+
+			AssertTestStatusCode(t, resp, tc.ExpStatus)
+			tc.AssertFn(t, resp)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+func TestAccountOAuthURL(t *testing.T) {
+	const oauth2Path = "/v1/auth/oauth2"
+
+	testCases := []TestRequestCase[string]{
+		{
+			Name: "GET Apple should return URL and 302 FOUND",
+			ReqFn: func(t *testing.T) (string, string) {
+				return "", ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				defer gock.OffAll()
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "https://appleid.apple.com/auth/authorize")
+			},
+			Path: oauth2Path + "/apple",
+		},
+		{
+			Name: "GET Facebook should return URL and 302 FOUND",
+			ReqFn: func(t *testing.T) (string, string) {
+				return "", ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				defer gock.OffAll()
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "https://www.facebook.com/v3.2/dialog/oauth")
+			},
+			Path: oauth2Path + "/facebook",
+		},
+		{
+			Name: "GET GitHub should return URL and 302 FOUND",
+			ReqFn: func(t *testing.T) (string, string) {
+				return "", ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				defer gock.OffAll()
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "https://github.com/login/oauth/authorize")
+			},
+			Path: oauth2Path + "/github",
+		},
+		{
+			Name: "GET Google should return URL and 302 FOUND",
+			ReqFn: func(t *testing.T) (string, string) {
+				return "", ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				defer gock.OffAll()
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "https://accounts.google.com/o/oauth2/auth")
+			},
+			Path: oauth2Path + "/google",
+		},
+		{
+			Name: "GET Microsoft should return URL and 302 FOUND",
+			ReqFn: func(t *testing.T) (string, string) {
+				return "", ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				defer gock.OffAll()
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "https://login.live.com/oauth20_authorize.srf")
+			},
+			Path: oauth2Path + "/microsoft",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodGet, tc.Path, tc)
+		})
+	}
 }

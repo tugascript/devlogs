@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"errors"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -25,8 +26,8 @@ func (t *Tokens) Verify2FAToken(token string) (AccountClaims, []AccountScope, er
 			return nil, err
 		}
 
-		if t.twoFAData.prevKeyPair != nil && t.twoFAData.prevKeyPair.kid == kid {
-			return t.twoFAData.prevKeyPair.publicKey, nil
+		if t.twoFAData.prevPubKey != nil && t.twoFAData.prevPubKey.kid == kid {
+			return t.twoFAData.prevPubKey.publicKey, nil
 		}
 		if t.twoFAData.curKeyPair.kid == kid {
 			return t.twoFAData.curKeyPair.publicKey, nil

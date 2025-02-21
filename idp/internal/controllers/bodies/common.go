@@ -14,7 +14,7 @@ type LoginBody struct {
 }
 
 type TwoFactorLoginBody struct {
-	Code string `json:"code" validate:"required,mix=6,max=6"`
+	Code string `json:"code" validate:"required,min=6,max=6,numeric"`
 }
 
 type GrantRefreshTokenBody struct {

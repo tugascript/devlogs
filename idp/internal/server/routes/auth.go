@@ -23,6 +23,6 @@ func (r *Routes) AuthRoutes(app *fiber.App) {
 
 	// OAuth2 log ins
 	router.Post(paths.AuthOAuthAppleCallback, r.controllers.AccountAppleCallback)
-	router.Post(paths.AuthOAuthURL, r.controllers.AccountOAuthURL)
-	router.Post(paths.AuthOAuthCallback, r.controllers.AccountOAuthCallback)
+	router.Get(paths.AuthOAuthURL, r.controllers.AccountOAuthURL)
+	router.Get(paths.AuthOAuthCallback, r.controllers.AccountOAuthCallback)
 }

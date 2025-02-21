@@ -12,6 +12,11 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
+type PreviousPublicKey struct {
+	publicKey ed25519.PublicKey
+	kid       string
+}
+
 type TokenKeyPair struct {
 	publicKey  ed25519.PublicKey
 	privateKey ed25519.PrivateKey
@@ -19,9 +24,9 @@ type TokenKeyPair struct {
 }
 
 type TokenSecretData struct {
-	curKeyPair  TokenKeyPair
-	prevKeyPair *TokenKeyPair
-	ttlSec      int64
+	curKeyPair TokenKeyPair
+	prevPubKey *PreviousPublicKey
+	ttlSec     int64
 }
 
 func extractEd25519PublicKey(publicKey string) (ed25519.PublicKey, string) {
@@ -71,6 +76,11 @@ func extractEd25519PublicPrivateKeyPair(publicKey, privateKey string) TokenKeyPa
 	}
 }
 
+type PreviousEs256PublicKey struct {
+	publicKey *ecdsa.PublicKey
+	kid       string
+}
+
 type Es256TokenKeyPair struct {
 	privateKey *ecdsa.PrivateKey
 	publicKey  *ecdsa.PublicKey
@@ -78,9 +88,9 @@ type Es256TokenKeyPair struct {
 }
 
 type Es256TokenSecretData struct {
-	curKeyPair  Es256TokenKeyPair
-	prevKeyPair *Es256TokenKeyPair
-	ttlSec      int64
+	curKeyPair Es256TokenKeyPair
+	prevPubKey *PreviousEs256PublicKey
+	ttlSec     int64
 }
 
 func extractEs256KeyPair(privateKey string) Es256TokenKeyPair {
@@ -114,21 +124,44 @@ func extractEs256KeyPair(privateKey string) Es256TokenKeyPair {
 	}
 }
 
+func extractEs256PublicKey(publicKey string) (*ecdsa.PublicKey, string) {
+	publicKeyBlock, _ := pem.Decode([]byte(publicKey))
+	if publicKeyBlock == nil || publicKeyBlock.Type != "PUBLIC KEY" {
+		panic("Invalid public key")
+	}
+
+	publicKeyData, err := x509.ParsePKIXPublicKey(publicKeyBlock.Bytes)
+	if err != nil {
+		panic(err)
+	}
+
+	pubKey, ok := publicKeyData.(*ecdsa.PublicKey)
+	if !ok {
+		panic("Invalid public key")
+	}
+
+	publicKeyValue, err := x509.MarshalPKIXPublicKey(pubKey)
+	if err != nil {
+		panic(err)
+	}
+
+	return pubKey, utils.ExtractKeyID(publicKeyValue)
+}
+
 func newTokenSecretData(
 	publicKey,
-	privateKey string,
+	privateKey,
+	previousPublicKey string,
 	ttlSec int64,
-	prevPublicKey,
-	prevPrivateKey *string,
 ) TokenSecretData {
 	curKeyPair := extractEd25519PublicPrivateKeyPair(publicKey, privateKey)
 
-	if prevPublicKey != nil && prevPrivateKey != nil {
-		prevKeyPair := extractEd25519PublicPrivateKeyPair(*prevPublicKey, *prevPrivateKey)
+	if previousPublicKey != "" {
+		pubKey, kid := extractEd25519PublicKey(previousPublicKey)
 		return TokenSecretData{
-			curKeyPair:  curKeyPair,
-			prevKeyPair: &prevKeyPair,
-			ttlSec:      ttlSec,
+			curKeyPair: curKeyPair,
+			prevPubKey: &PreviousPublicKey{publicKey: pubKey, kid: kid},
+			ttlSec:     ttlSec,
 		}
 	}
 
@@ -138,15 +171,15 @@ func newTokenSecretData(
 	}
 }
 
-func newEs256TokenSecretData(privateKey string, ttlSec int64, prevPrivateKey *string) Es256TokenSecretData {
+func newEs256TokenSecretData(privateKey, previousPublicKey string, ttlSec int64) Es256TokenSecretData {
 	curKeyPair := extractEs256KeyPair(privateKey)
 
-	if prevPrivateKey != nil {
-		prevKeyPair := extractEs256KeyPair(*prevPrivateKey)
+	if previousPublicKey != "" {
+		prevPubKey, kid := extractEs256PublicKey(previousPublicKey)
 		return Es256TokenSecretData{
-			curKeyPair:  curKeyPair,
-			prevKeyPair: &prevKeyPair,
-			ttlSec:      ttlSec,
+			curKeyPair: curKeyPair,
+			prevPubKey: &PreviousEs256PublicKey{publicKey: prevPubKey, kid: kid},
+			ttlSec:     ttlSec,
 		}
 	}
 
@@ -182,13 +215,13 @@ func NewTokens(
 ) *Tokens {
 	accessData := newEs256TokenSecretData(
 		accessCfg.PrivateKey(),
+		accessCfg.PreviousPublicKey(),
 		accessCfg.TtlSec(),
-		nil,
 	)
 	accountKeysData := newEs256TokenSecretData(
 		accountCredentialsCfg.PrivateKey(),
+		accountCredentialsCfg.PreviousPublicKey(),
 		accountCredentialsCfg.TtlSec(),
-		nil,
 	)
 
 	jwks := []utils.P256JWK{
@@ -196,16 +229,16 @@ func NewTokens(
 		utils.EncodeP256Jwk(accessData.curKeyPair.publicKey, accessData.curKeyPair.kid),
 	}
 
-	if accountKeysData.prevKeyPair != nil {
+	if accountKeysData.prevPubKey != nil {
 		jwks = append(jwks, utils.EncodeP256Jwk(
-			accountKeysData.prevKeyPair.publicKey,
-			accessData.prevKeyPair.kid,
+			accountKeysData.prevPubKey.publicKey,
+			accessData.prevPubKey.kid,
 		))
 	}
-	if accessData.prevKeyPair != nil {
+	if accessData.prevPubKey != nil {
 		jwks = append(jwks, utils.EncodeP256Jwk(
-			accessData.prevKeyPair.publicKey,
-			accessData.prevKeyPair.kid,
+			accessData.prevPubKey.publicKey,
+			accessData.prevPubKey.kid,
 		))
 	}
 
@@ -215,37 +248,32 @@ func NewTokens(
 		refreshData: newTokenSecretData(
 			refreshCfg.PublicKey(),
 			refreshCfg.PrivateKey(),
+			refreshCfg.PreviousPublicKey(),
 			refreshCfg.TtlSec(),
-			nil,
-			nil,
 		),
 		confirmationData: newTokenSecretData(
 			confirmationCfg.PublicKey(),
 			confirmationCfg.PrivateKey(),
+			confirmationCfg.PreviousPublicKey(),
 			confirmationCfg.TtlSec(),
-			nil,
-			nil,
 		),
 		resetData: newTokenSecretData(
 			resetCfg.PublicKey(),
 			resetCfg.PrivateKey(),
+			resetCfg.PreviousPublicKey(),
 			resetCfg.TtlSec(),
-			nil,
-			nil,
 		),
 		oauthData: newTokenSecretData(
 			oauthCfg.PublicKey(),
 			oauthCfg.PrivateKey(),
+			oauthCfg.PreviousPublicKey(),
 			oauthCfg.TtlSec(),
-			nil,
-			nil,
 		),
 		twoFAData: newTokenSecretData(
 			twoFACfg.PublicKey(),
 			twoFACfg.PrivateKey(),
+			twoFACfg.PreviousPublicKey(),
 			twoFACfg.TtlSec(),
-			nil,
-			nil,
 		),
 		frontendDomain: frontendDomain,
 		backendDomain:  backendDomain,
