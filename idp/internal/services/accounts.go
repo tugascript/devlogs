@@ -77,7 +77,7 @@ func (s *Services) CreateAccount(
 	firstName := utils.Capitalized(opts.FirstName)
 	lastName := utils.Capitalized(opts.LastName)
 	username := utils.Slugify(fmt.Sprintf("%s %s", firstName, lastName))
-	count, err := s.database.CountAccountAlikeUsernames(ctx, username)
+	count, err := s.database.CountAccountAlikeUsernames(ctx, utils.DbSearchEnd(username))
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count usernames that are alike", "error", err)
 		return dtos.AccountDTO{}, exceptions.NewServerError()

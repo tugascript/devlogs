@@ -4,14 +4,14 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"encoding/base64"
+	"encoding/hex"
 	"math/big"
 )
 
 func generateRandomBytes(byteLen int) ([]byte, error) {
 	b := make([]byte, byteLen)
 
-	_, err := rand.Read(b)
-	if err != nil {
+	if _, err := rand.Read(b); err != nil {
 		return nil, err
 	}
 
@@ -44,4 +44,13 @@ func GenerateBase32Secret(byteLen int) (string, error) {
 	}
 
 	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(randomBytes), nil
+}
+
+func GenerateHexSecret(byteLen int) (string, error) {
+	randomBytes, err := generateRandomBytes(byteLen)
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(randomBytes), nil
 }

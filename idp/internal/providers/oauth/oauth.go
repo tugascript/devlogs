@@ -2,9 +2,8 @@ package oauth
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 	"io"
 	"log/slog"
 	"net/http"
@@ -83,16 +82,6 @@ func appendScopes(cfg Config, scopes []string) Config {
 	return cfg
 }
 
-func GenerateState() (string, error) {
-	bytes := make([]byte, 16)
-
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-
-	return hex.EncodeToString(bytes), nil
-}
-
 func getConfig(cfg Config, redirectURL string, oas oauthScopes, scopes []Scope) Config {
 	cfg.RedirectURL = redirectURL
 
@@ -150,7 +139,7 @@ func getAuthorizationURL(
 		return "", "", exceptions.NewNotFoundError()
 	}
 
-	state, err := GenerateState()
+	state, err := utils.GenerateHexSecret(16)
 	if err != nil {
 		opts.logger.ErrorContext(ctx, "Failed to generate state", "error", err)
 		return "", "", exceptions.NewServerError()
@@ -214,7 +203,7 @@ func NewProviders(
 			Config: oauth2.Config{
 				ClientID:     microsoftCfg.ClientID(),
 				ClientSecret: microsoftCfg.ClientSecret(),
-				Endpoint:     microsoft.LiveConnectEndpoint,
+				Endpoint:     microsoft.AzureADEndpoint("common"),
 				Scopes:       []string{microsoftScopes.email},
 			},
 			Enabled: microsoftCfg.Enabled(),

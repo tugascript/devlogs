@@ -9,7 +9,6 @@ type LogLayer = string
 const (
 	ControllersLogLayer LogLayer = "controllers"
 	ServicesLogLayer    LogLayer = "services"
-	ProvidersLogLayer   LogLayer = "providers"
 )
 
 type LoggerOptions struct {

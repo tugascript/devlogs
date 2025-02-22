@@ -68,6 +68,10 @@ func DbSearch(s string) string {
 	return "%" + Lowered(s) + "%"
 }
 
+func DbSearchEnd(s string) string {
+	return Lowered(s) + "%"
+}
+
 var nonAlphaNumRgx = regexp.MustCompile(`[^a-zA-Z0-9\s]+`)
 
 func Slugify(s string) string {

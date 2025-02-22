@@ -2,8 +2,13 @@ package tests
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"github.com/tugascript/devlogs/idp/internal/utils"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/go-faker/faker/v4"
@@ -655,3 +660,372 @@ func TestAccountOAuthURL(t *testing.T) {
 		})
 	}
 }
+
+func generateCode(t *testing.T) string {
+	const codeLength = 6
+	const digits = "0123456789"
+	code := make([]byte, codeLength)
+
+	for i := 0; i < codeLength; i++ {
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(digits))))
+		if err != nil {
+			t.Fatal("Failed to generate code", err)
+		}
+		code[i] = digits[num.Int64()]
+	}
+
+	return string(code)
+}
+
+func generateState(t *testing.T) string {
+	bytes := make([]byte, 16)
+
+	if _, err := rand.Read(bytes); err != nil {
+		t.Fatal("Failed to generate state", err)
+	}
+
+	return hex.EncodeToString(bytes)
+}
+
+func callbackBeforeEach(t *testing.T, provider string) (string, string, string) {
+	ctx := context.Background()
+
+	email := utils.Lowered(faker.Email())
+	state := generateState(t)
+
+	testCache := GetTestCache(t)
+	requestID := uuid.NewString()
+	stateOpts := cache.AddOAuthStateOptions{
+		RequestID: requestID,
+		State:     state,
+		Provider:  provider,
+	}
+	if err := testCache.AddOAuthState(ctx, stateOpts); err != nil {
+		t.Fatalf("Error adding state to cache: %v", err)
+	}
+
+	code, err := testCache.GenerateOAuthCode(ctx, cache.GenerateOAuthOptions{
+		RequestID:       requestID,
+		Email:           email,
+		DurationSeconds: GetTestTokens(t).GetOAuthTTL(),
+	})
+	if err != nil {
+		t.Fatalf("Error generating OAuth code: %v", err)
+	}
+
+	return email, code, state
+}
+
+func TestOAuthCallback(t *testing.T) {
+	defer gock.OffAll()
+	const oauth2Path = "/v1/auth/oauth2"
+
+	var email, code, state string
+	addParams := func(t *testing.T) string {
+		params := make(url.Values)
+		params.Add("code", code)
+		params.Add("state", state)
+		return params.Encode()
+	}
+
+	testCases := []TestRequestCase[string]{
+		{
+			Name: "GET facebook callback should return 302 FOUND and redirect code",
+			ReqFn: func(t *testing.T) (string, string) {
+				email, code, state = callbackBeforeEach(t, services.AuthProviderFacebook)
+				gock.New("https://graph.facebook.com").
+					Post("/v3.2/oauth/access_token").
+					Reply(http.StatusOK).
+					JSON(map[string]interface{}{
+						"access_token":  "123",
+						"token_type":    "Bearer",
+						"expires_in":    3600,
+						"refresh_token": "456",
+					})
+
+				gock.New("https://graph.facebook.com/").
+					Get("v22.0/me").
+					Reply(http.StatusOK).
+					JSON(map[string]interface{}{
+						"name":       "John Doe",
+						"first_name": "John",
+						"last_name":  "Doe",
+						"email":      email,
+					})
+
+				return "", ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				defer gock.OffAll()
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "access_token")
+				AssertStringContains(t, location, "token_type")
+				AssertStringContains(t, location, "expires_in")
+				AssertEqual(t, gock.IsDone(), true)
+			},
+			PathFn: func() string {
+				return oauth2Path + "/facebook/callback?" + addParams(t)
+			},
+		},
+		{
+			Name: "GET github callback should return 302 FOUND and redirect code",
+			ReqFn: func(t *testing.T) (string, string) {
+				email, code, state = callbackBeforeEach(t, services.AuthProviderGitHub)
+				gock.New("https://github.com").
+					Post("/login/oauth/access_token").
+					Reply(http.StatusOK).
+					JSON(map[string]interface{}{
+						"access_token":  "123",
+						"token_type":    "Bearer",
+						"expires_in":    3600,
+						"refresh_token": "456",
+					})
+
+				gock.New("https://api.github.com").
+					Get("/user").
+					Reply(http.StatusOK).
+					JSON(map[string]interface{}{
+						"name":     "John Doe",
+						"location": "nz",
+						"email":    email,
+					})
+
+				return "", ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				defer gock.OffAll()
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "access_token")
+				AssertStringContains(t, location, "token_type")
+				AssertStringContains(t, location, "expires_in")
+				AssertEqual(t, gock.IsDone(), true)
+			},
+			PathFn: func() string {
+				return oauth2Path + "/github/callback?" + addParams(t)
+			},
+		},
+		{
+			Name: "GET google callback should return 302 FOUND and redirect code",
+			ReqFn: func(t *testing.T) (string, string) {
+				email, code, state = callbackBeforeEach(t, services.AuthProviderGoogle)
+				gock.New("https://oauth2.googleapis.com").
+					Post("/token").
+					Reply(http.StatusOK).
+					JSON(map[string]interface{}{
+						"access_token":  "123",
+						"token_type":    "Bearer",
+						"expires_in":    3600,
+						"refresh_token": "456",
+					})
+
+				gock.New("https://www.googleapis.com").
+					Get("/oauth2/v3/userinfo").
+					Reply(http.StatusOK).
+					JSON(map[string]interface{}{
+						"name":           "John Doe",
+						"given_name":     "John",
+						"family_name":    "Doe",
+						"locale":         "EN_NZ",
+						"email_verified": true,
+						"email":          email,
+					})
+
+				return "", ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				defer gock.OffAll()
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "access_token")
+				AssertStringContains(t, location, "token_type")
+				AssertStringContains(t, location, "expires_in")
+				AssertEqual(t, gock.IsDone(), true)
+			},
+			PathFn: func() string {
+				return oauth2Path + "/google/callback?" + addParams(t)
+			},
+		},
+		{
+			Name: "GET google callback should return 302 FOUND and access denied if the user is not verified",
+			ReqFn: func(t *testing.T) (string, string) {
+				email, code, state = callbackBeforeEach(t, services.AuthProviderGoogle)
+				gock.New("https://oauth2.googleapis.com").
+					Post("/token").
+					Reply(http.StatusOK).
+					JSON(map[string]interface{}{
+						"access_token":  "123",
+						"token_type":    "Bearer",
+						"expires_in":    3600,
+						"refresh_token": "456",
+					})
+
+				gock.New("https://www.googleapis.com").
+					Get("/oauth2/v3/userinfo").
+					Reply(http.StatusOK).
+					JSON(map[string]interface{}{
+						"name":           "John Doe",
+						"given_name":     "John",
+						"family_name":    "Doe",
+						"locale":         "EN_NZ",
+						"email_verified": false,
+						"email":          email,
+					})
+
+				return "", ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "access_denied")
+				defer gock.OffAll()
+			},
+			PathFn: func() string {
+				return oauth2Path + "/google/callback?" + addParams(t)
+			},
+		},
+		{
+			Name: "GET microsoft callback should return 302 FOUND and redirect code",
+			ReqFn: func(t *testing.T) (string, string) {
+				email, code, state = callbackBeforeEach(t, services.AuthProviderMicrosoft)
+				gock.New("https://login.microsoftonline.com").
+					Post("/common/oauth2/v2.0/token").
+					Reply(http.StatusOK).
+					JSON(map[string]interface{}{
+						"access_token":  "123",
+						"token_type":    "Bearer",
+						"expires_in":    3600,
+						"refresh_token": "456",
+					})
+
+				gock.New("https://graph.microsoft.com").
+					Get("/v1.0/me").
+					Reply(http.StatusOK).
+					JSON(map[string]interface{}{
+						"displayName": "John Doe",
+						"givenName":   "John",
+						"surname":     "Doe",
+						"mail":        email,
+					})
+
+				return "", ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "access_token")
+				AssertStringContains(t, location, "token_type")
+				AssertStringContains(t, location, "expires_in")
+				AssertEqual(t, gock.IsDone(), true)
+				defer gock.OffAll()
+			},
+			PathFn: func() string {
+				return oauth2Path + "/microsoft/callback?" + addParams(t)
+			},
+		},
+		{
+			Name: "GET random should return 400 BAD REQUEST when the provider is not valid",
+			ReqFn: func(t *testing.T) (string, string) {
+				return "", ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "provider", resBody.Fields[0].Param)
+				AssertEqual(t, "random", resBody.Fields[0].Value.(string))
+			},
+			PathFn: func() string {
+				return oauth2Path + "/random/callback?" + addParams(t)
+			},
+		},
+		{
+			Name: "GET microsoft callback should return 302 FOUND and access_denied if the external provider respons with 401",
+			ReqFn: func(t *testing.T) (string, string) {
+				email, code, state = callbackBeforeEach(t, services.AuthProviderMicrosoft)
+				gock.New("https://login.microsoftonline.com").
+					Post("/common/oauth2/v2.0/token").
+					Reply(http.StatusUnauthorized).
+					JSON(map[string]interface{}{
+						"access_token":  "123",
+						"token_type":    "Bearer",
+						"expires_in":    3600,
+						"refresh_token": "456",
+					})
+
+				return "", ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "access_denied")
+				defer gock.OffAll()
+			},
+			PathFn: func() string {
+				return oauth2Path + "/microsoft/callback?" + addParams(t)
+			},
+		},
+		{
+			Name: "GET microsoft callback should return 302 FOUND and invalid request if the state is invalid",
+			ReqFn: func(t *testing.T) (string, string) {
+				email, code, state = callbackBeforeEach(t, services.AuthProviderMicrosoft)
+				state = "invalid"
+				return "", ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "invalid_request")
+				defer gock.OffAll()
+			},
+			PathFn: func() string {
+				return oauth2Path + "/microsoft/callback?" + addParams(t)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCaseWithPathFn(t, http.MethodGet, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+//type appleFakeUserName struct {
+//	FirstName string `json:"firstName" faker:"first_name"`
+//	LastName  string `json:"lastName" faker:"last_name"`
+//}
+//
+//type appleFakeUser struct {
+//	Name  appleFakeUserName `json:"name"`
+//	Email string            `json:"email" faker:"email"`
+//}
+//
+//func generateFakeAppleData(t *testing.T) bodies.AppleLoginBody {
+//	fakeUserData := appleFakeUser{}
+//	if err := faker.FakeData(&fakeUserData); err != nil {
+//		t.Fatal("Failed to generate fake user data", err)
+//	}
+//
+//	userJson, err := json.Marshal(fakeUserData)
+//	if err != nil {
+//		t.Fatal("Failed to marshal user data", err)
+//	}
+//
+//	return bodies.AppleLoginBody{
+//		Code:  generateCode(t),
+//		State: generateState(t),
+//		User:  string(userJson),
+//	}
+//}
+//

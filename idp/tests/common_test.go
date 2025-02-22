@@ -282,6 +282,25 @@ func PerformTestRequestCase[R any](t *testing.T, method, path string, tc TestReq
 	tc.AssertFn(t, reqBody, resp)
 }
 
+func PerformTestRequestCaseWithPathFn[R any](t *testing.T, method string, tc TestRequestCase[R]) {
+	// Arrange
+	reqBody, accessToken := tc.ReqFn(t)
+	jsonBody := CreateTestJSONRequestBody(t, reqBody)
+	fiberApp := GetTestServer(t).App
+
+	// Act
+	resp := PerformTestRequest(t, fiberApp, tc.DelayMs, method, tc.PathFn(), accessToken, "application/json", jsonBody)
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// Assert
+	AssertTestStatusCode(t, resp, tc.ExpStatus)
+	tc.AssertFn(t, reqBody, resp)
+}
+
 type fakeAccountData struct {
 	Email     string `faker:"email"`
 	FirstName string `faker:"first_name"`
