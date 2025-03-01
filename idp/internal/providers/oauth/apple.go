@@ -2,7 +2,6 @@ package oauth
 
 import (
 	"context"
-	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -74,13 +73,13 @@ func (p *Providers) GetAppleIDToken(ctx context.Context, opts AccessTokenOptions
 	}
 
 	idToken := token.Extra("id_token")
-	if idToken != nil {
+	if idToken == nil {
 		logger.ErrorContext(ctx, "AccountID token not present on exchange request")
 		return "", exceptions.NewServerError()
 	}
 
 	idTokenStr, ok := idToken.(string)
-	if !ok {
+	if !ok || idTokenStr == "" {
 		logger.ErrorContext(ctx, "AccountID token is not a string")
 		return "", exceptions.NewServerError()
 	}
@@ -173,12 +172,12 @@ func (p *Providers) ValidateAppleIDToken(
 	claims := AppleIDTokenClaims{}
 	_, err = jwt.ParseWithClaims(opts.Token, &claims, func(token *jwt.Token) (interface{}, error) {
 		if token == nil {
-			return rsa.PublicKey{}, errors.New("token is nil")
+			return nil, errors.New("token is nil")
 		}
 
 		kid, ok := token.Header["kid"].(string)
 		if !ok {
-			return rsa.PublicKey{}, jwt.ErrInvalidKey
+			return nil, jwt.ErrInvalidKey
 		}
 
 		keyIdx := slices.IndexFunc(jwksRes.Keys, func(jwk utils.RS256JWK) bool {
@@ -186,13 +185,13 @@ func (p *Providers) ValidateAppleIDToken(
 		})
 		if keyIdx < 0 {
 			logger.ErrorContext(ctx, "Key for AccountID token KID was not found")
-			return rsa.PublicKey{}, errors.New("key for AccountID token KID not found")
+			return nil, errors.New("key for AccountID token KID not found")
 		}
 
 		pubKey, err := utils.DecodeRS256Jwk(jwksRes.Keys[keyIdx])
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to decode public key", "error", err)
-			return rsa.PublicKey{}, err
+			return nil, err
 		}
 
 		return pubKey, nil
@@ -203,7 +202,7 @@ func (p *Providers) ValidateAppleIDToken(
 	}
 
 	var emailVerified bool
-	switch claims.IsPrivateEmail.(type) {
+	switch claims.EmailVerified.(type) {
 	case string:
 		emailVerified = utils.Lowered(claims.EmailVerified.(string)) == "true"
 	case bool:

@@ -107,16 +107,16 @@ func DecodeP256Jwk(jwk P256JWK) (ecdsa.PublicKey, error) {
 	}, nil
 }
 
-func DecodeRS256Jwk(jwk RS256JWK) (rsa.PublicKey, error) {
+func DecodeRS256Jwk(jwk RS256JWK) (*rsa.PublicKey, error) {
 	nBytes, err := base64.RawURLEncoding.DecodeString(jwk.N)
 	if err != nil {
-		return rsa.PublicKey{}, err
+		return nil, err
 	}
 	n := new(big.Int).SetBytes(nBytes)
 
 	eBytes, err := base64.RawURLEncoding.DecodeString(jwk.E)
 	if err != nil {
-		return rsa.PublicKey{}, err
+		return nil, err
 	}
 	var e int
 	if len(eBytes) == 3 {
@@ -124,8 +124,8 @@ func DecodeRS256Jwk(jwk RS256JWK) (rsa.PublicKey, error) {
 	} else if len(eBytes) == 1 {
 		e = int(eBytes[0])
 	} else {
-		return rsa.PublicKey{}, fmt.Errorf("unexpected exponent length: %d", len(eBytes))
+		return nil, fmt.Errorf("unexpected exponent length: %d", len(eBytes))
 	}
 
-	return rsa.PublicKey{N: n, E: e}, nil
+	return &rsa.PublicKey{N: n, E: e}, nil
 }

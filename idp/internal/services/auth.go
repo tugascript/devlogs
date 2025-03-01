@@ -626,7 +626,7 @@ func (s *Services) extOAuthToken(
 	}
 	if !ok {
 		logger.WarnContext(ctx, "OAuth state is invalid")
-		return "", exceptions.NewUnauthorizedError()
+		return "", exceptions.NewValidationError("OAuth state is invalid")
 	}
 
 	accessTokenOpts := oauth.AccessTokenOptions{
@@ -885,7 +885,7 @@ func (s *Services) AppleLoginAccount(
 	}
 	if !ok {
 		logger.WarnContext(ctx, "OAuth state is invalid")
-		return "", exceptions.NewUnauthorizedError()
+		return "", exceptions.NewValidationError("OAuth state is invalid")
 	}
 
 	idToken, serviceErr := s.oauthProviders.GetAppleIDToken(ctx, oauth.AccessTokenOptions{

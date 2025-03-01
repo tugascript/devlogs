@@ -258,7 +258,7 @@ func (c *Controllers) AccountOAuthCallback(ctx *fiber.Ctx) error {
 		switch serviceErr.Code {
 		case exceptions.CodeUnauthorized, exceptions.CodeForbidden:
 			return c.errorCallback(logger, ctx, exceptions.OAuthErrorAccessDenied)
-		case exceptions.CodeNotFound:
+		case exceptions.CodeNotFound, exceptions.CodeValidation:
 			return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 		default:
 			return c.errorCallback(logger, ctx, exceptions.OAuthServerError)
@@ -306,7 +306,7 @@ func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
 		switch serviceErr.Code {
 		case exceptions.CodeUnauthorized, exceptions.CodeForbidden:
 			return c.errorCallback(logger, ctx, exceptions.OAuthErrorAccessDenied)
-		case exceptions.CodeNotFound:
+		case exceptions.CodeNotFound, exceptions.CodeValidation:
 			return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 		default:
 			return c.errorCallback(logger, ctx, exceptions.OAuthServerError)

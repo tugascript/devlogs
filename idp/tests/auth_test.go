@@ -3,13 +3,19 @@ package tests
 import (
 	"context"
 	"crypto/rand"
+	"crypto/rsa"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-faker/faker/v4"
 	"github.com/gofiber/fiber/v2"
@@ -1001,31 +1007,210 @@ func TestOAuthCallback(t *testing.T) {
 	t.Cleanup(accountsCleanUp(t))
 }
 
-//type appleFakeUserName struct {
-//	FirstName string `json:"firstName" faker:"first_name"`
-//	LastName  string `json:"lastName" faker:"last_name"`
-//}
-//
-//type appleFakeUser struct {
-//	Name  appleFakeUserName `json:"name"`
-//	Email string            `json:"email" faker:"email"`
-//}
-//
-//func generateFakeAppleData(t *testing.T) bodies.AppleLoginBody {
-//	fakeUserData := appleFakeUser{}
-//	if err := faker.FakeData(&fakeUserData); err != nil {
-//		t.Fatal("Failed to generate fake user data", err)
-//	}
-//
-//	userJson, err := json.Marshal(fakeUserData)
-//	if err != nil {
-//		t.Fatal("Failed to marshal user data", err)
-//	}
-//
-//	return bodies.AppleLoginBody{
-//		Code:  generateCode(t),
-//		State: generateState(t),
-//		User:  string(userJson),
-//	}
-//}
-//
+type appleFakeUserName struct {
+	FirstName string `json:"firstName" faker:"first_name"`
+	LastName  string `json:"lastName" faker:"last_name"`
+}
+
+type appleFakeUser struct {
+	Name  appleFakeUserName `json:"name"`
+	Email string            `json:"email" faker:"email"`
+}
+
+func generateFakeAppleData(t *testing.T) (bodies.AppleLoginBody, string) {
+	fakeUserData := appleFakeUser{}
+	if err := faker.FakeData(&fakeUserData); err != nil {
+		t.Fatal("Failed to generate fake user data", err)
+	}
+
+	userJson, err := json.Marshal(fakeUserData)
+	if err != nil {
+		t.Fatal("Failed to marshal user data", err)
+	}
+
+	return bodies.AppleLoginBody{
+		Code:  generateCode(t),
+		State: generateState(t),
+		User:  string(userJson),
+	}, fakeUserData.Email
+}
+
+func TestAppleCallback(t *testing.T) {
+	defer gock.OffAll()
+	const appleOAuth2Path = "/v1/auth/oauth2/apple/callback"
+
+	testCases := []TestRequestCase[bodies.AppleLoginBody]{
+		{
+			Name: "POST should return 302 FOUND and redirect code",
+			ReqFn: func(t *testing.T) (bodies.AppleLoginBody, string) {
+				_, code, state := callbackBeforeEach(t, services.AuthProviderApple)
+				fakeData, fakeEmail := generateFakeAppleData(t)
+				fakeData.Code = code
+				fakeData.State = state
+
+				privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+				if err != nil {
+					t.Fatal("Failed to generate RSA key for testing", err)
+				}
+
+				// Create a token with RSA signing method
+				token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+					"sub":            "123456.abcdef",
+					"email":          fakeEmail,
+					"email_verified": true,
+					"iss":            "https://appleid.apple.com",
+					"aud":            "apple",
+					"exp":            time.Now().Add(time.Hour).Unix(),
+					"iat":            time.Now().Unix(),
+				})
+				token.Header["kid"] = "test-kid" // Set a test key ID
+
+				// Sign the token with the RSA private key
+				tokenString, err := token.SignedString(privateKey)
+				if err != nil {
+					t.Fatal("Failed to sign test token", err)
+				}
+
+				// Create and encode RSA public key as JWK
+				rsaJWK := utils.RS256JWK{
+					Kty: "RSA",
+					Kid: "test-kid",
+					Use: "sig",
+					Alg: "RS256",
+					N:   base64.RawURLEncoding.EncodeToString(privateKey.N.Bytes()),
+					E:   base64.RawURLEncoding.EncodeToString([]byte{1, 0, 1}), // Standard RSA exponent 65537
+				}
+
+				gock.New("https://appleid.apple.com").
+					Post("/auth/token").
+					Reply(http.StatusOK).
+					JSON(map[string]interface{}{
+						"access_token":  "123",
+						"token_type":    "Bearer",
+						"expires_in":    3600,
+						"refresh_token": "456",
+						"id_token":      tokenString,
+					})
+
+				// Mock Apple's JWKS endpoint
+				gock.New("https://appleid.apple.com").
+					Get("/auth/keys").
+					Reply(http.StatusOK).
+					JSON(map[string]interface{}{
+						"keys": []utils.RS256JWK{rsaJWK},
+					})
+
+				return fakeData, ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ bodies.AppleLoginBody, res *http.Response) {
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "access_token")
+				AssertStringContains(t, location, "token_type")
+				AssertStringContains(t, location, "expires_in")
+				AssertEqual(t, gock.IsDone(), true)
+			},
+		},
+		{
+			Name: "POST should return 302 FOUND and access_denied if the external provider responds with 401",
+			ReqFn: func(t *testing.T) (bodies.AppleLoginBody, string) {
+				_, code, state := callbackBeforeEach(t, services.AuthProviderApple)
+				fakeData, _ := generateFakeAppleData(t)
+				fakeData.Code = code
+				fakeData.State = state
+
+				gock.New("https://appleid.apple.com").
+					Post("/auth/token").
+					Reply(http.StatusUnauthorized)
+
+				return fakeData, ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ bodies.AppleLoginBody, res *http.Response) {
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "access_denied")
+			},
+		},
+		{
+			Name: "POST should return 302 FOUND and invalid_request if the state is invalid",
+			ReqFn: func(t *testing.T) (bodies.AppleLoginBody, string) {
+				fakeData, _ := generateFakeAppleData(t)
+				fakeData.State = "invalid"
+				return fakeData, ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ bodies.AppleLoginBody, res *http.Response) {
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "invalid_request")
+			},
+		},
+		{
+			Name: "POST should return 302 FOUND and invalid_request if the user data is invalid",
+			ReqFn: func(t *testing.T) (bodies.AppleLoginBody, string) {
+				_, code, state := callbackBeforeEach(t, services.AuthProviderApple)
+				fakeData, _ := generateFakeAppleData(t)
+				fakeData.Code = code
+				fakeData.State = state
+				fakeData.User = "invalid json"
+
+				return fakeData, ""
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ bodies.AppleLoginBody, res *http.Response) {
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "invalid_request")
+			},
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST if the content type is not form-urlencoded",
+			ReqFn: func(t *testing.T) (bodies.AppleLoginBody, string) {
+				fakeData, _ := generateFakeAppleData(t)
+				return fakeData, "application/json"
+			},
+			ExpStatus: http.StatusFound,
+			AssertFn: func(t *testing.T, _ bodies.AppleLoginBody, res *http.Response) {
+				location := res.Header.Get("Location")
+				AssertNotEmpty(t, location)
+				AssertStringContains(t, location, "invalid_request")
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			app := GetTestServer(t).App
+			data, contentType := tc.ReqFn(t)
+
+			form := make(url.Values)
+			form.Add("code", data.Code)
+			form.Add("state", data.State)
+			form.Add("user", data.User)
+
+			req := httptest.NewRequest(http.MethodPost, appleOAuth2Path, strings.NewReader(form.Encode()))
+			if contentType != "" {
+				req.Header.Set("Content-Type", contentType)
+			} else {
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			}
+
+			resp, err := app.Test(req)
+			if err != nil {
+				t.Fatal("Failed to perform request", err)
+			}
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}()
+
+			AssertTestStatusCode(t, resp, tc.ExpStatus)
+			tc.AssertFn(t, data, resp)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
