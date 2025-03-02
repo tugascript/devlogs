@@ -338,24 +338,24 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 	logger := c.buildLogger(requestID, authLocation, "accountAuthorizationCodeToken")
 
 	if serviceErr := c.processAccountOAuthHeader(ctx); serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
 	}
 
 	account, serviceErr := getAccountClaims(ctx)
 	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
 	}
 
-	body := new(bodies.AuthCodeLoginBody)
-	if err := ctx.BodyParser(body); err != nil {
+	body := bodies.AuthCodeLoginBody{
+		GrantType:   ctx.FormValue("grant_type"),
+		RedirectURI: ctx.FormValue("redirect_uri"),
+		Code:        ctx.FormValue("code"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
-	}
-
 	if body.RedirectURI != fmt.Sprintf("https://%s/auth/callback", c.frontendDomain) {
-		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
 	authDTO, serviceErr := c.services.OAuthLoginAccount(ctx.UserContext(), services.OAuthLoginAccountOptions{
@@ -365,7 +365,14 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 		Code:      body.Code,
 	})
 	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
+		switch serviceErr.Code {
+		case exceptions.CodeValidation:
+			return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidGrant)
+		case exceptions.StatusUnauthorized:
+			return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
+		default:
+			return oauthErrorResponse(logger, ctx, exceptions.OAuthServerError)
+		}
 	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
@@ -404,7 +411,7 @@ func (c *Controllers) accountClientCredentialsToken(ctx *fiber.Ctx, requestID st
 
 	clientID, clientSecret, serviceErr := parseAHClientCredentials(ctx)
 	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
 	}
 	body := new(bodies.ClientCredentialsBody)
 	if err := ctx.BodyParser(body); err != nil {
@@ -482,7 +489,7 @@ func (c *Controllers) AccountOAuthToken(ctx *fiber.Ctx) error {
 		return c.accountClientCredentialsToken(ctx, requestID)
 	default:
 		logger.WarnContext(ctx.UserContext(), "Unsupported grant_type", "grantType", grantType)
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidGrant)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnsupportedGrantType)
 	}
 }
 

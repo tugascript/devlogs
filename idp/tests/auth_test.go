@@ -1214,3 +1214,90 @@ func TestAppleCallback(t *testing.T) {
 
 	t.Cleanup(accountsCleanUp(t))
 }
+
+func TestOAuthToken(t *testing.T) {
+	const oauthTokenPath = "/v1/auth/oauth2/token"
+	beforeEachAuthorization := func(t *testing.T) (string, string) {
+		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGitHub))
+		testCache := GetTestCache(t)
+		testTokens := GetTestTokens(t)
+		ctx := context.Background()
+		requestID := uuid.NewString()
+
+		code, err := testCache.GenerateOAuthCode(ctx, cache.GenerateOAuthOptions{
+			RequestID:       requestID,
+			Email:           account.Email,
+			DurationSeconds: testTokens.GetOAuthTTL(),
+		})
+		if err != nil {
+			t.Fatal("Failed to generate OAuth code", err)
+		}
+
+		accessToken, err := testTokens.CreateOAuthToken(tokens.AccountTokenOptions{
+			ID:      account.ID,
+			Version: account.Version(),
+			Email:   account.Email,
+		})
+		if err != nil {
+			t.Fatal("Failed to create OAuth token", err)
+		}
+
+		return code, accessToken
+	}
+
+	createAuthorizationBody := func(t *testing.T, code string) string {
+		form := make(url.Values)
+		form.Add("code", code)
+		form.Add("grant_type", "authorization_code")
+		form.Add("redirect_uri", "https://localhost:3000/auth/callback")
+		return form.Encode()
+	}
+
+	testCases := []TestRequestCase[string]{
+		{
+			Name: "POST should return 200 OK with authorization_code grant type with valid code and token",
+			ReqFn: func(t *testing.T) (string, string) {
+				code, accessToken := beforeEachAuthorization(t)
+				return createAuthorizationBody(t, code), accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST invalid_grant with authorization_code grant type with invalid code and valid token",
+			ReqFn: func(t *testing.T) (string, string) {
+				_, accessToken := beforeEachAuthorization(t)
+				code, err := utils.Base62UUID()
+				if err != nil {
+					t.Fatal("Failed to generate random code", err)
+				}
+				return createAuthorizationBody(t, code), accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorInvalidGrant)
+			},
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST access_denied with authorization_code grant type with valid code and invalid token",
+			ReqFn: func(t *testing.T) (string, string) {
+				code, accessToken := beforeEachAuthorization(t)
+				return createAuthorizationBody(t, code), accessToken + "invalid"
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCaseWihURLEncodedBody(t, http.MethodPost, oauthTokenPath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}

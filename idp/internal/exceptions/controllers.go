@@ -18,11 +18,12 @@ const (
 	StatusForbidden    string = "Forbidden"
 	StatusValidation   string = "Validation"
 
-	OAuthErrorInvalidRequest string = "invalid_request"
-	OAuthErrorInvalidGrant   string = "invalid_grant"
-	OAuthErrorAccessDenied   string = "access_denied"
-	OAuthServerError         string = "server_error"
-	OAuthErrorInvalidScope   string = "invalid_scope"
+	OAuthErrorInvalidRequest       string = "invalid_request"
+	OAuthErrorInvalidGrant         string = "invalid_grant"
+	OAuthErrorAccessDenied         string = "access_denied"
+	OAuthServerError               string = "server_error"
+	OAuthErrorInvalidScope         string = "invalid_scope"
+	OAuthErrorUnsupportedGrantType string = "unsupported_grant_type"
 )
 
 type ErrorResponse struct {

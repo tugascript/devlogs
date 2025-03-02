@@ -986,7 +986,7 @@ func (s *Services) OAuthLoginAccount(
 	}
 	if !ok {
 		logger.WarnContext(ctx, "OAuth code verification failed")
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+		return dtos.AuthDTO{}, exceptions.NewValidationError("OAuth code verification failed")
 	}
 
 	return s.generateFullAuthDTO(

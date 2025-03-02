@@ -206,6 +206,26 @@ func PerformTestRequest(t *testing.T, app *fiber.App, delayMs int, method, path,
 	return resp
 }
 
+func PerformTestRequestWithURLEncodedBody(t *testing.T, app *fiber.App, delayMs int, method, path, accessToken, body string) *http.Response {
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	if accessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+	}
+
+	resp, err := app.Test(req, 2000)
+	if err != nil {
+		t.Fatal("Failed to perform request", err)
+	}
+
+	if delayMs > 0 {
+		time.Sleep(time.Duration(delayMs) * time.Millisecond)
+	}
+
+	return resp
+}
+
 func AssertTestStatusCode(t *testing.T, resp *http.Response, expectedStatusCode int) {
 	if resp.StatusCode != expectedStatusCode {
 		t.Logf("Status Code: %d", resp.StatusCode)
@@ -271,6 +291,24 @@ func PerformTestRequestCase[R any](t *testing.T, method, path string, tc TestReq
 
 	// Act
 	resp := PerformTestRequest(t, fiberApp, tc.DelayMs, method, path, accessToken, "application/json", jsonBody)
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// Assert
+	AssertTestStatusCode(t, resp, tc.ExpStatus)
+	tc.AssertFn(t, reqBody, resp)
+}
+
+func PerformTestRequestCaseWihURLEncodedBody(t *testing.T, method, path string, tc TestRequestCase[string]) {
+	// Arrange
+	reqBody, accessToken := tc.ReqFn(t)
+	fiberApp := GetTestServer(t).App
+
+	// Act
+	resp := PerformTestRequestWithURLEncodedBody(t, fiberApp, tc.DelayMs, method, path, accessToken, reqBody)
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			t.Fatal(err)

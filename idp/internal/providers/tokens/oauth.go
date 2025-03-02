@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"errors"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -28,7 +29,7 @@ func (t *Tokens) VerifyOAuthToken(token string) (AccountClaims, []AccountScope, 
 		if t.oauthData.prevPubKey != nil && t.oauthData.prevPubKey.kid == kid {
 			return t.oauthData.prevPubKey.publicKey, nil
 		}
-		if t.accessData.curKeyPair.kid == kid {
+		if t.oauthData.curKeyPair.kid == kid {
 			return t.oauthData.curKeyPair.publicKey, nil
 		}
 
