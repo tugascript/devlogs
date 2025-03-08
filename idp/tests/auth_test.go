@@ -1245,11 +1245,34 @@ func TestOAuthToken(t *testing.T) {
 		return code, accessToken
 	}
 
+	beforeEachRefresh := func(t *testing.T) string {
+		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+		testTokens := GetTestTokens(t)
+
+		refreshToken, err := testTokens.CreateRefreshToken(tokens.AccountTokenOptions{
+			ID:      account.ID,
+			Version: account.Version(),
+			Email:   account.Email,
+		})
+		if err != nil {
+			t.Fatal("Failed to create refresh token", err)
+		}
+
+		return refreshToken
+	}
+
 	createAuthorizationBody := func(t *testing.T, code string) string {
 		form := make(url.Values)
 		form.Add("code", code)
 		form.Add("grant_type", "authorization_code")
 		form.Add("redirect_uri", "https://localhost:3000/auth/callback")
+		return form.Encode()
+	}
+
+	createRefreshBody := func(t *testing.T, refreshToken string) string {
+		form := make(url.Values)
+		form.Add("refresh_token", refreshToken)
+		form.Add("grant_type", "refresh_token")
 		return form.Encode()
 	}
 
@@ -1284,6 +1307,48 @@ func TestOAuthToken(t *testing.T) {
 			ReqFn: func(t *testing.T) (string, string) {
 				code, accessToken := beforeEachAuthorization(t)
 				return createAuthorizationBody(t, code), accessToken + "invalid"
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
+			},
+		},
+		{
+			Name: "POST should return 200 OK with refresh_token grant type with valid refresh token",
+			ReqFn: func(t *testing.T) (string, string) {
+				refreshToken := beforeEachRefresh(t)
+				return createRefreshBody(t, refreshToken), ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST invalid_request with refresh_token grant type with invalid refresh token",
+			ReqFn: func(t *testing.T) (string, string) {
+				return createRefreshBody(t, "not-a-token"), ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorInvalidRequest)
+			},
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST access_denied with refresh_token grant type with refresh token with invalid claims",
+			ReqFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				testTokens := GetTestTokens(t)
+				refreshToken, err := testTokens.CreateRefreshToken(tokens.AccountTokenOptions{
+					ID:      account.ID,
+					Version: account.Version() + 2,
+					Email:   account.Email,
+				})
+				if err != nil {
+					t.Fatal("Failed to create refresh token", err)
+				}
+
+				return createRefreshBody(t, refreshToken), ""
 			},
 			ExpStatus: http.StatusBadRequest,
 			AssertFn: func(t *testing.T, req string, res *http.Response) {

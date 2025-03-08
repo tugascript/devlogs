@@ -4,10 +4,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/gofiber/fiber/v2"
 	"log/slog"
 	"slices"
 	"strings"
+
+	"github.com/gofiber/fiber/v2"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
@@ -334,6 +335,17 @@ func (c *Controllers) processAccountOAuthHeader(ctx *fiber.Ctx) *exceptions.Serv
 	return nil
 }
 
+func oauthErrorResponseMapper(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *exceptions.ServiceError) error {
+	switch serviceErr.Code {
+	case exceptions.CodeUnauthorized:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
+	case exceptions.CodeValidation:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidGrant)
+	default:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthServerError)
+	}
+}
+
 func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, authLocation, "accountAuthorizationCodeToken")
 
@@ -365,14 +377,7 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 		Code:      body.Code,
 	})
 	if serviceErr != nil {
-		switch serviceErr.Code {
-		case exceptions.CodeValidation:
-			return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidGrant)
-		case exceptions.StatusUnauthorized:
-			return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
-		default:
-			return oauthErrorResponse(logger, ctx, exceptions.OAuthServerError)
-		}
+		return oauthErrorResponseMapper(logger, ctx, serviceErr)
 	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
@@ -413,11 +418,12 @@ func (c *Controllers) accountClientCredentialsToken(ctx *fiber.Ctx, requestID st
 	if serviceErr != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
 	}
-	body := new(bodies.ClientCredentialsBody)
-	if err := ctx.BodyParser(body); err != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+
+	body := bodies.ClientCredentialsBody{
+		GrantType: ctx.FormValue("grant_type"),
+		Audience:  ctx.FormValue("audience"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
@@ -431,7 +437,7 @@ func (c *Controllers) accountClientCredentialsToken(ctx *fiber.Ctx, requestID st
 		},
 	)
 	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
+		return oauthErrorResponseMapper(logger, ctx, serviceErr)
 	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
@@ -441,11 +447,11 @@ func (c *Controllers) accountClientCredentialsToken(ctx *fiber.Ctx, requestID st
 func (c *Controllers) accountRefreshToken(ctx *fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, authLocation, "accountRefreshToken")
 
-	body := new(bodies.GrantRefreshTokenBody)
-	if err := ctx.BodyParser(body); err != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+	body := bodies.GrantRefreshTokenBody{
+		GrantType:    ctx.FormValue("grant_type"),
+		RefreshToken: ctx.FormValue("refresh_token"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
@@ -454,7 +460,7 @@ func (c *Controllers) accountRefreshToken(ctx *fiber.Ctx, requestID string) erro
 		RefreshToken: body.RefreshToken,
 	})
 	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
+		return oauthErrorResponseMapper(logger, ctx, serviceErr)
 	}
 
 	saveAccountRefreshCookie(ctx, c.refreshCookieName, authDTO.RefreshToken)
