@@ -29,7 +29,6 @@ type AccountCredential struct {
 	Scopes       []byte
 	ClientID     string
 	ClientSecret string
-	Dek          string
 	CreatedAt    pgtype.Timestamp
 	UpdatedAt    pgtype.Timestamp
 }

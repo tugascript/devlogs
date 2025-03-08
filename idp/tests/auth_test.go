@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 	"math/big"
@@ -163,7 +164,7 @@ func TestRegister(t *testing.T) {
 	t.Cleanup(accountsCleanUp(t))
 }
 
-func assertAuthAccessResponse[T any](t *testing.T, _ T, res *http.Response) {
+func assertFullAuthAccessResponse[T any](t *testing.T, _ T, res *http.Response) {
 	resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
 	AssertEqual(t, "Bearer", resBody.TokenType)
 	AssertNotEmpty(t, resBody.AccessToken)
@@ -177,6 +178,14 @@ func assertTempAccessResponse[T any](t *testing.T, _ T, res *http.Response) {
 	AssertNotEmpty(t, resBody.AccessToken)
 	AssertEmpty(t, resBody.RefreshToken)
 	AssertNotEmpty(t, resBody.Message)
+	AssertNotEmpty(t, resBody.ExpiresIn)
+}
+
+func assertAuthAccessResponse[T any](t *testing.T, _ T, res *http.Response) {
+	resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+	AssertEqual(t, "Bearer", resBody.TokenType)
+	AssertNotEmpty(t, resBody.AccessToken)
+	AssertEmpty(t, resBody.RefreshToken)
 	AssertNotEmpty(t, resBody.ExpiresIn)
 }
 
@@ -207,7 +216,7 @@ func TestConfirm(t *testing.T) {
 				), ""
 			},
 			ExpStatus: http.StatusOK,
-			AssertFn:  assertAuthAccessResponse[bodies.ConfirmationTokenBody],
+			AssertFn:  assertFullAuthAccessResponse[bodies.ConfirmationTokenBody],
 		},
 		{
 			Name: "Should return 400 BAD REQUEST if confirmation token is invalid",
@@ -282,7 +291,7 @@ func TestLogin(t *testing.T) {
 				}, ""
 			},
 			ExpStatus: http.StatusOK,
-			AssertFn:  assertAuthAccessResponse[bodies.LoginBody],
+			AssertFn:  assertFullAuthAccessResponse[bodies.LoginBody],
 		},
 		{
 			Name: "Should return 200 OK with temporary access token if user has 2FA enabled",
@@ -393,7 +402,7 @@ func TestTwoFactorLogin(t *testing.T) {
 				}, token
 			},
 			ExpStatus: http.StatusOK,
-			AssertFn:  assertAuthAccessResponse[bodies.TwoFactorLoginBody],
+			AssertFn:  assertFullAuthAccessResponse[bodies.TwoFactorLoginBody],
 		},
 		{
 			Name: "Should return 400 BAD REQUEST if request validation fails",
@@ -654,7 +663,7 @@ func TestAccountOAuthURL(t *testing.T) {
 				defer gock.OffAll()
 				location := res.Header.Get("Location")
 				AssertNotEmpty(t, location)
-				AssertStringContains(t, location, "https://login.live.com/oauth20_authorize.srf")
+				AssertStringContains(t, location, "https://login.microsoftonline.com/common/oauth2/v2.0/authorize")
 			},
 			Path: oauth2Path + "/microsoft",
 		},
@@ -1261,6 +1270,27 @@ func TestOAuthToken(t *testing.T) {
 		return refreshToken
 	}
 
+	beforeEachClientCredentials := func(t *testing.T) string {
+		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+		testServices := GetTestServices(t)
+
+		accountCredentials, serviceErr := testServices.CreateAccountCredentials(
+			context.Background(),
+			services.CreateAccountCredentialsOptions{
+				RequestID: uuid.NewString(),
+				AccountID: int32(account.ID),
+				Scopes:    []tokens.AccountScope{tokens.AccountScopeUsersRead, tokens.AccountScopeUsersWrite},
+			},
+		)
+		if serviceErr != nil {
+			t.Fatal("Failed to create account credentials", serviceErr)
+		}
+
+		return base64.StdEncoding.EncodeToString(
+			[]byte(fmt.Sprintf("%s:%s", accountCredentials.ClientID, accountCredentials.ClientSecret)),
+		)
+	}
+
 	createAuthorizationBody := func(t *testing.T, code string) string {
 		form := make(url.Values)
 		form.Add("code", code)
@@ -1276,6 +1306,14 @@ func TestOAuthToken(t *testing.T) {
 		return form.Encode()
 	}
 
+	createClientCredentialsBody := func(t *testing.T, scopes string) string {
+		form := make(url.Values)
+		form.Add("grant_type", "client_credentials")
+		form.Add("audience", "https://api.example.com")
+		form.Add("scope", scopes)
+		return form.Encode()
+	}
+
 	testCases := []TestRequestCase[string]{
 		{
 			Name: "POST should return 200 OK with authorization_code grant type with valid code and token",
@@ -1284,7 +1322,7 @@ func TestOAuthToken(t *testing.T) {
 				return createAuthorizationBody(t, code), accessToken
 			},
 			ExpStatus: http.StatusOK,
-			AssertFn:  assertAuthAccessResponse[string],
+			AssertFn:  assertFullAuthAccessResponse[string],
 		},
 		{
 			Name: "POST should return 400 BAD REQUEST invalid_grant with authorization_code grant type with invalid code and valid token",
@@ -1321,7 +1359,7 @@ func TestOAuthToken(t *testing.T) {
 				return createRefreshBody(t, refreshToken), ""
 			},
 			ExpStatus: http.StatusOK,
-			AssertFn:  assertAuthAccessResponse[string],
+			AssertFn:  assertFullAuthAccessResponse[string],
 		},
 		{
 			Name: "POST should return 400 BAD REQUEST invalid_request with refresh_token grant type with invalid refresh token",
@@ -1355,6 +1393,98 @@ func TestOAuthToken(t *testing.T) {
 				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
 				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
 			},
+		},
+		{
+			Name: "POST should return 200 OK with client_credentials grant type with valid client credentials",
+			ReqFn: func(t *testing.T) (string, string) {
+				scopes := "users:read users:write"
+				clientCredentials := beforeEachClientCredentials(t)
+				return createClientCredentialsBody(t, scopes), clientCredentials
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+			TokenType: "Basic",
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST access_denied with client_credentials grant type with invalid client credentials",
+			ReqFn: func(t *testing.T) (string, string) {
+				scopes := "users:read users:write"
+				clientCredentials := "invalid-credentials"
+				return createClientCredentialsBody(t, scopes), clientCredentials
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
+			},
+			TokenType: "Basic",
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST invalid_scope with client_credentials grant type with invalid scope",
+			ReqFn: func(t *testing.T) (string, string) {
+				scopes := "invalid:scope"
+				clientCredentials := beforeEachClientCredentials(t)
+				return createClientCredentialsBody(t, scopes), clientCredentials
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorInvalidScope)
+			},
+			TokenType: "Basic",
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST access_denied with client_credentials grant type with client credentials with scopes not allowed for the keys",
+			ReqFn: func(t *testing.T) (string, string) {
+				scopes := "admin"
+				clientCredentials := beforeEachClientCredentials(t)
+				return createClientCredentialsBody(t, scopes), clientCredentials
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
+			},
+			TokenType: "Basic",
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST invalid_request with client_credentials grant type with invalid audience",
+			ReqFn: func(t *testing.T) (string, string) {
+				clientCredentials := beforeEachClientCredentials(t)
+				form := make(url.Values)
+				form.Add("grant_type", "client_credentials")
+				form.Add("audience", "example@example.com")
+				form.Add("scope", "users:read users:write")
+				return form.Encode(), clientCredentials
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorInvalidRequest)
+			},
+			TokenType: "Basic",
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST access_denied with client_credentials grant type with invalid audience",
+			ReqFn: func(t *testing.T) (string, string) {
+				scopes := "users:read users:write"
+				clientId, err := utils.Base62UUID()
+				if err != nil {
+					t.Fatal("Failed to generate random client id", err)
+				}
+				clientSecret, err := utils.GenerateBase64Secret(32)
+				if err != nil {
+					t.Fatal("Failed to generate random client secret", err)
+				}
+				clientCredentials := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", clientId, clientSecret)))
+				return createClientCredentialsBody(t, scopes), clientCredentials
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
+			},
+			TokenType: "Basic",
 		},
 	}
 

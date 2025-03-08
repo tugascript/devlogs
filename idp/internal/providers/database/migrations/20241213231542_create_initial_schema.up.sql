@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-02-11T19:49:03.520Z
+-- Generated at: 2025-03-08T22:40:35.872Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -33,7 +33,6 @@ CREATE TABLE "account_credentials" (
   "scopes" jsonb NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
-  "dek" text NOT NULL,
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );

@@ -16,5 +16,9 @@ func NewValidator(logger *slog.Logger) *validator.Validate {
 		logger.Error("Failed to register slug validator", "error", err)
 		panic(err)
 	}
+	if err := validate.RegisterValidation(scopesValidatorTag, scopesValidator); err != nil {
+		logger.Error("Failed to register scopes validator", "error", err)
+		panic(err)
+	}
 	return validate
 }

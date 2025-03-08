@@ -139,6 +139,7 @@ const (
 	strFieldPassword    string = "password"
 	strFieldSlug        string = "slug"
 	strFieldNumeric     string = "numeric"
+	strFieldScopes      string = "scopes"
 
 	intFieldErrTagGte string = "gte"
 	intFieldErrTagLte string = "lte"
@@ -158,6 +159,7 @@ const (
 	StrFieldErrMessagePassword string = "must contain at least one lowercase letter, one uppercase letter, one number, and one symbol"
 	StrFieldErrMessageSlug     string = "must be a valid slug"
 	StrFieldErrMessageNumeric  string = "must be a numeric value"
+	StrFieldErrMessageScopes   string = "must be a valid space-separated list of scopes"
 
 	IntFieldErrMessageLte string = "must be less"
 	IntFieldErrMessageGte string = "must be greater"
@@ -191,6 +193,8 @@ func selectStrErrMessage(tag string) string {
 		return StrFieldErrMessageNumeric
 	case fieldErrTagEq:
 		return FieldErrMessageEq
+	case strFieldScopes:
+		return StrFieldErrMessageScopes
 	default:
 		return FieldErrMessageInvalid
 	}

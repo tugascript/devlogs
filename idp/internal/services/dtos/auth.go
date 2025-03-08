@@ -15,6 +15,7 @@ func NewAuthDTO(accessToken string, expiresIn int64) AuthDTO {
 	return AuthDTO{
 		AccessToken: accessToken,
 		ExpiresIn:   int(expiresIn),
+		TokenType:   tokenType,
 	}
 }
 

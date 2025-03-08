@@ -391,14 +391,11 @@ func parseAHClientCredentials(ctx *fiber.Ctx) (string, string, *exceptions.Servi
 	}
 
 	authHeaderSlice := strings.Split(authHeader, " ")
-	if len(authHeaderSlice) != 2 {
-		return "", "", exceptions.NewUnauthorizedError()
-	}
-	if utils.Lowered(authHeaderSlice[0]) != "basic" {
+	if len(authHeaderSlice) != 2 || utils.Lowered(authHeaderSlice[0]) != "basic" {
 		return "", "", exceptions.NewUnauthorizedError()
 	}
 
-	decoded, err := base64.RawStdEncoding.DecodeString(authHeaderSlice[1])
+	decoded, err := base64.StdEncoding.DecodeString(authHeaderSlice[1])
 	if err != nil {
 		return "", "", exceptions.NewUnauthorizedError()
 	}
@@ -409,6 +406,36 @@ func parseAHClientCredentials(ctx *fiber.Ctx) (string, string, *exceptions.Servi
 	}
 
 	return decodedSlice[0], decodedSlice[1], nil
+}
+
+var accountClientCredentialsScopes = map[tokens.AccountScope]bool{
+	tokens.AccountScopeUsersWrite: true,
+	tokens.AccountScopeUsersRead:  true,
+	tokens.AccountScopeAppsWrite:  true,
+	tokens.AccountScopeAppsRead:   true,
+	tokens.AccountScopeAdmin:      true,
+}
+
+func processAccountClientCredentialScopes(scopes string) ([]tokens.AccountScope, bool) {
+	if scopes == "" {
+		return nil, true
+	}
+
+	scopesSlice := strings.Split(scopes, " ")
+	if len(scopesSlice) == 0 {
+		return nil, false
+	}
+
+	accountScopes := make([]tokens.AccountScope, len(scopesSlice))
+	for i, scope := range scopesSlice {
+		if !accountClientCredentialsScopes[scope] {
+			return nil, false
+		}
+
+		accountScopes[i] = scope
+	}
+
+	return accountScopes, true
 }
 
 func (c *Controllers) accountClientCredentialsToken(ctx *fiber.Ctx, requestID string) error {
@@ -422,9 +449,15 @@ func (c *Controllers) accountClientCredentialsToken(ctx *fiber.Ctx, requestID st
 	body := bodies.ClientCredentialsBody{
 		GrantType: ctx.FormValue("grant_type"),
 		Audience:  ctx.FormValue("audience"),
+		Scope:     ctx.FormValue("scope"),
 	}
 	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+	}
+
+	scopes, ok := processAccountClientCredentialScopes(body.Scope)
+	if !ok {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidScope)
 	}
 
 	authDTO, serviceErr := c.services.ClientCredentialsLoginAccount(
@@ -432,6 +465,7 @@ func (c *Controllers) accountClientCredentialsToken(ctx *fiber.Ctx, requestID st
 		services.ClientCredentialsLoginAccountOptions{
 			RequestID:    requestID,
 			Audience:     body.Audience,
+			Scopes:       scopes,
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 		},

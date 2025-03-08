@@ -75,4 +75,7 @@ test:
 migrate-test-up:
 	migrate -path ./internal/providers/database/migrations -database "postgres://postgres:postgres@127.0.0.1:5432/idp_test?sslmode=disable" -verbose up
 
+migrate-test-down:
+	migrate -path ./internal/providers/database/migrations -database "postgres://postgres:postgres@127.0.0.1:5432/idp_test?sslmode=disable" -verbose down
+
 .PHONY: all build run test clean watch docker-run docker-down itest

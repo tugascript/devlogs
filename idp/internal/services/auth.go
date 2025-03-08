@@ -3,9 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
-	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"log/slog"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -14,6 +14,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
+	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
@@ -998,9 +999,24 @@ func (s *Services) OAuthLoginAccount(
 	)
 }
 
+func processAccountClientCredentialsScopes(ccScopes []string, scopes []string) ([]string, *exceptions.ServiceError) {
+	if len(scopes) == 0 {
+		return ccScopes, nil
+	}
+
+	for _, scope := range scopes {
+		if !slices.Contains(ccScopes, scope) {
+			return nil, exceptions.NewUnauthorizedError()
+		}
+	}
+
+	return scopes, nil
+}
+
 type ClientCredentialsLoginAccountOptions struct {
 	RequestID    string
 	Audience     string
+	Scopes       []string
 	ClientID     string
 	ClientSecret string
 }
@@ -1014,10 +1030,12 @@ func (s *Services) ClientCredentialsLoginAccount(
 	)
 	logger.InfoContext(ctx, "Client credentials logging in account...")
 
-	accountKeysDTO, serviceErr := s.GetAccountCredentialsByClientID(ctx, GetAccountCredentialsByClientIDOptions{
-		RequestID: opts.RequestID,
-		ClientID:  opts.ClientID,
-	})
+	accountClientCredentialsDTO, serviceErr := s.GetAccountCredentialsByClientID(ctx,
+		GetAccountCredentialsByClientIDOptions{
+			RequestID: opts.RequestID,
+			ClientID:  opts.ClientID,
+		},
+	)
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeNotFound {
 			logger.WarnContext(ctx, "Account keys not found", "error", serviceErr)
@@ -1027,7 +1045,7 @@ func (s *Services) ClientCredentialsLoginAccount(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	ok, err := utils.CompareHash(opts.ClientSecret, accountKeysDTO.HashedSecret())
+	ok, err := utils.CompareHash(opts.ClientSecret, accountClientCredentialsDTO.HashedSecret())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare client secret hashes", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
@@ -1039,11 +1057,17 @@ func (s *Services) ClientCredentialsLoginAccount(
 
 	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
 		RequestID: opts.RequestID,
-		ID:        int32(accountKeysDTO.AccountID()),
+		ID:        int32(accountClientCredentialsDTO.AccountID()),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get account", "error", serviceErr)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
+	}
+
+	scopes, serviceErr := processAccountClientCredentialsScopes(accountClientCredentialsDTO.Scopes, opts.Scopes)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to process client credentials scopes", "error", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
 	}
 
 	accessToken, err := s.jwt.CreateAccessToken(tokens.AccountTokenOptions{
@@ -1051,7 +1075,7 @@ func (s *Services) ClientCredentialsLoginAccount(
 		Version:  accountDTO.Version(),
 		Email:    accountDTO.Email,
 		Audience: opts.Audience,
-		Scopes:   accountKeysDTO.Scopes,
+		Scopes:   scopes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate access token", "error", err)

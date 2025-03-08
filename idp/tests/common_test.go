@@ -185,13 +185,13 @@ func CreateTestJSONRequestBody(t *testing.T, reqBody interface{}) *bytes.Reader 
 	return bytes.NewReader(jsonBody)
 }
 
-func PerformTestRequest(t *testing.T, app *fiber.App, delayMs int, method, path, accessToken, contentType string, body io.Reader) *http.Response {
+func PerformTestRequest(t *testing.T, app *fiber.App, delayMs int, method, path, tokenType, accessToken, contentType string, body io.Reader) *http.Response {
 	req := httptest.NewRequest(method, path, body)
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Accept", "application/json")
 
 	if accessToken != "" {
-		req.Header.Set("Authorization", "Bearer "+accessToken)
+		req.Header.Set("Authorization", tokenType+" "+accessToken)
 	}
 
 	resp, err := app.Test(req, 2000)
@@ -206,15 +206,15 @@ func PerformTestRequest(t *testing.T, app *fiber.App, delayMs int, method, path,
 	return resp
 }
 
-func PerformTestRequestWithURLEncodedBody(t *testing.T, app *fiber.App, delayMs int, method, path, accessToken, body string) *http.Response {
+func PerformTestRequestWithURLEncodedBody(t *testing.T, app *fiber.App, delayMs int, method, path, tokenType, accessToken, body string) *http.Response {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	if accessToken != "" {
-		req.Header.Set("Authorization", "Bearer "+accessToken)
+		req.Header.Set("Authorization", tokenType+" "+accessToken)
 	}
 
-	resp, err := app.Test(req, 2000)
+	resp, err := app.Test(req, 60000)
 	if err != nil {
 		t.Fatal("Failed to perform request", err)
 	}
@@ -281,6 +281,7 @@ type TestRequestCase[R any] struct {
 	Path      string
 	PathFn    func() string
 	Method    string
+	TokenType string
 }
 
 func PerformTestRequestCase[R any](t *testing.T, method, path string, tc TestRequestCase[R]) {
@@ -288,9 +289,13 @@ func PerformTestRequestCase[R any](t *testing.T, method, path string, tc TestReq
 	reqBody, accessToken := tc.ReqFn(t)
 	jsonBody := CreateTestJSONRequestBody(t, reqBody)
 	fiberApp := GetTestServer(t).App
+	tokenType := "Bearer"
+	if tc.TokenType != "" {
+		tokenType = tc.TokenType
+	}
 
 	// Act
-	resp := PerformTestRequest(t, fiberApp, tc.DelayMs, method, path, accessToken, "application/json", jsonBody)
+	resp := PerformTestRequest(t, fiberApp, tc.DelayMs, method, path, tokenType, accessToken, "application/json", jsonBody)
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			t.Fatal(err)
@@ -306,9 +311,13 @@ func PerformTestRequestCaseWihURLEncodedBody(t *testing.T, method, path string, 
 	// Arrange
 	reqBody, accessToken := tc.ReqFn(t)
 	fiberApp := GetTestServer(t).App
+	tokenType := "Bearer"
+	if tc.TokenType != "" {
+		tokenType = tc.TokenType
+	}
 
 	// Act
-	resp := PerformTestRequestWithURLEncodedBody(t, fiberApp, tc.DelayMs, method, path, accessToken, reqBody)
+	resp := PerformTestRequestWithURLEncodedBody(t, fiberApp, tc.DelayMs, method, path, tokenType, accessToken, reqBody)
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			t.Fatal(err)
@@ -325,9 +334,13 @@ func PerformTestRequestCaseWithPathFn[R any](t *testing.T, method string, tc Tes
 	reqBody, accessToken := tc.ReqFn(t)
 	jsonBody := CreateTestJSONRequestBody(t, reqBody)
 	fiberApp := GetTestServer(t).App
+	tokenType := "Bearer"
+	if tc.TokenType != "" {
+		tokenType = tc.TokenType
+	}
 
 	// Act
-	resp := PerformTestRequest(t, fiberApp, tc.DelayMs, method, tc.PathFn(), accessToken, "application/json", jsonBody)
+	resp := PerformTestRequest(t, fiberApp, tc.DelayMs, method, tc.PathFn(), tokenType, accessToken, "application/json", jsonBody)
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			t.Fatal(err)

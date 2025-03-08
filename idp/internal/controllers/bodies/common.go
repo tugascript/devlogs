@@ -31,6 +31,7 @@ type AuthCodeLoginBody struct {
 type ClientCredentialsBody struct {
 	GrantType string `json:"grant_type" validate:"required,eq=client_credentials"`
 	Audience  string `json:"audience,omitempty" validate:"url"`
+	Scope     string `json:"scopes,omitempty" validate:"scopes"`
 }
 
 type AppleLoginBody struct {
