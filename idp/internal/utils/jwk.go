@@ -48,6 +48,9 @@ const (
 	use    string = "sig"
 	alg    string = "EdDSA"
 	verify string = "verify"
+
+	p256Kty string = "EC"
+	p256Crv string = "P-256"
 )
 
 func ExtractKeyID(keyBytes []byte) string {
@@ -78,14 +81,14 @@ func DecodeEd25519Jwk(jwk Ed25519JWK) (ed25519.PublicKey, error) {
 
 func EncodeP256Jwk(publicKey *ecdsa.PublicKey, kid string) P256JWK {
 	return P256JWK{
-		Kty:    "EC",
-		Crv:    "P-256",
+		Kty:    p256Kty,
+		Crv:    p256Crv,
 		X:      base64.RawURLEncoding.EncodeToString(publicKey.X.Bytes()),
 		Y:      base64.RawURLEncoding.EncodeToString(publicKey.Y.Bytes()),
-		Use:    "sig",
-		Alg:    "ES256",
+		Use:    use,
+		Alg:    alg,
 		Kid:    kid,
-		KeyOps: []string{"verify"},
+		KeyOps: []string{verify},
 	}
 }
 
@@ -118,14 +121,11 @@ func DecodeRS256Jwk(jwk RS256JWK) (*rsa.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	var e int
-	if len(eBytes) == 3 {
-		e = int(eBytes[0])<<16 | int(eBytes[1])<<8 | int(eBytes[2])
-	} else if len(eBytes) == 1 {
-		e = int(eBytes[0])
-	} else {
-		return nil, fmt.Errorf("unexpected exponent length: %d", len(eBytes))
+	e := big.NewInt(0).SetBytes(eBytes).Int64()
+
+	if e <= 0 {
+		return nil, fmt.Errorf("invalid RSA exponent")
 	}
 
-	return &rsa.PublicKey{N: n, E: e}, nil
+	return &rsa.PublicKey{N: n, E: int(e)}, nil
 }

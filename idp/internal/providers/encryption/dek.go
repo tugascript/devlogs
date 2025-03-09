@@ -11,6 +11,8 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
+const dekLocation string = "dek"
+
 func generateDEK(keyID string, key []byte) ([]byte, string, error) {
 	base64DEK, err := utils.GenerateBase64Secret(32)
 	if err != nil {
@@ -22,7 +24,7 @@ func generateDEK(keyID string, key []byte) ([]byte, string, error) {
 		return nil, "", err
 	}
 
-	dek, err := base64.RawURLEncoding.DecodeString(base64DEK)
+	dek, err := utils.DecodeBase64Secret(base64DEK)
 	if err != nil {
 		return nil, "", err
 	}
@@ -73,7 +75,7 @@ func decryptDEK(
 		return nil, false, err
 	}
 
-	dek, err := base64.RawURLEncoding.DecodeString(base64DEK)
+	dek, err := utils.DecodeBase64Secret(base64DEK)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decode DEK", "error", err)
 		return nil, false, err
@@ -93,7 +95,7 @@ func reEncryptDEK(isOldKey bool, dek, key []byte) (string, error) {
 func (e *Encryption) decryptAccountDEK(ctx context.Context, requestID, storedDEK string) ([]byte, bool, error) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Layer:     logLayer,
-		Location:  totpsManagementLocation,
+		Location:  dekLocation,
 		Method:    "decryptAccountDEK",
 		RequestID: requestID,
 	})
@@ -108,7 +110,7 @@ func (e *Encryption) decryptAccountDEK(ctx context.Context, requestID, storedDEK
 func (e *Encryption) decryptAppDEK(ctx context.Context, requestID, storedDEK string) ([]byte, bool, error) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Layer:     logLayer,
-		Location:  totpsManagementLocation,
+		Location:  dekLocation,
 		Method:    "decryptAppDEK",
 		RequestID: requestID,
 	})
@@ -116,6 +118,21 @@ func (e *Encryption) decryptAppDEK(ctx context.Context, requestID, storedDEK str
 	return decryptDEK(logger, ctx, decryptDEKOptions{
 		storedDEK:  storedDEK,
 		secret:     &e.appSecretKey,
+		oldSecrets: e.oldSecrets,
+	})
+}
+
+func (e *Encryption) decryptUserDEK(ctx context.Context, requestID, storedDEK string) ([]byte, bool, error) {
+	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  dekLocation,
+		Method:    "decryptUserDEK",
+		RequestID: requestID,
+	})
+	logger.DebugContext(ctx, "Decrypting User DEK...")
+	return decryptDEK(logger, ctx, decryptDEKOptions{
+		storedDEK:  storedDEK,
+		secret:     &e.userSecretKey,
 		oldSecrets: e.oldSecrets,
 	})
 }

@@ -2,9 +2,10 @@ package encryption
 
 import (
 	"encoding/base64"
+	"log/slog"
+
 	"github.com/tugascript/devlogs/idp/internal/config"
 	"github.com/tugascript/devlogs/idp/internal/utils"
-	"log/slog"
 )
 
 const logLayer string = "encryption"

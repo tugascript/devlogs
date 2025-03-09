@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS "user_auth_provider";
+DROP TABLE IF EXISTS "user_auth_providers";
 DROP TABLE IF EXISTS "user_totps";
 DROP TABLE IF EXISTS "users";
 DROP TABLE IF EXISTS "app_keys";

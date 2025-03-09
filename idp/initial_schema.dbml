@@ -168,7 +168,7 @@ Table user_totps as UT {
 }
 Ref: UT.user_id > U.id [delete: cascade]
 
-Table user_auth_provider as UAP {
+Table user_auth_providers as UAP {
     id serial [pk]
     user_id integer [not null]
 

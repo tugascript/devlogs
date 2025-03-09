@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-03-08T22:40:35.872Z
+-- Generated at: 2025-03-09T01:13:52.871Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -97,7 +97,7 @@ CREATE TABLE "user_totps" (
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
 
-CREATE TABLE "user_auth_provider" (
+CREATE TABLE "user_auth_providers" (
   "id" serial PRIMARY KEY,
   "user_id" integer NOT NULL,
   "email" varchar(250) NOT NULL,
@@ -143,13 +143,13 @@ CREATE INDEX "users_account_id_idx" ON "users" ("account_id");
 
 CREATE UNIQUE INDEX "user_totps_user_id_uidx" ON "user_totps" ("user_id");
 
-CREATE INDEX "user_auth_provider_email_idx" ON "user_auth_provider" ("email");
+CREATE INDEX "user_auth_provider_email_idx" ON "user_auth_providers" ("email");
 
-CREATE INDEX "user_auth_provider_user_id_idx" ON "user_auth_provider" ("user_id");
+CREATE INDEX "user_auth_provider_user_id_idx" ON "user_auth_providers" ("user_id");
 
-CREATE UNIQUE INDEX "user_auth_provider_account_id_provider_uidx" ON "user_auth_provider" ("email", "account_id", "provider");
+CREATE UNIQUE INDEX "user_auth_provider_account_id_provider_uidx" ON "user_auth_providers" ("email", "account_id", "provider");
 
-CREATE INDEX "user_auth_provider_account_id_idx" ON "user_auth_provider" ("account_id");
+CREATE INDEX "user_auth_provider_account_id_idx" ON "user_auth_providers" ("account_id");
 
 ALTER TABLE "account_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
@@ -167,6 +167,6 @@ ALTER TABLE "users" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") 
 
 ALTER TABLE "user_totps" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "user_auth_provider" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_auth_providers" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "user_auth_provider" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_auth_providers" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;

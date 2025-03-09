@@ -3,7 +3,6 @@ package oauth
 import (
 	"context"
 	"errors"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 	"io"
 	"log/slog"
 	"net/http"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/tugascript/devlogs/idp/internal/config"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type oauthScopes struct {
