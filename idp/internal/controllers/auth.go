@@ -545,7 +545,7 @@ func (c *Controllers) RefreshAccount(ctx *fiber.Ctx) error {
 			return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 		}
 		if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
-			return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
+			return validateBodyErrorResponse(logger, ctx, err)
 		}
 
 		refreshToken = body.RefreshToken

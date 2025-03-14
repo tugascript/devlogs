@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 	"math/big"
 	"net/http"
@@ -1491,6 +1493,118 @@ func TestOAuthToken(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			PerformTestRequestCaseWihURLEncodedBody(t, http.MethodPost, oauthTokenPath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+func TestRefreshToken(t *testing.T) {
+	const refreshPath = "/v1/auth/refresh"
+
+	generateBlackListToken := func(t *testing.T) string {
+		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
+		_, refreshToken := GenerateTestAccountAuthTokens(t, &account)
+		testDb := GetTestDatabase(t)
+		testTokens := GetTestTokens(t)
+		_, _, id, exp, err := testTokens.VerifyRefreshToken(refreshToken)
+		if err != nil {
+			t.Fatal("Failed to verify refresh token", err)
+		}
+		var expiresAt pgtype.Timestamp
+		if err := expiresAt.Scan(exp); err != nil {
+			t.Fatal("Failed to scan expiresAt", err)
+		}
+		if err := testDb.BlacklistToken(context.Background(), database.BlacklistTokenParams{
+			ID:        id,
+			ExpiresAt: expiresAt,
+		}); err != nil {
+			t.Fatal("Failed to blacklist token", err)
+		}
+
+		return refreshToken
+	}
+
+	testCases := []TestRequestCase[bodies.RefreshTokenBody]{
+		{
+			Name: "POST should return 200 OK with valid auth response",
+			ReqFn: func(t *testing.T) (bodies.RefreshTokenBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
+				_, refreshToken := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.RefreshTokenBody{RefreshToken: refreshToken}, ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertFullAuthAccessResponse[bodies.RefreshTokenBody],
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST with invalid refresh token",
+			ReqFn: func(t *testing.T) (bodies.RefreshTokenBody, string) {
+				return bodies.RefreshTokenBody{RefreshToken: "not-token"}, ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req bodies.RefreshTokenBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "refresh_token", resBody.Fields[0].Param)
+			},
+		},
+		{
+			Name: "POST should return 401 UNAUTHORIZED with blacklisted refresh token",
+			ReqFn: func(t *testing.T) (bodies.RefreshTokenBody, string) {
+				refreshToken := generateBlackListToken(t)
+				return bodies.RefreshTokenBody{RefreshToken: refreshToken}, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.RefreshTokenBody],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, refreshPath, tc)
+		})
+	}
+
+	cookieTestCases := []cookieTestCase{
+		{
+			Name:      "Should return 200 OK when refresh token is passed in a cookie",
+			ExpStatus: http.StatusOK,
+			TokenFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
+				_, refreshToken := GenerateTestAccountAuthTokens(t, &account)
+				return "", refreshToken
+			},
+			AssertFn: func(t *testing.T, resp *http.Response) {
+				assertFullAuthAccessResponse[string](t, "", resp)
+			},
+		},
+		{
+			Name: "POST should return 401 UNAUTHORIZED with blacklisted refresh token in a cookie",
+			TokenFn: func(t *testing.T) (string, string) {
+				refreshToken := generateBlackListToken(t)
+				return "", refreshToken
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn: func(t *testing.T, res *http.Response) {
+				AssertUnauthorizedError[string](t, "", res)
+			},
+		},
+	}
+
+	for _, tc := range cookieTestCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			accessToken, refreshToken := tc.TokenFn(t)
+			server := GetTestServer(t)
+
+			resp := performCookieRequest(t, server.App, refreshPath, accessToken, refreshToken)
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}()
+
+			AssertTestStatusCode(t, resp, tc.ExpStatus)
+			tc.AssertFn(t, resp)
 		})
 	}
 

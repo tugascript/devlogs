@@ -185,3 +185,7 @@ func (s *Services) GetAccountByID(
 	logger.InfoContext(ctx, "Got account by AccountID successfully")
 	return dtos.MapAccountToDTO(&account), nil
 }
+
+func (s *Services) UpdateAccountEmail() {
+
+}
