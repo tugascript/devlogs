@@ -29,7 +29,7 @@ type oauthScopes struct {
 type Scope = string
 
 const (
-	logLayer string = "providers/oauth"
+	logLayer string = utils.ProvidersLogLayer + "/oauth"
 
 	ScopeProfile  Scope = "profile"
 	ScopeBirthday Scope = "birthday"

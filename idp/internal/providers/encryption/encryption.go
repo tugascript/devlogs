@@ -8,7 +8,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const logLayer string = "encryption"
+const logLayer string = utils.ProvidersLogLayer + "/encryption"
 
 type Secret struct {
 	kid string

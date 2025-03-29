@@ -6,9 +6,11 @@ import (
 
 	fiberRedis "github.com/gofiber/storage/redis/v3"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const logLayer string = "cache"
+const logLayer string = utils.ProvidersLogLayer + "/cache"
 
 type Cache struct {
 	logger  *slog.Logger

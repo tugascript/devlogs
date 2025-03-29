@@ -136,7 +136,7 @@ func (s *Services) RegisterAccount(
 	return dtos.NewMessageDTO("Account registered successfully. Confirmation email has been sent."), nil
 }
 
-func (s *Services) generateFullAuthDTO(
+func (s *Services) GenerateFullAuthDTO(
 	ctx context.Context,
 	logger *slog.Logger,
 	accountDTO *dtos.AccountDTO,
@@ -206,7 +206,7 @@ func (s *Services) ConfirmAccount(
 		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 	}
 
-	return s.generateFullAuthDTO(
+	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
 		&accountDTO,
@@ -299,13 +299,65 @@ func (s *Services) LoginAccount(
 		), nil
 	}
 
-	return s.generateFullAuthDTO(
+	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
 		"Logged in account successfully",
 	)
+}
+
+type VerifyAccountTotpOptions struct {
+	RequestID string
+	ID        int32
+	Code      string
+}
+
+func (s *Services) VerifyAccountTotp(
+	ctx context.Context,
+	opts VerifyAccountTotpOptions,
+) (bool, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, authLocation, "VerifyAccountTotp").With(
+		"id", opts.ID,
+	)
+	logger.InfoContext(ctx, "Verifying account TOTP...")
+
+	accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, int32(opts.ID))
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account TOTP not found", "error", err)
+			return false, exceptions.NewForbiddenError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to find account TOTP", "error", err)
+		return false, serviceErr
+	}
+
+	ok, newDEK, err := s.encrypt.VerifyAccountTotpCode(ctx, encryption.VerifyAccountTotpCodeOptions{
+		RequestID:       opts.RequestID,
+		EncryptedSecret: accountTOTP.Secret,
+		StoredDEK:       accountTOTP.Dek,
+		Code:            opts.Code,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", err)
+		return false, exceptions.NewServerError()
+	}
+
+	if newDEK != "" {
+		logger.InfoContext(ctx, "Saving new DEK")
+		if err := s.database.UpdateAccountTotpByAccountID(ctx, database.UpdateAccountTotpByAccountIDParams{
+			Dek:       newDEK,
+			AccountID: int32(opts.ID),
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to update account TOTP DEK", "error", err)
+			return false, exceptions.FromDBError(err)
+		}
+	}
+
+	return ok, nil
 }
 
 type TwoFactorLoginAccountOptions struct {
@@ -347,40 +399,19 @@ func (s *Services) TwoFactorLoginAccount(
 
 	var ok bool
 	var err error
-	var newDEK string
 	switch accountDTO.TwoFactorType {
 	case TwoFactorNone:
 		logger.WarnContext(ctx, "User has two factor inactive")
 		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 	case TwoFactorTotp:
-		var accountTOTP database.AccountTotp
-		accountTOTP, err = s.database.FindAccountTotpByAccountID(ctx, int32(accountDTO.ID))
-		if err != nil {
-			serviceErr := exceptions.FromDBError(err)
-			if serviceErr.Code == exceptions.CodeNotFound {
-				logger.WarnContext(ctx, "Account TOTP not found", "error", err)
-				return dtos.AuthDTO{}, exceptions.NewForbiddenError()
-			}
-
-			logger.ErrorContext(ctx, "Failed to find account TOTP", "error", err)
-			return dtos.AuthDTO{}, serviceErr
-		}
-
-		ok, newDEK, err = s.encrypt.VerifyAccountTotpCode(ctx, encryption.VerifyAccountTotpCodeOptions{
-			RequestID:       opts.RequestID,
-			EncryptedSecret: accountTOTP.Secret,
-			StoredDEK:       accountTOTP.Dek,
-			Code:            opts.Code,
+		ok, serviceErr = s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions{
+			RequestID: opts.RequestID,
+			ID:        opts.ID,
+			Code:      opts.Code,
 		})
-		if err == nil && newDEK != "" {
-			logger.InfoContext(ctx, "Saving new DEK")
-			if err := s.database.UpdateAccountTotpByAccountID(ctx, database.UpdateAccountTotpByAccountIDParams{
-				Dek:       newDEK,
-				AccountID: int32(accountDTO.ID),
-			}); err != nil {
-				logger.ErrorContext(ctx, "Failed to update account TOTP DEK", "error", err)
-				return dtos.AuthDTO{}, exceptions.FromDBError(err)
-			}
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", serviceErr)
+			return dtos.AuthDTO{}, serviceErr
 		}
 	case TwoFactorEmail:
 		ok, err = s.cache.VerifyTwoFactorCode(ctx, cache.VerifyTwoFactorCodeOptions{
@@ -388,18 +419,18 @@ func (s *Services) TwoFactorLoginAccount(
 			AccountID: accountDTO.ID,
 			Code:      opts.Code,
 		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Error verifying code", "error", err)
+			return dtos.AuthDTO{}, exceptions.NewServerError()
+		}
 	}
 
-	if err != nil {
-		logger.ErrorContext(ctx, "Error verifying code", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
-	}
 	if !ok {
 		logger.WarnContext(ctx, "Failed to verify code")
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	return s.generateFullAuthDTO(
+	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
 		&accountDTO,
@@ -537,7 +568,7 @@ func (s *Services) RefreshTokenAccount(
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
-	return s.generateFullAuthDTO(
+	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
 		&accountDTO,
@@ -990,7 +1021,7 @@ func (s *Services) OAuthLoginAccount(
 		return dtos.AuthDTO{}, exceptions.NewValidationError("OAuth code verification failed")
 	}
 
-	return s.generateFullAuthDTO(
+	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
 		&accountDTO,
@@ -1154,7 +1185,7 @@ func (s *Services) disableAccount2FA(
 	}
 
 	accountDTO := dtos.MapAccountToDTO(&account)
-	return s.generateFullAuthDTO(
+	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
 		&accountDTO,

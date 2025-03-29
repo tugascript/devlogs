@@ -49,3 +49,14 @@ type AppleUser struct {
 	Name  AppleUserName `json:"name" validate:"required"`
 	Email string        `json:"email" validate:"required,email"`
 }
+
+type UpdateEmailBody struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=1"`
+}
+
+type UpdatePasswordBody struct {
+	OldPassword string `json:"old_password" validate:"required,min=1"`
+	Password    string `json:"password" validate:"required,min=8,max=100,password"`
+	Password2   string `json:"password2" validate:"required,eqfield=Password"`
+}

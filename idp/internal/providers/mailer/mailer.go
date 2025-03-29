@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/tugascript/devlogs/idp/internal/utils"
-
 	"github.com/redis/go-redis/v9"
+
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const logLayer string = "mailer"
+const logLayer string = utils.ProvidersLogLayer + "/mailer"
 
 type email struct {
 	To      string `json:"to"`

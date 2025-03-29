@@ -2,8 +2,6 @@ package server
 
 import (
 	"context"
-	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
-	"github.com/tugascript/devlogs/idp/internal/server/validations"
 	"log/slog"
 	"time"
 
@@ -21,10 +19,12 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/controllers"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
+	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/server/routes"
+	"github.com/tugascript/devlogs/idp/internal/server/validations"
 	"github.com/tugascript/devlogs/idp/internal/services"
 )
 
