@@ -98,7 +98,9 @@ Table apps as APP {
 
     Indexes {
         (account_id) [name: 'apps_account_id_idx']
-        (client_id) [unique, name: 'client_id_uidx']
+        (client_id) [unique, name: 'apps_client_id_uidx']
+        (name) [name: 'apps_name_idx']
+        (account_id, name) [unique, name: 'apps_account_id_name_uidx']
     }
 }
 Ref: APP.account_id > A.id [delete: cascade]
@@ -110,10 +112,11 @@ Table app_keys as AK {
     account_id integer [not null]
 
     name varchar(10) [not null]
-    jwt_crypto_suite varchar(7) [not null]
+    jwt_crypto_suite varchar(5) [not null]
 
     public_key jsonb [not null]
     private_key text [not null]
+    is_distributed boolean [not null, default: false]
 
     created_at timestamp [not null, default: `now()`]
     updated_at timestamp [not null, default: `now()`]
@@ -123,6 +126,7 @@ Table app_keys as AK {
         (account_id) [name: 'app_keys_account_id_idx']
 
         (name, app_id) [unique, name: 'app_keys_name_app_id_uidx']
+        (is_distributed, app_id) [name: 'app_keys_is_distributed_app_id_idx']
     }
 }
 Ref: AK.app_id > APP.id [delete: cascade]

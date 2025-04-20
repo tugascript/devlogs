@@ -9,7 +9,7 @@ import (
 )
 
 func (t *Tokens) getAccessTokenPrivateKey(scopes []AccountScope) *ecdsa.PrivateKey {
-	if slices.Contains(scopes, AccountScopeClientID) {
+	if slices.Contains(scopes, AccountScopeClientCredentials) {
 		return t.accountCredentialsData.curKeyPair.privateKey
 	}
 

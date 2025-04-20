@@ -13,8 +13,8 @@ import (
 type AccountScope = string
 
 const (
-	AccountScopeAdmin    AccountScope = "admin"
-	AccountScopeClientID AccountScope = "client_id"
+	AccountScopeAdmin             AccountScope = "admin"
+	AccountScopeClientCredentials AccountScope = "client_credentials"
 
 	AccountScope2FA          AccountScope = "2fa"
 	AccountScopeOAuth        AccountScope = "oauth"

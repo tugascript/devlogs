@@ -12,6 +12,13 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
+type SupportedCryptoSuite = string
+
+const (
+	SupportedCryptoSuiteEd25519 SupportedCryptoSuite = "EdDSA"
+	SupportedCryptoSuiteES256   SupportedCryptoSuite = "ES256"
+)
+
 type PreviousPublicKey struct {
 	publicKey ed25519.PublicKey
 	kid       string

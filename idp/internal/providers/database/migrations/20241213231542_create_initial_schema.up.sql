@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-03-09T01:13:52.871Z
+-- Generated at: 2025-04-20T05:56:16.385Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -67,9 +67,10 @@ CREATE TABLE "app_keys" (
   "app_id" integer NOT NULL,
   "account_id" integer NOT NULL,
   "name" varchar(10) NOT NULL,
-  "jwt_crypto_suite" varchar(7) NOT NULL,
+  "jwt_crypto_suite" varchar(5) NOT NULL,
   "public_key" jsonb NOT NULL,
   "private_key" text NOT NULL,
+  "is_distributed" boolean NOT NULL DEFAULT false,
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
@@ -129,13 +130,17 @@ CREATE UNIQUE INDEX "auth_providers_email_provider_uidx" ON "auth_providers" ("e
 
 CREATE INDEX "apps_account_id_idx" ON "apps" ("account_id");
 
-CREATE UNIQUE INDEX "client_id_uidx" ON "apps" ("client_id");
+CREATE UNIQUE INDEX "apps_client_id_uidx" ON "apps" ("client_id");
+
+CREATE UNIQUE INDEX "apps_account_id_name_uidx" ON "apps" ("account_id", "name");
 
 CREATE INDEX "app_keys_app_id_idx" ON "app_keys" ("app_id");
 
 CREATE INDEX "app_keys_account_id_idx" ON "app_keys" ("account_id");
 
 CREATE UNIQUE INDEX "app_keys_name_app_id_uidx" ON "app_keys" ("name", "app_id");
+
+CREATE INDEX "app_keys_is_distributed_app_id_idx" ON "app_keys" ("is_distributed", "app_id");
 
 CREATE UNIQUE INDEX "users_account_id_email_uidx" ON "users" ("account_id", "email");
 

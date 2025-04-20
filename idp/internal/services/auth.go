@@ -1040,6 +1040,9 @@ func processAccountClientCredentialsScopes(ccScopes []string, scopes []string) (
 			return nil, exceptions.NewUnauthorizedError()
 		}
 	}
+	if !slices.Contains(scopes, tokens.AccountScopeClientCredentials) {
+		scopes = append(scopes, tokens.AccountScopeClientCredentials)
+	}
 
 	return scopes, nil
 }

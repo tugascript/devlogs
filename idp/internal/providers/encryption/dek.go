@@ -136,3 +136,21 @@ func (e *Encryption) decryptUserDEK(ctx context.Context, requestID, storedDEK st
 		oldSecrets: e.oldSecrets,
 	})
 }
+
+func (e *Encryption) GenerateAppDEK(ctx context.Context, requestID string) (string, error) {
+	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  dekLocation,
+		Method:    "GenerateAppDEK",
+		RequestID: requestID,
+	})
+	logger.DebugContext(ctx, "Generate App DEK...")
+
+	_, encryptedDEK, err := generateDEK(e.appSecretKey.kid, e.appSecretKey.key)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate the DEK", "error", err)
+		return "", err
+	}
+
+	return encryptedDEK, nil
+}
