@@ -60,3 +60,7 @@ type UpdatePasswordBody struct {
 	Password    string `json:"password" validate:"required,min=8,max=100,password"`
 	Password2   string `json:"password2" validate:"required,eqfield=Password"`
 }
+
+type DeleteWithPasswordBody struct {
+	Password string `json:"password,omitempty" validate:"optional,min=1"`
+}

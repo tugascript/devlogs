@@ -63,6 +63,10 @@ func (s *Services) ProcessOAuthHeader(
 	return processAuthHeader(authHeader, s.jwt.VerifyOAuthToken)
 }
 
+func (s *Services) GetRefreshTTL() int64 {
+	return s.jwt.GetRefreshTTL()
+}
+
 func (s *Services) sendConfirmationEmail(
 	ctx context.Context,
 	logger *slog.Logger,

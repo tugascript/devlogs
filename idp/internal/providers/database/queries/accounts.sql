@@ -76,3 +76,7 @@ RETURNING *;
 
 -- name: DeleteAllAccounts :exec
 DELETE FROM "accounts";
+
+-- name: DeleteAccount :exec
+DELETE FROM "accounts"
+WHERE "id" = $1;

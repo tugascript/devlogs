@@ -15,7 +15,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const accountsLocation string = "accounts"
+const accountsLocation = "accounts"
 
 type CreateAccountOptions struct {
 	RequestID string
@@ -628,4 +628,160 @@ func (s *Services) ConfirmUpdateAccountPassword(
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
 		"Password updated successfully",
 	)
+}
+
+type DeleteAccountOptions struct {
+	RequestID string
+	ID        int32
+	Password  string
+}
+
+func (s *Services) DeleteAccount(
+	ctx context.Context,
+	opts DeleteAccountOptions,
+) (bool, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountsLocation, "DeleteAccount").With(
+		"id", opts.ID,
+	)
+	logger.InfoContext(ctx, "Deleting account...")
+
+	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+		RequestID: opts.RequestID,
+		ID:        opts.ID,
+	})
+	if serviceErr != nil {
+		logger.InfoContext(ctx, "Failed to get account", "error", serviceErr)
+		return false, serviceErr
+	}
+
+	_, err := s.database.FindAuthProviderByEmailAndProvider(ctx, database.FindAuthProviderByEmailAndProviderParams{
+		Email:    accountDTO.Email,
+		Provider: AuthProviderEmail,
+	})
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to get email auth provider", "error", err)
+			return false, serviceErr
+		}
+	} else {
+		if opts.Password == "" {
+			logger.WarnContext(ctx, "Password is required for email auth provider")
+			return false, exceptions.NewValidationError("password is required")
+		}
+		
+		ok, err := utils.CompareHash(opts.Password, accountDTO.Password())
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to compare password hash", "error", err)
+			return false, exceptions.NewServerError()
+		}
+		if !ok {
+			logger.WarnContext(ctx, "Invalid password provided")
+			return false, exceptions.NewUnauthorizedError()
+		}
+	}
+
+	if accountDTO.TwoFactorType != TwoFactorNone {
+		logger.InfoContext(ctx, "Account has 2FA enabled", "twoFactorType", accountDTO.TwoFactorType)
+
+		if err := s.cache.SaveDeleteAccountRequest(ctx, cache.SaveDeleteAccountRequestOptions{
+			RequestID:       opts.RequestID,
+			PrefixType:      cache.DeleteAccountAccountPrefix,
+			ID:              accountDTO.ID,
+			DurationSeconds: s.jwt.GetOAuthTTL(),
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to cache delete account request", "error", err)
+			return false, exceptions.NewServerError()
+		}
+
+		logger.InfoContext(ctx, "Delete account request cached successfully")
+		return false, nil
+	}
+
+	if err := s.database.DeleteAccount(ctx, opts.ID); err != nil {
+		logger.ErrorContext(ctx, "Failed to delete account", "error", err)
+		return false, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Account deleted successfully")
+	return true, nil
+}
+
+type ConfirmDeleteAccountOptions struct {
+	RequestID string
+	ID        int32
+	Code      string
+}
+
+func (s *Services) ConfirmDeleteAccount(
+	ctx context.Context,
+	opts ConfirmDeleteAccountOptions,
+) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.RequestID, accountsLocation, "ConfirmDeleteAccount").With(
+		"id", opts.ID,
+	)
+	logger.InfoContext(ctx, "Confirming account deletion...")
+
+	// Get the cached delete account request
+	exists, err := s.cache.GetDeleteAccountRequest(ctx, cache.GetDeleteAccountRequestOptions{
+		RequestID:  opts.RequestID,
+		PrefixType: cache.DeleteAccountAccountPrefix,
+		ID:         int(opts.ID),
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get delete account request", "error", err)
+		return exceptions.NewServerError()
+	}
+	if !exists {
+		logger.WarnContext(ctx, "Delete account request not found")
+		return exceptions.NewUnauthorizedError()
+	}
+
+	// Verify 2FA code
+	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+		RequestID: opts.RequestID,
+		ID:        opts.ID,
+	})
+	if serviceErr != nil {
+		logger.InfoContext(ctx, "Failed to get account", "error", serviceErr)
+		return serviceErr
+	}
+
+	switch accountDTO.TwoFactorType {
+	case TwoFactorEmail:
+		ok, err := s.cache.VerifyTwoFactorCode(ctx, cache.VerifyTwoFactorCodeOptions{
+			RequestID: opts.RequestID,
+			AccountID: accountDTO.ID,
+			Code:      opts.Code,
+		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to verify 2FA code", "error", err)
+			return exceptions.NewServerError()
+		}
+		if !ok {
+			logger.WarnContext(ctx, "Invalid 2FA code provided")
+			return exceptions.NewUnauthorizedError()
+		}
+	case TwoFactorTotp:
+		ok, serviceErr := s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions(opts))
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", serviceErr)
+			return serviceErr
+		}
+		if !ok {
+			logger.WarnContext(ctx, "Invalid TOTP code provided")
+			return exceptions.NewUnauthorizedError()
+		}
+	default:
+		logger.WarnContext(ctx, "Account has no 2FA enabled")
+		return exceptions.NewUnauthorizedError()
+	}
+
+	if err := s.database.DeleteAccount(ctx, opts.ID); err != nil {
+		logger.ErrorContext(ctx, "Failed to delete account", "error", err)
+		return exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Account deleted successfully")
+	return nil
 }

@@ -26,14 +26,26 @@ const (
 	grantTypeClientCredentials string = "client_credentials"
 )
 
-func saveAccountRefreshCookie(ctx *fiber.Ctx, name, token string) {
+func (c *Controllers) saveAccountRefreshCookie(ctx *fiber.Ctx, token string) {
 	ctx.Cookie(&fiber.Cookie{
-		Name:     name,
+		Name:     c.refreshCookieName,
 		Value:    token,
 		Path:     "/auth",
 		HTTPOnly: true,
 		SameSite: "None",
 		Secure:   true,
+		MaxAge:   int(c.services.GetRefreshTTL()),
+	})
+}
+
+func (c *Controllers) clearAccountRefreshCookie(ctx *fiber.Ctx) {
+	ctx.Cookie(&fiber.Cookie{
+		Name:     c.refreshCookieName,
+		Value:    "",
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: "None",
+		MaxAge:   -1,
 	})
 }
 
@@ -86,7 +98,7 @@ func (c *Controllers) ConfirmAccount(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	saveAccountRefreshCookie(ctx, c.refreshCookieName, authDTO.RefreshToken)
+	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
@@ -114,7 +126,7 @@ func (c *Controllers) LoginAccount(ctx *fiber.Ctx) error {
 	}
 
 	if authDTO.RefreshToken != "" {
-		saveAccountRefreshCookie(ctx, c.refreshCookieName, authDTO.RefreshToken)
+		c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
@@ -149,7 +161,7 @@ func (c *Controllers) TwoFactorLoginAccount(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	saveAccountRefreshCookie(ctx, c.refreshCookieName, authDTO.RefreshToken)
+	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
@@ -497,7 +509,7 @@ func (c *Controllers) accountRefreshToken(ctx *fiber.Ctx, requestID string) erro
 		return oauthErrorResponseMapper(logger, ctx, serviceErr)
 	}
 
-	saveAccountRefreshCookie(ctx, c.refreshCookieName, authDTO.RefreshToken)
+	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
@@ -559,7 +571,7 @@ func (c *Controllers) RefreshAccount(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	saveAccountRefreshCookie(ctx, c.refreshCookieName, authDTO.RefreshToken)
+	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }

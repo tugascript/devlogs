@@ -66,7 +66,7 @@ func (c *Controllers) UpdateAccountPassword(ctx *fiber.Ctx) error {
 	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
-	saveAccountRefreshCookie(ctx, "refresh_token", authDTO.RefreshToken)
+	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
@@ -98,7 +98,7 @@ func (c *Controllers) ConfirmUpdateAccountPassword(ctx *fiber.Ctx) error {
 	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
-	saveAccountRefreshCookie(ctx, "refresh_token", authDTO.RefreshToken)
+	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
@@ -136,7 +136,7 @@ func (c *Controllers) UpdateAccountEmail(ctx *fiber.Ctx) error {
 	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
-	saveAccountRefreshCookie(ctx, "refresh_token", authDTO.RefreshToken)
+	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
@@ -168,6 +168,75 @@ func (c *Controllers) ConfirmUpdateAccountEmail(ctx *fiber.Ctx) error {
 	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
-	saveAccountRefreshCookie(ctx, "refresh_token", authDTO.RefreshToken)
+	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
+}
+
+func (c *Controllers) DeleteAccount(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, accountsLocation, "DeleteAccount")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.DeleteWithPasswordBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	deleted, serviceErr := c.services.DeleteAccount(ctx.UserContext(), services.DeleteAccountOptions{
+		RequestID: requestID,
+		ID:        int32(accountClaims.ID),
+		Password:  body.Password,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	if !deleted {
+		logResponse(logger, ctx, fiber.StatusOK)
+		return ctx.Status(fiber.StatusOK).JSON(dtos.NewMessageDTO("Account deletion initiated. Please 2FA login."))
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	c.clearAccountRefreshCookie(ctx)
+	return ctx.Status(fiber.StatusOK).JSON(dtos.NewMessageDTO("Account deleted successfully"))
+}
+
+func (c *Controllers) ConfirmDeleteAccount(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, accountsLocation, "ConfirmDeleteAccount")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.TwoFactorLoginBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	serviceErr = c.services.ConfirmDeleteAccount(ctx.UserContext(), services.ConfirmDeleteAccountOptions{
+		RequestID: requestID,
+		ID:        int32(accountClaims.ID),
+		Code:      body.Code,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	c.clearAccountRefreshCookie(ctx)
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
