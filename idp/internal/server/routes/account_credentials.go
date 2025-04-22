@@ -27,13 +27,7 @@ func (r *Routes) AccountCredentialsRoutes(app *fiber.App) {
 		r.controllers.AdminScopeMiddleware,
 		r.controllers.GetSingleAccountCredentials,
 	)
-	router.Patch(
-		paths.AccountCredentialsRefreshSecret,
-		r.controllers.AccountAccessClaimsMiddleware,
-		r.controllers.AdminScopeMiddleware,
-		r.controllers.RefreshAccountCredentialsSecret,
-	)
-	router.Patch(
+	router.Put(
 		paths.AccountCredentialsSingle,
 		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
@@ -44,5 +38,11 @@ func (r *Routes) AccountCredentialsRoutes(app *fiber.App) {
 		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
 		r.controllers.DeleteAccountCredentials,
+	)
+	router.Patch(
+		paths.AccountCredentialsRefreshSecret,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.AdminScopeMiddleware,
+		r.controllers.RefreshAccountCredentialsSecret,
 	)
 }

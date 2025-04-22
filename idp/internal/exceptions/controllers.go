@@ -129,17 +129,18 @@ const (
 	fieldErrTagRequired string = "required"
 	fieldErrTagEq       string = "eq"
 
-	strFieldErrTagMin   string = "min"
-	strFieldErrTagMax   string = "max"
-	strFieldErrTagEmail string = "email"
-	strFieldErrTagJWT   string = "jwt"
-	strFieldErrTagUrl   string = "url"
-	strFieldNumber      string = "number"
-	strFieldUUID        string = "uuid"
-	strFieldPassword    string = "password"
-	strFieldSlug        string = "slug"
-	strFieldNumeric     string = "numeric"
-	strFieldScopes      string = "scopes"
+	strFieldErrTagMin      string = "min"
+	strFieldErrTagMax      string = "max"
+	strFieldErrTagEmail    string = "email"
+	strFieldErrTagJWT      string = "jwt"
+	strFieldErrTagUrl      string = "url"
+	strFieldNumber         string = "number"
+	strFieldUUID           string = "uuid"
+	strFieldPassword       string = "password"
+	strFieldSlug           string = "slug"
+	strFieldNumeric        string = "numeric"
+	strFieldScopes         string = "scopes"
+	strFieldErrTagAlphanum string = "alphanum"
 
 	intFieldErrTagGte string = "gte"
 	intFieldErrTagLte string = "lte"
@@ -160,6 +161,7 @@ const (
 	StrFieldErrMessageSlug     string = "must be a valid slug"
 	StrFieldErrMessageNumeric  string = "must be a numeric value"
 	StrFieldErrMessageScopes   string = "must be a valid space-separated list of scopes"
+	StrFieldErrMessageAlphanum string = "must be alphanumeric"
 
 	IntFieldErrMessageLte string = "must be less"
 	IntFieldErrMessageGte string = "must be greater"
@@ -195,6 +197,8 @@ func selectStrErrMessage(tag string) string {
 		return FieldErrMessageEq
 	case strFieldScopes:
 		return StrFieldErrMessageScopes
+	case strFieldErrTagAlphanum:
+		return StrFieldErrMessageAlphanum
 	default:
 		return FieldErrMessageInvalid
 	}

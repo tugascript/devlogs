@@ -10,8 +10,10 @@ import (
 type AccountCredentialsDTO struct {
 	ClientID     string   `json:"id"`
 	ClientSecret string   `json:"secret,omitempty"`
+	Alias        string   `json:"alias"`
 	Scopes       []string `json:"scopes"`
 
+	id           int
 	accountId    int
 	hashedSecret string
 }
@@ -22,6 +24,10 @@ func (ak *AccountCredentialsDTO) HashedSecret() string {
 
 func (ak *AccountCredentialsDTO) AccountID() int {
 	return ak.accountId
+}
+
+func (ak *AccountCredentialsDTO) ID() int {
+	return ak.id
 }
 
 func mapAccountCredentialsScopes(jsonScopes []byte) ([]string, *exceptions.ServiceError) {
@@ -49,6 +55,7 @@ func MapAccountCredentialsToDTO(
 	}
 
 	return AccountCredentialsDTO{
+		id:           int(accountKeys.ID),
 		ClientID:     accountKeys.ClientID,
 		Scopes:       scopes,
 		hashedSecret: accountKeys.ClientSecret,
@@ -66,6 +73,7 @@ func MapAccountCredentialsToDTOWithSecret(
 	}
 
 	return AccountCredentialsDTO{
+		id:           int(accountKeys.ID),
 		ClientID:     accountKeys.ClientID,
 		ClientSecret: secret,
 		Scopes:       scopes,

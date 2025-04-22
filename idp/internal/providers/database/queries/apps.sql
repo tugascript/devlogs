@@ -30,7 +30,8 @@ SET "name" = $2,
     "user_scopes" = $5,
     "app_providers" = $6,
     "id_token_ttl" = $7,
-    "jwt_crypto_suite" = $8
+    "jwt_crypto_suite" = $8,
+    "updated_at" = now()
 WHERE "id" = $1
 RETURNING *;
 

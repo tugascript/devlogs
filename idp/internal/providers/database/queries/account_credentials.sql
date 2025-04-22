@@ -8,12 +8,14 @@ INSERT INTO "account_credentials" (
     "client_id",
     "client_secret",
     "account_id",
+    "alias",
     "scopes"
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
+    $4,
+    $5
 ) RETURNING *;
 
 -- name: UpdateAccountCredentialsClientSecret :one
@@ -23,12 +25,17 @@ UPDATE "account_credentials" SET
 WHERE "client_id" = $2
 RETURNING *;
 
--- name: UpdateAccountCredentialsScope :one
+-- name: UpdateAccountCredentials :one
 UPDATE "account_credentials" SET
     "scopes" = $1,
+    "alias" = $2,
     "updated_at" = now()
-WHERE "client_id" = $2
+WHERE "id" = $3
 RETURNING *;
+
+-- name: CountAccountCredentialsByAliasAndAccountID :one
+SELECT COUNT("id") FROM "account_credentials"
+WHERE "account_id" = $1 AND "alias" = $2;
 
 -- name: DeleteAccountCredentials :exec
 DELETE FROM "account_credentials"

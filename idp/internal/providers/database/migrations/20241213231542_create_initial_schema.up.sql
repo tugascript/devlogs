@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-04-20T05:56:16.385Z
+-- Generated at: 2025-04-22T06:23:24.927Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -31,6 +31,7 @@ CREATE TABLE "account_credentials" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "scopes" jsonb NOT NULL,
+  "alias" varchar(50) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
   "created_at" timestamp NOT NULL DEFAULT (now()),
@@ -108,6 +109,16 @@ CREATE TABLE "user_auth_providers" (
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
 
+CREATE TABLE "user_credentials" (
+  "id" serial PRIMARY KEY,
+  "user_id" integer NOT NULL,
+  "client_id" varchar(22) NOT NULL,
+  "client_secret" text NOT NULL,
+  "account_id" integer NOT NULL,
+  "created_at" timestamp NOT NULL DEFAULT (now()),
+  "updated_at" timestamp NOT NULL DEFAULT (now())
+);
+
 CREATE TABLE "blacklisted_tokens" (
   "id" uuid PRIMARY KEY,
   "expires_at" timestamp NOT NULL,
@@ -124,6 +135,8 @@ CREATE UNIQUE INDEX "account_credentials_client_id_uidx" ON "account_credentials
 
 CREATE INDEX "account_credentials_account_id_idx" ON "account_credentials" ("account_id");
 
+CREATE UNIQUE INDEX "account_credentials_alias_account_id_uidx" ON "account_credentials" ("alias", "account_id");
+
 CREATE INDEX "auth_providers_email_idx" ON "auth_providers" ("email");
 
 CREATE UNIQUE INDEX "auth_providers_email_provider_uidx" ON "auth_providers" ("email", "provider");
@@ -131,6 +144,8 @@ CREATE UNIQUE INDEX "auth_providers_email_provider_uidx" ON "auth_providers" ("e
 CREATE INDEX "apps_account_id_idx" ON "apps" ("account_id");
 
 CREATE UNIQUE INDEX "apps_client_id_uidx" ON "apps" ("client_id");
+
+CREATE INDEX "apps_name_idx" ON "apps" ("name");
 
 CREATE UNIQUE INDEX "apps_account_id_name_uidx" ON "apps" ("account_id", "name");
 
@@ -156,6 +171,12 @@ CREATE UNIQUE INDEX "user_auth_provider_account_id_provider_uidx" ON "user_auth_
 
 CREATE INDEX "user_auth_provider_account_id_idx" ON "user_auth_providers" ("account_id");
 
+CREATE UNIQUE INDEX "user_credentials_client_id_uidx" ON "user_credentials" ("client_id");
+
+CREATE UNIQUE INDEX "user_credentials_user_id_uidx" ON "user_credentials" ("user_id");
+
+CREATE INDEX "user_credentials_account_id_idx" ON "user_credentials" ("account_id");
+
 ALTER TABLE "account_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
@@ -175,3 +196,7 @@ ALTER TABLE "user_totps" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") O
 ALTER TABLE "user_auth_providers" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "user_auth_providers" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_credentials" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;

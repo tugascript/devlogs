@@ -5,4 +5,5 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	s.routes.AuthRoutes(s.App)
 	s.routes.AccountCredentialsRoutes(s.App)
 	s.routes.AccountsRoutes(s.App)
+	s.routes.AppsRoutes(s.App)
 }

@@ -40,6 +40,7 @@ func mapAndEncodeAccountScopes(
 type CreateAccountCredentialsOptions struct {
 	RequestID string
 	AccountID int32
+	Alias     string
 	Scopes    []tokens.AccountScope
 }
 
@@ -52,6 +53,23 @@ func (s *Services) CreateAccountCredentials(
 		"scopes", opts.Scopes,
 	)
 	logger.InfoContext(ctx, "Creating account keys...")
+
+	alias := utils.Lowered(opts.Alias)
+	count, err := s.database.CountAccountCredentialsByAliasAndAccountID(
+		ctx,
+		database.CountAccountCredentialsByAliasAndAccountIDParams{
+			AccountID: opts.AccountID,
+			Alias:     alias,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count account keys by alias", "error", err)
+		return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
+	}
+	if count > 0 {
+		logger.WarnContext(ctx, "Account keys alias already exists", "alias", alias)
+		return dtos.AccountCredentialsDTO{}, exceptions.NewConflictError("Account keys alias already exists")
+	}
 
 	clientID, err := utils.Base62UUID()
 	if err != nil {
@@ -123,7 +141,7 @@ func (s *Services) GetAccountCredentialsByClientID(
 
 type GetAccountCredentialsByClientIDAndAccountIDOptions struct {
 	RequestID string
-	AccountID int
+	AccountID int32
 	ClientID  string
 }
 
@@ -146,7 +164,7 @@ func (s *Services) GetAccountCredentialsByClientIDAndAccountID(
 	}
 
 	akAccountID := accountCredentialsDTO.AccountID()
-	if akAccountID != opts.AccountID {
+	if akAccountID != int(opts.AccountID) {
 		logger.WarnContext(ctx, "Account keys is not owned by the account",
 			"accountCredentialsAccountId", akAccountID,
 		)
@@ -205,7 +223,7 @@ func (s *Services) ListAccountCredentialsByAccountID(
 
 type UpdateAccountCredentialsSecretOptions struct {
 	RequestID string
-	AccountID int
+	AccountID int32
 	ClientID  string
 }
 
@@ -254,12 +272,13 @@ func (s *Services) UpdateAccountCredentialsSecret(
 
 type UpdateAccountCredentialsScopesOptions struct {
 	RequestID string
-	AccountID int
+	AccountID int32
 	ClientID  string
+	Alias     string
 	Scopes    []tokens.AccountScope
 }
 
-func (s *Services) UpdateAccountCredentialsScopes(
+func (s *Services) UpdateAccountCredentials(
 	ctx context.Context,
 	opts UpdateAccountCredentialsScopesOptions,
 ) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
@@ -287,9 +306,29 @@ func (s *Services) UpdateAccountCredentialsScopes(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	accountCredentials, err := s.database.UpdateAccountCredentialsScope(ctx, database.UpdateAccountCredentialsScopeParams{
-		Scopes:   scopesJson,
-		ClientID: accountCredentialsDTO.ClientID,
+	alias := utils.Lowered(opts.Alias)
+	if alias != accountCredentialsDTO.Alias {
+		count, err := s.database.CountAccountCredentialsByAliasAndAccountID(
+			ctx,
+			database.CountAccountCredentialsByAliasAndAccountIDParams{
+				AccountID: opts.AccountID,
+				Alias:     alias,
+			},
+		)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to count account keys by alias", "error", err)
+			return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
+		}
+		if count > 0 {
+			logger.WarnContext(ctx, "Account keys alias already exists", "alias", alias)
+			return dtos.AccountCredentialsDTO{}, exceptions.NewConflictError("Account keys alias already exists")
+		}
+	}
+
+	accountCredentials, err := s.database.UpdateAccountCredentials(ctx, database.UpdateAccountCredentialsParams{
+		ID:     int32(accountCredentialsDTO.ID()),
+		Scopes: scopesJson,
+		Alias:  alias,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account keys scopes", "error", err)
@@ -301,7 +340,7 @@ func (s *Services) UpdateAccountCredentialsScopes(
 
 type DeleteAccountCredentialsOptions struct {
 	RequestID string
-	AccountID int
+	AccountID int32
 	ClientID  string
 }
 

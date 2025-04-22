@@ -44,6 +44,7 @@ Table account_credentials as ACK {
 
     scopes jsonb [not null]
 
+    alias varchar(50) [not null]
     client_id varchar(22) [not null]
     client_secret text [not null]
 
@@ -53,6 +54,7 @@ Table account_credentials as ACK {
     Indexes {
         (client_id) [unique, name: 'account_credentials_client_id_uidx']
         (account_id) [name: 'account_credentials_account_id_idx']
+        (alias, account_id) [unique, name: 'account_credentials_alias_account_id_uidx']
     }
 }
 Ref: ACK.account_id > A.id [delete: cascade]
@@ -193,6 +195,28 @@ Table user_auth_providers as UAP {
 }
 Ref: UAP.account_id > A.id [delete: cascade]
 Ref: UAP.user_id > U.id [delete: cascade]
+
+Table user_credentials as UC {
+    id serial [pk]
+
+    user_id integer [not null]
+    
+    client_id varchar(22) [not null]
+    client_secret text [not null]
+
+    account_id integer [not null]
+
+    created_at timestamp [not null, default: `now()`]
+    updated_at timestamp [not null, default: `now()`]
+
+    Indexes {
+        (client_id) [unique, name: 'user_credentials_client_id_uidx']
+        (user_id) [unique, name: 'user_credentials_user_id_uidx']
+        (account_id) [name: 'user_credentials_account_id_idx']
+    }
+}
+Ref: UC.user_id > U.id [delete: cascade]
+Ref: UC.account_id > A.id [delete: cascade]
 
 Table blacklisted_tokens as BT {
     id uuid [pk]

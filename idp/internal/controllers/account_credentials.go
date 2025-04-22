@@ -33,6 +33,7 @@ func (c *Controllers) CreateAccountCredentials(ctx *fiber.Ctx) error {
 	accountKeysDTO, serviceErr := c.services.CreateAccountCredentials(ctx.UserContext(), services.CreateAccountCredentialsOptions{
 		RequestID: requestID,
 		AccountID: int32(accountClaims.ID),
+		Alias:     body.Alias,
 		Scopes:    body.Scopes,
 	})
 	if serviceErr != nil {
@@ -105,7 +106,7 @@ func (c *Controllers) GetSingleAccountCredentials(ctx *fiber.Ctx) error {
 		ctx.UserContext(),
 		services.GetAccountCredentialsByClientIDAndAccountIDOptions{
 			RequestID: requestID,
-			AccountID: accountClaims.ID,
+			AccountID: int32(accountClaims.ID),
 			ClientID:  urlParams.ClientID,
 		},
 	)
@@ -137,7 +138,7 @@ func (c *Controllers) RefreshAccountCredentialsSecret(ctx *fiber.Ctx) error {
 		ctx.UserContext(),
 		services.UpdateAccountCredentialsSecretOptions{
 			RequestID: requestID,
-			AccountID: accountClaims.ID,
+			AccountID: int32(accountClaims.ID),
 			ClientID:  urlParams.ClientID,
 		},
 	)
@@ -172,13 +173,14 @@ func (c *Controllers) UpdateAccountCredentials(ctx *fiber.Ctx) error {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	accountKeysDTO, serviceErr := c.services.UpdateAccountCredentialsScopes(
+	accountKeysDTO, serviceErr := c.services.UpdateAccountCredentials(
 		ctx.UserContext(),
 		services.UpdateAccountCredentialsScopesOptions{
 			RequestID: requestID,
-			AccountID: accountClaims.ID,
+			AccountID: int32(accountClaims.ID),
 			ClientID:  urlParams.ClientID,
 			Scopes:    body.Scopes,
+			Alias:     body.Alias,
 		},
 	)
 	if serviceErr != nil {
@@ -206,7 +208,7 @@ func (c *Controllers) DeleteAccountCredentials(ctx *fiber.Ctx) error {
 
 	if serviceErr := c.services.DeleteAccountCredentials(ctx.UserContext(), services.DeleteAccountCredentialsOptions{
 		RequestID: requestID,
-		AccountID: accountClaims.ID,
+		AccountID: int32(accountClaims.ID),
 		ClientID:  urlParams.ClientID,
 	}); serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
