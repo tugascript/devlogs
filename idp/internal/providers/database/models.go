@@ -56,6 +56,8 @@ type App struct {
 	LogoutUris     []string
 	UserScopes     []byte
 	AppProviders   []byte
+	UsernameColumn string
+	ProfileSchema  []byte
 	IDTokenTtl     int32
 	JwtCryptoSuite string
 	CreatedAt      pgtype.Timestamp
@@ -68,6 +70,7 @@ type AppKey struct {
 	AccountID      int32
 	Name           string
 	JwtCryptoSuite string
+	PublicKid      string
 	PublicKey      []byte
 	PrivateKey     string
 	IsDistributed  bool
@@ -119,6 +122,23 @@ type UserCredential struct {
 	AccountID    int32
 	CreatedAt    pgtype.Timestamp
 	UpdatedAt    pgtype.Timestamp
+}
+
+type UserProfile struct {
+	ID          int32
+	UserID      int32
+	AppID       int32
+	ProfileData []byte
+	CreatedAt   pgtype.Timestamp
+	UpdatedAt   pgtype.Timestamp
+}
+
+type UserSchema struct {
+	ID         int32
+	AccountID  int32
+	SchemaData []byte
+	CreatedAt  pgtype.Timestamp
+	UpdatedAt  pgtype.Timestamp
 }
 
 type UserTotp struct {

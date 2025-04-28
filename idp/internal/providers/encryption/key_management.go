@@ -14,23 +14,13 @@ import (
 
 const keyManagementLocation string = "key_management"
 
-type Ed25519KeyPair struct {
+type KeyPair struct {
 	Kid                 string
-	PublicKey           utils.Ed25519JWK
+	PublicKey           utils.JWK
 	encryptedPrivateKey string
 }
 
-func (e *Ed25519KeyPair) EncryptedPrivateKey() string {
-	return e.encryptedPrivateKey
-}
-
-type ES256KeyPair struct {
-	Kid                 string
-	PublicKey           utils.P256JWK
-	encryptedPrivateKey string
-}
-
-func (e *ES256KeyPair) EncryptedPrivateKey() string {
+func (e *KeyPair) EncryptedPrivateKey() string {
 	return e.encryptedPrivateKey
 }
 
@@ -49,7 +39,7 @@ type GetPrivateKeyOptions struct {
 func (e *Encryption) GenerateEd25519KeyPair(
 	ctx context.Context,
 	opts GenerateKeyPairOptions,
-) (Ed25519KeyPair, string, error) {
+) (KeyPair, string, error) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  keyManagementLocation,
@@ -61,37 +51,38 @@ func (e *Encryption) GenerateEd25519KeyPair(
 	dek, isOldKey, err := e.decryptAppDEK(ctx, opts.RequestID, opts.StoredDEK)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt DEK", "error", err)
-		return Ed25519KeyPair{}, "", err
+		return KeyPair{}, "", err
 	}
 
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate key pair", "error", err)
-		return Ed25519KeyPair{}, "", err
+		return KeyPair{}, "", err
 	}
 
 	privKey, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to parse private key", "error", err)
-		return Ed25519KeyPair{}, "", err
+		return KeyPair{}, "", err
 	}
 
 	kid := utils.ExtractKeyID(pub)
 	encryptedKey, err := utils.Encrypt(base64.StdEncoding.EncodeToString(privKey), dek)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to encrypt private key", "error", err)
-		return Ed25519KeyPair{}, "", err
+		return KeyPair{}, "", err
 	}
 
 	newDEK, err := reEncryptDEK(isOldKey, dek, e.appSecretKey.key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to re-encrypt DEK", "error", err)
-		return Ed25519KeyPair{}, "", err
+		return KeyPair{}, "", err
 	}
 
-	return Ed25519KeyPair{
+	publicJwk := utils.EncodeEd25519Jwk(pub, kid)
+	return KeyPair{
 		Kid:                 kid,
-		PublicKey:           utils.EncodeEd25519Jwk(pub, kid),
+		PublicKey:           &publicJwk,
 		encryptedPrivateKey: encryptedKey,
 	}, newDEK, nil
 }
@@ -144,7 +135,7 @@ func (e *Encryption) DecryptEd25519PrivateKey(
 func (e *Encryption) GenerateES256KeyPair(
 	ctx context.Context,
 	opts GenerateKeyPairOptions,
-) (ES256KeyPair, string, error) {
+) (KeyPair, string, error) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  keyManagementLocation,
@@ -156,43 +147,44 @@ func (e *Encryption) GenerateES256KeyPair(
 	dek, isOldKey, err := e.decryptAppDEK(ctx, opts.RequestID, opts.StoredDEK)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt DEK", "error", err)
-		return ES256KeyPair{}, "", err
+		return KeyPair{}, "", err
 	}
 
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate ES256 private key", "error", err)
-		return ES256KeyPair{}, "", err
+		return KeyPair{}, "", err
 	}
 
 	privKey, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to encode ES256 private key", "error", err)
-		return ES256KeyPair{}, "", err
+		return KeyPair{}, "", err
 	}
 
 	publicKeyValue, err := x509.MarshalPKIXPublicKey(&priv.PublicKey)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to parse ES256 public key", "error", err)
-		return ES256KeyPair{}, "", err
+		return KeyPair{}, "", err
 	}
 
 	kid := utils.ExtractKeyID(publicKeyValue)
 	encryptedPrivateKey, err := utils.Encrypt(base64.StdEncoding.EncodeToString(privKey), dek)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to encrypt private key", "error", err)
-		return ES256KeyPair{}, "", err
+		return KeyPair{}, "", err
 	}
 
 	newDEK, err := reEncryptDEK(isOldKey, dek, e.appSecretKey.key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to re-encrypt DEK", "error", err)
-		return ES256KeyPair{}, "", err
+		return KeyPair{}, "", err
 	}
 
-	return ES256KeyPair{
+	publicJwk := utils.EncodeP256Jwk(&priv.PublicKey, kid)
+	return KeyPair{
 		Kid:                 kid,
-		PublicKey:           utils.EncodeP256Jwk(&priv.PublicKey, kid),
+		PublicKey:           &publicJwk,
 		encryptedPrivateKey: encryptedPrivateKey,
 	}, newDEK, nil
 }

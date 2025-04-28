@@ -72,3 +72,16 @@ OFFSET $3 LIMIT $4;
 SELECT COUNT("id") FROM "apps"
 WHERE "account_id" = $1 AND "name" ILIKE $2
 LIMIT 1;
+
+-- name: UpdateAppClientSecret :one
+UPDATE "apps" SET
+    "client_secret" = $1,
+    "updated_at" = now()
+WHERE "id" = $2
+RETURNING *;
+
+-- name: UpdateAppDek :exec
+UPDATE "apps" SET
+    "dek" = $1,
+    "updated_at" = now()
+WHERE "id" = $2;

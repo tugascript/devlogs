@@ -8,7 +8,9 @@ import (
 )
 
 type AppDTO struct {
-	id             int
+	id  int
+	dek string
+
 	ClientID       string   `json:"client_id"`
 	ClientSecret   string   `json:"client_secret,omitempty"`
 	Name           string   `json:"name"`
@@ -22,6 +24,10 @@ type AppDTO struct {
 
 func (a *AppDTO) ID() int {
 	return a.id
+}
+
+func (a *AppDTO) DEK() string {
+	return a.dek
 }
 
 func hashMapToSlice(jsonMap []byte) ([]string, *exceptions.ServiceError) {
@@ -50,6 +56,8 @@ func MapAppToDTO(app *database.App) (AppDTO, *exceptions.ServiceError) {
 	}
 
 	return AppDTO{
+		id:             int(app.ID),
+		dek:            app.Dek,
 		ClientID:       app.ClientID,
 		Name:           app.Name,
 		CallbackURIs:   app.CallbackUris,

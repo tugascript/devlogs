@@ -9,6 +9,67 @@ import (
 	"context"
 )
 
+const createAppKey = `-- name: CreateAppKey :one
+INSERT INTO "app_keys" (
+    "app_id",
+    "account_id",
+    "name",
+    "jwt_crypto_suite",
+    "public_kid",
+    "public_key",
+    "private_key",
+    "is_distributed"
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8
+) RETURNING id, app_id, account_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, created_at, updated_at
+`
+
+type CreateAppKeyParams struct {
+	AppID          int32
+	AccountID      int32
+	Name           string
+	JwtCryptoSuite string
+	PublicKid      string
+	PublicKey      []byte
+	PrivateKey     string
+	IsDistributed  bool
+}
+
+func (q *Queries) CreateAppKey(ctx context.Context, arg CreateAppKeyParams) (AppKey, error) {
+	row := q.db.QueryRow(ctx, createAppKey,
+		arg.AppID,
+		arg.AccountID,
+		arg.Name,
+		arg.JwtCryptoSuite,
+		arg.PublicKid,
+		arg.PublicKey,
+		arg.PrivateKey,
+		arg.IsDistributed,
+	)
+	var i AppKey
+	err := row.Scan(
+		&i.ID,
+		&i.AppID,
+		&i.AccountID,
+		&i.Name,
+		&i.JwtCryptoSuite,
+		&i.PublicKid,
+		&i.PublicKey,
+		&i.PrivateKey,
+		&i.IsDistributed,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteDistributedAppKeysByAppID = `-- name: DeleteDistributedAppKeysByAppID :exec
 DELETE FROM "app_keys"
 WHERE "app_id" = $1 AND "is_distributed" = true
@@ -17,4 +78,34 @@ WHERE "app_id" = $1 AND "is_distributed" = true
 func (q *Queries) DeleteDistributedAppKeysByAppID(ctx context.Context, appID int32) error {
 	_, err := q.db.Exec(ctx, deleteDistributedAppKeysByAppID, appID)
 	return err
+}
+
+const findAppKeyByAppIDAndName = `-- name: FindAppKeyByAppIDAndName :one
+SELECT id, app_id, account_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, created_at, updated_at FROM "app_keys"
+WHERE "app_id" = $1 AND "name" = $2
+LIMIT 1
+`
+
+type FindAppKeyByAppIDAndNameParams struct {
+	AppID int32
+	Name  string
+}
+
+func (q *Queries) FindAppKeyByAppIDAndName(ctx context.Context, arg FindAppKeyByAppIDAndNameParams) (AppKey, error) {
+	row := q.db.QueryRow(ctx, findAppKeyByAppIDAndName, arg.AppID, arg.Name)
+	var i AppKey
+	err := row.Scan(
+		&i.ID,
+		&i.AppID,
+		&i.AccountID,
+		&i.Name,
+		&i.JwtCryptoSuite,
+		&i.PublicKid,
+		&i.PublicKey,
+		&i.PrivateKey,
+		&i.IsDistributed,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

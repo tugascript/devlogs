@@ -7,9 +7,17 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"math/big"
 )
+
+type JWK interface {
+	GetKeyType() string
+	GetKeyID() string
+	ToUsableKey() (interface{}, error)
+	ToJSON() ([]byte, error)
+}
 
 type Ed25519JWK struct {
 	Kty    string   `json:"kty"`     // Key Type (OKP for Ed25519)
@@ -21,7 +29,23 @@ type Ed25519JWK struct {
 	KeyOps []string `json:"key_ops"` // Key Operations
 }
 
-type P256JWK struct {
+func (j *Ed25519JWK) GetKeyType() string {
+	return j.Kty
+}
+
+func (j *Ed25519JWK) GetKeyID() string {
+	return j.Kid
+}
+
+func (j *Ed25519JWK) ToUsableKey() (interface{}, error) {
+	return DecodeEd25519Jwk(*j)
+}
+
+func (j *Ed25519JWK) ToJSON() ([]byte, error) {
+	return json.Marshal(j)
+}
+
+type ES256JWK struct {
 	Kty    string   `json:"kty"`     // Key Type (EC for Elliptic Curve)
 	Crv    string   `json:"crv"`     // Curve (P-256)
 	X      string   `json:"x"`       // X Coordinate
@@ -30,6 +54,22 @@ type P256JWK struct {
 	Alg    string   `json:"alg"`     // Algorithm (ES256 for P-256)
 	Kid    string   `json:"kid"`     // Key AccountID
 	KeyOps []string `json:"key_ops"` // Key Operations
+}
+
+func (j *ES256JWK) GetKeyType() string {
+	return j.Kty
+}
+
+func (j *ES256JWK) GetKeyID() string {
+	return j.Kid
+}
+
+func (j *ES256JWK) ToUsableKey() (interface{}, error) {
+	return DecodeP256Jwk(*j)
+}
+
+func (j *ES256JWK) ToJSON() ([]byte, error) {
+	return json.Marshal(j)
 }
 
 type RS256JWK struct {
@@ -79,8 +119,8 @@ func DecodeEd25519Jwk(jwk Ed25519JWK) (ed25519.PublicKey, error) {
 	return publicKey, nil
 }
 
-func EncodeP256Jwk(publicKey *ecdsa.PublicKey, kid string) P256JWK {
-	return P256JWK{
+func EncodeP256Jwk(publicKey *ecdsa.PublicKey, kid string) ES256JWK {
+	return ES256JWK{
 		Kty:    p256Kty,
 		Crv:    p256Crv,
 		X:      base64.RawURLEncoding.EncodeToString(publicKey.X.Bytes()),
@@ -92,7 +132,7 @@ func EncodeP256Jwk(publicKey *ecdsa.PublicKey, kid string) P256JWK {
 	}
 }
 
-func DecodeP256Jwk(jwk P256JWK) (ecdsa.PublicKey, error) {
+func DecodeP256Jwk(jwk ES256JWK) (ecdsa.PublicKey, error) {
 	x, err := base64.RawURLEncoding.DecodeString(jwk.X)
 	if err != nil {
 		return ecdsa.PublicKey{}, err

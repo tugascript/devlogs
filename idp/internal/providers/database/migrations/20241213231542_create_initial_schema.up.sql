@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-04-22T06:23:24.927Z
+-- Generated at: 2025-04-27T23:19:13.108Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -46,32 +46,10 @@ CREATE TABLE "auth_providers" (
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
 
-CREATE TABLE "apps" (
+CREATE TABLE "user_schemas" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
-  "name" varchar(50) NOT NULL,
-  "client_id" varchar(22) NOT NULL,
-  "client_secret" text NOT NULL,
-  "dek" text NOT NULL,
-  "callback_uris" varchar(250)[] NOT NULL DEFAULT '{}',
-  "logout_uris" varchar(250)[] NOT NULL DEFAULT '{}',
-  "user_scopes" jsonb NOT NULL DEFAULT '{ "email": true, "name": true }',
-  "app_providers" jsonb NOT NULL DEFAULT '{ "email_password": true }',
-  "id_token_ttl" integer NOT NULL DEFAULT 3600,
-  "jwt_crypto_suite" varchar(7) NOT NULL DEFAULT 'ES256',
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
-);
-
-CREATE TABLE "app_keys" (
-  "id" serial PRIMARY KEY,
-  "app_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
-  "name" varchar(10) NOT NULL,
-  "jwt_crypto_suite" varchar(5) NOT NULL,
-  "public_key" jsonb NOT NULL,
-  "private_key" text NOT NULL,
-  "is_distributed" boolean NOT NULL DEFAULT false,
+  "schema_data" jsonb NOT NULL DEFAULT '{ "first_name": { "type": "string", "unique": false, "required": true }, "last_name": { "type": "string", "unique": false, "required": true } }',
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
@@ -119,6 +97,48 @@ CREATE TABLE "user_credentials" (
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
 
+CREATE TABLE "apps" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "name" varchar(50) NOT NULL,
+  "client_id" varchar(22) NOT NULL,
+  "client_secret" text NOT NULL,
+  "dek" text NOT NULL,
+  "callback_uris" varchar(250)[] NOT NULL DEFAULT '{}',
+  "logout_uris" varchar(250)[] NOT NULL DEFAULT '{}',
+  "user_scopes" jsonb NOT NULL DEFAULT '{ "email": true }',
+  "app_providers" jsonb NOT NULL DEFAULT '{ "username_password": true }',
+  "username_column" varchar(50) NOT NULL DEFAULT 'email',
+  "profile_schema" jsonb NOT NULL DEFAULT '{}',
+  "id_token_ttl" integer NOT NULL DEFAULT 3600,
+  "jwt_crypto_suite" varchar(7) NOT NULL DEFAULT 'ES256',
+  "created_at" timestamp NOT NULL DEFAULT (now()),
+  "updated_at" timestamp NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "user_profiles" (
+  "id" serial PRIMARY KEY,
+  "user_id" integer NOT NULL,
+  "app_id" integer NOT NULL,
+  "profile_data" jsonb NOT NULL DEFAULT '{}',
+  "created_at" timestamp NOT NULL DEFAULT (now()),
+  "updated_at" timestamp NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "app_keys" (
+  "id" serial PRIMARY KEY,
+  "app_id" integer NOT NULL,
+  "account_id" integer NOT NULL,
+  "name" varchar(10) NOT NULL,
+  "jwt_crypto_suite" varchar(5) NOT NULL,
+  "public_kid" varchar(20) NOT NULL,
+  "public_key" jsonb NOT NULL,
+  "private_key" text NOT NULL,
+  "is_distributed" boolean NOT NULL DEFAULT false,
+  "created_at" timestamp NOT NULL DEFAULT (now()),
+  "updated_at" timestamp NOT NULL DEFAULT (now())
+);
+
 CREATE TABLE "blacklisted_tokens" (
   "id" uuid PRIMARY KEY,
   "expires_at" timestamp NOT NULL,
@@ -141,21 +161,7 @@ CREATE INDEX "auth_providers_email_idx" ON "auth_providers" ("email");
 
 CREATE UNIQUE INDEX "auth_providers_email_provider_uidx" ON "auth_providers" ("email", "provider");
 
-CREATE INDEX "apps_account_id_idx" ON "apps" ("account_id");
-
-CREATE UNIQUE INDEX "apps_client_id_uidx" ON "apps" ("client_id");
-
-CREATE INDEX "apps_name_idx" ON "apps" ("name");
-
-CREATE UNIQUE INDEX "apps_account_id_name_uidx" ON "apps" ("account_id", "name");
-
-CREATE INDEX "app_keys_app_id_idx" ON "app_keys" ("app_id");
-
-CREATE INDEX "app_keys_account_id_idx" ON "app_keys" ("account_id");
-
-CREATE UNIQUE INDEX "app_keys_name_app_id_uidx" ON "app_keys" ("name", "app_id");
-
-CREATE INDEX "app_keys_is_distributed_app_id_idx" ON "app_keys" ("is_distributed", "app_id");
+CREATE UNIQUE INDEX "user_schemas_account_id_uidx" ON "user_schemas" ("account_id");
 
 CREATE UNIQUE INDEX "users_account_id_email_uidx" ON "users" ("account_id", "email");
 
@@ -177,17 +183,37 @@ CREATE UNIQUE INDEX "user_credentials_user_id_uidx" ON "user_credentials" ("user
 
 CREATE INDEX "user_credentials_account_id_idx" ON "user_credentials" ("account_id");
 
+CREATE INDEX "apps_account_id_idx" ON "apps" ("account_id");
+
+CREATE UNIQUE INDEX "apps_client_id_uidx" ON "apps" ("client_id");
+
+CREATE INDEX "apps_name_idx" ON "apps" ("name");
+
+CREATE UNIQUE INDEX "apps_account_id_name_uidx" ON "apps" ("account_id", "name");
+
+CREATE INDEX "user_profiles_user_id_idx" ON "user_profiles" ("user_id");
+
+CREATE INDEX "user_profiles_app_id_idx" ON "user_profiles" ("app_id");
+
+CREATE UNIQUE INDEX "user_profiles_user_id_app_id_uidx" ON "user_profiles" ("user_id", "app_id");
+
+CREATE INDEX "app_keys_app_id_idx" ON "app_keys" ("app_id");
+
+CREATE INDEX "app_keys_account_id_idx" ON "app_keys" ("account_id");
+
+CREATE UNIQUE INDEX "app_keys_public_kid_uidx" ON "app_keys" ("public_kid");
+
+CREATE UNIQUE INDEX "app_keys_name_app_id_uidx" ON "app_keys" ("name", "app_id");
+
+CREATE INDEX "app_keys_is_distributed_app_id_idx" ON "app_keys" ("is_distributed", "app_id");
+
 ALTER TABLE "account_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "auth_providers" ADD FOREIGN KEY ("email") REFERENCES "accounts" ("email") ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "apps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "app_keys" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "app_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_schemas" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "users" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
@@ -200,3 +226,9 @@ ALTER TABLE "user_auth_providers" ADD FOREIGN KEY ("user_id") REFERENCES "users"
 ALTER TABLE "user_credentials" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "user_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "apps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "app_keys" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "app_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;

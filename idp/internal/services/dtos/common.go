@@ -22,10 +22,10 @@ func NewMessageDTO(msg string) MessageDTO {
 }
 
 type JWKsDTO struct {
-	Keys []utils.P256JWK `json:"keys"`
+	Keys []utils.ES256JWK `json:"keys"`
 }
 
-func NewJWKsDTO(jwks []utils.P256JWK) JWKsDTO {
+func NewJWKsDTO(jwks []utils.ES256JWK) JWKsDTO {
 	return JWKsDTO{Keys: jwks}
 }
 

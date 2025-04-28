@@ -16,4 +16,5 @@ func (r *Routes) AppsRoutes(app *fiber.App) {
 	router.Get(paths.AppsSingle, r.controllers.GetApp)
 	router.Put(paths.AppsSingle, appsWriteScope, r.controllers.UpdateApp)
 	router.Delete(paths.AppsSingle, appsWriteScope, r.controllers.DeleteApp)
+	router.Patch(paths.AppsRefreshSecret, appsWriteScope, r.controllers.RefreshAppSecret)
 }

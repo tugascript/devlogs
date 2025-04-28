@@ -258,6 +258,56 @@ func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.A
 	return dtos.MapAppToDTO(&appModel)
 }
 
+type UpdateAppSecretOptions struct {
+	RequestID string
+	AccountID int32
+	ClientID  string
+}
+
+func (s *Services) UpdateAppSecret(
+	ctx context.Context,
+	opts UpdateAppSecretOptions,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "RefreshAppSecret").With(
+		"accountId", opts.AccountID,
+		"clientId", opts.ClientID,
+	)
+	logger.InfoContext(ctx, "Updating app secret...")
+
+	app, serviceErr := s.GetAppByClientID(ctx, GetAppByClientIDOptions{
+		RequestID: opts.RequestID,
+		AccountID: opts.AccountID,
+		ClientID:  opts.ClientID,
+	})
+	if serviceErr != nil {
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	clientSecret, err := utils.GenerateBase64Secret(32)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate client secret", "error", err)
+		return dtos.AppDTO{}, exceptions.NewServerError()
+	}
+
+	hashedSecret, err := utils.HashString(clientSecret)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to hash client secret", "error", err)
+		return dtos.AppDTO{}, exceptions.NewServerError()
+	}
+
+	updatedApp, err := s.database.UpdateAppClientSecret(ctx, database.UpdateAppClientSecretParams{
+		ID:           int32(app.ID()),
+		ClientSecret: hashedSecret,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update app secret", "error", err)
+		return dtos.AppDTO{}, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "App secret updated successfully")
+	return dtos.MapAppToDTOWithSecret(&updatedApp, clientSecret)
+}
+
 type DeleteAppOptions struct {
 	RequestID string
 	AccountID int32

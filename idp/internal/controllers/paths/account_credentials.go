@@ -1,7 +1,7 @@
 package paths
 
 const (
-	AccountCredentialsBase string = "account/credentials"
+	AccountCredentialsBase string = "accounts/credentials"
 
 	AccountCredentialsSingle string = "/:clientID"
 

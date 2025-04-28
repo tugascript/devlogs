@@ -12,7 +12,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-type SupportedCryptoSuite = string
+type SupportedCryptoSuite string
 
 const (
 	SupportedCryptoSuiteEd25519 SupportedCryptoSuite = "EdDSA"
@@ -206,7 +206,7 @@ type Tokens struct {
 	resetData              TokenSecretData
 	oauthData              TokenSecretData
 	twoFAData              TokenSecretData
-	jwks                   []utils.P256JWK
+	jwks                   []utils.ES256JWK
 }
 
 func NewTokens(
@@ -231,7 +231,7 @@ func NewTokens(
 		accountCredentialsCfg.TtlSec(),
 	)
 
-	jwks := []utils.P256JWK{
+	jwks := []utils.ES256JWK{
 		utils.EncodeP256Jwk(accountKeysData.curKeyPair.publicKey, accountKeysData.curKeyPair.kid),
 		utils.EncodeP256Jwk(accessData.curKeyPair.publicKey, accessData.curKeyPair.kid),
 	}
@@ -288,7 +288,7 @@ func NewTokens(
 	}
 }
 
-func (t *Tokens) JWKs() []utils.P256JWK {
+func (t *Tokens) JWKs() []utils.ES256JWK {
 	return t.jwks
 }
 

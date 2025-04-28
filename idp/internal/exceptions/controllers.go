@@ -248,8 +248,8 @@ func ValidationErrorResponseFromErr(err *validator.ValidationErrors, location st
 	}
 }
 
-func NewValidationErrorResponse(location string, fields []FieldError) ValidationErrorResponse {
-	return ValidationErrorResponse{
+func NewValidationErrorResponse(location string, fields []FieldError) *ValidationErrorResponse {
+	return &ValidationErrorResponse{
 		Code:     StatusValidation,
 		Message:  ValidationResponseMessage,
 		Fields:   fields,
@@ -257,8 +257,8 @@ func NewValidationErrorResponse(location string, fields []FieldError) Validation
 	}
 }
 
-func NewEmptyValidationErrorResponse(location string) ValidationErrorResponse {
-	return ValidationErrorResponse{
+func NewEmptyValidationErrorResponse(location string) *ValidationErrorResponse {
+	return &ValidationErrorResponse{
 		Code:     StatusValidation,
 		Message:  ValidationResponseMessage,
 		Location: location,
