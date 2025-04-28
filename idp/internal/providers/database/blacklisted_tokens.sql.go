@@ -13,6 +13,7 @@ import (
 )
 
 const blacklistToken = `-- name: BlacklistToken :exec
+
 INSERT INTO "blacklisted_tokens" (
   "id",
   "expires_at"
@@ -27,6 +28,11 @@ type BlacklistTokenParams struct {
 	ExpiresAt pgtype.Timestamp
 }
 
+// Copyright (c) 2025 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) BlacklistToken(ctx context.Context, arg BlacklistTokenParams) error {
 	_, err := q.db.Exec(ctx, blacklistToken, arg.ID, arg.ExpiresAt)
 	return err

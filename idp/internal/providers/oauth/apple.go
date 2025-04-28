@@ -1,3 +1,9 @@
+// Copyright (c) 2025 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 package oauth
 
 import (
@@ -5,10 +11,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"io"
 	"net/http"
 	"slices"
+
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 
 	"github.com/golang-jwt/jwt/v5"
 

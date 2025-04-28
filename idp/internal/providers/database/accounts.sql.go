@@ -52,6 +52,7 @@ func (q *Queries) CountAccountAlikeUsernames(ctx context.Context, username strin
 }
 
 const createAccountWithPassword = `-- name: CreateAccountWithPassword :one
+
 INSERT INTO "accounts" (
     "first_name",
     "last_name",
@@ -75,6 +76,11 @@ type CreateAccountWithPasswordParams struct {
 	Password  pgtype.Text
 }
 
+// Copyright (c) 2025 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateAccountWithPassword(ctx context.Context, arg CreateAccountWithPasswordParams) (Account, error) {
 	row := q.db.QueryRow(ctx, createAccountWithPassword,
 		arg.FirstName,

@@ -1,3 +1,9 @@
+// Copyright (c) 2025 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 package tests
 
 import (
@@ -8,10 +14,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +21,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 
 	"github.com/go-faker/faker/v4"
 	"github.com/gofiber/fiber/v2"

@@ -59,6 +59,7 @@ func (q *Queries) CountFilteredAppsByNameAndByAccountID(ctx context.Context, arg
 }
 
 const createApp = `-- name: CreateApp :one
+
 INSERT INTO "apps" (
   "account_id",
   "name",
@@ -82,6 +83,11 @@ type CreateAppParams struct {
 	Dek          string
 }
 
+// Copyright (c) 2025 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, error) {
 	row := q.db.QueryRow(ctx, createApp,
 		arg.AccountID,

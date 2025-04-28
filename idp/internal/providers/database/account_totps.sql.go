@@ -10,6 +10,7 @@ import (
 )
 
 const createAccountTotps = `-- name: CreateAccountTotps :exec
+
 INSERT INTO "account_totps" (
   "account_id",
   "url",
@@ -33,6 +34,11 @@ type CreateAccountTotpsParams struct {
 	RecoveryCodes []byte
 }
 
+// Copyright (c) 2025 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateAccountTotps(ctx context.Context, arg CreateAccountTotpsParams) error {
 	_, err := q.db.Exec(ctx, createAccountTotps,
 		arg.AccountID,

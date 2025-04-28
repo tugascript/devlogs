@@ -1,3 +1,9 @@
+-- Copyright (c) 2025 Afonso Barracha
+-- 
+-- This Source Code Form is subject to the terms of the Mozilla Public
+-- License, v. 2.0. If a copy of the MPL was not distributed with this
+-- file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
 -- Generated at: 2025-04-27T23:19:13.108Z

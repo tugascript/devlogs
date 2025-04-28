@@ -96,11 +96,17 @@ func (q *Queries) DeleteAccountCredentials(ctx context.Context, clientID string)
 }
 
 const findAccountCredentialsByClientID = `-- name: FindAccountCredentialsByClientID :one
+
 SELECT id, account_id, scopes, alias, client_id, client_secret, created_at, updated_at FROM "account_credentials"
 WHERE "client_id" = $1
 LIMIT 1
 `
 
+// Copyright (c) 2025 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) FindAccountCredentialsByClientID(ctx context.Context, clientID string) (AccountCredential, error) {
 	row := q.db.QueryRow(ctx, findAccountCredentialsByClientID, clientID)
 	var i AccountCredential

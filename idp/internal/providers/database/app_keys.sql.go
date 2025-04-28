@@ -71,10 +71,16 @@ func (q *Queries) CreateAppKey(ctx context.Context, arg CreateAppKeyParams) (App
 }
 
 const deleteDistributedAppKeysByAppID = `-- name: DeleteDistributedAppKeysByAppID :exec
+
 DELETE FROM "app_keys"
 WHERE "app_id" = $1 AND "is_distributed" = true
 `
 
+// Copyright (c) 2025 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) DeleteDistributedAppKeysByAppID(ctx context.Context, appID int32) error {
 	_, err := q.db.Exec(ctx, deleteDistributedAppKeysByAppID, appID)
 	return err

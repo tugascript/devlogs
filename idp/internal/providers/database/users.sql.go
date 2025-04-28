@@ -68,6 +68,7 @@ func (q *Queries) CreateUserWithPassword(ctx context.Context, arg CreateUserWith
 }
 
 const createUserWithoutPassword = `-- name: CreateUserWithoutPassword :one
+
 INSERT INTO "users" (
     "account_id",
     "email",
@@ -85,6 +86,11 @@ type CreateUserWithoutPasswordParams struct {
 	UserData  []byte
 }
 
+// Copyright (c) 2025 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateUserWithoutPassword(ctx context.Context, arg CreateUserWithoutPasswordParams) (User, error) {
 	row := q.db.QueryRow(ctx, createUserWithoutPassword, arg.AccountID, arg.Email, arg.UserData)
 	var i User
