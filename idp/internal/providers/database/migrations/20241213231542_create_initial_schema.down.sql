@@ -1,6 +1,8 @@
 DROP TABLE IF EXISTS "user_auth_providers";
 DROP TABLE IF EXISTS "user_totps";
 DROP TABLE IF EXISTS "users";
+DROP TABLE IF EXISTS "user_schemas";
+DROP TABLE IF EXISTS "user_profiles";
 DROP TABLE IF EXISTS "app_keys";
 DROP TABLE IF EXISTS "apps";
 DROP TABLE IF EXISTS "auth_providers";

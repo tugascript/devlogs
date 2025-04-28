@@ -12,17 +12,10 @@ import (
 
 const userSchemasLocation string = "user_schemas"
 
-type UserSchemaField struct {
-	Type     string `json:"type"`
-	Unique   bool   `json:"unique"`
-	Required bool   `json:"required"`
-	Default  any    `json:"default,omitempty"`
-}
-
 type CreateUserSchemaOptions struct {
 	RequestID string
 	AccountID int32
-	Schema    map[string]UserSchemaField
+	Schema    map[string]SchemaField
 }
 
 func (s *Services) CreateUserSchema(
@@ -134,12 +127,12 @@ func (s *Services) GetOrCreateUserSchema(
 type UpdateUserSchemaOptions struct {
 	RequestID string
 	AccountID int32
-	Schema    map[string]UserSchemaField
+	Schema    map[string]SchemaField
 }
 
 func getRemovedFields(
 	schemaDTO dtos.UserSchemaDTO,
-	newSchema map[string]UserSchemaField,
+	newSchema map[string]SchemaField,
 ) []string {
 	removedFields := make([]string, 0)
 	for fieldName := range schemaDTO {
@@ -152,7 +145,7 @@ func getRemovedFields(
 
 func getModifiedUniqueAndRequiredFields(
 	schemaDTO dtos.UserSchemaDTO,
-	newSchema map[string]UserSchemaField,
+	newSchema map[string]SchemaField,
 ) []string {
 	modifiedUniqueAndRequiredFields := make([]string, 0)
 	for fieldName, field := range newSchema {
@@ -267,7 +260,7 @@ type updateUserSchemaAndUserOptions struct {
 	requestID     string
 	accountID     int32
 	schemaID      int32
-	schema        map[string]UserSchemaField
+	schema        map[string]SchemaField
 	removedFields []string
 }
 
