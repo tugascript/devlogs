@@ -9,6 +9,8 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"reflect"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -27,7 +29,7 @@ type CreateUserSchemaOptions struct {
 func (s *Services) CreateUserSchema(
 	ctx context.Context,
 	opts CreateUserSchemaOptions,
-) (dtos.UserSchemaDTO, *exceptions.ServiceError) {
+) (dtos.SchemaDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, userSchemasLocation, "CreateUserSchema").With(
 		"accountId", opts.AccountID,
 	)
@@ -36,17 +38,17 @@ func (s *Services) CreateUserSchema(
 	count, err := s.database.CountUserSchemasByAccountID(ctx, opts.AccountID)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count user schemas by account id", "error", err)
-		return dtos.UserSchemaDTO{}, exceptions.FromDBError(err)
+		return dtos.SchemaDTO{}, exceptions.FromDBError(err)
 	}
 	if count > 0 {
 		logger.ErrorContext(ctx, "User schema already exists", "error", err)
-		return dtos.UserSchemaDTO{}, exceptions.NewConflictError("User schema already exists")
+		return dtos.SchemaDTO{}, exceptions.NewConflictError("User schema already exists")
 	}
 
 	schemaData, err := json.Marshal(opts.Schema)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to marshal user schema", "error", err)
-		return dtos.UserSchemaDTO{}, exceptions.NewServerError()
+		return dtos.SchemaDTO{}, exceptions.NewServerError()
 	}
 
 	schema, err := s.database.CreateUserSchema(ctx, database.CreateUserSchemaParams{
@@ -55,7 +57,7 @@ func (s *Services) CreateUserSchema(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create user schema", "error", err)
-		return dtos.UserSchemaDTO{}, exceptions.FromDBError(err)
+		return dtos.SchemaDTO{}, exceptions.FromDBError(err)
 	}
 
 	logger.InfoContext(ctx, "User schema created successfully")
@@ -70,7 +72,7 @@ type GetOrCreateUserSchemaOptions struct {
 func (s *Services) GetUserSchemaByAccountID(
 	ctx context.Context,
 	opts GetOrCreateUserSchemaOptions,
-) (dtos.UserSchemaDTO, int32, *exceptions.ServiceError) {
+) (dtos.SchemaDTO, int32, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, userSchemasLocation, "GetUserSchemaByAccountID").With(
 		"accountId", opts.AccountID,
 	)
@@ -79,7 +81,7 @@ func (s *Services) GetUserSchemaByAccountID(
 	schema, err := s.database.FindUserSchemaByAccountID(ctx, opts.AccountID)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to find user schema", "error", err)
-		return dtos.UserSchemaDTO{}, 0, exceptions.FromDBError(err)
+		return dtos.SchemaDTO{}, 0, exceptions.FromDBError(err)
 	}
 
 	logger.InfoContext(ctx, "User schema found")
@@ -90,7 +92,7 @@ func (s *Services) GetUserSchemaByAccountID(
 func (s *Services) createDefaultUserSchema(
 	ctx context.Context,
 	opts GetOrCreateUserSchemaOptions,
-) (dtos.UserSchemaDTO, *exceptions.ServiceError) {
+) (dtos.SchemaDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, userSchemasLocation, "createDefaultUserSchema").With(
 		"accountId", opts.AccountID,
 	)
@@ -99,7 +101,7 @@ func (s *Services) createDefaultUserSchema(
 	schema, err := s.database.CreateDefaultUserSchema(ctx, opts.AccountID)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create default user schema", "error", err)
-		return dtos.UserSchemaDTO{}, exceptions.FromDBError(err)
+		return dtos.SchemaDTO{}, exceptions.FromDBError(err)
 	}
 
 	logger.InfoContext(ctx, "Default user schema created successfully")
@@ -109,7 +111,7 @@ func (s *Services) createDefaultUserSchema(
 func (s *Services) GetOrCreateUserSchema(
 	ctx context.Context,
 	opts GetOrCreateUserSchemaOptions,
-) (dtos.UserSchemaDTO, *exceptions.ServiceError) {
+) (dtos.SchemaDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, userSchemasLocation, "GetOrCreateUserSchema").With(
 		"accountId", opts.AccountID,
 	)
@@ -119,7 +121,7 @@ func (s *Services) GetOrCreateUserSchema(
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
 			logger.ErrorContext(ctx, "Failed to get user schema", "error", serviceErr)
-			return dtos.UserSchemaDTO{}, serviceErr
+			return dtos.SchemaDTO{}, serviceErr
 		}
 
 		logger.DebugContext(ctx, "User schema not found, creating new one")
@@ -137,7 +139,7 @@ type UpdateUserSchemaOptions struct {
 }
 
 func getRemovedFields(
-	schemaDTO dtos.UserSchemaDTO,
+	schemaDTO dtos.SchemaDTO,
 	newSchema map[string]SchemaField,
 ) []string {
 	removedFields := make([]string, 0)
@@ -150,7 +152,7 @@ func getRemovedFields(
 }
 
 func getModifiedUniqueAndRequiredFields(
-	schemaDTO dtos.UserSchemaDTO,
+	schemaDTO dtos.SchemaDTO,
 	newSchema map[string]SchemaField,
 ) []string {
 	modifiedUniqueAndRequiredFields := make([]string, 0)
@@ -164,7 +166,7 @@ func getModifiedUniqueAndRequiredFields(
 	return modifiedUniqueAndRequiredFields
 }
 
-func getUniqueRequiredFields(schemaDTO dtos.UserSchemaDTO, removedFields []string) []string {
+func getUniqueRequiredFields(schemaDTO dtos.SchemaDTO, removedFields []string) []string {
 	uniqueRequiredFields := make([]string, 0)
 	for _, field := range removedFields {
 		if schemaDTO[field].Unique && schemaDTO[field].Required {
@@ -187,7 +189,7 @@ func getUsernameCandidateFields(
 func (s *Services) validateUsernameCandidateFieldsWithRemoved(
 	ctx context.Context,
 	opts UpdateUserSchemaOptions,
-	schemaDTO dtos.UserSchemaDTO,
+	schemaDTO dtos.SchemaDTO,
 ) ([]string, *exceptions.ServiceError) {
 	logger := s.buildLogger(
 		opts.RequestID,
@@ -238,7 +240,7 @@ func (s *Services) validateUsernameCandidateFieldsWithRemoved(
 func (s *Services) validateNewFields(
 	ctx context.Context,
 	opts UpdateUserSchemaOptions,
-	schemaDTO dtos.UserSchemaDTO,
+	schemaDTO dtos.SchemaDTO,
 ) *exceptions.ServiceError {
 	logger := s.buildLogger(opts.RequestID, userSchemasLocation, "validateNewFields").With(
 		"accountId", opts.AccountID,
@@ -273,7 +275,7 @@ type updateUserSchemaAndUserOptions struct {
 func (s *Services) updateUserSchemaAndUser(
 	ctx context.Context,
 	opts updateUserSchemaAndUserOptions,
-) (dtos.UserSchemaDTO, *exceptions.ServiceError) {
+) (dtos.SchemaDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, userSchemasLocation, "updateUserSchemaAndUser").With(
 		"accountId", opts.accountID,
 		"schemaId", opts.schemaID,
@@ -284,7 +286,7 @@ func (s *Services) updateUserSchemaAndUser(
 	qrs, txn, err := s.database.BeginTx(ctx)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-		return dtos.UserSchemaDTO{}, exceptions.FromDBError(err)
+		return dtos.SchemaDTO{}, exceptions.FromDBError(err)
 	}
 	defer func() {
 		logger.DebugContext(ctx, "Finalizing transaction")
@@ -294,7 +296,7 @@ func (s *Services) updateUserSchemaAndUser(
 	schemaJSON, err := json.Marshal(opts.schema)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to marshal user schema", "error", err)
-		return dtos.UserSchemaDTO{}, exceptions.NewServerError()
+		return dtos.SchemaDTO{}, exceptions.NewServerError()
 	}
 
 	schema, err := qrs.UpdateUserSchema(ctx, database.UpdateUserSchemaParams{
@@ -303,7 +305,7 @@ func (s *Services) updateUserSchemaAndUser(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update user schema", "error", err)
-		return dtos.UserSchemaDTO{}, exceptions.FromDBError(err)
+		return dtos.SchemaDTO{}, exceptions.FromDBError(err)
 	}
 	if err := qrs.RemoveUserUserDataFields(ctx, database.RemoveUserUserDataFieldsParams{
 		AccountID: opts.accountID,
@@ -318,7 +320,7 @@ func (s *Services) updateUserSchemaAndUser(
 func (s *Services) UpdateUserSchema(
 	ctx context.Context,
 	opts UpdateUserSchemaOptions,
-) (dtos.UserSchemaDTO, *exceptions.ServiceError) {
+) (dtos.SchemaDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, userSchemasLocation, "UpdateUserSchema").With(
 		"accountId", opts.AccountID,
 	)
@@ -329,24 +331,24 @@ func (s *Services) UpdateUserSchema(
 		AccountID: opts.AccountID,
 	})
 	if serviceErr != nil {
-		return dtos.UserSchemaDTO{}, serviceErr
+		return dtos.SchemaDTO{}, serviceErr
 	}
 
 	removedFields, serviceErr := s.validateUsernameCandidateFieldsWithRemoved(ctx, opts, schemaDTO)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to validate removed fields", "error", serviceErr)
-		return dtos.UserSchemaDTO{}, serviceErr
+		return dtos.SchemaDTO{}, serviceErr
 	}
 
 	count, err := s.database.CountUsersByAccountID(ctx, opts.AccountID)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count users by account id", "error", err)
-		return dtos.UserSchemaDTO{}, exceptions.FromDBError(err)
+		return dtos.SchemaDTO{}, exceptions.FromDBError(err)
 	}
 	if count > 0 {
 		logger.InfoContext(ctx, "User schema has users, validating removed fields")
 		if serviceErr := s.validateNewFields(ctx, opts, schemaDTO); serviceErr != nil {
-			return dtos.UserSchemaDTO{}, serviceErr
+			return dtos.SchemaDTO{}, serviceErr
 		}
 		if len(removedFields) > 0 {
 			return s.updateUserSchemaAndUser(ctx, updateUserSchemaAndUserOptions{
@@ -362,7 +364,7 @@ func (s *Services) UpdateUserSchema(
 	schemaJSON, err := json.Marshal(opts.Schema)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to marshal user schema", "error", err)
-		return dtos.UserSchemaDTO{}, exceptions.NewServerError()
+		return dtos.SchemaDTO{}, exceptions.NewServerError()
 	}
 
 	schema, err := s.database.UpdateUserSchema(ctx, database.UpdateUserSchemaParams{
@@ -371,9 +373,40 @@ func (s *Services) UpdateUserSchema(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update user schema", "error", err)
-		return dtos.UserSchemaDTO{}, exceptions.FromDBError(err)
+		return dtos.SchemaDTO{}, exceptions.FromDBError(err)
 	}
 
 	logger.InfoContext(ctx, "User schema updated successfully")
 	return dtos.MapUserSchemaToDTO(&schema)
+}
+
+func (s *Services) GetUserSchemaStruct(
+	ctx context.Context,
+	opts GetOrCreateUserSchemaOptions,
+) (dtos.SchemaDTO, reflect.Type, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, userSchemasLocation, "GetUserSchemaStruct").With(
+		"accountId", opts.AccountID,
+	)
+	logger.InfoContext(ctx, "Getting user schema struct...")
+
+	schema, _, serviceErr := s.GetUserSchemaByAccountID(ctx, opts)
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to get user schema", "error", serviceErr)
+		return dtos.SchemaDTO{}, nil, serviceErr
+	}
+
+	fields := make([]reflect.StructField, 0, len(schema))
+	for fieldName, field := range schema {
+		fields = append(fields, reflect.StructField{
+			Name: GetSchemaFieldStructName(fieldName),
+			Type: GetSchemaFieldType(field.Type),
+			Tag: reflect.StructTag(
+				fmt.Sprintf("json:\"%s\" validate:\"%s\"", fieldName, field.Validate),
+			),
+			Anonymous: false,
+		})
+	}
+
+	logger.InfoContext(ctx, "User schema struct retrieved successfully")
+	return schema, reflect.StructOf(fields), nil
 }

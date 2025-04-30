@@ -60,9 +60,9 @@ WHERE "email" = $1 LIMIT 1;
 SELECT * FROM "accounts"
 WHERE "id" = $1 LIMIT 1;
 
--- name: CountAccountAlikeUsernames :one
+-- name: CountAccountByUsername :one
 SELECT COUNT("id") FROM "accounts"
-WHERE "username" ILIKE $1 LIMIT 1;
+WHERE "username" = $1 LIMIT 1;
 
 -- name: ConfirmAccount :one
 UPDATE "accounts" SET
@@ -86,3 +86,12 @@ DELETE FROM "accounts";
 -- name: DeleteAccount :exec
 DELETE FROM "accounts"
 WHERE "id" = $1;
+
+-- name: UpdateAccount :one
+UPDATE "accounts" SET
+    "first_name" = $1,
+    "last_name" = $2,
+    "username" = $3,
+    "updated_at" = now()
+WHERE "id" = $4
+RETURNING *;

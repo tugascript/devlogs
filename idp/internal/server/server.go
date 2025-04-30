@@ -82,6 +82,7 @@ func New(
 		tokensCfg.Reset(),
 		tokensCfg.OAuth(),
 		tokensCfg.TwoFA(),
+		tokensCfg.Apps(),
 		cfg.FrontendDomain(),
 		cfg.BackendDomain(),
 	)

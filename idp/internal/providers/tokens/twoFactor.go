@@ -27,7 +27,7 @@ func (t *Tokens) Create2FAToken(opts AccountTokenOptions) (string, error) {
 
 func (t *Tokens) Verify2FAToken(token string) (AccountClaims, []AccountScope, error) {
 	claims, err := verifyToken(token, func(token *jwt.Token) (interface{}, error) {
-		kid, err := extractUserTokenKID(token)
+		kid, err := extractTokenKID(token)
 		if err != nil {
 			return nil, err
 		}

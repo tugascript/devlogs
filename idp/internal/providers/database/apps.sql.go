@@ -63,6 +63,8 @@ const createApp = `-- name: CreateApp :one
 INSERT INTO "apps" (
   "account_id",
   "name",
+  "username_column",
+  "profile_schema",
   "client_id",
   "client_secret",
   "dek"
@@ -71,16 +73,20 @@ INSERT INTO "apps" (
   $2,
   $3,
   $4,
-  $5
+  $5,
+  $6,
+  $7
 ) RETURNING id, account_id, name, client_id, client_secret, dek, callback_uris, logout_uris, user_scopes, app_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at
 `
 
 type CreateAppParams struct {
-	AccountID    int32
-	Name         string
-	ClientID     string
-	ClientSecret string
-	Dek          string
+	AccountID      int32
+	Name           string
+	UsernameColumn string
+	ProfileSchema  []byte
+	ClientID       string
+	ClientSecret   string
+	Dek            string
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -90,6 +96,62 @@ type CreateAppParams struct {
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, error) {
 	row := q.db.QueryRow(ctx, createApp,
+		arg.AccountID,
+		arg.Name,
+		arg.UsernameColumn,
+		arg.ProfileSchema,
+		arg.ClientID,
+		arg.ClientSecret,
+		arg.Dek,
+	)
+	var i App
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Name,
+		&i.ClientID,
+		&i.ClientSecret,
+		&i.Dek,
+		&i.CallbackUris,
+		&i.LogoutUris,
+		&i.UserScopes,
+		&i.AppProviders,
+		&i.UsernameColumn,
+		&i.ProfileSchema,
+		&i.IDTokenTtl,
+		&i.JwtCryptoSuite,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createDefaultApp = `-- name: CreateDefaultApp :one
+INSERT INTO "apps" (
+    "account_id",
+    "name",
+    "client_id",
+    "client_secret",
+    "dek"
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5
+) RETURNING id, account_id, name, client_id, client_secret, dek, callback_uris, logout_uris, user_scopes, app_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at
+`
+
+type CreateDefaultAppParams struct {
+	AccountID    int32
+	Name         string
+	ClientID     string
+	ClientSecret string
+	Dek          string
+}
+
+func (q *Queries) CreateDefaultApp(ctx context.Context, arg CreateDefaultAppParams) (App, error) {
+	row := q.db.QueryRow(ctx, createDefaultApp,
 		arg.AccountID,
 		arg.Name,
 		arg.ClientID,

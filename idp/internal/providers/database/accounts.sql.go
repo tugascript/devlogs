@@ -39,13 +39,13 @@ func (q *Queries) ConfirmAccount(ctx context.Context, id int32) (Account, error)
 	return i, err
 }
 
-const countAccountAlikeUsernames = `-- name: CountAccountAlikeUsernames :one
+const countAccountByUsername = `-- name: CountAccountByUsername :one
 SELECT COUNT("id") FROM "accounts"
-WHERE "username" ILIKE $1 LIMIT 1
+WHERE "username" = $1 LIMIT 1
 `
 
-func (q *Queries) CountAccountAlikeUsernames(ctx context.Context, username string) (int64, error) {
-	row := q.db.QueryRow(ctx, countAccountAlikeUsernames, username)
+func (q *Queries) CountAccountByUsername(ctx context.Context, username string) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccountByUsername, username)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -205,6 +205,47 @@ WHERE "id" = $1 LIMIT 1
 
 func (q *Queries) FindAccountById(ctx context.Context, id int32) (Account, error) {
 	row := q.db.QueryRow(ctx, findAccountById, id)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Username,
+		&i.Email,
+		&i.Password,
+		&i.Version,
+		&i.IsConfirmed,
+		&i.TwoFactorType,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAccount = `-- name: UpdateAccount :one
+UPDATE "accounts" SET
+    "first_name" = $1,
+    "last_name" = $2,
+    "username" = $3,
+    "updated_at" = now()
+WHERE "id" = $4
+RETURNING id, first_name, last_name, username, email, password, version, is_confirmed, two_factor_type, created_at, updated_at
+`
+
+type UpdateAccountParams struct {
+	FirstName string
+	LastName  string
+	Username  string
+	ID        int32
+}
+
+func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error) {
+	row := q.db.QueryRow(ctx, updateAccount,
+		arg.FirstName,
+		arg.LastName,
+		arg.Username,
+		arg.ID,
+	)
 	var i Account
 	err := row.Scan(
 		&i.ID,

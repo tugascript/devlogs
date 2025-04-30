@@ -1,18 +1,12 @@
--- Copyright (c) 2025 Afonso Barracha
--- 
--- This Source Code Form is subject to the terms of the Mozilla Public
--- License, v. 2.0. If a copy of the MPL was not distributed with this
--- file, You can obtain one at https://mozilla.org/MPL/2.0/.
-
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-04-27T23:19:13.108Z
+-- Generated at: 2025-04-30T07:38:47.987Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
   "first_name" varchar(50) NOT NULL,
   "last_name" varchar(50) NOT NULL,
-  "username" varchar(109) NOT NULL,
+  "username" varchar(100) NOT NULL,
   "email" varchar(250) NOT NULL,
   "password" text,
   "version" integer NOT NULL DEFAULT 1,
@@ -55,7 +49,7 @@ CREATE TABLE "auth_providers" (
 CREATE TABLE "user_schemas" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
-  "schema_data" jsonb NOT NULL DEFAULT '{ "first_name": { "type": "string", "unique": false, "required": true }, "last_name": { "type": "string", "unique": false, "required": true } }',
+  "schema_data" jsonb NOT NULL DEFAULT '{ "first_name": { "type": "string", "unique": false, "required": true, "validate": "required,min=2,max=50" }, "last_name": { "type": "string", "unique": false, "required": true, "validate": "required,min=2,max=50" } }',
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
@@ -64,8 +58,10 @@ CREATE TABLE "users" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "email" varchar(250) NOT NULL,
+  "username" varchar(100) NOT NULL,
   "password" text,
   "version" integer NOT NULL DEFAULT 1,
+  "is_confirmed" boolean NOT NULL DEFAULT false,
   "two_factor_type" varchar(5) NOT NULL DEFAULT 'none',
   "user_data" jsonb NOT NULL DEFAULT '{}',
   "created_at" timestamp NOT NULL DEFAULT (now()),
@@ -112,9 +108,9 @@ CREATE TABLE "apps" (
   "dek" text NOT NULL,
   "callback_uris" varchar(250)[] NOT NULL DEFAULT '{}',
   "logout_uris" varchar(250)[] NOT NULL DEFAULT '{}',
-  "user_scopes" jsonb NOT NULL DEFAULT '{ "email": true }',
+  "user_scopes" jsonb NOT NULL DEFAULT '{ "email": true, "openid": true, "profile": true, "read:app_profile": true }',
   "app_providers" jsonb NOT NULL DEFAULT '{ "username_password": true }',
-  "username_column" varchar(50) NOT NULL DEFAULT 'email',
+  "username_column" varchar(8) NOT NULL DEFAULT 'email',
   "profile_schema" jsonb NOT NULL DEFAULT '{}',
   "id_token_ttl" integer NOT NULL DEFAULT 3600,
   "jwt_crypto_suite" varchar(7) NOT NULL DEFAULT 'ES256',
@@ -122,7 +118,7 @@ CREATE TABLE "apps" (
   "updated_at" timestamp NOT NULL DEFAULT (now())
 );
 
-CREATE TABLE "user_profiles" (
+CREATE TABLE "app_profiles" (
   "id" serial PRIMARY KEY,
   "user_id" integer NOT NULL,
   "app_id" integer NOT NULL,
@@ -171,6 +167,8 @@ CREATE UNIQUE INDEX "user_schemas_account_id_uidx" ON "user_schemas" ("account_i
 
 CREATE UNIQUE INDEX "users_account_id_email_uidx" ON "users" ("account_id", "email");
 
+CREATE UNIQUE INDEX "users_account_id_username_uidx" ON "users" ("account_id", "username");
+
 CREATE INDEX "users_account_id_idx" ON "users" ("account_id");
 
 CREATE UNIQUE INDEX "user_totps_user_id_uidx" ON "user_totps" ("user_id");
@@ -179,7 +177,7 @@ CREATE INDEX "user_auth_provider_email_idx" ON "user_auth_providers" ("email");
 
 CREATE INDEX "user_auth_provider_user_id_idx" ON "user_auth_providers" ("user_id");
 
-CREATE UNIQUE INDEX "user_auth_provider_account_id_provider_uidx" ON "user_auth_providers" ("email", "account_id", "provider");
+CREATE UNIQUE INDEX "user_auth_provider_user_id_provider_uidx" ON "user_auth_providers" ("user_id", "provider");
 
 CREATE INDEX "user_auth_provider_account_id_idx" ON "user_auth_providers" ("account_id");
 
@@ -195,13 +193,15 @@ CREATE UNIQUE INDEX "apps_client_id_uidx" ON "apps" ("client_id");
 
 CREATE INDEX "apps_name_idx" ON "apps" ("name");
 
+CREATE INDEX "apps_username_column_idx" ON "apps" ("username_column");
+
 CREATE UNIQUE INDEX "apps_account_id_name_uidx" ON "apps" ("account_id", "name");
 
-CREATE INDEX "user_profiles_user_id_idx" ON "user_profiles" ("user_id");
+CREATE INDEX "user_profiles_user_id_idx" ON "app_profiles" ("user_id");
 
-CREATE INDEX "user_profiles_app_id_idx" ON "user_profiles" ("app_id");
+CREATE INDEX "user_profiles_app_id_idx" ON "app_profiles" ("app_id");
 
-CREATE UNIQUE INDEX "user_profiles_user_id_app_id_uidx" ON "user_profiles" ("user_id", "app_id");
+CREATE UNIQUE INDEX "user_profiles_user_id_app_id_uidx" ON "app_profiles" ("user_id", "app_id");
 
 CREATE INDEX "app_keys_app_id_idx" ON "app_keys" ("app_id");
 
@@ -234,6 +234,10 @@ ALTER TABLE "user_credentials" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("
 ALTER TABLE "user_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "apps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "app_profiles" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "app_profiles" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_keys" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 

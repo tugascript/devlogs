@@ -78,6 +78,15 @@ type AppKey struct {
 	UpdatedAt      pgtype.Timestamp
 }
 
+type AppProfile struct {
+	ID          int32
+	UserID      int32
+	AppID       int32
+	ProfileData []byte
+	CreatedAt   pgtype.Timestamp
+	UpdatedAt   pgtype.Timestamp
+}
+
 type AuthProvider struct {
 	ID        int32
 	Email     string
@@ -96,8 +105,10 @@ type User struct {
 	ID            int32
 	AccountID     int32
 	Email         string
+	Username      string
 	Password      pgtype.Text
 	Version       int32
+	IsConfirmed   bool
 	TwoFactorType string
 	UserData      []byte
 	CreatedAt     pgtype.Timestamp
@@ -122,15 +133,6 @@ type UserCredential struct {
 	AccountID    int32
 	CreatedAt    pgtype.Timestamp
 	UpdatedAt    pgtype.Timestamp
-}
-
-type UserProfile struct {
-	ID          int32
-	UserID      int32
-	AppID       int32
-	ProfileData []byte
-	CreatedAt   pgtype.Timestamp
-	UpdatedAt   pgtype.Timestamp
 }
 
 type UserSchema struct {

@@ -2,7 +2,7 @@ Table accounts as A {
     id serial [pk]
     first_name varchar(50) [not null]
     last_name varchar(50) [not null]
-    username varchar(109) [not null]
+    username varchar(100) [not null]
     email varchar(250) [not null]
     password text
     version integer [not null, default: 1]
@@ -80,7 +80,7 @@ Table user_schemas as US {
 
     account_id integer [not null]
 
-    schema_data jsonb [not null, default: '{ "first_name": { "type": "string", "unique": false, "required": true }, "last_name": { "type": "string", "unique": false, "required": true } }']
+    schema_data jsonb [not null, default: '{ "first_name": { "type": "string", "unique": false, "required": true, "validate": "required,min=2,max=50" }, "last_name": { "type": "string", "unique": false, "required": true, "validate": "required,min=2,max=50" } }']
 
     created_at timestamp [not null, default: `now()`]
     updated_at timestamp [not null, default: `now()`]
@@ -97,8 +97,10 @@ Table users as U {
     account_id integer [not null]
 
     email varchar(250) [not null]
+    username varchar(100) [not null]
     password text
     version integer [not null, default: 1]
+    is_confirmed boolean [not null, default: false]
     two_factor_type varchar(5) [not null, default: 'none']
 
     user_data jsonb [not null, default: '{}']
@@ -108,6 +110,7 @@ Table users as U {
 
     Indexes {
         (account_id, email) [unique, name: 'users_account_id_email_uidx']
+        (account_id, username) [unique, name: 'users_account_id_username_uidx']
         (account_id) [name: 'users_account_id_idx']
     }
 }
@@ -146,7 +149,7 @@ Table user_auth_providers as UAP {
     Indexes {
         email [name: 'user_auth_provider_email_idx']
         user_id [name: 'user_auth_provider_user_id_idx']
-        (email, account_id, provider) [unique, name: 'user_auth_provider_account_id_provider_uidx']
+        (user_id, provider) [unique, name: 'user_auth_provider_user_id_provider_uidx']
         (account_id) [name: 'user_auth_provider_account_id_idx']
     }
 }
@@ -188,9 +191,9 @@ Table apps as APP {
     callback_uris "varchar(250)[]" [not null, default: '{}']
     logout_uris "varchar(250)[]" [not null, default: '{}']
 
-    user_scopes jsonb [not null, default: '{ "email": true }']
+    user_scopes jsonb [not null, default: '{ "email": true, "openid": true, "profile": true, "read:app_profile": true }']
     app_providers jsonb [not null, default: '{ "username_password": true }']
-    username_column varchar(50) [not null, default: 'email']
+    username_column varchar(8) [not null, default: 'email']
     profile_schema jsonb [not null, default: '{}']
 
     id_token_ttl integer [not null, default: 3600]
@@ -210,7 +213,7 @@ Table apps as APP {
 }
 Ref: APP.account_id > A.id [delete: cascade]
 
-Table user_profiles as UP {
+Table app_profiles as AUP {
     id serial [pk]
 
     user_id integer [not null]
@@ -227,6 +230,8 @@ Table user_profiles as UP {
         (user_id, app_id) [unique, name: 'user_profiles_user_id_app_id_uidx']
     }
 }
+Ref: AUP.user_id > U.id [delete: cascade]
+Ref: AUP.app_id > APP.id [delete: cascade]
 
 Table app_keys as AK {
     id serial [pk]

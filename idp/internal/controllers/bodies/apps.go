@@ -7,7 +7,8 @@
 package bodies
 
 type CreateAppBody struct {
-	Name string `json:"name" validate:"required,max=50,min=3,alphanum"`
+	Name          string `json:"name" validate:"required,max=50,min=3,alphanum"`
+	UsernameField string `json:"username_field,omitempty" validate:"optional,oneof=email username both"`
 }
 
 type UpdateAppBody struct {

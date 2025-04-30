@@ -8,6 +8,8 @@
 INSERT INTO "apps" (
   "account_id",
   "name",
+  "username_column",
+  "profile_schema",
   "client_id",
   "client_secret",
   "dek"
@@ -16,8 +18,26 @@ INSERT INTO "apps" (
   $2,
   $3,
   $4,
-  $5
+  $5,
+  $6,
+  $7
 ) RETURNING *;
+
+-- name: CreateDefaultApp :one
+INSERT INTO "apps" (
+    "account_id",
+    "name",
+    "client_id",
+    "client_secret",
+    "dek"
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5
+) RETURNING *;
+
 
 -- name: CountAppsByNameAndAccountID :one
 SELECT COUNT("id") FROM "apps"

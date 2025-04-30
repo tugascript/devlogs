@@ -15,12 +15,6 @@ import (
 
 const (
 	userSchemasLocation string = "user_schemas"
-
-	snakeCaseRegex = `^[a-z]+(_[a-z]+)*$`
-
-	snakeCaseErrorMessage       = "must be in snake_case format"
-	userSchemaFieldErrorMessage = "must be either string, int, float or bool"
-	defaultValueErrorMessage    = "default value must be of the same type as the field type"
 )
 
 func (c *Controllers) CreateUserSchema(ctx *fiber.Ctx) error {
@@ -99,6 +93,7 @@ func (c *Controllers) UpdateUserSchema(ctx *fiber.Ctx) error {
 
 	schema, errorRes := c.ValidateSchemaBody(ctx.UserContext(), body)
 	if errorRes != nil {
+		logger.WarnContext(ctx.UserContext(), "invalid schema body", errorRes)
 		logResponse(logger, ctx, fiber.StatusBadRequest)
 		return ctx.Status(fiber.StatusBadRequest).JSON(errorRes)
 	}

@@ -24,65 +24,64 @@ func (q *Queries) CountUsersByAccountID(ctx context.Context, accountID int32) (i
 	return count, err
 }
 
+const countUsersByEmailAndAccountID = `-- name: CountUsersByEmailAndAccountID :one
+SELECT COUNT("id") FROM "users"
+WHERE "email" = $1 AND "account_id" = $2
+LIMIT 1
+`
+
+type CountUsersByEmailAndAccountIDParams struct {
+	Email     string
+	AccountID int32
+}
+
+func (q *Queries) CountUsersByEmailAndAccountID(ctx context.Context, arg CountUsersByEmailAndAccountIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsersByEmailAndAccountID, arg.Email, arg.AccountID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countUsersByUsernameAndAccountID = `-- name: CountUsersByUsernameAndAccountID :one
+SELECT COUNT("id") FROM "users"
+WHERE "username" = $1 AND "account_id" = $2
+LIMIT 1
+`
+
+type CountUsersByUsernameAndAccountIDParams struct {
+	Username  string
+	AccountID int32
+}
+
+func (q *Queries) CountUsersByUsernameAndAccountID(ctx context.Context, arg CountUsersByUsernameAndAccountIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsersByUsernameAndAccountID, arg.Username, arg.AccountID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUserWithPassword = `-- name: CreateUserWithPassword :one
+
 INSERT INTO "users" (
     "account_id",
     "email",
+    "username",
     "password",
     "user_data"
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
-) RETURNING id, account_id, email, password, version, two_factor_type, user_data, created_at, updated_at
+    $4,
+    $5
+) RETURNING id, account_id, email, username, password, version, is_confirmed, two_factor_type, user_data, created_at, updated_at
 `
 
 type CreateUserWithPasswordParams struct {
 	AccountID int32
 	Email     string
+	Username  string
 	Password  pgtype.Text
-	UserData  []byte
-}
-
-func (q *Queries) CreateUserWithPassword(ctx context.Context, arg CreateUserWithPasswordParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUserWithPassword,
-		arg.AccountID,
-		arg.Email,
-		arg.Password,
-		arg.UserData,
-	)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.AccountID,
-		&i.Email,
-		&i.Password,
-		&i.Version,
-		&i.TwoFactorType,
-		&i.UserData,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const createUserWithoutPassword = `-- name: CreateUserWithoutPassword :one
-
-INSERT INTO "users" (
-    "account_id",
-    "email",
-    "user_data"
-) VALUES (
-    $1,
-    $2,
-    $3
-) RETURNING id, account_id, email, password, version, two_factor_type, user_data, created_at, updated_at
-`
-
-type CreateUserWithoutPasswordParams struct {
-	AccountID int32
-	Email     string
 	UserData  []byte
 }
 
@@ -91,15 +90,23 @@ type CreateUserWithoutPasswordParams struct {
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) CreateUserWithoutPassword(ctx context.Context, arg CreateUserWithoutPasswordParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUserWithoutPassword, arg.AccountID, arg.Email, arg.UserData)
+func (q *Queries) CreateUserWithPassword(ctx context.Context, arg CreateUserWithPasswordParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUserWithPassword,
+		arg.AccountID,
+		arg.Email,
+		arg.Username,
+		arg.Password,
+		arg.UserData,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
 		&i.Email,
+		&i.Username,
 		&i.Password,
 		&i.Version,
+		&i.IsConfirmed,
 		&i.TwoFactorType,
 		&i.UserData,
 		&i.CreatedAt,

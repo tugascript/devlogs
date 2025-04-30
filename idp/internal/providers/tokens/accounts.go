@@ -120,9 +120,8 @@ func (t *Tokens) createToken(opts accountTokenOptions) (string, error) {
 
 func verifyToken(token string, pubKeyFn func(token *jwt.Token) (interface{}, error)) (accountTokenClaims, error) {
 	claims := new(accountTokenClaims)
-	_, err := jwt.ParseWithClaims(token, claims, pubKeyFn)
 
-	if err != nil {
+	if _, err := jwt.ParseWithClaims(token, claims, pubKeyFn); err != nil {
 		return accountTokenClaims{}, err
 	}
 

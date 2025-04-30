@@ -29,7 +29,7 @@ func (t *Tokens) CreateRefreshToken(opts AccountTokenOptions) (string, error) {
 
 func (t *Tokens) VerifyRefreshToken(token string) (AccountClaims, []AccountScope, uuid.UUID, time.Time, error) {
 	claims, err := verifyToken(token, func(token *jwt.Token) (interface{}, error) {
-		kid, err := extractUserTokenKID(token)
+		kid, err := extractTokenKID(token)
 		if err != nil {
 			return nil, err
 		}

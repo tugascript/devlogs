@@ -8,9 +8,9 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
@@ -83,18 +83,6 @@ func (s *Services) CreateAccount(
 		return dtos.AccountDTO{}, exceptions.NewConflictError("Email already in use")
 	}
 
-	firstName := utils.Capitalized(opts.FirstName)
-	lastName := utils.Capitalized(opts.LastName)
-	username := utils.Slugify(fmt.Sprintf("%s %s", firstName, lastName))
-	count, err := s.database.CountAccountAlikeUsernames(ctx, utils.DbSearchEnd(username))
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to count usernames that are alike", "error", err)
-		return dtos.AccountDTO{}, exceptions.NewServerError()
-	}
-	if count > 0 {
-		username = fmt.Sprintf("%s%d", username, count+1)
-	}
-
 	var serviceErr *exceptions.ServiceError
 	qrs, txn, err := s.database.BeginTx(ctx)
 	if err != nil {
@@ -106,6 +94,9 @@ func (s *Services) CreateAccount(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
+	firstName := utils.Capitalized(opts.FirstName)
+	lastName := utils.Capitalized(opts.LastName)
+	username := uuid.NewString()
 	var account database.Account
 	if provider == AuthProviderEmail {
 		account, err = qrs.CreateAccountWithPassword(ctx, database.CreateAccountWithPasswordParams{
@@ -634,6 +625,59 @@ func (s *Services) ConfirmUpdateAccountPassword(
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
 		"Password updated successfully",
 	)
+}
+
+type UpdateAccountOptions struct {
+	RequestID string
+	ID        int32
+	FirstName string
+	LastName  string
+	Username  string
+}
+
+func (s *Services) UpdateAccount(
+	ctx context.Context,
+	opts UpdateAccountOptions,
+) (dtos.AccountDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountsLocation, "UpdateAccount").With(
+		"id", opts.ID,
+	)
+	logger.InfoContext(ctx, "Updating account...")
+
+	if _, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+		RequestID: opts.RequestID,
+		ID:        opts.ID,
+	}); serviceErr != nil {
+		logger.InfoContext(ctx, "Failed to get account", "error", serviceErr)
+		return dtos.AccountDTO{}, serviceErr
+	}
+
+	username := utils.Lowered(opts.Username)
+	count, err := s.database.CountAccountByUsername(ctx, username)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count account by username", "error", err)
+		return dtos.AccountDTO{}, exceptions.FromDBError(err)
+	}
+	if count > 0 {
+		logger.WarnContext(ctx, "Username already in use")
+		return dtos.AccountDTO{}, exceptions.NewConflictError("Username already in use")
+	}
+
+	firstName := utils.Capitalized(opts.FirstName)
+	lastName := utils.Capitalized(opts.LastName)
+	account, err := s.database.UpdateAccount(ctx, database.UpdateAccountParams{
+		FirstName: firstName,
+		LastName:  lastName,
+		Username:  username,
+		ID:        opts.ID,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update account", "error", err)
+		return dtos.AccountDTO{}, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Updated account successfully")
+	return dtos.MapAccountToDTO(&account), nil
 }
 
 type DeleteAccountOptions struct {

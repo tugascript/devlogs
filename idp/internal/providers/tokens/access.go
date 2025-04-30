@@ -38,7 +38,7 @@ func (t *Tokens) CreateAccessToken(opts AccountTokenOptions) (string, error) {
 
 func (t *Tokens) VerifyAccessToken(token string) (AccountClaims, []AccountScope, error) {
 	claims, err := verifyToken(token, func(token *jwt.Token) (interface{}, error) {
-		kid, err := extractUserTokenKID(token)
+		kid, err := extractTokenKID(token)
 		if err != nil {
 			return ecdsa.PublicKey{}, err
 		}

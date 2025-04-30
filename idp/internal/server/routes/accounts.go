@@ -16,6 +16,7 @@ func (r *Routes) AccountsRoutes(app *fiber.App) {
 	router := v1PathRouter(app).Group(paths.AccountsBase, r.controllers.AccountAccessClaimsMiddleware)
 
 	router.Get(paths.AccountMe, r.controllers.GetCurrentAccount)
+	router.Put(paths.AccountMe, r.controllers.AdminScopeMiddleware, r.controllers.UpdateAccount)
 	router.Delete(paths.AccountMe, r.controllers.AdminScopeMiddleware, r.controllers.DeleteAccount)
 	router.Delete(paths.AccountMeConfirm, r.controllers.AdminScopeMiddleware, r.controllers.ConfirmDeleteAccount)
 	router.Patch(paths.AccountPassword, r.controllers.AdminScopeMiddleware, r.controllers.UpdateAccountPassword)

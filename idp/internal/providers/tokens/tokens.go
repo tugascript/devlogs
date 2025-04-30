@@ -207,6 +207,7 @@ type Tokens struct {
 	backendDomain          string
 	accessData             Es256TokenSecretData
 	accountCredentialsData Es256TokenSecretData
+	appsData               Es256TokenSecretData
 	refreshData            TokenSecretData
 	confirmationData       TokenSecretData
 	resetData              TokenSecretData
@@ -222,7 +223,8 @@ func NewTokens(
 	confirmationCfg,
 	resetCfg,
 	oauthCfg,
-	twoFACfg config.SingleJwtConfig,
+	twoFACfg,
+	appsCfg config.SingleJwtConfig,
 	frontendDomain,
 	backendDomain string,
 ) *Tokens {
@@ -236,10 +238,16 @@ func NewTokens(
 		accountCredentialsCfg.PreviousPublicKey(),
 		accountCredentialsCfg.TtlSec(),
 	)
+	appsData := newEs256TokenSecretData(
+		appsCfg.PrivateKey(),
+		appsCfg.PreviousPublicKey(),
+		appsCfg.TtlSec(),
+	)
 
 	jwks := []utils.ES256JWK{
 		utils.EncodeP256Jwk(accountKeysData.curKeyPair.publicKey, accountKeysData.curKeyPair.kid),
 		utils.EncodeP256Jwk(accessData.curKeyPair.publicKey, accessData.curKeyPair.kid),
+		utils.EncodeP256Jwk(appsData.curKeyPair.publicKey, appsData.curKeyPair.kid),
 	}
 
 	if accountKeysData.prevPubKey != nil {
@@ -254,10 +262,17 @@ func NewTokens(
 			accessData.prevPubKey.kid,
 		))
 	}
+	if appsData.prevPubKey != nil {
+		jwks = append(jwks, utils.EncodeP256Jwk(
+			appsData.prevPubKey.publicKey,
+			appsData.prevPubKey.kid,
+		))
+	}
 
 	return &Tokens{
 		accessData:             accessData,
 		accountCredentialsData: accountKeysData,
+		appsData:               appsData,
 		refreshData: newTokenSecretData(
 			refreshCfg.PublicKey(),
 			refreshCfg.PrivateKey(),
@@ -298,7 +313,7 @@ func (t *Tokens) JWKs() []utils.ES256JWK {
 	return t.jwks
 }
 
-func extractUserTokenKID(token *jwt.Token) (string, error) {
+func extractTokenKID(token *jwt.Token) (string, error) {
 	kid, ok := token.Header["kid"].(string)
 	if !ok {
 		return "", jwt.ErrInvalidKey

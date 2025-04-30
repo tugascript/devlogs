@@ -6,9 +6,8 @@
 
 package bodies
 
-type SchemaFieldBody struct {
-	Type     string `json:"type" validate:"required,oneof=string int float bool"`
-	Unique   bool   `json:"unique,omitempty"`
-	Required bool   `json:"required,omitempty"`
-	Default  any    `json:"default,omitempty"`
+type UpdateAccountBody struct {
+	FirstName string `json:"first_name" validate:"required,min=2,max=50"`
+	LastName  string `json:"last_name" validate:"required,min=2,max=50"`
+	Username  string `json:"username" validate:"required,min=2,max=100,slug"`
 }

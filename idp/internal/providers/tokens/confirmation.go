@@ -27,7 +27,7 @@ func (t *Tokens) CreateConfirmationToken(opts AccountTokenOptions) (string, erro
 
 func (t *Tokens) VerifyConfirmationToken(token string) (AccountClaims, error) {
 	claims, err := verifyToken(token, func(token *jwt.Token) (interface{}, error) {
-		kid, err := extractUserTokenKID(token)
+		kid, err := extractTokenKID(token)
 		if err != nil {
 			return nil, err
 		}

@@ -99,7 +99,7 @@ func (c *Config) EncryptionConfig() EncryptionConfig {
 	return c.encryptionConfig
 }
 
-var variables = [40]string{
+var variables = [43]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -136,13 +136,16 @@ var variables = [40]string{
 	"JWT_2FA_PUBLIC_KEY",
 	"JWT_2FA_PRIVATE_KEY",
 	"JWT_2FA_TTL_SEC",
+	"JWT_APPS_PUBLIC_KEY",
+	"JWT_APPS_PRIVATE_KEY",
+	"JWT_APPS_TTL_SEC",
 	"ACCOUNT_SECRET",
 	"APP_SECRET",
 	"USER_SECRET",
 	"OLD_SECRETS",
 }
 
-var optionalVariables = [17]string{
+var optionalVariables = [18]string{
 	"GITHUB_CLIENT_ID",
 	"GITHUB_CLIENT_SECRET",
 	"GOOGLE_CLIENT_ID",
@@ -160,9 +163,10 @@ var optionalVariables = [17]string{
 	"OLD_JWT_RESET_PUBLIC_KEY",
 	"OLD_JWT_OAUTH_PUBLIC_KEY",
 	"OLD_JWT_2FA_PUBLIC_KEY",
+	"OLD_JWT_APPS_PUBLIC_KEY",
 }
 
-var numerics = [11]string{
+var numerics = [12]string{
 	"PORT",
 	"MAX_PROCS",
 	"JWT_ACCESS_TTL_SEC",
@@ -172,6 +176,7 @@ var numerics = [11]string{
 	"JWT_RESET_TTL_SEC",
 	"JWT_OAUTH_TTL_SEC",
 	"JWT_2FA_TTL_SEC",
+	"JWT_APPS_TTL_SEC",
 	"RATE_LIMITER_MAX",
 	"RATE_LIMITER_EXP_SEC",
 }
@@ -266,6 +271,12 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 				variablesMap["JWT_2FA_PRIVATE_KEY"],
 				variablesMap["OLD_JWT_2FA_PUBLIC_KEY"],
 				intMap["JWT_2FA_TTL_SEC"],
+			),
+			NewSingleJwtConfig(
+				variablesMap["JWT_APPS_PUBLIC_KEY"],
+				variablesMap["JWT_APPS_PRIVATE_KEY"],
+				variablesMap["OLD_JWT_APPS_PUBLIC_KEY"],
+				intMap["JWT_APPS_TTL_SEC"],
 			),
 		),
 		oAuthProvidersConfig: NewOAuthProviders(
