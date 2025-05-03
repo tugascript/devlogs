@@ -9,5 +9,5 @@ package bodies
 type UpdateAccountBody struct {
 	FirstName string `json:"first_name" validate:"required,min=2,max=50"`
 	LastName  string `json:"last_name" validate:"required,min=2,max=50"`
-	Username  string `json:"username" validate:"required,min=2,max=100,slug"`
+	Username  string `json:"username" validate:"required,min=1,max=63,slug"`
 }

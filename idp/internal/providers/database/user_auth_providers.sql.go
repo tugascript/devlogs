@@ -14,20 +14,17 @@ const createUserAuthProvider = `-- name: CreateUserAuthProvider :exec
 INSERT INTO "user_auth_providers" (
   "account_id",
   "user_id",
-  "email",
   "provider"
 ) VALUES (
   $1,
   $2,
-  $3,
-  $4
+  $3
 )
 `
 
 type CreateUserAuthProviderParams struct {
 	AccountID int32
 	UserID    int32
-	Email     string
 	Provider  string
 }
 
@@ -37,11 +34,6 @@ type CreateUserAuthProviderParams struct {
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateUserAuthProvider(ctx context.Context, arg CreateUserAuthProviderParams) error {
-	_, err := q.db.Exec(ctx, createUserAuthProvider,
-		arg.AccountID,
-		arg.UserID,
-		arg.Email,
-		arg.Provider,
-	)
+	_, err := q.db.Exec(ctx, createUserAuthProvider, arg.AccountID, arg.UserID, arg.Provider)
 	return err
 }

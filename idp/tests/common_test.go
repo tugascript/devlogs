@@ -57,6 +57,7 @@ func initTestServicesAndApp(t *testing.T) {
 	_testCache = cache.NewCache(
 		logger,
 		cacheStorage,
+		_testConfig.AccountUsernameTTL(),
 	)
 	logger.InfoContext(ctx, "Finished building redis storage")
 
@@ -94,6 +95,7 @@ func initTestServicesAndApp(t *testing.T) {
 		tokensCfg.Reset(),
 		tokensCfg.OAuth(),
 		tokensCfg.TwoFA(),
+		tokensCfg.Apps(),
 		_testConfig.FrontendDomain(),
 		_testConfig.BackendDomain(),
 	)

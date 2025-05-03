@@ -10,7 +10,24 @@ INSERT INTO "users" (
     "email",
     "username",
     "password",
-    "user_data"
+    "user_data",
+    "dek"
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
+) RETURNING *;
+
+-- name: CreateUserWithoutPassword :one
+INSERT INTO "users" (
+    "account_id",
+    "email",
+    "username",
+    "user_data",
+    "dek"
 ) VALUES (
     $1,
     $2,

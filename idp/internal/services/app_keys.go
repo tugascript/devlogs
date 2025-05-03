@@ -110,7 +110,7 @@ func (s *Services) createAppKeyAndUpdateAppDek(
 		"name", opts.name,
 		"cryptoSuite", opts.cryptoSuite,
 	)
-	logger.InfoContext(ctx, "Creating app key and updating app DEK...")
+	logger.InfoContext(ctx, "Creating app key and updating app StoredDEK...")
 
 	var serviceErr *exceptions.ServiceError
 	qrs, txn, err := s.database.BeginTx(ctx)
@@ -138,16 +138,16 @@ func (s *Services) createAppKeyAndUpdateAppDek(
 		return dtos.AppKeyDTO{}, exceptions.FromDBError(err)
 	}
 
-	logger.DebugContext(ctx, "Updating app DEK...")
+	logger.DebugContext(ctx, "Updating app StoredDEK...")
 	if err := qrs.UpdateAppDek(ctx, database.UpdateAppDekParams{
 		Dek: opts.newDek,
 		ID:  opts.appID,
 	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to update app DEK", "error", err)
+		logger.ErrorContext(ctx, "Failed to update app StoredDEK", "error", err)
 		return dtos.AppKeyDTO{}, exceptions.FromDBError(err)
 	}
 
-	logger.InfoContext(ctx, "App key created and app DEK updated successfully")
+	logger.InfoContext(ctx, "App key created and app StoredDEK updated successfully")
 	return dtos.MapAppKeyToDTO(&appKey)
 }
 

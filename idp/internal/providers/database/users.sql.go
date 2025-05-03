@@ -67,14 +67,16 @@ INSERT INTO "users" (
     "email",
     "username",
     "password",
-    "user_data"
+    "user_data",
+    "dek"
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
-    $5
-) RETURNING id, account_id, email, username, password, version, is_confirmed, two_factor_type, user_data, created_at, updated_at
+    $5,
+    $6
+) RETURNING id, account_id, email, username, password, dek, version, is_confirmed, two_factor_type, user_data, created_at, updated_at
 `
 
 type CreateUserWithPasswordParams struct {
@@ -83,6 +85,7 @@ type CreateUserWithPasswordParams struct {
 	Username  string
 	Password  pgtype.Text
 	UserData  []byte
+	Dek       string
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -97,6 +100,7 @@ func (q *Queries) CreateUserWithPassword(ctx context.Context, arg CreateUserWith
 		arg.Username,
 		arg.Password,
 		arg.UserData,
+		arg.Dek,
 	)
 	var i User
 	err := row.Scan(
@@ -105,6 +109,57 @@ func (q *Queries) CreateUserWithPassword(ctx context.Context, arg CreateUserWith
 		&i.Email,
 		&i.Username,
 		&i.Password,
+		&i.Dek,
+		&i.Version,
+		&i.IsConfirmed,
+		&i.TwoFactorType,
+		&i.UserData,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createUserWithoutPassword = `-- name: CreateUserWithoutPassword :one
+INSERT INTO "users" (
+    "account_id",
+    "email",
+    "username",
+    "user_data",
+    "dek"
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5
+) RETURNING id, account_id, email, username, password, dek, version, is_confirmed, two_factor_type, user_data, created_at, updated_at
+`
+
+type CreateUserWithoutPasswordParams struct {
+	AccountID int32
+	Email     string
+	Username  string
+	UserData  []byte
+	Dek       string
+}
+
+func (q *Queries) CreateUserWithoutPassword(ctx context.Context, arg CreateUserWithoutPasswordParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUserWithoutPassword,
+		arg.AccountID,
+		arg.Email,
+		arg.Username,
+		arg.UserData,
+		arg.Dek,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Email,
+		&i.Username,
+		&i.Password,
+		&i.Dek,
 		&i.Version,
 		&i.IsConfirmed,
 		&i.TwoFactorType,

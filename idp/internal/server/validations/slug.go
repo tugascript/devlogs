@@ -14,16 +14,13 @@ import (
 
 const slugValidatorTag string = "slug"
 
+var slugRegex = regexp.MustCompile(`^[a-z\d]+(?:(-)[a-z\d]+)*$`)
+
 func slugValidator(fl validator.FieldLevel) bool {
 	input, ok := fl.Field().Interface().(string)
 	if !ok {
 		return false
 	}
 
-	re, err := regexp.Compile(`^[a-z\d]+(?:(-)[a-z\d]+)*$`)
-	if err != nil {
-		return false
-	}
-
-	return re.MatchString(input)
+	return slugRegex.MatchString(input)
 }

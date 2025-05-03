@@ -21,7 +21,12 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const totpsManagementLocation string = "totps_management"
+const (
+	totpsManagementLocation string = "totps_management"
+
+	totpTypeAccount string = "account"
+	totpTypeUser    string = "user"
+)
 
 func generateBaseTotpKey(backendDomain, subDomain, email string) (*otp.Key, error) {
 	key, err := totp.Generate(totp.GenerateOpts{
@@ -95,7 +100,7 @@ type TotpKey struct {
 	img             string
 	codes           string
 	hashedCodes     []byte
-	encryptedDEK    string
+	newDEK          string
 	encryptedSecret string
 }
 
@@ -115,23 +120,24 @@ func (t *TotpKey) HashedCodes() []byte {
 	return t.hashedCodes
 }
 
-func (t *TotpKey) EncryptedDEK() string {
-	return t.encryptedDEK
-}
-
 func (t *TotpKey) EncryptedSecret() string {
 	return t.encryptedSecret
 }
 
+func (t *TotpKey) NewDEK() string {
+	return t.newDEK
+}
+
 type generateTotpKeyOptions struct {
-	secretKID     string
-	secretKey     []byte
+	requestID     string
 	email         string
 	backendDomain string
 	subDomain     string
+	dek           string
+	totpType      string
 }
 
-func generateTotpKey(
+func (e *Encryption) generateTotpKey(
 	logger *slog.Logger,
 	ctx context.Context,
 	opts generateTotpKeyOptions,
@@ -154,10 +160,39 @@ func generateTotpKey(
 		return TotpKey{}, err
 	}
 
-	dek, encryptedDEK, err := generateDEK(opts.secretKID, opts.secretKey)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate DEK", "error", err)
-		return TotpKey{}, err
+	var dek []byte
+	var isOld bool
+	var newDEK string
+	switch opts.totpType {
+	case totpTypeAccount:
+		dek, isOld, err = e.decryptAccountDEK(ctx, opts.requestID, opts.dek)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
+			return TotpKey{}, err
+		}
+		if isOld {
+			newDEK, err = reEncryptDEK(isOld, dek, e.accountSecretKey.key)
+			if err != nil {
+				logger.ErrorContext(ctx, "Failed to re-encrypt StoredDEK", "error", err)
+				return TotpKey{}, err
+			}
+		}
+	case totpTypeUser:
+		dek, isOld, err = e.decryptUserDEK(ctx, opts.requestID, opts.dek)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
+			return TotpKey{}, err
+		}
+		if isOld {
+			newDEK, err = reEncryptDEK(isOld, dek, e.userSecretKey.key)
+			if err != nil {
+				logger.ErrorContext(ctx, "Failed to re-encrypt StoredDEK", "error", err)
+				return TotpKey{}, err
+			}
+		}
+	default:
+		logger.ErrorContext(ctx, "Invalid TOTP type", "type", opts.totpType)
+		return TotpKey{}, fmt.Errorf("invalid TOTP type: %s", opts.totpType)
 	}
 
 	secret, err := utils.Encrypt(key.Secret(), dek)
@@ -171,7 +206,7 @@ func generateTotpKey(
 		img:             img64,
 		codes:           codes,
 		hashedCodes:     hashedCodes,
-		encryptedDEK:    encryptedDEK,
+		newDEK:          newDEK,
 		encryptedSecret: secret,
 	}, err
 }
@@ -199,6 +234,7 @@ func verifyTotpCode(
 type GenerateAccountTotpKeyOptions struct {
 	RequestID string
 	Email     string
+	StoredDEK string
 }
 
 func (e *Encryption) GenerateAccountTotpKey(
@@ -212,12 +248,12 @@ func (e *Encryption) GenerateAccountTotpKey(
 		RequestID: opts.RequestID,
 	})
 	logger.DebugContext(ctx, "Generate account TOTP key...")
-	return generateTotpKey(logger, ctx, generateTotpKeyOptions{
-		secretKID:     e.appSecretKey.kid,
-		secretKey:     e.accountSecretKey.key,
+	return e.generateTotpKey(logger, ctx, generateTotpKeyOptions{
 		email:         opts.Email,
 		backendDomain: e.backendDomain,
 		subDomain:     "",
+		dek:           opts.StoredDEK,
+		totpType:      totpTypeAccount,
 	})
 }
 
@@ -241,13 +277,13 @@ func (e *Encryption) VerifyAccountTotpCode(
 	logger.DebugContext(ctx, "Verifying account TOTP code...")
 	dek, isOldKey, err := e.decryptAccountDEK(ctx, opts.RequestID, opts.StoredDEK)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to decrypt DEK", "error", err)
+		logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
 		return false, "", err
 	}
 
 	newDEK, err := reEncryptDEK(isOldKey, dek, e.appSecretKey.key)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to re-encrypt DEK", "error", err)
+		logger.ErrorContext(ctx, "Failed to re-encrypt StoredDEK", "error", err)
 		return false, "", err
 	}
 

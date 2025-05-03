@@ -51,6 +51,7 @@ func New(
 	cc := cache.NewCache(
 		logger,
 		cacheStorage,
+		cfg.AccountUsernameTTL(),
 	)
 	logger.InfoContext(ctx, "Finished building redis storage")
 
@@ -144,6 +145,7 @@ func New(
 		},
 	}))
 	rateLimitCfg := cfg.RateLimiterConfig()
+	// TODO: fix this to be account based
 	server.Use(limiter.New(limiter.Config{
 		Max:               int(rateLimitCfg.Max()),
 		Expiration:        time.Duration(rateLimitCfg.ExpSec()) * time.Second,

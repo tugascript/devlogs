@@ -48,6 +48,10 @@ LIMIT 1;
 SELECT * FROM "apps"
 WHERE "client_id" = $1 LIMIT 1;
 
+-- name: FindAppByID :one
+SELECT * FROM "apps"
+WHERE "id" = $1 LIMIT 1;
+
 -- name: UpdateApp :one
 UPDATE "apps"
 SET "name" = $2,

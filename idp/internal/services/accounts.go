@@ -83,6 +83,12 @@ func (s *Services) CreateAccount(
 		return dtos.AccountDTO{}, exceptions.NewConflictError("Email already in use")
 	}
 
+	dek, err := s.encrypt.GenerateAccountDEK(ctx, opts.RequestID)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate account DEK", "error", err)
+		return dtos.AccountDTO{}, exceptions.NewServerError()
+	}
+
 	var serviceErr *exceptions.ServiceError
 	qrs, txn, err := s.database.BeginTx(ctx)
 	if err != nil {
@@ -105,6 +111,7 @@ func (s *Services) CreateAccount(
 			Username:  username,
 			Email:     email,
 			Password:  password,
+			Dek:       dek,
 		})
 	} else {
 		account, err = qrs.CreateAccountWithoutPassword(ctx, database.CreateAccountWithoutPasswordParams{
@@ -112,7 +119,13 @@ func (s *Services) CreateAccount(
 			LastName:  lastName,
 			Username:  username,
 			Email:     email,
+			Dek:       dek,
 		})
+	}
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create account", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AccountDTO{}, serviceErr
 	}
 
 	if err := qrs.CreateAuthProvider(ctx, database.CreateAuthProviderParams{
@@ -381,7 +394,12 @@ func (s *Services) ConfirmUpdateAccountEmail(
 			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 		}
 	case TwoFactorTotp:
-		ok, serviceErr := s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions(opts))
+		ok, serviceErr := s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions{
+			RequestID: opts.RequestID,
+			ID:        int32(accountDTO.ID),
+			Code:      opts.Code,
+			DEK:       accountDTO.DEK(),
+		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", serviceErr)
 			return dtos.AuthDTO{}, serviceErr
@@ -596,7 +614,12 @@ func (s *Services) ConfirmUpdateAccountPassword(
 			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 		}
 	case TwoFactorTotp:
-		ok, serviceErr := s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions(opts))
+		ok, serviceErr := s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions{
+			RequestID: opts.RequestID,
+			ID:        int32(accountDTO.ID),
+			Code:      opts.Code,
+			DEK:       accountDTO.DEK(),
+		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", serviceErr)
 			return dtos.AuthDTO{}, serviceErr
@@ -813,7 +836,12 @@ func (s *Services) ConfirmDeleteAccount(
 			return exceptions.NewUnauthorizedError()
 		}
 	case TwoFactorTotp:
-		ok, serviceErr := s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions(opts))
+		ok, serviceErr := s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions{
+			RequestID: opts.RequestID,
+			ID:        int32(accountDTO.ID),
+			Code:      opts.Code,
+			DEK:       accountDTO.DEK(),
+		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", serviceErr)
 			return serviceErr
@@ -834,4 +862,71 @@ func (s *Services) ConfirmDeleteAccount(
 
 	logger.InfoContext(ctx, "Account deleted successfully")
 	return nil
+}
+
+type GetAccountIDByUsernameOptions struct {
+	RequestID string
+	Username  string
+}
+
+func (s *Services) getAccountIDByUsername(
+	ctx context.Context,
+	opts GetAccountIDByUsernameOptions,
+) (int, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountsLocation, "getAccountIDByUsername")
+	logger.InfoContext(ctx, "Getting account ID by username...")
+
+	accountID, err := s.database.GetAccountIDByUsername(ctx, utils.Lowered(opts.Username))
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.InfoContext(ctx, "Account not found", "error", err)
+			return 0, serviceErr
+		}
+
+		logger.ErrorContext(ctx, "Failed to get account ID", "error", err)
+		return 0, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Got account ID by username successfully")
+	return int(accountID), nil
+}
+
+func (s *Services) GetAndCacheAccountIDByUsername(
+	ctx context.Context,
+	opts GetAccountIDByUsernameOptions,
+) (int, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountsLocation, "GetAndCacheAccountIDByUsername")
+	logger.InfoContext(ctx, "Getting and caching account ID by username...")
+
+	accountID, err := s.cache.GetAccountIDByUsername(ctx, cache.GetAccountIDByUsernameOptions{
+		RequestID: opts.RequestID,
+		Username:  opts.Username,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account ID from cache", "error", err)
+		return 0, exceptions.NewServerError()
+	}
+	if accountID != 0 {
+		logger.InfoContext(ctx, "Got account ID from cache successfully")
+		return accountID, nil
+	}
+
+	accountID, serviceErr := s.getAccountIDByUsername(ctx, opts)
+	if serviceErr != nil {
+		logger.InfoContext(ctx, "Failed to get account ID", "error", serviceErr)
+		return 0, serviceErr
+	}
+
+	if err := s.cache.AddAccountUsername(ctx, cache.AddAccountUsernameOptions{
+		RequestID: opts.RequestID,
+		Username:  opts.Username,
+		ID:        accountID,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to cache account ID by username", "error", err)
+		return 0, exceptions.NewServerError()
+	}
+
+	logger.InfoContext(ctx, "Cached account ID by username successfully")
+	return accountID, nil
 }

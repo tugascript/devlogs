@@ -15,6 +15,7 @@ type Account struct {
 	LastName      string
 	Username      string
 	Email         string
+	Dek           string
 	Password      pgtype.Text
 	Version       int32
 	IsConfirmed   bool
@@ -39,7 +40,6 @@ type AccountTotp struct {
 	AccountID     int32
 	Url           string
 	Secret        string
-	Dek           string
 	RecoveryCodes []byte
 	CreatedAt     pgtype.Timestamp
 	UpdatedAt     pgtype.Timestamp
@@ -48,6 +48,7 @@ type AccountTotp struct {
 type App struct {
 	ID             int32
 	AccountID      int32
+	Type           string
 	Name           string
 	ClientID       string
 	ClientSecret   string
@@ -80,6 +81,7 @@ type AppKey struct {
 
 type AppProfile struct {
 	ID          int32
+	AccountID   int32
 	UserID      int32
 	AppID       int32
 	ProfileData []byte
@@ -101,12 +103,30 @@ type BlacklistedToken struct {
 	CreatedAt pgtype.Timestamp
 }
 
+type ExternalAuthProvider struct {
+	ID           int32
+	Name         string
+	Provider     string
+	Icon         string
+	AccountID    int32
+	ClientID     string
+	ClientSecret string
+	Scopes       []string
+	AuthUrl      string
+	TokenUrl     string
+	UserInfoUrl  string
+	UserSchema   []byte
+	CreatedAt    pgtype.Timestamp
+	UpdatedAt    pgtype.Timestamp
+}
+
 type User struct {
 	ID            int32
 	AccountID     int32
 	Email         string
 	Username      string
 	Password      pgtype.Text
+	Dek           string
 	Version       int32
 	IsConfirmed   bool
 	TwoFactorType string
@@ -118,9 +138,8 @@ type User struct {
 type UserAuthProvider struct {
 	ID        int32
 	UserID    int32
-	Email     string
-	Provider  string
 	AccountID int32
+	Provider  string
 	CreatedAt pgtype.Timestamp
 	UpdatedAt pgtype.Timestamp
 }
@@ -148,7 +167,6 @@ type UserTotp struct {
 	UserID        int32
 	Url           string
 	Secret        string
-	Dek           string
 	RecoveryCodes []byte
 	CreatedAt     pgtype.Timestamp
 	UpdatedAt     pgtype.Timestamp

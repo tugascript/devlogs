@@ -13,12 +13,13 @@ import (
 )
 
 const (
-	AuthProviderEmail     string = "email"
-	AuthProviderGoogle    string = "google"
-	AuthProviderGitHub    string = "github"
-	AuthProviderApple     string = "apple"
-	AuthProviderMicrosoft string = "microsoft"
-	AuthProviderFacebook  string = "facebook"
+	AuthProviderEmail            string = "email"
+	AuthProviderGoogle           string = "google"
+	AuthProviderGitHub           string = "github"
+	AuthProviderApple            string = "apple"
+	AuthProviderMicrosoft        string = "microsoft"
+	AuthProviderFacebook         string = "facebook"
+	AuthProviderUsernamePassword string = "username_password"
 
 	TwoFactorNone  string = "none"
 	TwoFactorEmail string = "email"

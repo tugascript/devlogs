@@ -8,12 +8,10 @@
 INSERT INTO "user_auth_providers" (
   "account_id",
   "user_id",
-  "email",
   "provider"
 ) VALUES (
   $1,
   $2,
-  $3,
-  $4
+  $3
 );
 

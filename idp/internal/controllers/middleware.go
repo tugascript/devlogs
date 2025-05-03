@@ -7,13 +7,17 @@
 package controllers
 
 import (
+	"errors"
 	"log/slog"
+	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
+	"github.com/tugascript/devlogs/idp/internal/services"
 )
 
 const middlewareLocation string = "middleware"
@@ -82,6 +86,64 @@ func (c *Controllers) AdminScopeMiddleware(ctx *fiber.Ctx) error {
 	return ctx.Next()
 }
 
+var slugRegex = regexp.MustCompile(`^[a-z\d]+(?:(-)[a-z\d]+)*$`)
+
+func isValidSubdomain(sub string) bool {
+	length := len(sub)
+	if length < 1 || length > 63 {
+		return false
+	}
+
+	return slugRegex.MatchString(sub)
+}
+
+func processHost(host string) (string, error) {
+	hostArr := strings.Split(host, ".")
+	if len(hostArr) < 2 {
+		return "", errors.New("host must contain at least two parts")
+	}
+
+	username := hostArr[0]
+	if !isValidSubdomain(username) {
+		return "", errors.New("invalid subdomain")
+	}
+
+	return username, nil
+}
+
+func (c *Controllers) AccountHostMiddleware(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, middlewareLocation, "AccountHostMiddleware")
+	host := ctx.Get("Host")
+	if host == "" {
+		return serviceErrorResponse(logger, ctx, exceptions.NewNotFoundError())
+	}
+
+	username, err := processHost(host)
+	if err != nil {
+		logger.DebugContext(ctx.UserContext(), "invalid host", err)
+		return serviceErrorResponse(logger, ctx, exceptions.NewNotFoundError())
+	}
+
+	accountID, serviceErr := c.services.GetAndCacheAccountIDByUsername(
+		ctx.UserContext(),
+		services.GetAccountIDByUsernameOptions{
+			RequestID: requestID,
+			Username:  username,
+		},
+	)
+	if serviceErr != nil {
+		logger.DebugContext(ctx.UserContext(), "failed to get account by username",
+			"username", username,
+			"error", serviceErr,
+		)
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	ctx.Locals("accountID", accountID)
+	return ctx.Next()
+}
+
 func getAccountClaims(ctx *fiber.Ctx) (tokens.AccountClaims, *exceptions.ServiceError) {
 	account, ok := ctx.Locals("account").(tokens.AccountClaims)
 
@@ -99,4 +161,13 @@ func getScopes(ctx *fiber.Ctx) ([]tokens.AccountScope, *exceptions.ServiceError)
 	}
 
 	return scopes, nil
+}
+
+func getHostAccountID(ctx *fiber.Ctx) (int, *exceptions.ServiceError) {
+	accountID, ok := ctx.Locals("accountID").(int)
+	if !ok || accountID == 0 {
+		return 0, exceptions.NewNotFoundError()
+	}
+
+	return accountID, nil
 }

@@ -21,6 +21,7 @@ type Config struct {
 	maxProcs             int64
 	databaseURL          string
 	redisURL             string
+	accountUsernameTTL   int64
 	frontendDomain       string
 	backendDomain        string
 	cookieSecret         string
@@ -49,6 +50,10 @@ func (c *Config) DatabaseURL() string {
 
 func (c *Config) RedisURL() string {
 	return c.redisURL
+}
+
+func (c *Config) AccountUsernameTTL() int64 {
+	return c.accountUsernameTTL
 }
 
 func (c *Config) FrontendDomain() string {
@@ -99,7 +104,7 @@ func (c *Config) EncryptionConfig() EncryptionConfig {
 	return c.encryptionConfig
 }
 
-var variables = [43]string{
+var variables = [44]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -108,6 +113,7 @@ var variables = [43]string{
 	"MAX_PROCS",
 	"DATABASE_URL",
 	"REDIS_URL",
+	"ACCOUNT_USERNAME_TTL",
 	"FRONTEND_DOMAIN",
 	"BACKEND_DOMAIN",
 	"COOKIE_SECRET",
@@ -166,9 +172,10 @@ var optionalVariables = [18]string{
 	"OLD_JWT_APPS_PUBLIC_KEY",
 }
 
-var numerics = [12]string{
+var numerics = [13]string{
 	"PORT",
 	"MAX_PROCS",
+	"ACCOUNT_USERNAME_TTL",
 	"JWT_ACCESS_TTL_SEC",
 	"JWT_ACCOUNT_CREDENTIALS_TTL_SEC",
 	"JWT_REFRESH_TTL_SEC",
@@ -214,16 +221,17 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 
 	env := variablesMap["ENV"]
 	return Config{
-		port:            intMap["PORT"],
-		maxProcs:        intMap["MAX_PROCS"],
-		databaseURL:     variablesMap["DATABASE_URL"],
-		redisURL:        variablesMap["REDIS_URL"],
-		frontendDomain:  variablesMap["FRONTEND_DOMAIN"],
-		backendDomain:   variablesMap["BACKEND_DOMAIN"],
-		cookieSecret:    variablesMap["COOKIE_SECRET"],
-		cookieName:      variablesMap["COOKIE_NAME"],
-		emailPubChannel: variablesMap["EMAIL_PUB_CHANNEL"],
-		serviceID:       uuid.MustParse(variablesMap["SERVICE_ID"]),
+		port:               intMap["PORT"],
+		maxProcs:           intMap["MAX_PROCS"],
+		databaseURL:        variablesMap["DATABASE_URL"],
+		redisURL:           variablesMap["REDIS_URL"],
+		accountUsernameTTL: intMap["ACCOUNT_USERNAME_TTL"],
+		frontendDomain:     variablesMap["FRONTEND_DOMAIN"],
+		backendDomain:      variablesMap["BACKEND_DOMAIN"],
+		cookieSecret:       variablesMap["COOKIE_SECRET"],
+		cookieName:         variablesMap["COOKIE_NAME"],
+		emailPubChannel:    variablesMap["EMAIL_PUB_CHANNEL"],
+		serviceID:          uuid.MustParse(variablesMap["SERVICE_ID"]),
 		loggerConfig: NewLoggerConfig(
 			strings.ToLower(variablesMap["DEBUG"]) == "true",
 			env,

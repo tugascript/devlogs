@@ -14,8 +14,9 @@ import (
 )
 
 type AppDTO struct {
-	id  int
-	dek string
+	id        int
+	accountID int
+	dek       string
 
 	ClientID       string   `json:"client_id"`
 	ClientSecret   string   `json:"client_secret,omitempty"`
@@ -30,6 +31,10 @@ type AppDTO struct {
 
 func (a *AppDTO) ID() int {
 	return a.id
+}
+
+func (a *AppDTO) AccountID() int {
+	return a.accountID
 }
 
 func (a *AppDTO) DEK() string {
@@ -63,6 +68,7 @@ func MapAppToDTO(app *database.App) (AppDTO, *exceptions.ServiceError) {
 
 	return AppDTO{
 		id:             int(app.ID),
+		accountID:      int(app.AccountID),
 		dek:            app.Dek,
 		ClientID:       app.ClientID,
 		Name:           app.Name,

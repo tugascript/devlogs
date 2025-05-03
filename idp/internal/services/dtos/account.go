@@ -18,6 +18,7 @@ type AccountDTO struct {
 	version     int
 	isConfirmed bool
 	password    string
+	dek         string
 }
 
 func (a *AccountDTO) Version() int {
@@ -32,6 +33,10 @@ func (a *AccountDTO) IsConfirmed() bool {
 	return a.isConfirmed
 }
 
+func (a *AccountDTO) DEK() string {
+	return a.dek
+}
+
 func MapAccountToDTO(account *database.Account) AccountDTO {
 	return AccountDTO{
 		ID:            int(account.ID),
@@ -42,5 +47,6 @@ func MapAccountToDTO(account *database.Account) AccountDTO {
 		TwoFactorType: account.TwoFactorType,
 		isConfirmed:   account.IsConfirmed,
 		password:      account.Password.String,
+		dek:           account.Dek,
 	}
 }

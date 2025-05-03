@@ -322,6 +322,7 @@ type VerifyAccountTotpOptions struct {
 	RequestID string
 	ID        int32
 	Code      string
+	DEK       string
 }
 
 func (s *Services) VerifyAccountTotp(
@@ -333,7 +334,7 @@ func (s *Services) VerifyAccountTotp(
 	)
 	logger.InfoContext(ctx, "Verifying account TOTP...")
 
-	accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, int32(opts.ID))
+	accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, opts.ID)
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code == exceptions.CodeNotFound {
@@ -348,7 +349,7 @@ func (s *Services) VerifyAccountTotp(
 	ok, newDEK, err := s.encrypt.VerifyAccountTotpCode(ctx, encryption.VerifyAccountTotpCodeOptions{
 		RequestID:       opts.RequestID,
 		EncryptedSecret: accountTOTP.Secret,
-		StoredDEK:       accountTOTP.Dek,
+		StoredDEK:       opts.DEK,
 		Code:            opts.Code,
 	})
 	if err != nil {
@@ -357,12 +358,12 @@ func (s *Services) VerifyAccountTotp(
 	}
 
 	if newDEK != "" {
-		logger.InfoContext(ctx, "Saving new DEK")
-		if err := s.database.UpdateAccountTotpByAccountID(ctx, database.UpdateAccountTotpByAccountIDParams{
-			Dek:       newDEK,
-			AccountID: int32(opts.ID),
+		logger.InfoContext(ctx, "Saving new StoredDEK")
+		if err := s.database.UpdateAccountDEK(ctx, database.UpdateAccountDEKParams{
+			Dek: newDEK,
+			ID:  opts.ID,
 		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to update account TOTP DEK", "error", err)
+			logger.ErrorContext(ctx, "Failed to update account TOTP StoredDEK", "error", err)
 			return false, exceptions.FromDBError(err)
 		}
 	}
@@ -1250,7 +1251,6 @@ func (s *Services) updateAccountTOTP2FA(
 		AccountID:     account.ID,
 		Url:           totpKey.URL(),
 		Secret:        totpKey.EncryptedSecret(),
-		Dek:           totpKey.EncryptedDEK(),
 		RecoveryCodes: totpKey.HashedCodes(),
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create account recovery keys", "error", err)

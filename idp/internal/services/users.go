@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"reflect"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -106,6 +107,12 @@ func (s *Services) CreateUser(
 		return dtos.UserDTO{}, exceptions.NewServerError()
 	}
 
+	dek, err := s.encrypt.GenerateUserDEK(ctx, opts.RequestID)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate user DEK", "error", err)
+		return dtos.UserDTO{}, exceptions.NewServerError()
+	}
+
 	qrs, txn, err := s.database.BeginTx(ctx)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
@@ -122,6 +129,7 @@ func (s *Services) CreateUser(
 		Username:  username,
 		Password:  password,
 		UserData:  data,
+		Dek:       dek,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create user", "error", err)
@@ -132,12 +140,169 @@ func (s *Services) CreateUser(
 	if err := qrs.CreateUserAuthProvider(ctx, database.CreateUserAuthProviderParams{
 		AccountID: opts.AccountID,
 		UserID:    user.ID,
-		Email:     email,
 		Provider:  AuthProviderEmail,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create user auth provider", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.UserDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Created user successfully")
+	return dtos.MapUserToDTO(&user)
+}
+
+type CreateAppUserOptions struct {
+	RequestID        string
+	AccountID        int32
+	AppID            int32
+	Email            string
+	Username         string
+	Password         string
+	Provider         string
+	AllowedProviders []string
+	UserData         reflect.Value
+	AppData          reflect.Value
+	AppDataMap       map[string]any
+}
+
+func (s *Services) CreateAppUser(
+	ctx context.Context,
+	opts CreateAppUserOptions,
+) (dtos.UserDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersLocation, "CreateAppUser").With(
+		"appID", opts.AppID,
+		"accountID", opts.AccountID,
+		"provider", opts.Provider,
+	)
+	logger.InfoContext(ctx, "Registering user...")
+
+	if !slices.Contains(opts.AllowedProviders, opts.Provider) {
+		logger.WarnContext(ctx, "Invalid provider")
+		return dtos.UserDTO{}, exceptions.NewForbiddenError()
+	}
+
+	var password pgtype.Text
+	if opts.Provider == AuthProviderUsernamePassword {
+		if opts.Password == "" {
+			logger.WarnContext(ctx, "Password is required")
+			return dtos.UserDTO{}, exceptions.NewValidationError("Password is required")
+		}
+
+		hashedPassword, err := utils.HashString(opts.Password)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to hash password", "error", err)
+			return dtos.UserDTO{}, exceptions.NewServerError()
+		}
+
+		if err := password.Scan(hashedPassword); err != nil {
+			logger.ErrorContext(ctx, "Failed pass password to text", "error", err)
+			return dtos.UserDTO{}, exceptions.NewServerError()
+		}
+	}
+
+	email := utils.Lowered(opts.Email)
+	count, err := s.database.CountUsersByEmailAndAccountID(ctx, database.CountUsersByEmailAndAccountIDParams{
+		Email:     email,
+		AccountID: opts.AccountID,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count user by email", "error", err)
+		return dtos.UserDTO{}, exceptions.FromDBError(err)
+	}
+	if count > 0 {
+		logger.WarnContext(ctx, "Email already in use")
+		return dtos.UserDTO{}, exceptions.NewConflictError("Email already in use")
+	}
+
+	username, serviceErr := s.setUserUsername(ctx, logger, opts.AccountID, opts.Username)
+	if serviceErr != nil {
+		return dtos.UserDTO{}, serviceErr
+	}
+
+	data, err := json.Marshal(opts.UserData)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to marshal user data", "error", err)
+		return dtos.UserDTO{}, exceptions.NewServerError()
+	}
+
+	dek, err := s.encrypt.GenerateUserDEK(ctx, opts.RequestID)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate user DEK", "error", err)
+		return dtos.UserDTO{}, exceptions.NewServerError()
+	}
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return dtos.UserDTO{}, exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	var user database.User
+	if opts.Provider == AuthProviderUsernamePassword {
+		user, err = qrs.CreateUserWithPassword(ctx, database.CreateUserWithPasswordParams{
+			AccountID: opts.AccountID,
+			Email:     email,
+			Username:  username,
+			Password:  password,
+			UserData:  data,
+			Dek:       dek,
+		})
+	} else {
+		user, err = qrs.CreateUserWithoutPassword(ctx, database.CreateUserWithoutPasswordParams{
+			AccountID: opts.AccountID,
+			Email:     email,
+			Username:  username,
+			UserData:  data,
+			Dek:       dek,
+		})
+	}
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create user", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.UserDTO{}, serviceErr
+	}
+
+	if err := qrs.CreateUserAuthProvider(ctx, database.CreateUserAuthProviderParams{
+		AccountID: opts.AccountID,
+		UserID:    user.ID,
+		Provider:  opts.Provider,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to create user auth provider", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.UserDTO{}, serviceErr
+	}
+
+	if !opts.AppData.IsZero() || len(opts.AppDataMap) > 0 {
+		appData, err := json.Marshal(opts.AppData)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to marshal app data", "error", err)
+			return dtos.UserDTO{}, exceptions.NewServerError()
+		}
+
+		if err := qrs.CreateAppProfileWithData(ctx, database.CreateAppProfileWithDataParams{
+			AccountID:   opts.AccountID,
+			UserID:      user.ID,
+			AppID:       opts.AppID,
+			ProfileData: appData,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create app profile", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.UserDTO{}, serviceErr
+		}
+	} else {
+		if err := qrs.CreateAppProfileWithoutData(ctx, database.CreateAppProfileWithoutDataParams{
+			AccountID: opts.AccountID,
+			UserID:    user.ID,
+			AppID:     opts.AppID,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create app profile", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.UserDTO{}, serviceErr
+		}
 	}
 
 	logger.InfoContext(ctx, "Created user successfully")

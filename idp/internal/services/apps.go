@@ -65,7 +65,7 @@ func (s *Services) CreateApp(ctx context.Context, opts CreateAppOptions) (dtos.A
 
 	encryptedDek, err := s.encrypt.GenerateAppDEK(ctx, opts.RequestID)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate app DEK", "error", err)
+		logger.ErrorContext(ctx, "Failed to generate app StoredDEK", "error", err)
 		return dtos.AppDTO{}, exceptions.NewServerError()
 	}
 
@@ -118,6 +118,42 @@ func (s *Services) GetAppByClientID(
 	}
 
 	logger.InfoContext(ctx, "App by clientID found successfully")
+	return dtos.MapAppToDTO(&app)
+}
+
+type GetAppByIDOptions struct {
+	RequestID string
+	AccountID int32
+	AppID     int32
+}
+
+func (s *Services) GetAppByID(
+	ctx context.Context,
+	opts GetAppByIDOptions,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "GetAppByID").With(
+		"accountId", opts.AccountID,
+		"appId", opts.AppID,
+	)
+	logger.InfoContext(ctx, "Getting app by ID...")
+
+	app, err := s.database.FindAppByID(ctx, opts.AppID)
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.InfoContext(ctx, "App not found", "error", err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		logger.ErrorContext(ctx, "Failed to get app by ID", "error", err)
+		return dtos.AppDTO{}, serviceErr
+	}
+	if app.AccountID != opts.AccountID {
+		logger.WarnContext(ctx, "Current account id is not the app owner", "appAccountId", app.AccountID)
+		return dtos.AppDTO{}, exceptions.NewNotFoundError()
+	}
+
+	logger.InfoContext(ctx, "App by ID found successfully")
 	return dtos.MapAppToDTO(&app)
 }
 

@@ -19,14 +19,16 @@ import (
 const logLayer string = utils.ProvidersLogLayer + "/cache"
 
 type Cache struct {
-	logger  *slog.Logger
-	storage *fiberRedis.Storage
+	logger      *slog.Logger
+	storage     *fiberRedis.Storage
+	usernameTTL int
 }
 
-func NewCache(logger *slog.Logger, storage *fiberRedis.Storage) *Cache {
+func NewCache(logger *slog.Logger, storage *fiberRedis.Storage, usernameTTL int64) *Cache {
 	return &Cache{
-		logger:  logger,
-		storage: storage,
+		logger:      logger,
+		storage:     storage,
+		usernameTTL: int(usernameTTL),
 	}
 }
 
