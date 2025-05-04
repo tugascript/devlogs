@@ -9,7 +9,7 @@ import (
 )
 
 type AppClaims struct {
-	ID       int    `json:"id"`
+	ID       int32  `json:"id"`
 	ClientID string `json:"client_id"`
 }
 
@@ -19,7 +19,7 @@ type appTokenClaims struct {
 }
 
 type AppTokenOptions struct {
-	ID       int
+	ID       int32
 	ClientID string
 	Username string
 }
@@ -48,7 +48,7 @@ func (t *Tokens) CreateAppToken(opts AppTokenOptions) (string, error) {
 	return token.SignedString(t.appsData.curKeyPair.privateKey)
 }
 
-func (t *Tokens) VerifyAppToken(token string) (int, error) {
+func (t *Tokens) VerifyAppToken(token string) (int32, error) {
 	claims := new(appTokenClaims)
 
 	if _, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {

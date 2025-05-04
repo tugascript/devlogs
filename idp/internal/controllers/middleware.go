@@ -140,6 +140,7 @@ func (c *Controllers) AccountHostMiddleware(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
+	ctx.Locals("accountUsername", username)
 	ctx.Locals("accountID", accountID)
 	return ctx.Next()
 }
@@ -163,11 +164,16 @@ func getScopes(ctx *fiber.Ctx) ([]tokens.AccountScope, *exceptions.ServiceError)
 	return scopes, nil
 }
 
-func getHostAccountID(ctx *fiber.Ctx) (int, *exceptions.ServiceError) {
-	accountID, ok := ctx.Locals("accountID").(int)
-	if !ok || accountID == 0 {
-		return 0, exceptions.NewNotFoundError()
+func getHostAccount(ctx *fiber.Ctx) (string, int, *exceptions.ServiceError) {
+	accountUsername, ok := ctx.Locals("accountUsername").(string)
+	if !ok || accountUsername == "" {
+		return "", 0, exceptions.NewNotFoundError()
 	}
 
-	return accountID, nil
+	accountID, ok := ctx.Locals("accountID").(int)
+	if !ok || accountID == 0 {
+		return "", 0, exceptions.NewNotFoundError()
+	}
+
+	return accountUsername, accountID, nil
 }

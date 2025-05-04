@@ -7,11 +7,14 @@
 package dtos
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 
 	"github.com/google/uuid"
 
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -101,5 +104,30 @@ func NewPaginationDTO[T any](
 		Next:     newPaginationNextURL(backendDomain, route, limit, offset, count, extraParamsStr),
 		Previous: newPaginationPreviousURL(backendDomain, route, limit, offset, extraParamsStr),
 		Items:    items,
+	}
+}
+
+func hashMapToSlice(jsonMap []byte) ([]string, *exceptions.ServiceError) {
+	hashMap := make(map[string]bool)
+	if err := json.Unmarshal(jsonMap, &hashMap); err != nil {
+		return nil, exceptions.NewServerError()
+	}
+
+	strSlice := make([]string, 0)
+	for k := range hashMap {
+		strSlice = append(strSlice, k)
+	}
+
+	return strSlice, nil
+}
+
+func getJwtCryptoSuite(cryptoSuite string) (tokens.SupportedCryptoSuite, *exceptions.ServiceError) {
+	switch cryptoSuite {
+	case "EdDSA":
+		return tokens.SupportedCryptoSuiteEd25519, nil
+	case "ES256":
+		return tokens.SupportedCryptoSuiteES256, nil
+	default:
+		return "", exceptions.NewServerError()
 	}
 }

@@ -21,3 +21,7 @@ INSERT INTO "app_profiles" (
     $3,
     $4
 );
+
+-- name: FindAppProfileByAppIDAndUserID :one
+SELECT * FROM "app_profiles"
+WHERE "app_id" = $1 AND "user_id" = $2 LIMIT 1;

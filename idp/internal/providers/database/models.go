@@ -46,23 +46,25 @@ type AccountTotp struct {
 }
 
 type App struct {
-	ID             int32
-	AccountID      int32
-	Type           string
-	Name           string
-	ClientID       string
-	ClientSecret   string
-	Dek            string
-	CallbackUris   []string
-	LogoutUris     []string
-	UserScopes     []byte
-	AppProviders   []byte
-	UsernameColumn string
-	ProfileSchema  []byte
-	IDTokenTtl     int32
-	JwtCryptoSuite string
-	CreatedAt      pgtype.Timestamp
-	UpdatedAt      pgtype.Timestamp
+	ID              int32
+	AccountID       int32
+	Type            string
+	Name            string
+	ClientID        string
+	ClientSecret    string
+	Dek             string
+	ConfirmationUri string
+	CallbackUris    []string
+	LogoutUris      []string
+	UserScopes      []byte
+	UserRoles       []byte
+	AuthProviders   []byte
+	UsernameColumn  string
+	ProfileSchema   []byte
+	IDTokenTtl      int32
+	JwtCryptoSuite  string
+	CreatedAt       pgtype.Timestamp
+	UpdatedAt       pgtype.Timestamp
 }
 
 type AppKey struct {
@@ -84,6 +86,7 @@ type AppProfile struct {
 	AccountID   int32
 	UserID      int32
 	AppID       int32
+	UserRoles   []byte
 	ProfileData []byte
 	CreatedAt   pgtype.Timestamp
 	UpdatedAt   pgtype.Timestamp

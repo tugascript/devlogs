@@ -214,11 +214,13 @@ Table apps as APP {
     client_secret text [not null]
     dek text [not null]
 
+    confirmation_uri varchar(250) [not null]
     callback_uris "varchar(250)[]" [not null, default: '{}']
     logout_uris "varchar(250)[]" [not null, default: '{}']
 
     user_scopes jsonb [not null, default: '{ "email": true, "openid": true, "profile": true, "read:app_profile": true }']
-    app_providers jsonb [not null, default: '{ "username_password": true }']
+    user_roles jsonb [not null, default: '{ "user": true }']
+    auth_providers jsonb [not null, default: '{ "username_password": true }']
     username_column varchar(8) [not null, default: 'email']
     profile_schema jsonb [not null, default: '{}']
 
@@ -246,6 +248,7 @@ Table app_profiles as AUP {
     user_id integer [not null]
     app_id integer [not null]
 
+    user_roles jsonb [not null, default: '{ "user": true }']
     profile_data jsonb [not null, default: '{}']
 
     created_at timestamp [not null, default: `now()`]

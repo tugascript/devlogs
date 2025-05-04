@@ -21,9 +21,10 @@ type AppKeyDTO struct {
 	appID          int
 	accountID      int
 	name           string
-	jwtCryptoSuite string
+	jwtCryptoSuite tokens.SupportedCryptoSuite
 	publicKey      utils.JWK
-	privateKey     string
+	publicKID      string
+	privateKey     interface{}
 }
 
 func (ak *AppKeyDTO) ID() int {
@@ -42,7 +43,7 @@ func (ak *AppKeyDTO) Name() string {
 	return ak.name
 }
 
-func (ak *AppKeyDTO) JWTCryptoSuite() string {
+func (ak *AppKeyDTO) JWTCryptoSuite() tokens.SupportedCryptoSuite {
 	return ak.jwtCryptoSuite
 }
 
@@ -50,8 +51,12 @@ func (ak *AppKeyDTO) PublicKey() utils.JWK {
 	return ak.publicKey
 }
 
-func (ak *AppKeyDTO) PrivateKey() string {
+func (ak *AppKeyDTO) PrivateKey() interface{} {
 	return ak.privateKey
+}
+
+func (ak *AppKeyDTO) PublicKID() string {
+	return ak.publicKID
 }
 
 func decodePublicKeyJSON(jwtCryptoSuite string, publicKey []byte) (utils.JWK, error) {
@@ -73,10 +78,14 @@ func decodePublicKeyJSON(jwtCryptoSuite string, publicKey []byte) (utils.JWK, er
 	}
 }
 
-func MapAppKeyToDTO(appKey *database.AppKey) (AppKeyDTO, *exceptions.ServiceError) {
-	publicKey, err := decodePublicKeyJSON(appKey.JwtCryptoSuite, appKey.PublicKey)
-	if err != nil {
-		return AppKeyDTO{}, exceptions.NewServerError()
+func MapAppKeyWithKeysToDTO(
+	appKey *database.AppKey,
+	publicKeyJWK utils.JWK,
+	privateKey interface{},
+) (AppKeyDTO, *exceptions.ServiceError) {
+	jwtCryptoSuite, serviceErr := getJwtCryptoSuite(appKey.JwtCryptoSuite)
+	if serviceErr != nil {
+		return AppKeyDTO{}, serviceErr
 	}
 
 	return AppKeyDTO{
@@ -84,8 +93,32 @@ func MapAppKeyToDTO(appKey *database.AppKey) (AppKeyDTO, *exceptions.ServiceErro
 		appID:          int(appKey.AppID),
 		accountID:      int(appKey.AccountID),
 		name:           appKey.Name,
-		jwtCryptoSuite: appKey.JwtCryptoSuite,
+		jwtCryptoSuite: jwtCryptoSuite,
+		publicKey:      publicKeyJWK,
+		privateKey:     privateKey,
+		publicKID:      appKey.PublicKid,
+	}, nil
+}
+
+func MapAppKeyToDTO(appKey *database.AppKey, privateKey interface{}) (AppKeyDTO, *exceptions.ServiceError) {
+	publicKey, err := decodePublicKeyJSON(appKey.JwtCryptoSuite, appKey.PublicKey)
+	if err != nil {
+		return AppKeyDTO{}, exceptions.NewServerError()
+	}
+
+	jwtCryptoSuite, serviceErr := getJwtCryptoSuite(appKey.JwtCryptoSuite)
+	if serviceErr != nil {
+		return AppKeyDTO{}, serviceErr
+	}
+
+	return AppKeyDTO{
+		id:             int(appKey.ID),
+		appID:          int(appKey.AppID),
+		accountID:      int(appKey.AccountID),
+		name:           appKey.Name,
+		jwtCryptoSuite: jwtCryptoSuite,
 		publicKey:      publicKey,
-		privateKey:     appKey.PrivateKey,
+		privateKey:     privateKey,
+		publicKID:      appKey.PublicKid,
 	}, nil
 }

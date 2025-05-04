@@ -76,7 +76,7 @@ INSERT INTO "apps" (
   $5,
   $6,
   $7
-) RETURNING id, account_id, type, name, client_id, client_secret, dek, callback_uris, logout_uris, user_scopes, app_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at
+) RETURNING id, account_id, type, name, client_id, client_secret, dek, confirmation_uri, callback_uris, logout_uris, user_scopes, user_roles, auth_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at
 `
 
 type CreateAppParams struct {
@@ -113,10 +113,12 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		&i.ClientID,
 		&i.ClientSecret,
 		&i.Dek,
+		&i.ConfirmationUri,
 		&i.CallbackUris,
 		&i.LogoutUris,
 		&i.UserScopes,
-		&i.AppProviders,
+		&i.UserRoles,
+		&i.AuthProviders,
 		&i.UsernameColumn,
 		&i.ProfileSchema,
 		&i.IDTokenTtl,
@@ -140,7 +142,7 @@ INSERT INTO "apps" (
     $3,
     $4,
     $5
-) RETURNING id, account_id, type, name, client_id, client_secret, dek, callback_uris, logout_uris, user_scopes, app_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at
+) RETURNING id, account_id, type, name, client_id, client_secret, dek, confirmation_uri, callback_uris, logout_uris, user_scopes, user_roles, auth_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at
 `
 
 type CreateDefaultAppParams struct {
@@ -168,10 +170,12 @@ func (q *Queries) CreateDefaultApp(ctx context.Context, arg CreateDefaultAppPara
 		&i.ClientID,
 		&i.ClientSecret,
 		&i.Dek,
+		&i.ConfirmationUri,
 		&i.CallbackUris,
 		&i.LogoutUris,
 		&i.UserScopes,
-		&i.AppProviders,
+		&i.UserRoles,
+		&i.AuthProviders,
 		&i.UsernameColumn,
 		&i.ProfileSchema,
 		&i.IDTokenTtl,
@@ -193,7 +197,7 @@ func (q *Queries) DeleteApp(ctx context.Context, id int32) error {
 }
 
 const filterAppsByNameAndByAccountIDOrderedByID = `-- name: FilterAppsByNameAndByAccountIDOrderedByID :many
-SELECT id, account_id, type, name, client_id, client_secret, dek, callback_uris, logout_uris, user_scopes, app_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, client_secret, dek, confirmation_uri, callback_uris, logout_uris, user_scopes, user_roles, auth_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at FROM "apps"
 WHERE "account_id" = $1 AND "name" ILIKE $2
 ORDER BY "id" DESC
 OFFSET $3 LIMIT $4
@@ -228,10 +232,12 @@ func (q *Queries) FilterAppsByNameAndByAccountIDOrderedByID(ctx context.Context,
 			&i.ClientID,
 			&i.ClientSecret,
 			&i.Dek,
+			&i.ConfirmationUri,
 			&i.CallbackUris,
 			&i.LogoutUris,
 			&i.UserScopes,
-			&i.AppProviders,
+			&i.UserRoles,
+			&i.AuthProviders,
 			&i.UsernameColumn,
 			&i.ProfileSchema,
 			&i.IDTokenTtl,
@@ -250,7 +256,7 @@ func (q *Queries) FilterAppsByNameAndByAccountIDOrderedByID(ctx context.Context,
 }
 
 const filterAppsByNameAndByAccountIDOrderedByName = `-- name: FilterAppsByNameAndByAccountIDOrderedByName :many
-SELECT id, account_id, type, name, client_id, client_secret, dek, callback_uris, logout_uris, user_scopes, app_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, client_secret, dek, confirmation_uri, callback_uris, logout_uris, user_scopes, user_roles, auth_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at FROM "apps"
 WHERE "account_id" = $1 AND "name" ILIKE $2
 ORDER BY "name" ASC
 OFFSET $3 LIMIT $4
@@ -285,10 +291,12 @@ func (q *Queries) FilterAppsByNameAndByAccountIDOrderedByName(ctx context.Contex
 			&i.ClientID,
 			&i.ClientSecret,
 			&i.Dek,
+			&i.ConfirmationUri,
 			&i.CallbackUris,
 			&i.LogoutUris,
 			&i.UserScopes,
-			&i.AppProviders,
+			&i.UserRoles,
+			&i.AuthProviders,
 			&i.UsernameColumn,
 			&i.ProfileSchema,
 			&i.IDTokenTtl,
@@ -307,7 +315,7 @@ func (q *Queries) FilterAppsByNameAndByAccountIDOrderedByName(ctx context.Contex
 }
 
 const findAppByClientID = `-- name: FindAppByClientID :one
-SELECT id, account_id, type, name, client_id, client_secret, dek, callback_uris, logout_uris, user_scopes, app_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, client_secret, dek, confirmation_uri, callback_uris, logout_uris, user_scopes, user_roles, auth_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at FROM "apps"
 WHERE "client_id" = $1 LIMIT 1
 `
 
@@ -322,10 +330,12 @@ func (q *Queries) FindAppByClientID(ctx context.Context, clientID string) (App, 
 		&i.ClientID,
 		&i.ClientSecret,
 		&i.Dek,
+		&i.ConfirmationUri,
 		&i.CallbackUris,
 		&i.LogoutUris,
 		&i.UserScopes,
-		&i.AppProviders,
+		&i.UserRoles,
+		&i.AuthProviders,
 		&i.UsernameColumn,
 		&i.ProfileSchema,
 		&i.IDTokenTtl,
@@ -337,7 +347,7 @@ func (q *Queries) FindAppByClientID(ctx context.Context, clientID string) (App, 
 }
 
 const findAppByID = `-- name: FindAppByID :one
-SELECT id, account_id, type, name, client_id, client_secret, dek, callback_uris, logout_uris, user_scopes, app_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, client_secret, dek, confirmation_uri, callback_uris, logout_uris, user_scopes, user_roles, auth_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at FROM "apps"
 WHERE "id" = $1 LIMIT 1
 `
 
@@ -352,10 +362,12 @@ func (q *Queries) FindAppByID(ctx context.Context, id int32) (App, error) {
 		&i.ClientID,
 		&i.ClientSecret,
 		&i.Dek,
+		&i.ConfirmationUri,
 		&i.CallbackUris,
 		&i.LogoutUris,
 		&i.UserScopes,
-		&i.AppProviders,
+		&i.UserRoles,
+		&i.AuthProviders,
 		&i.UsernameColumn,
 		&i.ProfileSchema,
 		&i.IDTokenTtl,
@@ -367,7 +379,7 @@ func (q *Queries) FindAppByID(ctx context.Context, id int32) (App, error) {
 }
 
 const findPaginatedAppsByAccountIDOrderedByID = `-- name: FindPaginatedAppsByAccountIDOrderedByID :many
-SELECT id, account_id, type, name, client_id, client_secret, dek, callback_uris, logout_uris, user_scopes, app_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, client_secret, dek, confirmation_uri, callback_uris, logout_uris, user_scopes, user_roles, auth_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at FROM "apps"
 WHERE "account_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3
@@ -396,10 +408,12 @@ func (q *Queries) FindPaginatedAppsByAccountIDOrderedByID(ctx context.Context, a
 			&i.ClientID,
 			&i.ClientSecret,
 			&i.Dek,
+			&i.ConfirmationUri,
 			&i.CallbackUris,
 			&i.LogoutUris,
 			&i.UserScopes,
-			&i.AppProviders,
+			&i.UserRoles,
+			&i.AuthProviders,
 			&i.UsernameColumn,
 			&i.ProfileSchema,
 			&i.IDTokenTtl,
@@ -418,7 +432,7 @@ func (q *Queries) FindPaginatedAppsByAccountIDOrderedByID(ctx context.Context, a
 }
 
 const findPaginatedAppsByAccountIDOrderedByName = `-- name: FindPaginatedAppsByAccountIDOrderedByName :many
-SELECT id, account_id, type, name, client_id, client_secret, dek, callback_uris, logout_uris, user_scopes, app_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, client_secret, dek, confirmation_uri, callback_uris, logout_uris, user_scopes, user_roles, auth_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at FROM "apps"
 WHERE "account_id" = $1
 ORDER BY "name" ASC
 OFFSET $2 LIMIT $3
@@ -447,10 +461,12 @@ func (q *Queries) FindPaginatedAppsByAccountIDOrderedByName(ctx context.Context,
 			&i.ClientID,
 			&i.ClientSecret,
 			&i.Dek,
+			&i.ConfirmationUri,
 			&i.CallbackUris,
 			&i.LogoutUris,
 			&i.UserScopes,
-			&i.AppProviders,
+			&i.UserRoles,
+			&i.AuthProviders,
 			&i.UsernameColumn,
 			&i.ProfileSchema,
 			&i.IDTokenTtl,
@@ -474,12 +490,12 @@ SET "name" = $2,
     "callback_uris" = $3,
     "logout_uris" = $4,
     "user_scopes" = $5,
-    "app_providers" = $6,
+    "auth_providers" = $6,
     "id_token_ttl" = $7,
     "jwt_crypto_suite" = $8,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, type, name, client_id, client_secret, dek, callback_uris, logout_uris, user_scopes, app_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at
+RETURNING id, account_id, type, name, client_id, client_secret, dek, confirmation_uri, callback_uris, logout_uris, user_scopes, user_roles, auth_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at
 `
 
 type UpdateAppParams struct {
@@ -488,7 +504,7 @@ type UpdateAppParams struct {
 	CallbackUris   []string
 	LogoutUris     []string
 	UserScopes     []byte
-	AppProviders   []byte
+	AuthProviders  []byte
 	IDTokenTtl     int32
 	JwtCryptoSuite string
 }
@@ -500,7 +516,7 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		arg.CallbackUris,
 		arg.LogoutUris,
 		arg.UserScopes,
-		arg.AppProviders,
+		arg.AuthProviders,
 		arg.IDTokenTtl,
 		arg.JwtCryptoSuite,
 	)
@@ -513,10 +529,12 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		&i.ClientID,
 		&i.ClientSecret,
 		&i.Dek,
+		&i.ConfirmationUri,
 		&i.CallbackUris,
 		&i.LogoutUris,
 		&i.UserScopes,
-		&i.AppProviders,
+		&i.UserRoles,
+		&i.AuthProviders,
 		&i.UsernameColumn,
 		&i.ProfileSchema,
 		&i.IDTokenTtl,
@@ -532,7 +550,7 @@ UPDATE "apps" SET
     "client_secret" = $1,
     "updated_at" = now()
 WHERE "id" = $2
-RETURNING id, account_id, type, name, client_id, client_secret, dek, callback_uris, logout_uris, user_scopes, app_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at
+RETURNING id, account_id, type, name, client_id, client_secret, dek, confirmation_uri, callback_uris, logout_uris, user_scopes, user_roles, auth_providers, username_column, profile_schema, id_token_ttl, jwt_crypto_suite, created_at, updated_at
 `
 
 type UpdateAppClientSecretParams struct {
@@ -551,10 +569,12 @@ func (q *Queries) UpdateAppClientSecret(ctx context.Context, arg UpdateAppClient
 		&i.ClientID,
 		&i.ClientSecret,
 		&i.Dek,
+		&i.ConfirmationUri,
 		&i.CallbackUris,
 		&i.LogoutUris,
 		&i.UserScopes,
-		&i.AppProviders,
+		&i.UserRoles,
+		&i.AuthProviders,
 		&i.UsernameColumn,
 		&i.ProfileSchema,
 		&i.IDTokenTtl,

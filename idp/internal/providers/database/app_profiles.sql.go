@@ -62,3 +62,29 @@ func (q *Queries) CreateAppProfileWithoutData(ctx context.Context, arg CreateApp
 	_, err := q.db.Exec(ctx, createAppProfileWithoutData, arg.AccountID, arg.UserID, arg.AppID)
 	return err
 }
+
+const findAppProfileByAppIDAndUserID = `-- name: FindAppProfileByAppIDAndUserID :one
+SELECT id, account_id, user_id, app_id, user_roles, profile_data, created_at, updated_at FROM "app_profiles"
+WHERE "app_id" = $1 AND "user_id" = $2 LIMIT 1
+`
+
+type FindAppProfileByAppIDAndUserIDParams struct {
+	AppID  int32
+	UserID int32
+}
+
+func (q *Queries) FindAppProfileByAppIDAndUserID(ctx context.Context, arg FindAppProfileByAppIDAndUserIDParams) (AppProfile, error) {
+	row := q.db.QueryRow(ctx, findAppProfileByAppIDAndUserID, arg.AppID, arg.UserID)
+	var i AppProfile
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.UserID,
+		&i.AppID,
+		&i.UserRoles,
+		&i.ProfileData,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

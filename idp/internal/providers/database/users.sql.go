@@ -11,6 +11,35 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const confirmUser = `-- name: ConfirmUser :one
+UPDATE "users" SET
+    "is_confirmed" = true,
+    "version" = "version" + 1,
+    "updated_at" = now()
+WHERE "id" = $1
+RETURNING id, account_id, email, username, password, dek, version, is_confirmed, two_factor_type, user_data, created_at, updated_at
+`
+
+func (q *Queries) ConfirmUser(ctx context.Context, id int32) (User, error) {
+	row := q.db.QueryRow(ctx, confirmUser, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Email,
+		&i.Username,
+		&i.Password,
+		&i.Dek,
+		&i.Version,
+		&i.IsConfirmed,
+		&i.TwoFactorType,
+		&i.UserData,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const countUsersByAccountID = `-- name: CountUsersByAccountID :one
 SELECT COUNT("id") FROM "users"
 WHERE "account_id" = $1
@@ -152,6 +181,31 @@ func (q *Queries) CreateUserWithoutPassword(ctx context.Context, arg CreateUserW
 		arg.UserData,
 		arg.Dek,
 	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Email,
+		&i.Username,
+		&i.Password,
+		&i.Dek,
+		&i.Version,
+		&i.IsConfirmed,
+		&i.TwoFactorType,
+		&i.UserData,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findUserByID = `-- name: FindUserByID :one
+SELECT id, account_id, email, username, password, dek, version, is_confirmed, two_factor_type, user_data, created_at, updated_at FROM "users"
+WHERE "id" = $1 LIMIT 1
+`
+
+func (q *Queries) FindUserByID(ctx context.Context, id int32) (User, error) {
+	row := q.db.QueryRow(ctx, findUserByID, id)
 	var i User
 	err := row.Scan(
 		&i.ID,

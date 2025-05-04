@@ -9,13 +9,16 @@ package mailer
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const confirmationPath = "auth/confirm"
+const (
+	confirmationPath = "auth/confirm"
+)
 
 const confirmationTemplate = `
 <!DOCTYPE html>
@@ -42,6 +45,34 @@ const confirmationTemplate = `
 
 type confirmationEmailData struct {
 	Name            string
+	ConfirmationURL string
+}
+
+const userConfirmationTemplate = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>DevLogs Confirm Confirmation</title>
+</head>
+<body>
+	<h1>Confirm Confirmation</h1>
+	<br/>
+	<p>Welcome to {{.AppName}}</p>
+	<br/>
+	<p>Thank you for signing up to DevLogs. Please click the link below to confirm your email address.</p>
+	<a href="{{.ConfirmationURL}}">Confirm Confirm</a>
+	<p><small>Or copy this link: {{.ConfirmationURL}}</small></p>
+	<br/>
+	<p>Thank you,</p>
+	<p>{{.AppName}} Team</p>
+</body>
+`
+
+type userConfirmationEmailData struct {
+	AppName         string
 	ConfirmationURL string
 }
 
@@ -80,6 +111,60 @@ func (e *EmailPublisher) PublishConfirmationEmail(ctx context.Context, opts Conf
 	return e.publishEmail(ctx, PublishEmailOptions{
 		To:        opts.Email,
 		Subject:   "DevLogs Confirm Confirmation",
+		Body:      emailContent.String(),
+		RequestID: opts.RequestID,
+	})
+}
+
+type UserConfirmationEmailOptions struct {
+	RequestID         string
+	AppName           string
+	Email             string
+	ConfirmationURI   string
+	ConfirmationToken string
+}
+
+func (e *EmailPublisher) PublishUserConfirmationEmail(ctx context.Context, opts UserConfirmationEmailOptions) error {
+	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  "confirmation",
+		Method:    "PublishUserConfirmationEmail",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Publishing user confirmation email...")
+
+	if opts.ConfirmationURI == "" {
+		logger.ErrorContext(ctx, "Confirmation URI is empty")
+		return errors.New("confirmation URI is empty")
+	}
+
+	var confirmationURL string
+	lastIndex := len(opts.ConfirmationURI) - 1
+	if opts.ConfirmationURI[lastIndex] == '/' {
+		confirmationURL = fmt.Sprintf("%s%s", opts.ConfirmationURI, opts.ConfirmationToken)
+	} else {
+		confirmationURL = fmt.Sprintf("https://%s/%s", opts.ConfirmationURI, opts.ConfirmationToken)
+	}
+
+	t, err := template.New("user_confirmation").Parse(userConfirmationTemplate)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to parse user confirmation email template", "error", err)
+		return err
+	}
+
+	data := userConfirmationEmailData{
+		AppName:         opts.AppName,
+		ConfirmationURL: confirmationURL,
+	}
+	var emailContent bytes.Buffer
+	if err := t.Execute(&emailContent, data); err != nil {
+		logger.ErrorContext(ctx, "Failed to execute email template", "error", err)
+		return err
+	}
+
+	return e.publishEmail(ctx, PublishEmailOptions{
+		To:        opts.Email,
+		Subject:   fmt.Sprintf("%s Confirmation", opts.AppName),
 		Body:      emailContent.String(),
 		RequestID: opts.RequestID,
 	})

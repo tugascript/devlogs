@@ -7,47 +7,101 @@
 package tokens
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type UserClaims struct {
-	ID      int32 `json:"id"`
-	Version int32 `json:"version"`
+	ID      int32    `json:"id"`
+	Version int32    `json:"version"`
+	Roles   []string `json:"roles,omitempty"`
 }
 
 type userTokenClaims struct {
-	User UserClaims
+	User UserClaims `json:"user"`
+	App  AppClaims  `json:"app"`
 	jwt.RegisteredClaims
 }
 
 type UserTokenOptions struct {
-	Method          jwt.SigningMethod
+	CryptoSuite     SupportedCryptoSuite
+	Type            TokenType
 	PrivateKey      interface{}
 	KID             string
-	TTLSec          int64
 	AccountUsername string
 	UserID          int32
 	UserVersion     int32
 	UserEmail       string
+	AppProfileRoles []string
+	AppID           int32
+	AppClientID     string
+}
+
+func getUserSigningMethod(cryptoSuite SupportedCryptoSuite) (jwt.SigningMethod, error) {
+	switch cryptoSuite {
+	case SupportedCryptoSuiteES256:
+		return jwt.SigningMethodES256, nil
+	case SupportedCryptoSuiteEd25519:
+		return jwt.SigningMethodEdDSA, nil
+	default:
+		return nil, errors.New("unsupported crypto suite")
+	}
+}
+
+func (t *Tokens) getUserTTL(tokenType TokenType) (int64, error) {
+	switch tokenType {
+	case TokenTypeAccess:
+		return t.accessData.ttlSec, nil
+	case TokenTypeRefresh:
+		return t.refreshData.ttlSec, nil
+	case TokenTypeConfirmation:
+		return t.confirmationData.ttlSec, nil
+	case TokenTypeReset:
+		return t.resetData.ttlSec, nil
+	case TokenTypeOAuth:
+		return t.oauthData.ttlSec, nil
+	case TokenTypeTwoFA:
+		return t.twoFAData.ttlSec, nil
+	default:
+		return 0, errors.New("unsupported token type")
+	}
 }
 
 func (t *Tokens) CreateUserToken(opts UserTokenOptions) (string, error) {
+	ttl, err := t.getUserTTL(opts.Type)
+	if err != nil {
+		return "", err
+	}
+
 	now := time.Now()
 	iat := jwt.NewNumericDate(now)
-	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(opts.TTLSec)))
+	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(ttl)))
 	iss := fmt.Sprintf(
 		"https://%s.%s",
 		opts.AccountUsername,
-		t.frontendDomain,
+		t.backendDomain,
 	)
-	token := jwt.NewWithClaims(opts.Method, userTokenClaims{
+
+	method, err := getUserSigningMethod(opts.CryptoSuite)
+	if err != nil {
+		return "", err
+	}
+
+	token := jwt.NewWithClaims(method, userTokenClaims{
 		User: UserClaims{
 			ID:      opts.UserID,
 			Version: opts.UserVersion,
+			Roles:   opts.AppProfileRoles,
+		},
+		App: AppClaims{
+			ID:       opts.AppID,
+			ClientID: opts.AppClientID,
 		},
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    iss,
@@ -61,4 +115,31 @@ func (t *Tokens) CreateUserToken(opts UserTokenOptions) (string, error) {
 	})
 	token.Header["kid"] = opts.KID
 	return token.SignedString(opts.PrivateKey)
+}
+
+type VerifyUserTokenOptions struct {
+	PublicKeyJWK utils.JWK
+	Token        string
+}
+
+func (t *Tokens) VerifyUserToken(opts VerifyUserTokenOptions) (UserClaims, AppClaims, error) {
+	claims := new(userTokenClaims)
+
+	_, err := jwt.ParseWithClaims(opts.Token, claims, func(token *jwt.Token) (interface{}, error) {
+		kid, err := extractTokenKID(token)
+		if err != nil {
+			return nil, err
+		}
+
+		if opts.PublicKeyJWK.GetKeyID() == kid {
+			return opts.PublicKeyJWK.ToUsableKey()
+		}
+
+		return nil, fmt.Errorf("no key found for kid %s", kid)
+	})
+	if err != nil {
+		return UserClaims{}, AppClaims{}, err
+	}
+
+	return claims.User, claims.App, nil
 }

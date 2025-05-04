@@ -20,9 +20,19 @@ import (
 
 type SupportedCryptoSuite string
 
+type TokenType string
+
 const (
 	SupportedCryptoSuiteEd25519 SupportedCryptoSuite = "EdDSA"
 	SupportedCryptoSuiteES256   SupportedCryptoSuite = "ES256"
+
+	TokenTypeAccess       TokenType = "access"
+	TokenTypeRefresh      TokenType = "refresh"
+	TokenTypeConfirmation TokenType = "confirmation"
+	TokenTypeReset        TokenType = "reset"
+	TokenTypeOAuth        TokenType = "oauth"
+	TokenTypeTwoFA        TokenType = "twoFA"
+	TokenTypeID           TokenType = "id"
 )
 
 type PreviousPublicKey struct {

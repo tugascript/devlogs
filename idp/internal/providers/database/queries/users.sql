@@ -50,3 +50,15 @@ LIMIT 1;
 SELECT COUNT("id") FROM "users"
 WHERE "account_id" = $1
 LIMIT 1;
+
+-- name: ConfirmUser :one
+UPDATE "users" SET
+    "is_confirmed" = true,
+    "version" = "version" + 1,
+    "updated_at" = now()
+WHERE "id" = $1
+RETURNING *;
+
+-- name: FindUserByID :one
+SELECT * FROM "users"
+WHERE "id" = $1 LIMIT 1;

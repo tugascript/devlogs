@@ -108,7 +108,7 @@ func (c *Controllers) UpdateApp(ctx *fiber.Ctx) error {
 		CallbackUris:   body.CallbackUris,
 		LogoutUris:     body.LogoutUris,
 		UserScopes:     body.Scopes,
-		AppProviders:   body.Providers,
+		AuthProviders:  body.Providers,
 		IDTokenTtl:     body.IDTokenTtl,
 		JwtCryptoSuite: body.JwtCryptoSuite,
 	})

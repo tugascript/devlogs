@@ -9,6 +9,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -179,9 +180,9 @@ type updateAppWithNewCryptoSuiteOptions struct {
 	CallbackUris   []string
 	LogoutUris     []string
 	UserScopes     []byte
-	AppProviders   []byte
+	AuthProviders  []byte
 	IDTokenTtl     int32
-	JwtCryptoSuite string
+	JwtCryptoSuite tokens.SupportedCryptoSuite
 }
 
 func (s *Services) updateAppWithNewCryptoSuite(ctx context.Context, opts updateAppWithNewCryptoSuiteOptions) (dtos.AppDTO, *exceptions.ServiceError) {
@@ -207,9 +208,9 @@ func (s *Services) updateAppWithNewCryptoSuite(ctx context.Context, opts updateA
 		CallbackUris:   opts.CallbackUris,
 		LogoutUris:     opts.LogoutUris,
 		UserScopes:     opts.UserScopes,
-		AppProviders:   opts.AppProviders,
+		AuthProviders:  opts.AuthProviders,
 		IDTokenTtl:     opts.IDTokenTtl,
-		JwtCryptoSuite: opts.JwtCryptoSuite,
+		JwtCryptoSuite: string(opts.JwtCryptoSuite),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update app", "error", err)
@@ -232,9 +233,9 @@ type UpdateAppOptions struct {
 	CallbackUris   []string
 	LogoutUris     []string
 	UserScopes     []string
-	AppProviders   []string
+	AuthProviders  []string
 	IDTokenTtl     int32
-	JwtCryptoSuite string
+	JwtCryptoSuite tokens.SupportedCryptoSuite
 }
 
 func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.AppDTO, *exceptions.ServiceError) {
@@ -261,7 +262,7 @@ func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.A
 		return dtos.AppDTO{}, exceptions.NewServerError()
 	}
 
-	appProvidersMap, err := mapSliceToJsonMap(opts.AppProviders)
+	authProvidersMap, err := mapSliceToJsonMap(opts.AuthProviders)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to encode app providers to json map", "error", err)
 		return dtos.AppDTO{}, exceptions.NewServerError()
@@ -275,7 +276,7 @@ func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.A
 			CallbackUris:   opts.CallbackUris,
 			LogoutUris:     opts.LogoutUris,
 			UserScopes:     userScopesMap,
-			AppProviders:   appProvidersMap,
+			AuthProviders:  authProvidersMap,
 			IDTokenTtl:     opts.IDTokenTtl,
 			JwtCryptoSuite: opts.JwtCryptoSuite,
 		})
@@ -287,9 +288,9 @@ func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.A
 		CallbackUris:   opts.CallbackUris,
 		LogoutUris:     opts.LogoutUris,
 		UserScopes:     userScopesMap,
-		AppProviders:   appProvidersMap,
+		AuthProviders:  authProvidersMap,
 		IDTokenTtl:     opts.IDTokenTtl,
-		JwtCryptoSuite: opts.JwtCryptoSuite,
+		JwtCryptoSuite: string(opts.JwtCryptoSuite),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update app", "error", err)

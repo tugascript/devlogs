@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-05-03T06:20:29.496Z
+-- Generated at: 2025-05-04T03:21:27.941Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -123,10 +123,12 @@ CREATE TABLE "apps" (
   "client_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
   "dek" text NOT NULL,
+  "confirmation_uri" varchar(250) NOT NULL,
   "callback_uris" varchar(250)[] NOT NULL DEFAULT '{}',
   "logout_uris" varchar(250)[] NOT NULL DEFAULT '{}',
   "user_scopes" jsonb NOT NULL DEFAULT '{ "email": true, "openid": true, "profile": true, "read:app_profile": true }',
-  "app_providers" jsonb NOT NULL DEFAULT '{ "username_password": true }',
+  "user_roles" jsonb NOT NULL DEFAULT '{ "user": true }',
+  "auth_providers" jsonb NOT NULL DEFAULT '{ "username_password": true }',
   "username_column" varchar(8) NOT NULL DEFAULT 'email',
   "profile_schema" jsonb NOT NULL DEFAULT '{}',
   "id_token_ttl" integer NOT NULL DEFAULT 3600,
@@ -140,6 +142,7 @@ CREATE TABLE "app_profiles" (
   "account_id" integer NOT NULL,
   "user_id" integer NOT NULL,
   "app_id" integer NOT NULL,
+  "user_roles" jsonb NOT NULL DEFAULT '{ "user": true }',
   "profile_data" jsonb NOT NULL DEFAULT '{}',
   "created_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp NOT NULL DEFAULT (now())

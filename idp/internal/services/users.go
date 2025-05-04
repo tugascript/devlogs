@@ -308,3 +308,82 @@ func (s *Services) CreateAppUser(
 	logger.InfoContext(ctx, "Created user successfully")
 	return dtos.MapUserToDTO(&user)
 }
+
+type GetUserByIDOptions struct {
+	RequestID string
+	UserID    int32
+	AccountID int32
+}
+
+func (s *Services) GetUserByID(
+	ctx context.Context,
+	opts GetUserByIDOptions,
+) (dtos.UserDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersLocation, "GetUserByID").With(
+		"userId", opts.UserID,
+		"accountId", opts.AccountID,
+	)
+	logger.InfoContext(ctx, "Getting user by ID...")
+
+	user, err := s.database.FindUserByID(ctx, opts.UserID)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to find user by ID", "error", err)
+		return dtos.UserDTO{}, exceptions.FromDBError(err)
+	}
+
+	if user.AccountID != opts.AccountID {
+		logger.WarnContext(ctx, "User does not belong to account")
+		return dtos.UserDTO{}, exceptions.NewNotFoundError()
+	}
+
+	logger.InfoContext(ctx, "Got user by ID successfully")
+	return dtos.MapUserToDTO(&user)
+}
+
+type ConfirmUserOptions struct {
+	RequestID string
+	AccountID int32
+	UserID    int32
+	Version   int32
+}
+
+func (s *Services) ConfirmUser(
+	ctx context.Context,
+	opts ConfirmUserOptions,
+) (dtos.UserDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersLocation, "ConfirmUser").With(
+		"userId", opts.UserID,
+		"accountId", opts.AccountID,
+		"version", opts.Version,
+	)
+	logger.InfoContext(ctx, "Confirming user...")
+
+	userDTO, serviceErr := s.GetUserByID(ctx, GetUserByIDOptions{
+		RequestID: opts.RequestID,
+		UserID:    opts.UserID,
+		AccountID: opts.AccountID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "User not found")
+			return dtos.UserDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get user by ID", "error", serviceErr)
+		return dtos.UserDTO{}, serviceErr
+	}
+
+	userVersion := userDTO.Version()
+	if userVersion != int(opts.Version) {
+		logger.WarnContext(ctx, "User version mismatch", "currentVersion", userVersion)
+		return dtos.UserDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	user, err := s.database.ConfirmUser(ctx, opts.UserID)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to confirm user", "error", err)
+		return dtos.UserDTO{}, exceptions.FromDBError(err)
+	}
+	logger.InfoContext(ctx, "Confirmed user successfully")
+	return dtos.MapUserToDTO(&user)
+}
