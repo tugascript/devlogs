@@ -7,9 +7,9 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const blacklistToken = `-- name: BlacklistToken :exec
@@ -25,7 +25,7 @@ INSERT INTO "blacklisted_tokens" (
 
 type BlacklistTokenParams struct {
 	ID        uuid.UUID
-	ExpiresAt pgtype.Timestamp
+	ExpiresAt time.Time
 }
 
 // Copyright (c) 2025 Afonso Barracha

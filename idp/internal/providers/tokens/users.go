@@ -13,8 +13,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-
-	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type UserClaims struct {
@@ -117,29 +115,28 @@ func (t *Tokens) CreateUserToken(opts UserTokenOptions) (string, error) {
 	return token.SignedString(opts.PrivateKey)
 }
 
-type VerifyUserTokenOptions struct {
-	PublicKeyJWK utils.JWK
-	Token        string
-}
-
-func (t *Tokens) VerifyUserToken(opts VerifyUserTokenOptions) (UserClaims, AppClaims, error) {
+func (t *Tokens) VerifyUserToken(
+	keyFn func(kid string) (interface{}, error),
+	token string,
+) (UserClaims, AppClaims, uuid.UUID, time.Time, error) {
 	claims := new(userTokenClaims)
 
-	_, err := jwt.ParseWithClaims(opts.Token, claims, func(token *jwt.Token) (interface{}, error) {
+	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
 		kid, err := extractTokenKID(token)
 		if err != nil {
 			return nil, err
 		}
 
-		if opts.PublicKeyJWK.GetKeyID() == kid {
-			return opts.PublicKeyJWK.ToUsableKey()
-		}
-
-		return nil, fmt.Errorf("no key found for kid %s", kid)
+		return keyFn(kid)
 	})
 	if err != nil {
-		return UserClaims{}, AppClaims{}, err
+		return UserClaims{}, AppClaims{}, uuid.Nil, time.Time{}, err
 	}
 
-	return claims.User, claims.App, nil
+	tokenID, err := uuid.Parse(claims.ID)
+	if err != nil {
+		return UserClaims{}, AppClaims{}, uuid.Nil, time.Time{}, err
+	}
+
+	return claims.User, claims.App, tokenID, claims.ExpiresAt.Time, nil
 }

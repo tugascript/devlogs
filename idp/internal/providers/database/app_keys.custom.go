@@ -10,11 +10,13 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 )
 
 type FindAppKeysByNamesAndAppIDParams struct {
-	AppID int32
-	Names []string
+	AppID     int32
+	Names     []string
+	ExpiresAt time.Time
 }
 
 func buildFindAppKeysByNamesAndAppIDQuery(arg FindAppKeysByNamesAndAppIDParams) (string, error) {
@@ -23,27 +25,31 @@ func buildFindAppKeysByNamesAndAppIDQuery(arg FindAppKeysByNamesAndAppIDParams) 
 		return "", errors.New("names cannot be empty")
 	}
 	if paramsCount == 1 {
-		return `SELECT id, app_id, account_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, created_at, updated_at FROM "app_keys" WHERE "id" = $1 AND "name" = $2 LIMIT $3`, nil
+		return `SELECT id, app_id, account_id, "name", jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, created_at, updated_at FROM "app_keys" WHERE "app_id" = $1 AND "name" = $2 AND "expires_at" > $3 LIMIT $4`, nil
 	}
 
-	query := `SELECT id, app_id, account_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, created_at, updated_at FROM app_keys WHERE "id" = $1 AND "name" IN (`
+	query := `SELECT DISTINCT ON ("name") id, app_id, account_id, "name", jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, created_at, updated_at FROM "app_keys" WHERE "app_id" = $1 AND "name" IN (`
 	for i := 1; i <= paramsCount; i++ {
 		query += `$` + strconv.Itoa(i+1)
 		if i < paramsCount {
 			query += ", "
 		}
 	}
-	query += `) ORDER BY "id" DESC LIMIT ` + strconv.Itoa(paramsCount)
+	query += `) AND "expires_at" > $` + strconv.Itoa(paramsCount+2)
+	query += ` ORDER BY "name", "created_at" DESC LIMIT ` + strconv.Itoa(paramsCount)
 
 	return query, nil
 }
 
 func buildFindAppKeysByNamesAndAppIDArgs(arg FindAppKeysByNamesAndAppIDParams) []interface{} {
-	args := make([]interface{}, 0, len(arg.Names)+1)
+	args := make([]interface{}, 0, len(arg.Names)+2)
 	args = append(args, arg.AppID)
+
 	for _, name := range arg.Names {
 		args = append(args, name)
 	}
+
+	args = append(args, arg.ExpiresAt)
 	return args
 }
 

@@ -5,6 +5,8 @@
 package database
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -20,8 +22,8 @@ type Account struct {
 	Version       int32
 	IsConfirmed   bool
 	TwoFactorType string
-	CreatedAt     pgtype.Timestamp
-	UpdatedAt     pgtype.Timestamp
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type AccountCredential struct {
@@ -31,8 +33,8 @@ type AccountCredential struct {
 	Alias        string
 	ClientID     string
 	ClientSecret string
-	CreatedAt    pgtype.Timestamp
-	UpdatedAt    pgtype.Timestamp
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type AccountTotp struct {
@@ -41,8 +43,8 @@ type AccountTotp struct {
 	Url           string
 	Secret        string
 	RecoveryCodes []byte
-	CreatedAt     pgtype.Timestamp
-	UpdatedAt     pgtype.Timestamp
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type App struct {
@@ -63,8 +65,8 @@ type App struct {
 	ProfileSchema   []byte
 	IDTokenTtl      int32
 	JwtCryptoSuite  string
-	CreatedAt       pgtype.Timestamp
-	UpdatedAt       pgtype.Timestamp
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type AppKey struct {
@@ -77,8 +79,9 @@ type AppKey struct {
 	PublicKey      []byte
 	PrivateKey     string
 	IsDistributed  bool
-	CreatedAt      pgtype.Timestamp
-	UpdatedAt      pgtype.Timestamp
+	ExpiresAt      time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type AppProfile struct {
@@ -88,22 +91,22 @@ type AppProfile struct {
 	AppID       int32
 	UserRoles   []byte
 	ProfileData []byte
-	CreatedAt   pgtype.Timestamp
-	UpdatedAt   pgtype.Timestamp
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type AuthProvider struct {
 	ID        int32
 	Email     string
 	Provider  string
-	CreatedAt pgtype.Timestamp
-	UpdatedAt pgtype.Timestamp
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type BlacklistedToken struct {
 	ID        uuid.UUID
-	ExpiresAt pgtype.Timestamp
-	CreatedAt pgtype.Timestamp
+	ExpiresAt time.Time
+	CreatedAt time.Time
 }
 
 type ExternalAuthProvider struct {
@@ -119,8 +122,8 @@ type ExternalAuthProvider struct {
 	TokenUrl     string
 	UserInfoUrl  string
 	UserSchema   []byte
-	CreatedAt    pgtype.Timestamp
-	UpdatedAt    pgtype.Timestamp
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type User struct {
@@ -134,8 +137,8 @@ type User struct {
 	IsConfirmed   bool
 	TwoFactorType string
 	UserData      []byte
-	CreatedAt     pgtype.Timestamp
-	UpdatedAt     pgtype.Timestamp
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type UserAuthProvider struct {
@@ -143,8 +146,8 @@ type UserAuthProvider struct {
 	UserID    int32
 	AccountID int32
 	Provider  string
-	CreatedAt pgtype.Timestamp
-	UpdatedAt pgtype.Timestamp
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type UserCredential struct {
@@ -153,24 +156,25 @@ type UserCredential struct {
 	ClientID     string
 	ClientSecret string
 	AccountID    int32
-	CreatedAt    pgtype.Timestamp
-	UpdatedAt    pgtype.Timestamp
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type UserSchema struct {
 	ID         int32
 	AccountID  int32
 	SchemaData []byte
-	CreatedAt  pgtype.Timestamp
-	UpdatedAt  pgtype.Timestamp
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type UserTotp struct {
 	ID            int32
+	AccountID     int32
 	UserID        int32
 	Url           string
 	Secret        string
 	RecoveryCodes []byte
-	CreatedAt     pgtype.Timestamp
-	UpdatedAt     pgtype.Timestamp
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }

@@ -15,8 +15,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -262,7 +260,7 @@ func (s *Services) LoginAccount(
 	}
 
 	if !accountDTO.IsConfirmed() {
-		logger.InfoContext(ctx, "User is not confirmed, sending new confirmation email")
+		logger.InfoContext(ctx, "Account is not confirmed, sending new confirmation email")
 
 		if serviceErr := s.sendConfirmationEmail(ctx, logger, opts.RequestID, &accountDTO); serviceErr != nil {
 			return dtos.AuthDTO{}, serviceErr
@@ -285,6 +283,7 @@ func (s *Services) LoginAccount(
 			code, err := s.cache.AddTwoFactorCode(ctx, cache.AddTwoFactorCodeOptions{
 				RequestID: opts.RequestID,
 				AccountID: accountDTO.ID,
+				TTL:       s.jwt.Get2FATTL(),
 			})
 			if err != nil {
 				logger.ErrorContext(ctx, "Failed to generate two factor code", "error", err)
@@ -346,11 +345,12 @@ func (s *Services) VerifyAccountTotp(
 		return false, serviceErr
 	}
 
-	ok, newDEK, err := s.encrypt.VerifyAccountTotpCode(ctx, encryption.VerifyAccountTotpCodeOptions{
+	ok, newDEK, err := s.encrypt.VerifyTotpCode(ctx, encryption.VerifyAccountTotpCodeOptions{
 		RequestID:       opts.RequestID,
 		EncryptedSecret: accountTOTP.Secret,
 		StoredDEK:       opts.DEK,
 		Code:            opts.Code,
+		TotpType:        encryption.TotpTypeAccount,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", err)
@@ -419,6 +419,7 @@ func (s *Services) TwoFactorLoginAccount(
 			RequestID: opts.RequestID,
 			ID:        opts.ID,
 			Code:      opts.Code,
+			DEK:       accountDTO.DEK(),
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", serviceErr)
@@ -497,14 +498,9 @@ func (s *Services) LogoutAccount(
 		return exceptions.NewUnauthorizedError()
 	}
 
-	var expiresAt pgtype.Timestamp
-	if err := expiresAt.Scan(exp); err != nil {
-		logger.ErrorContext(ctx, "Failed to scan the refresh token expires at", "error", err)
-		return exceptions.NewServerError()
-	}
 	if err := s.database.BlacklistToken(ctx, database.BlacklistTokenParams{
 		ID:        tokenID,
-		ExpiresAt: expiresAt,
+		ExpiresAt: exp,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to blacklist the token", "error", err)
 		return exceptions.NewServerError()
@@ -566,14 +562,9 @@ func (s *Services) RefreshTokenAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	var expiresAt pgtype.Timestamp
-	if err := expiresAt.Scan(exp); err != nil {
-		logger.ErrorContext(ctx, "Failed to scan the refresh token expiresAt", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
-	}
 	if err := s.database.BlacklistToken(ctx, database.BlacklistTokenParams{
 		ID:        id,
-		ExpiresAt: expiresAt,
+		ExpiresAt: exp,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to blacklist previous refresh token", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()

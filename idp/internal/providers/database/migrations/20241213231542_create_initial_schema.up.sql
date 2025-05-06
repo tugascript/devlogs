@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-05-04T03:21:27.941Z
+-- Generated at: 2025-05-06T09:46:41.637Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -13,8 +13,8 @@ CREATE TABLE "accounts" (
   "version" integer NOT NULL DEFAULT 1,
   "is_confirmed" boolean NOT NULL DEFAULT false,
   "two_factor_type" varchar(5) NOT NULL DEFAULT 'none',
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "account_totps" (
@@ -23,8 +23,8 @@ CREATE TABLE "account_totps" (
   "url" varchar(250) NOT NULL,
   "secret" text NOT NULL,
   "recovery_codes" jsonb NOT NULL,
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "account_credentials" (
@@ -34,16 +34,16 @@ CREATE TABLE "account_credentials" (
   "alias" varchar(50) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "auth_providers" (
   "id" serial PRIMARY KEY,
   "email" varchar(250) NOT NULL,
   "provider" varchar(10) NOT NULL,
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "external_auth_providers" (
@@ -59,16 +59,16 @@ CREATE TABLE "external_auth_providers" (
   "token_url" text NOT NULL,
   "user_info_url" text NOT NULL,
   "user_schema" jsonb NOT NULL,
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "user_schemas" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "schema_data" jsonb NOT NULL DEFAULT '{ "first_name": { "type": "string", "unique": false, "required": true, "validate": "required,min=2,max=50" }, "last_name": { "type": "string", "unique": false, "required": true, "validate": "required,min=2,max=50" } }',
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "users" (
@@ -82,18 +82,19 @@ CREATE TABLE "users" (
   "is_confirmed" boolean NOT NULL DEFAULT false,
   "two_factor_type" varchar(5) NOT NULL DEFAULT 'none',
   "user_data" jsonb NOT NULL DEFAULT '{}',
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "user_totps" (
   "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
   "user_id" integer NOT NULL,
   "url" varchar(250) NOT NULL,
   "secret" text NOT NULL,
   "recovery_codes" jsonb NOT NULL,
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "user_auth_providers" (
@@ -101,8 +102,8 @@ CREATE TABLE "user_auth_providers" (
   "user_id" integer NOT NULL,
   "account_id" integer NOT NULL,
   "provider" varchar(50) NOT NULL,
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "user_credentials" (
@@ -111,8 +112,8 @@ CREATE TABLE "user_credentials" (
   "client_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
   "account_id" integer NOT NULL,
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "apps" (
@@ -133,8 +134,8 @@ CREATE TABLE "apps" (
   "profile_schema" jsonb NOT NULL DEFAULT '{}',
   "id_token_ttl" integer NOT NULL DEFAULT 3600,
   "jwt_crypto_suite" varchar(7) NOT NULL DEFAULT 'ES256',
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "app_profiles" (
@@ -144,8 +145,8 @@ CREATE TABLE "app_profiles" (
   "app_id" integer NOT NULL,
   "user_roles" jsonb NOT NULL DEFAULT '{ "user": true }',
   "profile_data" jsonb NOT NULL DEFAULT '{}',
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "app_keys" (
@@ -158,14 +159,15 @@ CREATE TABLE "app_keys" (
   "public_key" jsonb NOT NULL,
   "private_key" text NOT NULL,
   "is_distributed" boolean NOT NULL DEFAULT false,
-  "created_at" timestamp NOT NULL DEFAULT (now()),
-  "updated_at" timestamp NOT NULL DEFAULT (now())
+  "expires_at" timestamptz NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "blacklisted_tokens" (
   "id" uuid PRIMARY KEY,
-  "expires_at" timestamp NOT NULL,
-  "created_at" timestamp NOT NULL DEFAULT (now())
+  "expires_at" timestamptz NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE UNIQUE INDEX "accounts_email_uidx" ON "accounts" ("email");
@@ -197,6 +199,8 @@ CREATE UNIQUE INDEX "users_account_id_email_uidx" ON "users" ("account_id", "ema
 CREATE UNIQUE INDEX "users_account_id_username_uidx" ON "users" ("account_id", "username");
 
 CREATE INDEX "users_account_id_idx" ON "users" ("account_id");
+
+CREATE INDEX "user_totps_account_id_idx" ON "user_totps" ("account_id");
 
 CREATE UNIQUE INDEX "user_totps_user_id_uidx" ON "user_totps" ("user_id");
 
@@ -236,9 +240,9 @@ CREATE INDEX "app_keys_account_id_idx" ON "app_keys" ("account_id");
 
 CREATE UNIQUE INDEX "app_keys_public_kid_uidx" ON "app_keys" ("public_kid");
 
-CREATE UNIQUE INDEX "app_keys_name_app_id_uidx" ON "app_keys" ("name", "app_id");
+CREATE INDEX "app_keys_name_app_id_expires_at_id_idx" ON "app_keys" ("name", "app_id", "expires_at", "id");
 
-CREATE INDEX "app_keys_is_distributed_app_id_idx" ON "app_keys" ("is_distributed", "app_id");
+CREATE INDEX "app_keys_account_id_is_distributed_expires_at_idx" ON "app_keys" ("account_id", "is_distributed", "expires_at");
 
 ALTER TABLE "account_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
@@ -251,6 +255,8 @@ ALTER TABLE "external_auth_providers" ADD FOREIGN KEY ("account_id") REFERENCES 
 ALTER TABLE "user_schemas" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "users" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "user_totps" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
 

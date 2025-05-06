@@ -17,7 +17,8 @@ INSERT INTO "app_keys" (
     "public_kid",
     "public_key",
     "private_key",
-    "is_distributed"
+    "is_distributed",
+    "expires_at"
 ) VALUES (
     $1,
     $2,
@@ -26,10 +27,20 @@ INSERT INTO "app_keys" (
     $5,
     $6,
     $7,
-    $8
+    $8,
+    $9
 ) RETURNING *;
 
 -- name: FindAppKeyByAppIDAndName :one
 SELECT * FROM "app_keys"
-WHERE "app_id" = $1 AND "name" = $2
+WHERE
+    "app_id" = $1 AND
+    "name" = $2 AND
+    "expires_at" > $3
+ORDER BY "id" DESC LIMIT 1;
+
+-- name: FindAppKeyByPublicKID :one
+SELECT * FROM "app_keys"
+WHERE "public_kid" = $1
 LIMIT 1;
+

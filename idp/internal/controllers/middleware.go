@@ -8,8 +8,8 @@ package controllers
 
 import (
 	"errors"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 	"log/slog"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -86,15 +86,13 @@ func (c *Controllers) AdminScopeMiddleware(ctx *fiber.Ctx) error {
 	return ctx.Next()
 }
 
-var slugRegex = regexp.MustCompile(`^[a-z\d]+(?:(-)[a-z\d]+)*$`)
-
 func isValidSubdomain(sub string) bool {
 	length := len(sub)
 	if length < 1 || length > 63 {
 		return false
 	}
 
-	return slugRegex.MatchString(sub)
+	return utils.IsValidSlug(sub)
 }
 
 func processHost(host string) (string, error) {

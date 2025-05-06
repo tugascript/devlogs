@@ -387,3 +387,73 @@ func (s *Services) ConfirmUser(
 	logger.InfoContext(ctx, "Confirmed user successfully")
 	return dtos.MapUserToDTO(&user)
 }
+
+type GetUserByEmailOptions struct {
+	RequestID string
+	AccountID int32
+	Email     string
+}
+
+func (s *Services) GetUserByEmail(
+	ctx context.Context,
+	opts GetUserByEmailOptions,
+) (dtos.UserDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersLocation, "GetUserByEmail").With(
+		"accountId", opts.AccountID,
+	)
+	logger.InfoContext(ctx, "Getting user by email...")
+
+	email := utils.Lowered(opts.Email)
+	user, err := s.database.FindUserByEmailAndAccountID(ctx, database.FindUserByEmailAndAccountIDParams{
+		Email:     email,
+		AccountID: opts.AccountID,
+	})
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "User not found")
+			return dtos.UserDTO{}, exceptions.NewNotFoundError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to find user by email", "error", err)
+		return dtos.UserDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Got user by email successfully")
+	return dtos.MapUserToDTO(&user)
+}
+
+type GetUserByUsernameOptions struct {
+	RequestID string
+	AccountID int32
+	Username  string
+}
+
+func (s *Services) GetUserByUsername(
+	ctx context.Context,
+	opts GetUserByUsernameOptions,
+) (dtos.UserDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersLocation, "GetUserByUsername").With(
+		"accountId", opts.AccountID,
+	)
+	logger.InfoContext(ctx, "Getting user by username...")
+
+	username := utils.Lowered(opts.Username)
+	user, err := s.database.FindUserByUsernameAndAccountID(ctx, database.FindUserByUsernameAndAccountIDParams{
+		Username:  username,
+		AccountID: opts.AccountID,
+	})
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "User not found")
+			return dtos.UserDTO{}, exceptions.NewNotFoundError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to find user by username", "error", err)
+		return dtos.UserDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Got user by username successfully")
+	return dtos.MapUserToDTO(&user)
+}

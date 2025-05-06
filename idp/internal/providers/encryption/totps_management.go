@@ -18,14 +18,15 @@ import (
 
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
+
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const (
 	totpsManagementLocation string = "totps_management"
 
-	totpTypeAccount string = "account"
-	totpTypeUser    string = "user"
+	TotpTypeAccount string = "account"
+	TotpTypeUser    string = "user"
 )
 
 func generateBaseTotpKey(backendDomain, subDomain, email string) (*otp.Key, error) {
@@ -164,7 +165,7 @@ func (e *Encryption) generateTotpKey(
 	var isOld bool
 	var newDEK string
 	switch opts.totpType {
-	case totpTypeAccount:
+	case TotpTypeAccount:
 		dek, isOld, err = e.decryptAccountDEK(ctx, opts.requestID, opts.dek)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
@@ -177,7 +178,7 @@ func (e *Encryption) generateTotpKey(
 				return TotpKey{}, err
 			}
 		}
-	case totpTypeUser:
+	case TotpTypeUser:
 		dek, isOld, err = e.decryptUserDEK(ctx, opts.requestID, opts.dek)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
@@ -235,6 +236,7 @@ type GenerateAccountTotpKeyOptions struct {
 	RequestID string
 	Email     string
 	StoredDEK string
+	TotpType  string
 }
 
 func (e *Encryption) GenerateAccountTotpKey(
@@ -253,8 +255,46 @@ func (e *Encryption) GenerateAccountTotpKey(
 		backendDomain: e.backendDomain,
 		subDomain:     "",
 		dek:           opts.StoredDEK,
-		totpType:      totpTypeAccount,
+		totpType:      opts.TotpType,
 	})
+}
+
+func (e *Encryption) processTotpDEK(
+	ctx context.Context,
+	logger *slog.Logger,
+	requestID,
+	totpType,
+	storedDEK string,
+) ([]byte, string, error) {
+	switch totpType {
+	case TotpTypeAccount:
+		dek, isOldKey, err := e.decryptAccountDEK(ctx, requestID, storedDEK)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
+			return nil, "", err
+		}
+		newDEK, err := reEncryptDEK(isOldKey, dek, e.accountSecretKey.key)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to re-encrypt StoredDEK", "error", err)
+			return nil, "", err
+		}
+		return dek, newDEK, nil
+	case TotpTypeUser:
+		dek, isOldKey, err := e.decryptUserDEK(ctx, requestID, storedDEK)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
+			return nil, "", err
+		}
+		newDEK, err := reEncryptDEK(isOldKey, dek, e.userSecretKey.key)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to re-encrypt StoredDEK", "error", err)
+			return nil, "", err
+		}
+		return dek, newDEK, nil
+	default:
+		logger.ErrorContext(ctx, "Invalid TOTP type", "type", totpType)
+		return nil, "", fmt.Errorf("invalid TOTP type: %s", totpType)
+	}
 }
 
 type VerifyAccountTotpCodeOptions struct {
@@ -262,28 +302,24 @@ type VerifyAccountTotpCodeOptions struct {
 	EncryptedSecret string
 	StoredDEK       string
 	Code            string
+	TotpType        string
 }
 
-func (e *Encryption) VerifyAccountTotpCode(
+func (e *Encryption) VerifyTotpCode(
 	ctx context.Context,
 	opts VerifyAccountTotpCodeOptions,
 ) (bool, string, error) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  totpsManagementLocation,
-		Method:    "VerifyAccountTotpCode",
+		Method:    "VerifyTotpCode",
 		RequestID: opts.RequestID,
 	})
 	logger.DebugContext(ctx, "Verifying account TOTP code...")
-	dek, isOldKey, err := e.decryptAccountDEK(ctx, opts.RequestID, opts.StoredDEK)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
-		return false, "", err
-	}
 
-	newDEK, err := reEncryptDEK(isOldKey, dek, e.appSecretKey.key)
+	dek, newDEK, err := e.processTotpDEK(ctx, logger, opts.RequestID, opts.TotpType, opts.StoredDEK)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to re-encrypt StoredDEK", "error", err)
+		logger.ErrorContext(ctx, "Failed to process TOTP DEK", "error", err)
 		return false, "", err
 	}
 

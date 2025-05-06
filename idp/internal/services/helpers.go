@@ -24,6 +24,10 @@ const (
 	TwoFactorNone  string = "none"
 	TwoFactorEmail string = "email"
 	TwoFactorTotp  string = "totp"
+
+	UsernameColumnEmail    string = "email"
+	UsernameColumnUsername string = "username"
+	UsernameColumnBoth     string = "both"
 )
 
 func (s *Services) buildLogger(requestID, location, function string) *slog.Logger {

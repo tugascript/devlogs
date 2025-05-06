@@ -8,6 +8,7 @@ package dtos
 
 import (
 	"encoding/json"
+
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 )
@@ -22,6 +23,7 @@ type UserDTO struct {
 	version     int
 	isConfirmed bool
 	password    string
+	dek         string
 }
 
 func (u *UserDTO) Version() int {
@@ -34,6 +36,10 @@ func (u *UserDTO) Password() string {
 
 func (u *UserDTO) IsConfirmed() bool {
 	return u.isConfirmed
+}
+
+func (u *UserDTO) DEK() string {
+	return u.dek
 }
 
 func MapUserToDTO(user *database.User) (UserDTO, *exceptions.ServiceError) {
@@ -51,5 +57,6 @@ func MapUserToDTO(user *database.User) (UserDTO, *exceptions.ServiceError) {
 		version:       int(user.Version),
 		isConfirmed:   user.IsConfirmed,
 		password:      user.Password.String,
+		dek:           user.Dek,
 	}, nil
 }

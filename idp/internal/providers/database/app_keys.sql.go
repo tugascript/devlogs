@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"time"
 )
 
 const createAppKey = `-- name: CreateAppKey :one
@@ -18,7 +19,8 @@ INSERT INTO "app_keys" (
     "public_kid",
     "public_key",
     "private_key",
-    "is_distributed"
+    "is_distributed",
+    "expires_at"
 ) VALUES (
     $1,
     $2,
@@ -27,8 +29,9 @@ INSERT INTO "app_keys" (
     $5,
     $6,
     $7,
-    $8
-) RETURNING id, app_id, account_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, created_at, updated_at
+    $8,
+    $9
+) RETURNING id, app_id, account_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at, updated_at
 `
 
 type CreateAppKeyParams struct {
@@ -40,6 +43,7 @@ type CreateAppKeyParams struct {
 	PublicKey      []byte
 	PrivateKey     string
 	IsDistributed  bool
+	ExpiresAt      time.Time
 }
 
 func (q *Queries) CreateAppKey(ctx context.Context, arg CreateAppKeyParams) (AppKey, error) {
@@ -52,6 +56,7 @@ func (q *Queries) CreateAppKey(ctx context.Context, arg CreateAppKeyParams) (App
 		arg.PublicKey,
 		arg.PrivateKey,
 		arg.IsDistributed,
+		arg.ExpiresAt,
 	)
 	var i AppKey
 	err := row.Scan(
@@ -64,6 +69,7 @@ func (q *Queries) CreateAppKey(ctx context.Context, arg CreateAppKeyParams) (App
 		&i.PublicKey,
 		&i.PrivateKey,
 		&i.IsDistributed,
+		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -87,18 +93,22 @@ func (q *Queries) DeleteDistributedAppKeysByAppID(ctx context.Context, appID int
 }
 
 const findAppKeyByAppIDAndName = `-- name: FindAppKeyByAppIDAndName :one
-SELECT id, app_id, account_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, created_at, updated_at FROM "app_keys"
-WHERE "app_id" = $1 AND "name" = $2
-LIMIT 1
+SELECT id, app_id, account_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at, updated_at FROM "app_keys"
+WHERE
+    "app_id" = $1 AND
+    "name" = $2 AND
+    "expires_at" > $3
+ORDER BY "id" DESC LIMIT 1
 `
 
 type FindAppKeyByAppIDAndNameParams struct {
-	AppID int32
-	Name  string
+	AppID     int32
+	Name      string
+	ExpiresAt time.Time
 }
 
 func (q *Queries) FindAppKeyByAppIDAndName(ctx context.Context, arg FindAppKeyByAppIDAndNameParams) (AppKey, error) {
-	row := q.db.QueryRow(ctx, findAppKeyByAppIDAndName, arg.AppID, arg.Name)
+	row := q.db.QueryRow(ctx, findAppKeyByAppIDAndName, arg.AppID, arg.Name, arg.ExpiresAt)
 	var i AppKey
 	err := row.Scan(
 		&i.ID,
@@ -110,6 +120,33 @@ func (q *Queries) FindAppKeyByAppIDAndName(ctx context.Context, arg FindAppKeyBy
 		&i.PublicKey,
 		&i.PrivateKey,
 		&i.IsDistributed,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findAppKeyByPublicKID = `-- name: FindAppKeyByPublicKID :one
+SELECT id, app_id, account_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at, updated_at FROM "app_keys"
+WHERE "public_kid" = $1
+LIMIT 1
+`
+
+func (q *Queries) FindAppKeyByPublicKID(ctx context.Context, publicKid string) (AppKey, error) {
+	row := q.db.QueryRow(ctx, findAppKeyByPublicKID, publicKid)
+	var i AppKey
+	err := row.Scan(
+		&i.ID,
+		&i.AppID,
+		&i.AccountID,
+		&i.Name,
+		&i.JwtCryptoSuite,
+		&i.PublicKid,
+		&i.PublicKey,
+		&i.PrivateKey,
+		&i.IsDistributed,
+		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

@@ -59,7 +59,7 @@ func (ak *AppKeyDTO) PublicKID() string {
 	return ak.publicKID
 }
 
-func decodePublicKeyJSON(jwtCryptoSuite string, publicKey []byte) (utils.JWK, error) {
+func DecodePublicKeyJSON(jwtCryptoSuite string, publicKey []byte) (utils.JWK, error) {
 	switch jwtCryptoSuite {
 	case string(tokens.SupportedCryptoSuiteES256):
 		jwk := new(utils.ES256JWK)
@@ -83,7 +83,7 @@ func MapAppKeyWithKeysToDTO(
 	publicKeyJWK utils.JWK,
 	privateKey interface{},
 ) (AppKeyDTO, *exceptions.ServiceError) {
-	jwtCryptoSuite, serviceErr := getJwtCryptoSuite(appKey.JwtCryptoSuite)
+	jwtCryptoSuite, serviceErr := GetJwtCryptoSuite(appKey.JwtCryptoSuite)
 	if serviceErr != nil {
 		return AppKeyDTO{}, serviceErr
 	}
@@ -101,12 +101,12 @@ func MapAppKeyWithKeysToDTO(
 }
 
 func MapAppKeyToDTO(appKey *database.AppKey, privateKey interface{}) (AppKeyDTO, *exceptions.ServiceError) {
-	publicKey, err := decodePublicKeyJSON(appKey.JwtCryptoSuite, appKey.PublicKey)
+	publicKey, err := DecodePublicKeyJSON(appKey.JwtCryptoSuite, appKey.PublicKey)
 	if err != nil {
 		return AppKeyDTO{}, exceptions.NewServerError()
 	}
 
-	jwtCryptoSuite, serviceErr := getJwtCryptoSuite(appKey.JwtCryptoSuite)
+	jwtCryptoSuite, serviceErr := GetJwtCryptoSuite(appKey.JwtCryptoSuite)
 	if serviceErr != nil {
 		return AppKeyDTO{}, serviceErr
 	}

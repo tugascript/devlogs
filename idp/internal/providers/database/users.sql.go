@@ -199,6 +199,37 @@ func (q *Queries) CreateUserWithoutPassword(ctx context.Context, arg CreateUserW
 	return i, err
 }
 
+const findUserByEmailAndAccountID = `-- name: FindUserByEmailAndAccountID :one
+SELECT id, account_id, email, username, password, dek, version, is_confirmed, two_factor_type, user_data, created_at, updated_at FROM "users"
+WHERE "email" = $1 AND "account_id" = $2
+LIMIT 1
+`
+
+type FindUserByEmailAndAccountIDParams struct {
+	Email     string
+	AccountID int32
+}
+
+func (q *Queries) FindUserByEmailAndAccountID(ctx context.Context, arg FindUserByEmailAndAccountIDParams) (User, error) {
+	row := q.db.QueryRow(ctx, findUserByEmailAndAccountID, arg.Email, arg.AccountID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Email,
+		&i.Username,
+		&i.Password,
+		&i.Dek,
+		&i.Version,
+		&i.IsConfirmed,
+		&i.TwoFactorType,
+		&i.UserData,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const findUserByID = `-- name: FindUserByID :one
 SELECT id, account_id, email, username, password, dek, version, is_confirmed, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "id" = $1 LIMIT 1
@@ -222,4 +253,52 @@ func (q *Queries) FindUserByID(ctx context.Context, id int32) (User, error) {
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const findUserByUsernameAndAccountID = `-- name: FindUserByUsernameAndAccountID :one
+SELECT id, account_id, email, username, password, dek, version, is_confirmed, two_factor_type, user_data, created_at, updated_at FROM "users"
+WHERE "username" = $1 AND "account_id" = $2
+LIMIT 1
+`
+
+type FindUserByUsernameAndAccountIDParams struct {
+	Username  string
+	AccountID int32
+}
+
+func (q *Queries) FindUserByUsernameAndAccountID(ctx context.Context, arg FindUserByUsernameAndAccountIDParams) (User, error) {
+	row := q.db.QueryRow(ctx, findUserByUsernameAndAccountID, arg.Username, arg.AccountID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Email,
+		&i.Username,
+		&i.Password,
+		&i.Dek,
+		&i.Version,
+		&i.IsConfirmed,
+		&i.TwoFactorType,
+		&i.UserData,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateUserDEK = `-- name: UpdateUserDEK :exec
+UPDATE "users" SET
+    "dek" = $1,
+    "updated_at" = now()
+WHERE "id" = $2
+`
+
+type UpdateUserDEKParams struct {
+	Dek string
+	ID  int32
+}
+
+func (q *Queries) UpdateUserDEK(ctx context.Context, arg UpdateUserDEKParams) error {
+	_, err := q.db.Exec(ctx, updateUserDEK, arg.Dek, arg.ID)
+	return err
 }

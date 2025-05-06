@@ -121,7 +121,7 @@ func hashMapToSlice(jsonMap []byte) ([]string, *exceptions.ServiceError) {
 	return strSlice, nil
 }
 
-func getJwtCryptoSuite(cryptoSuite string) (tokens.SupportedCryptoSuite, *exceptions.ServiceError) {
+func GetJwtCryptoSuite(cryptoSuite string) (tokens.SupportedCryptoSuite, *exceptions.ServiceError) {
 	switch cryptoSuite {
 	case "EdDSA":
 		return tokens.SupportedCryptoSuiteEd25519, nil

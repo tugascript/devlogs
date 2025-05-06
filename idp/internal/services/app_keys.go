@@ -8,6 +8,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -29,6 +30,8 @@ const (
 	AppKeyNameID      AppKeyName = "id"
 	AppKeyNameOAuth   AppKeyName = "oauth"
 	AppKeyNameReset   AppKeyName = "reset"
+
+	KeyDurationHours int = 4320
 )
 
 func isDistributedKey(name AppKeyName) bool {
@@ -45,6 +48,7 @@ func getCryptoSuite(isDistributed bool, cryptoSuite tokens.SupportedCryptoSuite)
 type generateAppKeyKeyPairOptions struct {
 	requestID   string
 	cryptoSuite tokens.SupportedCryptoSuite
+	accountDEK  string
 	dek         string
 }
 
@@ -58,8 +62,9 @@ func (s *Services) generateAppKeyKeyPair(
 	logger.InfoContext(ctx, "Generating app key key pair...")
 
 	keyOpts := encryption.GenerateKeyPairOptions{
-		RequestID: opts.requestID,
-		StoredDEK: opts.dek,
+		RequestID:  opts.requestID,
+		AccountDEK: opts.accountDEK,
+		StoredDEK:  opts.dek,
 	}
 	switch opts.cryptoSuite {
 	case tokens.SupportedCryptoSuiteES256:
@@ -90,7 +95,7 @@ type createAppKeyAndUpdateAppDekOptions struct {
 	requestID           string
 	accountID           int32
 	appID               int32
-	cryptoSuite         string
+	cryptoSuite         tokens.SupportedCryptoSuite
 	name                AppKeyName
 	newDek              string
 	publicKid           string
@@ -98,6 +103,8 @@ type createAppKeyAndUpdateAppDekOptions struct {
 	encryptedPrivateKey string
 	publicKey           utils.JWK
 	privateKey          interface{}
+	isDistributed       bool
+	expiresAt           time.Time
 }
 
 func (s *Services) createAppKeyAndUpdateAppDek(
@@ -127,11 +134,12 @@ func (s *Services) createAppKeyAndUpdateAppDek(
 		AppID:          opts.appID,
 		AccountID:      opts.accountID,
 		Name:           string(opts.name),
-		JwtCryptoSuite: opts.cryptoSuite,
+		JwtCryptoSuite: string(opts.cryptoSuite),
 		PublicKid:      opts.publicKid,
 		PublicKey:      opts.jsonPublicKey,
 		PrivateKey:     opts.encryptedPrivateKey,
 		IsDistributed:  isDistributedKey(opts.name),
+		ExpiresAt:      opts.expiresAt,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app key", "error", err)
@@ -154,6 +162,7 @@ func (s *Services) createAppKeyAndUpdateAppDek(
 type createAppKeyOptions struct {
 	requestID      string
 	accountID      int32
+	accountDEK     string
 	name           AppKeyName
 	appID          int32
 	appDEK         string
@@ -171,10 +180,12 @@ func (s *Services) createAppKey(
 	)
 	logger.InfoContext(ctx, "Creating app keys...")
 
-	cryptoSuite := getCryptoSuite(isDistributedKey(opts.name), opts.jwtCryptoSuite)
+	isDistributed := isDistributedKey(opts.name)
+	cryptoSuite := getCryptoSuite(isDistributed, opts.jwtCryptoSuite)
 	keyPair, privateKey, dek, serviceErr := s.generateAppKeyKeyPair(ctx, generateAppKeyKeyPairOptions{
 		requestID:   opts.requestID,
 		cryptoSuite: cryptoSuite,
+		accountDEK:  opts.accountDEK,
 		dek:         opts.appDEK,
 	})
 	if serviceErr != nil {
@@ -188,12 +199,14 @@ func (s *Services) createAppKey(
 		return dtos.AppKeyDTO{}, exceptions.NewServerError()
 	}
 
+	now := time.Now()
+	expiresAt := now.Add(time.Duration(KeyDurationHours) * time.Hour)
 	if dek != "" {
 		return s.createAppKeyAndUpdateAppDek(ctx, createAppKeyAndUpdateAppDekOptions{
 			requestID:           opts.requestID,
 			accountID:           opts.accountID,
 			appID:               opts.appID,
-			cryptoSuite:         string(opts.jwtCryptoSuite),
+			cryptoSuite:         opts.jwtCryptoSuite,
 			name:                opts.name,
 			newDek:              dek,
 			publicKid:           keyPair.KID,
@@ -201,6 +214,8 @@ func (s *Services) createAppKey(
 			encryptedPrivateKey: keyPair.EncryptedPrivateKey(),
 			publicKey:           keyPair.PublicKey,
 			privateKey:          privateKey,
+			isDistributed:       isDistributed,
+			expiresAt:           expiresAt,
 		})
 	}
 
@@ -212,7 +227,8 @@ func (s *Services) createAppKey(
 		PublicKid:      keyPair.KID,
 		PublicKey:      publicKeyJSON,
 		PrivateKey:     keyPair.EncryptedPrivateKey(),
-		IsDistributed:  isDistributedKey(opts.name),
+		IsDistributed:  isDistributed,
+		ExpiresAt:      expiresAt,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app key", "error", err)
@@ -227,7 +243,8 @@ func (s *Services) decryptPrivateKey(
 	ctx context.Context,
 	requestID string,
 	appKey *database.AppKey,
-	appDEK string,
+	appDEK,
+	accountDEK string,
 ) (interface{}, *exceptions.ServiceError) {
 	logger := s.buildLogger(requestID, appKeysLocation, "decryptPrivateKey").With(
 		"appID", appKey.AppID,
@@ -271,47 +288,6 @@ func (s *Services) decryptPrivateKey(
 	return privateKey, nil
 }
 
-type GetAppKeyOptions struct {
-	RequestID string
-	AppID     int32
-	AppDEK    string
-	Name      AppKeyName
-}
-
-func (s *Services) GetAppKey(
-	ctx context.Context,
-	opts GetAppKeyOptions,
-) (dtos.AppKeyDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, appKeysLocation, "GetAppKey").With(
-		"appId", opts.AppID,
-	)
-	logger.InfoContext(ctx, "Getting app key...")
-
-	appKey, err := s.database.FindAppKeyByAppIDAndName(ctx, database.FindAppKeyByAppIDAndNameParams{
-		AppID: opts.AppID,
-		Name:  string(opts.Name),
-	})
-	if err != nil {
-		serviceErr := exceptions.FromDBError(err)
-		if serviceErr.Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to find app key", "error", err)
-			return dtos.AppKeyDTO{}, serviceErr
-		}
-
-		logger.DebugContext(ctx, "App key not found")
-		return dtos.AppKeyDTO{}, exceptions.NewNotFoundError()
-	}
-
-	privateKey, serviceErr := s.decryptPrivateKey(ctx, opts.RequestID, &appKey, opts.AppDEK)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to decrypt private key", "error", serviceErr)
-		return dtos.AppKeyDTO{}, serviceErr
-	}
-
-	logger.InfoContext(ctx, "App key found")
-	return dtos.MapAppKeyToDTO(&appKey, privateKey)
-}
-
 type GetOrCreateAppKeyOptions struct {
 	RequestID         string
 	AppID             int32
@@ -331,6 +307,20 @@ func (s *Services) GetOrCreateAppKey(
 	)
 	logger.InfoContext(ctx, "Getting or creating app keys...")
 
+	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+		RequestID: opts.RequestID,
+		ID:        opts.AccountID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account not found")
+			return dtos.AppKeyDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Error getting account", "error", serviceErr)
+		return dtos.AppKeyDTO{}, serviceErr
+	}
+
 	appKey, err := s.database.FindAppKeyByAppIDAndName(ctx, database.FindAppKeyByAppIDAndNameParams{
 		AppID: opts.AppID,
 		Name:  string(opts.Name),
@@ -349,11 +339,12 @@ func (s *Services) GetOrCreateAppKey(
 			name:           opts.Name,
 			appID:          opts.AppID,
 			appDEK:         opts.AppDEK,
+			accountDEK:     accountDTO.DEK(),
 			jwtCryptoSuite: opts.AppJwtCryptoSuite,
 		})
 	}
 
-	privateKey, serviceErr := s.decryptPrivateKey(ctx, opts.RequestID, &appKey, opts.AppDEK)
+	privateKey, serviceErr := s.decryptPrivateKey(ctx, opts.RequestID, &appKey, opts.AppDEK, accountDTO.DEK())
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt private key", "error", serviceErr)
 		return dtos.AppKeyDTO{}, serviceErr
@@ -386,11 +377,27 @@ func (s *Services) GetOrCreateAppKeys(
 	)
 	logger.InfoContext(ctx, "Getting or creating app keys...")
 
+	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+		RequestID: opts.RequestID,
+		ID:        opts.AccountID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account not found")
+			return nil, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Error getting account", "error", serviceErr)
+		return nil, serviceErr
+	}
+
+	expAt := time.Now().Add(-30 * 24 * time.Hour)
 	appKeys, err := s.database.FindAppKeysByNamesAndAppID(ctx, database.FindAppKeysByNamesAndAppIDParams{
 		AppID: opts.AppID,
 		Names: utils.MapSlice(opts.AppKeyParams, func(t *AppKeyParam) string {
 			return string(t.Name)
 		}),
+		ExpiresAt: expAt,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to find app keys", "error", err)
@@ -400,7 +407,7 @@ func (s *Services) GetOrCreateAppKeys(
 	appKeyDTOs, serviceErr := utils.MapSliceWithErrorToMap(
 		appKeys,
 		func(ak *database.AppKey) (AppKeyName, dtos.AppKeyDTO, *exceptions.ServiceError) {
-			privateKey, serviceErr := s.decryptPrivateKey(ctx, opts.RequestID, ak, opts.AppDEK)
+			privateKey, serviceErr := s.decryptPrivateKey(ctx, opts.RequestID, ak, opts.AppDEK, accountDTO.DEK())
 			if serviceErr != nil {
 				logger.ErrorContext(ctx, "Failed to decrypt private key", "error", serviceErr)
 				return "", dtos.AppKeyDTO{}, serviceErr
@@ -448,6 +455,7 @@ func (s *Services) GetOrCreateAppKeys(
 			appID:          opts.AppID,
 			appDEK:         opts.AppDEK,
 			jwtCryptoSuite: ak.JwtCryptoSuite,
+			accountDEK:     accountDTO.DEK(),
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to create app key", "error", serviceErr)
@@ -468,9 +476,12 @@ func (s *Services) GetOrCreateAppKeys(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
+	now := time.Now()
+	expiresAt := now.Add(time.Duration(KeyDurationHours) * time.Hour)
 	var updatedDEK string
 	for _, prms := range newAppKeys {
-		cryptoSuite := getCryptoSuite(isDistributedKey(prms.Name), prms.JwtCryptoSuite)
+		isDistributed := isDistributedKey(prms.Name)
+		cryptoSuite := getCryptoSuite(isDistributed, prms.JwtCryptoSuite)
 		var keyPair encryption.KeyPair
 		var privateKey interface{}
 		var newDEK string
@@ -504,7 +515,8 @@ func (s *Services) GetOrCreateAppKeys(
 			PublicKid:      keyPair.KID,
 			PublicKey:      publicKeyJSON,
 			PrivateKey:     keyPair.EncryptedPrivateKey(),
-			IsDistributed:  false,
+			IsDistributed:  isDistributed,
+			ExpiresAt:      expiresAt,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create app key", "error", err)
@@ -536,4 +548,51 @@ func (s *Services) GetOrCreateAppKeys(
 
 	logger.InfoContext(ctx, "App keys created successfully")
 	return appKeyDTOs, nil
+}
+
+type GetAppKeyFnOptions struct {
+	RequestID string
+	Name      AppKeyName
+	AppID     int32
+}
+
+func (s *Services) GetAppKeyFn(
+	ctx context.Context,
+	opts GetAppKeyFnOptions,
+) func(kid string) (interface{}, error) {
+	logger := s.buildLogger(opts.RequestID, appKeysLocation, "GetAppKeyFn").With(
+		"appId", opts.AppID,
+	)
+	logger.InfoContext(ctx, "Getting app key function...")
+
+	return func(kid string) (interface{}, error) {
+		appKey, err := s.database.FindAppKeyByPublicKID(ctx, kid)
+		if err != nil {
+			serviceErr := exceptions.FromDBError(err)
+			if serviceErr.Code != exceptions.CodeNotFound {
+				logger.ErrorContext(ctx, "Failed to find app key", "error", err)
+				return nil, serviceErr
+			}
+
+			logger.DebugContext(ctx, "App key not found")
+			return nil, exceptions.NewNotFoundError()
+		}
+
+		if appKey.AppID != opts.AppID {
+			logger.WarnContext(ctx, "App key not found for app ID", "appId", opts.AppID)
+			return nil, exceptions.NewNotFoundError()
+		}
+		if appKey.Name != string(opts.Name) {
+			logger.WarnContext(ctx, "App key not found for app key name", "appKeyName", opts.Name)
+			return nil, exceptions.NewNotFoundError()
+		}
+
+		publicKey, err := dtos.DecodePublicKeyJSON(appKey.JwtCryptoSuite, appKey.PublicKey)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to decode public key", "error", err)
+			return nil, exceptions.NewServerError()
+		}
+
+		return publicKey.ToUsableKey()
+	}
 }

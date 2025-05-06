@@ -9,10 +9,10 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
+	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -31,6 +31,20 @@ func (s *Services) CreateApp(ctx context.Context, opts CreateAppOptions) (dtos.A
 		"name", opts.Name,
 	)
 	logger.InfoContext(ctx, "Creating app...")
+
+	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+		RequestID: opts.RequestID,
+		ID:        opts.AccountID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.InfoContext(ctx, "Account not found")
+			return dtos.AppDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get account by ID", "error", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
 
 	name := utils.Capitalized(opts.Name)
 	count, err := s.database.CountAppsByNameAndAccountID(ctx, database.CountAppsByNameAndAccountIDParams{
@@ -64,10 +78,47 @@ func (s *Services) CreateApp(ctx context.Context, opts CreateAppOptions) (dtos.A
 		return dtos.AppDTO{}, exceptions.NewServerError()
 	}
 
-	encryptedDek, err := s.encrypt.GenerateAppDEK(ctx, opts.RequestID)
+	encryptedDek, newDEK, err := s.encrypt.GenerateAppDEK(ctx, opts.RequestID, accountDTO.DEK())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate app StoredDEK", "error", err)
 		return dtos.AppDTO{}, exceptions.NewServerError()
+	}
+
+	if newDEK != "" {
+		qrs, txn, err := s.database.BeginTx(ctx)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+			return dtos.AppDTO{}, exceptions.FromDBError(err)
+		}
+		defer func() {
+			logger.DebugContext(ctx, "Finalizing transaction")
+			s.database.FinalizeTx(ctx, txn, err, serviceErr)
+		}()
+
+		if err := qrs.UpdateAccountDEK(ctx, database.UpdateAccountDEKParams{
+			Dek: newDEK,
+			ID:  int32(accountDTO.ID),
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to update account DEK", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		app, err := qrs.CreateApp(ctx, database.CreateAppParams{
+			AccountID:    opts.AccountID,
+			Name:         name,
+			ClientID:     clientId,
+			ClientSecret: hashedSecret,
+			Dek:          encryptedDek,
+		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create app", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		logger.InfoContext(ctx, "App created successfully")
+		return dtos.MapAppToDTOWithSecret(&app, clientSecret)
 	}
 
 	app, err := s.database.CreateApp(ctx, database.CreateAppParams{

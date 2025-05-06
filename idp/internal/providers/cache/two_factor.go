@@ -19,8 +19,8 @@ import (
 const (
 	twoFactorLocation string = "two_factor"
 
-	twoFactorPrefix  string = "two_factor"
-	twoFactorSeconds int    = 300
+	twoFactorPrefix     string = "two_factor"
+	twoFactorUserPrefix string = "user"
 )
 
 func generateCode() (string, error) {
@@ -39,9 +39,19 @@ func generateCode() (string, error) {
 	return string(code), nil
 }
 
+func generateKey(accountID, userID int) string {
+	if userID > 0 {
+		return fmt.Sprintf("%s:%d:%s:%d", twoFactorPrefix, accountID, twoFactorUserPrefix, userID)
+	}
+
+	return fmt.Sprintf("%s:%d", twoFactorUserPrefix, accountID)
+}
+
 type AddTwoFactorCodeOptions struct {
 	RequestID string
 	AccountID int
+	UserID    int
+	TTL       int64
 }
 
 func (c *Cache) AddTwoFactorCode(ctx context.Context, opts AddTwoFactorCodeOptions) (string, error) {
@@ -50,7 +60,10 @@ func (c *Cache) AddTwoFactorCode(ctx context.Context, opts AddTwoFactorCodeOptio
 		Location:  twoFactorLocation,
 		Method:    "AddTwoFactorCode",
 		RequestID: opts.RequestID,
-	}).With("accountID", opts.AccountID)
+	}).With(
+		"accountID", opts.AccountID,
+		"userID", opts.UserID,
+	)
 	logger.DebugContext(ctx, "Adding two factor code...")
 
 	code, err := generateCode()
@@ -65,9 +78,9 @@ func (c *Cache) AddTwoFactorCode(ctx context.Context, opts AddTwoFactorCodeOptio
 		return "", err
 	}
 
-	key := fmt.Sprintf("%s:%d", twoFactorPrefix, opts.AccountID)
+	key := generateKey(opts.AccountID, opts.UserID)
 	val := []byte(hashedCode)
-	exp := time.Duration(twoFactorSeconds) * time.Second
+	exp := time.Duration(opts.TTL) * time.Second
 	if err := c.storage.Set(key, val, exp); err != nil {
 		logger.ErrorContext(ctx, "Error setting two factor code", "error", err)
 		return "", err
@@ -79,6 +92,7 @@ func (c *Cache) AddTwoFactorCode(ctx context.Context, opts AddTwoFactorCodeOptio
 type VerifyTwoFactorCodeOptions struct {
 	RequestID string
 	AccountID int
+	UserID    int
 	Code      string
 }
 
@@ -88,9 +102,12 @@ func (c *Cache) VerifyTwoFactorCode(ctx context.Context, opts VerifyTwoFactorCod
 		Location:  twoFactorLocation,
 		Method:    "VerifyTwoFactorCode",
 		RequestID: opts.RequestID,
-	}).With("accountID", opts.AccountID)
+	}).With(
+		"accountID", opts.AccountID,
+		"userID", opts.UserID,
+	)
 	logger.DebugContext(ctx, "Verifying two factor code...")
-	key := fmt.Sprintf("%s:%d", twoFactorPrefix, opts.AccountID)
+	key := generateKey(opts.AccountID, opts.UserID)
 
 	valByte, err := c.storage.Get(key)
 	if err != nil {

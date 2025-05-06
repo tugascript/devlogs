@@ -91,6 +91,19 @@ func Slugify(s string) string {
 	)
 }
 
+var slugRegex = regexp.MustCompile(`^[a-z\d]+(?:(-)[a-z\d]+)*$`)
+
+func IsValidSlug(s string) bool {
+	return len(s) > 0 && slugRegex.MatchString(s)
+}
+
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+
+func IsValidEmail(email string) bool {
+	length := len(email)
+	return length > 6 && length < 255 && emailRegex.MatchString(email)
+}
+
 func AppendZeroToDecades(n int64) string {
 	if n < 10 {
 		return fmt.Sprintf("0%d", n)

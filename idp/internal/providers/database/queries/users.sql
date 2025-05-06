@@ -62,3 +62,19 @@ RETURNING *;
 -- name: FindUserByID :one
 SELECT * FROM "users"
 WHERE "id" = $1 LIMIT 1;
+
+-- name: FindUserByUsernameAndAccountID :one
+SELECT * FROM "users"
+WHERE "username" = $1 AND "account_id" = $2
+LIMIT 1;
+
+-- name: FindUserByEmailAndAccountID :one
+SELECT * FROM "users"
+WHERE "email" = $1 AND "account_id" = $2
+LIMIT 1;
+
+-- name: UpdateUserDEK :exec
+UPDATE "users" SET
+    "dek" = $1,
+    "updated_at" = now()
+WHERE "id" = $2;
