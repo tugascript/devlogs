@@ -1,3 +1,9 @@
+// Copyright (c) 2025 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 package main
 
 import (
@@ -161,6 +167,8 @@ func createEnvFile(
 	accessPrivKey,
 	accountKeysPubKey,
 	accountKeysPrivKey,
+	appsPubKey,
+	appsPrivKey,
 	refreshPubKey,
 	refreshPrivKey,
 	confirmPubKey,
@@ -190,6 +198,8 @@ func createEnvFile(
 		fmt.Sprintf("JWT_ACCESS_PRIVATE_KEY=%s", accessPrivKey),
 		fmt.Sprintf("JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY=%s", accountKeysPubKey),
 		fmt.Sprintf("JWT_ACCOUNT_CREDENTIALS_PRIVATE_KEY=%s", accountKeysPrivKey),
+		fmt.Sprintf("JWT_APPS_PUBLIC_KEY=%s", appsPubKey),
+		fmt.Sprintf("JWT_APPS_PRIVATE_KEY=%s", appsPrivKey),
 		fmt.Sprintf("JWT_REFRESH_PUBLIC_KEY=%s", refreshPubKey),
 		fmt.Sprintf("JWT_REFRESH_PRIVATE_KEY=%s", refreshPrivKey),
 		fmt.Sprintf("JWT_CONFIRM_PUBLIC_KEY=%s", confirmPubKey),
@@ -215,6 +225,7 @@ func main() {
 	createDirectory(logger, "keys")
 	accessPubKey, accessPrivKey := generateEs256KeyPair(logger)
 	accountCredsPubKey, accountKeysPrivKey := generateEs256KeyPair(logger)
+	appsPubKey, appsPrivKey := generateEs256KeyPair(logger)
 	refreshPubKey, refreshPrivKey := generateEd25519KeyPair(logger)
 	confirmPubKey, confirmPrivKey := generateEd25519KeyPair(logger)
 	resetPubKey, resetPrivKey := generateEd25519KeyPair(logger)
@@ -224,6 +235,8 @@ func main() {
 	writeKeyToFile(logger, "access_private", &accessPrivKey)
 	writeKeyToFile(logger, "account_keys_public", &accountCredsPubKey)
 	writeKeyToFile(logger, "account_keys_private", &accountKeysPrivKey)
+	writeKeyToFile(logger, "apps_public", &appsPubKey)
+	writeKeyToFile(logger, "apps_private", &appsPrivKey)
 	writeKeyToFile(logger, "refresh_public", &refreshPubKey)
 	writeKeyToFile(logger, "refresh_private", &refreshPrivKey)
 	writeKeyToFile(logger, "confirm_public", &confirmPubKey)
@@ -250,6 +263,8 @@ func main() {
 		encodeKeyPemToJson(logger, &accessPrivKey),
 		encodeKeyPemToJson(logger, &accountCredsPubKey),
 		encodeKeyPemToJson(logger, &accountKeysPrivKey),
+		encodeKeyPemToJson(logger, &appsPubKey),
+		encodeKeyPemToJson(logger, &appsPrivKey),
 		encodeKeyPemToJson(logger, &refreshPubKey),
 		encodeKeyPemToJson(logger, &refreshPrivKey),
 		encodeKeyPemToJson(logger, &confirmPubKey),
