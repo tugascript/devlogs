@@ -20,9 +20,14 @@ package paths
 const (
 	OAuthBase string = "/oauth2"
 
+	OAuthKeys       string = "/jwks"
 	OAuthAuth       string = "/auth"
 	OAuthUserInfo   string = "/userinfo"
 	OAuthToken      string = "/token"
 	OAuthRevoke     string = "/revoke"
 	OAuthDeviceAuth string = "/device/auth"
+
+	OAuthAppleCallback string = "/apple/callback"
+	OAuthURL           string = "/:provider"
+	OAuthCallback      string = "/:provider/callback"
 )

@@ -14,7 +14,7 @@ import (
 )
 
 func (r *Routes) UsersAuthRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.AppsUsersBase, r.controllers.AccountHostMiddleware)
+	router := v1PathRouter(app).Group(paths.AppsBase+paths.UsersBase, r.controllers.AccountHostMiddleware)
 
 	router.Post(paths.AuthRegister, r.controllers.AppAccessClaimsMiddleware, r.controllers.RegisterUser)
 	router.Post(paths.AuthConfirmEmail, r.controllers.AppAccessClaimsMiddleware, r.controllers.ConfirmUser)

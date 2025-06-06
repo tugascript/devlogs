@@ -231,11 +231,7 @@ func (s *Services) UpdateAppSecret(
 	)
 	logger.InfoContext(ctx, "Updating app secret...")
 
-	app, serviceErr := s.GetAppByClientID(ctx, GetAppByClientIDOptions{
-		RequestID: opts.RequestID,
-		AccountID: opts.AccountID,
-		ClientID:  opts.ClientID,
-	})
+	app, serviceErr := s.GetAppByClientID(ctx, GetAppByClientIDOptions(opts))
 	if serviceErr != nil {
 		return dtos.AppDTO{}, serviceErr
 	}

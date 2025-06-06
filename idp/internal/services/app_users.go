@@ -80,7 +80,7 @@ func (s *Services) CreateAppUser(
 		return dtos.UserDTO{}, dtos.AppProfileDTO{}, serviceErr
 	}
 
-	data, err := json.Marshal(opts.UserData)
+	data, err := json.Marshal(opts.UserData.Interface())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to marshal user data", "error", err)
 		return dtos.UserDTO{}, dtos.AppProfileDTO{}, exceptions.NewServerError()

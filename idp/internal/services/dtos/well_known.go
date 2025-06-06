@@ -65,7 +65,7 @@ func MapOIDCConfigDTOToWellKnownOIDCConfigurationDTO(configDTO *OIDCConfigDTO, b
 		AuthEndpoint:                      baseURL + paths.AppsOAuthBase + paths.AppsOAuthAuth,
 		TokenEndpoint:                     baseURL + paths.AppsOAuthBase + paths.AppsOAuthToken,
 		UserinfoEndpoint:                  baseURL + paths.AppsOAuthBase + paths.AppsOAuthUserinfo,
-		RegistrationEndpoint:              baseURL + paths.AppsUsersBase + paths.AuthRegister,
+		RegistrationEndpoint:              baseURL + paths.AppsBase + paths.UsersBase + paths.AuthRegister,
 		RevocationEndpoint:                baseURL + paths.AppsOAuthBase + paths.AppsOAuthRevoke,
 		IntrospectionEndpoint:             baseURL + paths.AppsOAuthBase + paths.AppsOAuthIntrospect,
 		DeviceAuthorizationEndpoint:       baseURL + paths.AppsOAuthBase + paths.AppsOAuthDeviceAuth,

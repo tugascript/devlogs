@@ -89,7 +89,7 @@ func (s *Services) CreateUser(
 		return dtos.UserDTO{}, serviceErr
 	}
 
-	data, err := json.Marshal(opts.UserData)
+	data, err := json.Marshal(opts.UserData.Interface())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to marshal user data", "error", err)
 		return dtos.UserDTO{}, exceptions.NewServerError()
@@ -445,7 +445,7 @@ func (s *Services) UpdateUser(
 		}
 	}
 
-	data, err := json.Marshal(opts.UserData)
+	data, err := json.Marshal(opts.UserData.Interface())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to marshal user data", "error", err)
 		return dtos.UserDTO{}, exceptions.NewServerError()

@@ -13,7 +13,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const appsAuthLocation string = "apps_auth"
+// const appsAuthLocation string = "apps_auth"
 
 func (s *Services) ProcessAppAuthHeader(
 	authHeader string,

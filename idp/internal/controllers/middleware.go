@@ -163,7 +163,7 @@ func (c *Controllers) AccountHostMiddleware(ctx *fiber.Ctx) error {
 
 	username, err := processHost(host)
 	if err != nil {
-		logger.DebugContext(ctx.UserContext(), "invalid host", err)
+		logger.DebugContext(ctx.UserContext(), "invalid host", "error", err)
 		return serviceErrorResponse(logger, ctx, exceptions.NewNotFoundError())
 	}
 

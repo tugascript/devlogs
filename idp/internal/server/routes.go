@@ -8,12 +8,13 @@ package server
 
 func (s *FiberServer) RegisterFiberRoutes() {
 	s.routes.HealthRoutes(s.App)
+	s.routes.OAuthRoutes(s.App)
 	s.routes.AuthRoutes(s.App)
 	s.routes.AccountCredentialsRoutes(s.App)
 	s.routes.AccountsRoutes(s.App)
+	s.routes.UsersAuthRoutes(s.App)
 	s.routes.AppsRoutes(s.App)
 	s.routes.OIDCConfigsRoutes(s.App)
 	s.routes.UsersRoutes(s.App)
 	s.routes.WellKnownRoutes(s.App)
-	s.routes.UsersAuthRoutes(s.App)
 }

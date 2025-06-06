@@ -149,7 +149,7 @@ func (s *Services) UnmarshalSchemaBody(
 	for fieldName, fieldValue := range opts.Data {
 		schemaMap, ok := schemaMapping[fieldName]
 		if !ok {
-			logger.WarnContext(ctx, "Field not found in schema: %s", fieldName)
+			logger.WarnContext(ctx, "Field not found in schema", "fieldName", fieldName)
 			fieldErrors = append(fieldErrors, exceptions.FieldError{
 				Param:   fieldName,
 				Message: unkwonFieldMsg,
@@ -160,7 +160,7 @@ func (s *Services) UnmarshalSchemaBody(
 
 		field := value.FieldByName(schemaMap.name)
 		if !(field.IsValid() && field.CanSet()) {
-			logger.WarnContext(ctx, "Invalid field name: %s", fieldName)
+			logger.WarnContext(ctx, "Invalid field name", "fieldName", fieldName)
 			fieldErrors = append(fieldErrors, exceptions.FieldError{
 				Param:   fieldName,
 				Message: invalidFieldMsg,

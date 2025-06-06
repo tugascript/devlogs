@@ -24,7 +24,7 @@ func (r *Routes) AuthRoutes(app *fiber.App) {
 	router.Post(paths.AuthLogout, r.controllers.AccountAccessClaimsMiddleware, r.controllers.LogoutAccount)
 
 	// Known auth paths (oauth2)
-	router.Post(paths.AuthOAuthKeys, r.controllers.AccountOAuthPublicJWKs)
+	router.Post(paths.OAuthKeys, r.controllers.AccountOAuthPublicJWKs)
 	router.Post(paths.AuthOAuthToken, r.controllers.AccountOAuthToken)
 
 	// OAuth2 log ins
