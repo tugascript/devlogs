@@ -87,6 +87,14 @@ func serviceErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *excep
 	return ctx.Status(status).JSON(&resErr)
 }
 
+func serviceErrorWithFieldsResponse(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *exceptions.ServicErrorWithFields) error {
+	logResponse(logger, ctx, fiber.StatusBadRequest)
+	return ctx.Status(fiber.StatusBadRequest).JSON(exceptions.NewValidationErrorResponse(
+		exceptions.ValidationResponseLocationBody,
+		serviceErr.Fields,
+	))
+}
+
 func oauthErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, message string) error {
 	resErr := exceptions.NewOAuthError(message)
 	logResponse(logger, ctx, fiber.StatusBadRequest)

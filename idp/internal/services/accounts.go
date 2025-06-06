@@ -24,12 +24,12 @@ import (
 const accountsLocation = "accounts"
 
 type CreateAccountOptions struct {
-	RequestID string
-	FirstName string
-	LastName  string
-	Email     string
-	Password  string
-	Provider  string
+	RequestID  string
+	GivenName  string
+	FamilyName string
+	Email      string
+	Password   string
+	Provider   string
 }
 
 func (s *Services) CreateAccount(
@@ -37,9 +37,9 @@ func (s *Services) CreateAccount(
 	opts CreateAccountOptions,
 ) (dtos.AccountDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "CreateAccount").With(
-		"firstName", opts.FirstName,
-		"lastName", opts.LastName,
-		"provider", opts.Provider,
+		"givenName", opts.GivenName,
+		"familyName", opts.FamilyName,
+		"Provider", opts.Provider,
 	)
 	logger.InfoContext(ctx, "Creating account...")
 
@@ -48,7 +48,7 @@ func (s *Services) CreateAccount(
 	switch opts.Provider {
 	case AuthProviderEmail:
 		if opts.Password == "" {
-			logger.WarnContext(ctx, "Password is required for email auth provider")
+			logger.WarnContext(ctx, "Password is required for email auth Provider")
 			return dtos.AccountDTO{}, exceptions.NewValidationError("password is required")
 		}
 
@@ -100,26 +100,26 @@ func (s *Services) CreateAccount(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	firstName := utils.Capitalized(opts.FirstName)
-	lastName := utils.Capitalized(opts.LastName)
+	givenName := utils.Capitalized(opts.GivenName)
+	familyName := utils.Capitalized(opts.FamilyName)
 	username := uuid.NewString()
 	var account database.Account
 	if provider == AuthProviderEmail {
 		account, err = qrs.CreateAccountWithPassword(ctx, database.CreateAccountWithPasswordParams{
-			FirstName: firstName,
-			LastName:  lastName,
-			Username:  username,
-			Email:     email,
-			Password:  password,
-			Dek:       dek,
+			GivenName:  givenName,
+			FamilyName: familyName,
+			Username:   username,
+			Email:      email,
+			Password:   password,
+			Dek:        dek,
 		})
 	} else {
 		account, err = qrs.CreateAccountWithoutPassword(ctx, database.CreateAccountWithoutPasswordParams{
-			FirstName: firstName,
-			LastName:  lastName,
-			Username:  username,
-			Email:     email,
-			Dek:       dek,
+			GivenName:  givenName,
+			FamilyName: familyName,
+			Username:   username,
+			Email:      email,
+			Dek:        dek,
 		})
 	}
 	if err != nil {
@@ -132,7 +132,7 @@ func (s *Services) CreateAccount(
 		Email:    email,
 		Provider: provider,
 	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to create auth provider", "error", err)
+		logger.ErrorContext(ctx, "Failed to create auth Provider", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.AccountDTO{}, serviceErr
 	}
@@ -269,11 +269,11 @@ func (s *Services) UpdateAccountEmail(
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.InfoContext(ctx, "Email auth provider not found", "error", err)
+			logger.InfoContext(ctx, "Email auth Provider not found", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 		}
 
-		logger.ErrorContext(ctx, "Failed to get email auth provider", "error", err)
+		logger.ErrorContext(ctx, "Failed to get email auth Provider", "error", err)
 		return dtos.AuthDTO{}, serviceErr
 	}
 
@@ -365,7 +365,7 @@ func (s *Services) ConfirmUpdateAccountEmail(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	// Verify 2FA code
+	// Verify 2FA Code
 	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
 		RequestID: opts.RequestID,
 		ID:        opts.ID,
@@ -386,11 +386,11 @@ func (s *Services) ConfirmUpdateAccountEmail(
 			Code:      opts.Code,
 		})
 		if err != nil {
-			logger.ErrorContext(ctx, "Failed to verify 2FA code", "error", err)
+			logger.ErrorContext(ctx, "Failed to verify 2FA Code", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewServerError()
 		}
 		if !ok {
-			logger.WarnContext(ctx, "Invalid 2FA code provided")
+			logger.WarnContext(ctx, "Invalid 2FA Code provided")
 			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 		}
 	case TwoFactorTotp:
@@ -401,11 +401,11 @@ func (s *Services) ConfirmUpdateAccountEmail(
 			DEK:       accountDTO.DEK(),
 		})
 		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", serviceErr)
+			logger.ErrorContext(ctx, "Failed to verify TOTP Code", "error", serviceErr)
 			return dtos.AuthDTO{}, serviceErr
 		}
 		if !ok {
-			logger.WarnContext(ctx, "Invalid TOTP code provided")
+			logger.WarnContext(ctx, "Invalid TOTP Code provided")
 			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 		}
 	default:
@@ -496,11 +496,11 @@ func (s *Services) UpdateAccountPassword(
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.InfoContext(ctx, "Email auth provider not found", "error", err)
+			logger.InfoContext(ctx, "Email auth Provider not found", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 		}
 
-		logger.ErrorContext(ctx, "Failed to get email auth provider", "error", err)
+		logger.ErrorContext(ctx, "Failed to get email auth Provider", "error", err)
 		return dtos.AuthDTO{}, serviceErr
 	}
 
@@ -585,7 +585,7 @@ func (s *Services) ConfirmUpdateAccountPassword(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	// Verify 2FA code
+	// Verify 2FA Code
 	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
 		RequestID: opts.RequestID,
 		ID:        opts.ID,
@@ -606,11 +606,11 @@ func (s *Services) ConfirmUpdateAccountPassword(
 			Code:      opts.Code,
 		})
 		if err != nil {
-			logger.ErrorContext(ctx, "Failed to verify 2FA code", "error", err)
+			logger.ErrorContext(ctx, "Failed to verify 2FA Code", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewServerError()
 		}
 		if !ok {
-			logger.WarnContext(ctx, "Invalid 2FA code provided")
+			logger.WarnContext(ctx, "Invalid 2FA Code provided")
 			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 		}
 	case TwoFactorTotp:
@@ -621,11 +621,11 @@ func (s *Services) ConfirmUpdateAccountPassword(
 			DEK:       accountDTO.DEK(),
 		})
 		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", serviceErr)
+			logger.ErrorContext(ctx, "Failed to verify TOTP Code", "error", serviceErr)
 			return dtos.AuthDTO{}, serviceErr
 		}
 		if !ok {
-			logger.WarnContext(ctx, "Invalid TOTP code provided")
+			logger.WarnContext(ctx, "Invalid TOTP Code provided")
 			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 		}
 	default:
@@ -651,11 +651,11 @@ func (s *Services) ConfirmUpdateAccountPassword(
 }
 
 type UpdateAccountOptions struct {
-	RequestID string
-	ID        int32
-	FirstName string
-	LastName  string
-	Username  string
+	RequestID  string
+	ID         int32
+	GivenName  string
+	FamilyName string
+	Username   string
 }
 
 func (s *Services) UpdateAccount(
@@ -686,13 +686,13 @@ func (s *Services) UpdateAccount(
 		return dtos.AccountDTO{}, exceptions.NewConflictError("Username already in use")
 	}
 
-	firstName := utils.Capitalized(opts.FirstName)
-	lastName := utils.Capitalized(opts.LastName)
+	givenName := utils.Capitalized(opts.GivenName)
+	familyName := utils.Capitalized(opts.FamilyName)
 	account, err := s.database.UpdateAccount(ctx, database.UpdateAccountParams{
-		FirstName: firstName,
-		LastName:  lastName,
-		Username:  username,
-		ID:        opts.ID,
+		GivenName:  givenName,
+		FamilyName: familyName,
+		Username:   username,
+		ID:         opts.ID,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account", "error", err)
@@ -734,12 +734,12 @@ func (s *Services) DeleteAccount(
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to get email auth provider", "error", err)
+			logger.ErrorContext(ctx, "Failed to get email auth Provider", "error", err)
 			return false, serviceErr
 		}
 	} else {
 		if opts.Password == "" {
-			logger.WarnContext(ctx, "Password is required for email auth provider")
+			logger.WarnContext(ctx, "Password is required for email auth Provider")
 			return false, exceptions.NewValidationError("password is required")
 		}
 
@@ -810,7 +810,7 @@ func (s *Services) ConfirmDeleteAccount(
 		return exceptions.NewUnauthorizedError()
 	}
 
-	// Verify 2FA code
+	// Verify 2FA Code
 	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
 		RequestID: opts.RequestID,
 		ID:        opts.ID,
@@ -828,11 +828,11 @@ func (s *Services) ConfirmDeleteAccount(
 			Code:      opts.Code,
 		})
 		if err != nil {
-			logger.ErrorContext(ctx, "Failed to verify 2FA code", "error", err)
+			logger.ErrorContext(ctx, "Failed to verify 2FA Code", "error", err)
 			return exceptions.NewServerError()
 		}
 		if !ok {
-			logger.WarnContext(ctx, "Invalid 2FA code provided")
+			logger.WarnContext(ctx, "Invalid 2FA Code provided")
 			return exceptions.NewUnauthorizedError()
 		}
 	case TwoFactorTotp:
@@ -843,11 +843,11 @@ func (s *Services) ConfirmDeleteAccount(
 			DEK:       accountDTO.DEK(),
 		})
 		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", serviceErr)
+			logger.ErrorContext(ctx, "Failed to verify TOTP Code", "error", serviceErr)
 			return serviceErr
 		}
 		if !ok {
-			logger.WarnContext(ctx, "Invalid TOTP code provided")
+			logger.WarnContext(ctx, "Invalid TOTP Code provided")
 			return exceptions.NewUnauthorizedError()
 		}
 	default:
@@ -929,4 +929,28 @@ func (s *Services) GetAndCacheAccountIDByUsername(
 
 	logger.InfoContext(ctx, "Cached account ID by username successfully")
 	return accountID, nil
+}
+
+type UpdateAccountDEKOptions struct {
+	RequestID string
+	ID        int32
+	DEK       string
+}
+
+func (s *Services) UpdateAccountDEK(ctx context.Context, opts UpdateAccountDEKOptions) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.RequestID, accountsLocation, "UpdateAccountDEK").With(
+		"id", opts.ID,
+	)
+	logger.InfoContext(ctx, "Updating account DEK...")
+
+	if err := s.database.UpdateAccountDEK(ctx, database.UpdateAccountDEKParams{
+		ID:  opts.ID,
+		Dek: opts.DEK,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to update account DEK", "error", err)
+		return exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Updated account DEK successfully")
+	return nil
 }

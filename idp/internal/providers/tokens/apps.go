@@ -9,12 +9,12 @@ import (
 )
 
 type AppClaims struct {
-	ID       int32  `json:"id"`
+	AppID    int32  `json:"app_id"`
 	ClientID string `json:"client_id"`
 }
 
 type appTokenClaims struct {
-	App AppClaims `json:"app"`
+	AppClaims
 	jwt.RegisteredClaims
 }
 
@@ -30,8 +30,8 @@ func (t *Tokens) CreateAppToken(opts AppTokenOptions) (string, error) {
 	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(t.appsData.ttlSec)))
 	aud := fmt.Sprintf("https://%s.%s", opts.Username, t.frontendDomain)
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, appTokenClaims{
-		App: AppClaims{
-			ID:       opts.ID,
+		AppClaims: AppClaims{
+			AppID:    opts.ID,
 			ClientID: opts.ClientID,
 		},
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -48,10 +48,10 @@ func (t *Tokens) CreateAppToken(opts AppTokenOptions) (string, error) {
 	return token.SignedString(t.appsData.curKeyPair.privateKey)
 }
 
-func (t *Tokens) VerifyAppToken(token string) (int32, error) {
+func (t *Tokens) VerifyAppToken(token string) (int32, string, error) {
 	claims := new(appTokenClaims)
 
-	if _, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+	if _, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (any, error) {
 		kid, err := extractTokenKID(token)
 		if err != nil {
 			return nil, err
@@ -66,8 +66,8 @@ func (t *Tokens) VerifyAppToken(token string) (int32, error) {
 
 		return nil, fmt.Errorf("no key found for kid %s", kid)
 	}); err != nil {
-		return 0, err
+		return 0, "", err
 	}
 
-	return claims.App.ID, nil
+	return claims.AppID, claims.ClientID, nil
 }

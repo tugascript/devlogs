@@ -16,10 +16,10 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-type AppKeyDTO struct {
-	id             int
-	appID          int
-	accountID      int
+type AccountKeyDTO struct {
+	id             int32
+	oidcConfigID   int32
+	accountID      int32
 	name           string
 	jwtCryptoSuite tokens.SupportedCryptoSuite
 	publicKey      utils.JWK
@@ -27,35 +27,35 @@ type AppKeyDTO struct {
 	privateKey     interface{}
 }
 
-func (ak *AppKeyDTO) ID() int {
+func (ak *AccountKeyDTO) ID() int32 {
 	return ak.id
 }
 
-func (ak *AppKeyDTO) AppID() int {
-	return ak.appID
+func (ak *AccountKeyDTO) OIDCConfigID() int32 {
+	return ak.oidcConfigID
 }
 
-func (ak *AppKeyDTO) AccountID() int {
+func (ak *AccountKeyDTO) AccountID() int32 {
 	return ak.accountID
 }
 
-func (ak *AppKeyDTO) Name() string {
+func (ak *AccountKeyDTO) Name() string {
 	return ak.name
 }
 
-func (ak *AppKeyDTO) JWTCryptoSuite() tokens.SupportedCryptoSuite {
+func (ak *AccountKeyDTO) JWTCryptoSuite() tokens.SupportedCryptoSuite {
 	return ak.jwtCryptoSuite
 }
 
-func (ak *AppKeyDTO) PublicKey() utils.JWK {
+func (ak *AccountKeyDTO) PublicKey() utils.JWK {
 	return ak.publicKey
 }
 
-func (ak *AppKeyDTO) PrivateKey() interface{} {
+func (ak *AccountKeyDTO) PrivateKey() interface{} {
 	return ak.privateKey
 }
 
-func (ak *AppKeyDTO) PublicKID() string {
+func (ak *AccountKeyDTO) PublicKID() string {
 	return ak.publicKID
 }
 
@@ -78,20 +78,20 @@ func DecodePublicKeyJSON(jwtCryptoSuite string, publicKey []byte) (utils.JWK, er
 	}
 }
 
-func MapAppKeyWithKeysToDTO(
-	appKey *database.AppKey,
+func MapAccountKeyWithKeysToDTO(
+	appKey *database.AccountKey,
 	publicKeyJWK utils.JWK,
-	privateKey interface{},
-) (AppKeyDTO, *exceptions.ServiceError) {
+	privateKey any,
+) (AccountKeyDTO, *exceptions.ServiceError) {
 	jwtCryptoSuite, serviceErr := GetJwtCryptoSuite(appKey.JwtCryptoSuite)
 	if serviceErr != nil {
-		return AppKeyDTO{}, serviceErr
+		return AccountKeyDTO{}, serviceErr
 	}
 
-	return AppKeyDTO{
-		id:             int(appKey.ID),
-		appID:          int(appKey.AppID),
-		accountID:      int(appKey.AccountID),
+	return AccountKeyDTO{
+		id:             appKey.ID,
+		oidcConfigID:   appKey.OidcConfigID,
+		accountID:      appKey.AccountID,
 		name:           appKey.Name,
 		jwtCryptoSuite: jwtCryptoSuite,
 		publicKey:      publicKeyJWK,
@@ -100,21 +100,21 @@ func MapAppKeyWithKeysToDTO(
 	}, nil
 }
 
-func MapAppKeyToDTO(appKey *database.AppKey, privateKey interface{}) (AppKeyDTO, *exceptions.ServiceError) {
+func MapAccountKeyToDTO(appKey *database.AccountKey, privateKey interface{}) (AccountKeyDTO, *exceptions.ServiceError) {
 	publicKey, err := DecodePublicKeyJSON(appKey.JwtCryptoSuite, appKey.PublicKey)
 	if err != nil {
-		return AppKeyDTO{}, exceptions.NewServerError()
+		return AccountKeyDTO{}, exceptions.NewServerError()
 	}
 
 	jwtCryptoSuite, serviceErr := GetJwtCryptoSuite(appKey.JwtCryptoSuite)
 	if serviceErr != nil {
-		return AppKeyDTO{}, serviceErr
+		return AccountKeyDTO{}, serviceErr
 	}
 
-	return AppKeyDTO{
-		id:             int(appKey.ID),
-		appID:          int(appKey.AppID),
-		accountID:      int(appKey.AccountID),
+	return AccountKeyDTO{
+		id:             appKey.ID,
+		oidcConfigID:   appKey.OidcConfigID,
+		accountID:      appKey.AccountID,
 		name:           appKey.Name,
 		jwtCryptoSuite: jwtCryptoSuite,
 		publicKey:      publicKey,

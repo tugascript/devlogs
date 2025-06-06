@@ -24,7 +24,7 @@ type Secret struct {
 type Encryption struct {
 	logger           *slog.Logger
 	accountSecretKey Secret
-	appSecretKey     Secret
+	oidcSecretKey    Secret
 	userSecretKey    Secret
 	oldSecrets       map[string][]byte
 	backendDomain    string
@@ -56,7 +56,7 @@ func NewEncryption(
 	return &Encryption{
 		logger:           logger,
 		accountSecretKey: decodeSecret(cfg.AccountSecret()),
-		appSecretKey:     decodeSecret(cfg.AppSecret()),
+		oidcSecretKey:    decodeSecret(cfg.OIDCSecret()),
 		userSecretKey:    decodeSecret(cfg.UserSecret()),
 		oldSecrets:       oldSecretsMap,
 		backendDomain:    backendDomain,

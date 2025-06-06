@@ -92,8 +92,8 @@ func (s *Services) sendConfirmationEmail(
 		Email:     utils.Lowered(accountDTO.Email),
 		Name: fmt.Sprintf(
 			"%s %s",
-			utils.Capitalized(accountDTO.FirstName),
-			utils.Capitalized(accountDTO.LastName),
+			utils.Capitalized(accountDTO.GivenName),
+			utils.Capitalized(accountDTO.FamilyName),
 		),
 		ConfirmationToken: confirmationToken,
 	}); err != nil {
@@ -108,7 +108,7 @@ func (s *Services) sendConfirmationEmail(
 type RegisterAccountOptions struct {
 	RequestID string
 	Email     string
-	FirstName string
+	GivenName string
 	LastName  string
 	Password  string
 }
@@ -118,18 +118,18 @@ func (s *Services) RegisterAccount(
 	opts RegisterAccountOptions,
 ) (dtos.MessageDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, authLocation, "RegisterAccount").With(
-		"firstName", opts.FirstName,
+		"givenName", opts.GivenName,
 		"lastName", opts.LastName,
 	)
 	logger.InfoContext(ctx, "Registering account...")
 
 	accountDTO, serviceErr := s.CreateAccount(ctx, CreateAccountOptions{
-		RequestID: opts.RequestID,
-		FirstName: opts.FirstName,
-		LastName:  opts.LastName,
-		Email:     opts.Email,
-		Password:  opts.Password,
-		Provider:  AuthProviderEmail,
+		RequestID:  opts.RequestID,
+		GivenName:  opts.GivenName,
+		FamilyName: opts.LastName,
+		Email:      opts.Email,
+		Password:   opts.Password,
+		Provider:   AuthProviderEmail,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to create account", "error", serviceErr)
@@ -209,7 +209,7 @@ func (s *Services) ConfirmAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	if accountDTO.IsConfirmed() {
+	if accountDTO.EmailVerified() {
 		logger.WarnContext(ctx, "Account is already confirmed")
 		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 	}
@@ -259,7 +259,7 @@ func (s *Services) LoginAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	if !accountDTO.IsConfirmed() {
+	if !accountDTO.EmailVerified() {
 		logger.InfoContext(ctx, "Account is not confirmed, sending new confirmation email")
 
 		if serviceErr := s.sendConfirmationEmail(ctx, logger, opts.RequestID, &accountDTO); serviceErr != nil {
@@ -286,14 +286,14 @@ func (s *Services) LoginAccount(
 				TTL:       s.jwt.Get2FATTL(),
 			})
 			if err != nil {
-				logger.ErrorContext(ctx, "Failed to generate two factor code", "error", err)
+				logger.ErrorContext(ctx, "Failed to generate two factor Code", "error", err)
 				return dtos.AuthDTO{}, exceptions.NewServerError()
 			}
 
 			if err := s.mail.Publish2FAEmail(ctx, mailer.TwoFactorEmailOptions{
 				RequestID: opts.RequestID,
 				Email:     opts.Email,
-				Name:      fmt.Sprintf("%s %s", accountDTO.FirstName, accountDTO.LastName),
+				Name:      fmt.Sprintf("%s %s", accountDTO.GivenName, accountDTO.FamilyName),
 				Code:      code,
 			}); err != nil {
 				logger.ErrorContext(ctx, "Failed to publish two factor email", "error", err)
@@ -303,7 +303,7 @@ func (s *Services) LoginAccount(
 
 		return dtos.NewTempAuthDTO(
 			twoFAToken,
-			"Please provide two factor code",
+			"Please provide two factor Code",
 			s.jwt.Get2FATTL(),
 		), nil
 	}
@@ -353,7 +353,7 @@ func (s *Services) VerifyAccountTotp(
 		TotpType:        encryption.TotpTypeAccount,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", err)
+		logger.ErrorContext(ctx, "Failed to verify TOTP Code", "error", err)
 		return false, exceptions.NewServerError()
 	}
 
@@ -374,7 +374,7 @@ func (s *Services) VerifyAccountTotp(
 type TwoFactorLoginAccountOptions struct {
 	RequestID string
 	ID        int32
-	Version   int
+	Version   int32
 	Code      string
 }
 
@@ -422,7 +422,7 @@ func (s *Services) TwoFactorLoginAccount(
 			DEK:       accountDTO.DEK(),
 		})
 		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", serviceErr)
+			logger.ErrorContext(ctx, "Failed to verify TOTP Code", "error", serviceErr)
 			return dtos.AuthDTO{}, serviceErr
 		}
 	case TwoFactorEmail:
@@ -432,13 +432,13 @@ func (s *Services) TwoFactorLoginAccount(
 			Code:      opts.Code,
 		})
 		if err != nil {
-			logger.ErrorContext(ctx, "Error verifying code", "error", err)
+			logger.ErrorContext(ctx, "Error verifying Code", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewServerError()
 		}
 	}
 
 	if !ok {
-		logger.WarnContext(ctx, "Failed to verify code")
+		logger.WarnContext(ctx, "Failed to verify Code")
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
@@ -581,8 +581,6 @@ func (s *Services) RefreshTokenAccount(
 
 var oauthScopes = []oauth.Scope{oauth.ScopeProfile}
 
-const oAuthURLTTLSecs int64 = 120
-
 type AccountOAuthURLOptions struct {
 	RequestID   string
 	Provider    string
@@ -591,7 +589,7 @@ type AccountOAuthURLOptions struct {
 
 func (s *Services) AccountOAuthURL(ctx context.Context, opts AccountOAuthURLOptions) (string, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, authLocation, "AccountOAuthURL").With(
-		"provider", opts.Provider,
+		"Provider", opts.Provider,
 	)
 	logger.InfoContext(ctx, "Getting OAuth authorization url...")
 
@@ -618,7 +616,7 @@ func (s *Services) AccountOAuthURL(ctx context.Context, opts AccountOAuthURLOpti
 		return "", exceptions.NewServerError()
 	}
 	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get authorization url or state", "error", serviceErr)
+		logger.ErrorContext(ctx, "Failed to get authorization url or State", "error", serviceErr)
 		return "", serviceErr
 	}
 
@@ -626,9 +624,9 @@ func (s *Services) AccountOAuthURL(ctx context.Context, opts AccountOAuthURLOpti
 		RequestID:       opts.RequestID,
 		State:           state,
 		Provider:        opts.Provider,
-		DurationSeconds: oAuthURLTTLSecs,
+		DurationSeconds: s.jwt.GetOAuthTTL(),
 	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to cache state", "error", err)
+		logger.ErrorContext(ctx, "Failed to cache State", "error", err)
 		return "", exceptions.NewServerError()
 	}
 
@@ -655,12 +653,12 @@ func (s *Services) extOAuthToken(
 		Provider:  opts.provider,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to verify oauth state", "error", err)
+		logger.ErrorContext(ctx, "Failed to verify oauth State", "error", err)
 		return "", exceptions.NewServerError()
 	}
 	if !ok {
-		logger.WarnContext(ctx, "OAuth state is invalid")
-		return "", exceptions.NewValidationError("OAuth state is invalid")
+		logger.WarnContext(ctx, "OAuth State is invalid")
+		return "", exceptions.NewValidationError("OAuth State is invalid")
 	}
 
 	accessTokenOpts := oauth.AccessTokenOptions{
@@ -707,6 +705,7 @@ func (s *Services) extOAuthUser(
 	userDataOpts := oauth.UserDataOptions{
 		RequestID: opts.requestID,
 		Token:     opts.token,
+		Scopes:    oauthScopes,
 	}
 	var userData oauth.UserData
 	var serviceErr *exceptions.ServiceError
@@ -729,7 +728,7 @@ func (s *Services) extOAuthUser(
 	}
 
 	if !userData.IsVerified {
-		logger.WarnContext(ctx, "External OAuth provider account is not verified")
+		logger.WarnContext(ctx, "External OAuth Provider account is not verified")
 		return oauth.UserData{}, exceptions.NewUnauthorizedError()
 	}
 
@@ -758,12 +757,12 @@ func (s *Services) saveExtAccount(
 		}
 
 		accountDto, serviceErr := s.CreateAccount(ctx, CreateAccountOptions{
-			RequestID: opts.requestID,
-			FirstName: opts.userData.FirstName,
-			LastName:  opts.userData.LastName,
-			Email:     opts.userData.Email,
-			Provider:  opts.provider,
-			Password:  "",
+			RequestID:  opts.requestID,
+			GivenName:  opts.userData.FirstName,
+			FamilyName: opts.userData.LastName,
+			Email:      opts.userData.Email,
+			Provider:   opts.provider,
+			Password:   "",
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to create account", "error", serviceErr)
@@ -780,12 +779,12 @@ func (s *Services) saveExtAccount(
 	if _, err := s.database.FindAuthProviderByEmailAndProvider(ctx, prvdrOpts); err != nil {
 		serviceErr = exceptions.FromDBError(err)
 		if serviceErr.Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to find auth provider", "error", err)
+			logger.ErrorContext(ctx, "Failed to find auth Provider", "error", err)
 			return dtos.AccountDTO{}, serviceErr
 		}
 
 		if err := s.database.CreateAuthProvider(ctx, database.CreateAuthProviderParams(prvdrOpts)); err != nil {
-			logger.ErrorContext(ctx, "Failed to create auth provider", "error", err)
+			logger.ErrorContext(ctx, "Failed to create auth Provider", "error", err)
 			return dtos.AccountDTO{}, exceptions.FromDBError(err)
 		}
 	}
@@ -811,12 +810,12 @@ func (s *Services) generateOAuthQueryParams(
 		DurationSeconds: oauthTtl,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate oauth code", "error", err)
+		logger.ErrorContext(ctx, "Failed to generate oauth Code", "error", err)
 		return "", exceptions.NewServerError()
 	}
 
 	queryParams := make(url.Values)
-	queryParams.Add("code", code)
+	queryParams.Add("Code", code)
 
 	fragmentParams := make(url.Values)
 	fragmentParams.Add("token_type", "Bearer")
@@ -839,7 +838,7 @@ func (s *Services) ExtLoginAccount(
 	opts ExtLoginAccountOptions,
 ) (string, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, authLocation, "ExtLoginAccount").With(
-		"provider", opts.Provider,
+		"Provider", opts.Provider,
 	)
 	logger.InfoContext(ctx, "External logging in account...")
 
@@ -914,12 +913,12 @@ func (s *Services) AppleLoginAccount(
 		Provider:  AuthProviderApple,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to verify oauth state", "error", err)
+		logger.ErrorContext(ctx, "Failed to verify oauth State", "error", err)
 		return "", exceptions.NewServerError()
 	}
 	if !ok {
-		logger.WarnContext(ctx, "OAuth state is invalid")
-		return "", exceptions.NewValidationError("OAuth state is invalid")
+		logger.WarnContext(ctx, "OAuth State is invalid")
+		return "", exceptions.NewValidationError("OAuth State is invalid")
 	}
 
 	idToken, serviceErr := s.oauthProviders.GetAppleIDToken(ctx, oauth.AccessTokenOptions{
@@ -976,7 +975,7 @@ func (s *Services) AppleLoginAccount(
 type OAuthLoginAccountOptions struct {
 	RequestID string
 	ID        int32
-	Version   int
+	Version   int32
 	Code      string
 }
 
@@ -1015,12 +1014,12 @@ func (s *Services) OAuthLoginAccount(
 		Code:      opts.Code,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to verify OAuth code", "error", err)
+		logger.ErrorContext(ctx, "Failed to verify OAuth Code", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 	if !ok {
-		logger.WarnContext(ctx, "OAuth code verification failed")
-		return dtos.AuthDTO{}, exceptions.NewValidationError("OAuth code verification failed")
+		logger.WarnContext(ctx, "OAuth Code verification failed")
+		return dtos.AuthDTO{}, exceptions.NewValidationError("OAuth Code verification failed")
 	}
 
 	return s.GenerateFullAuthDTO(
@@ -1129,12 +1128,14 @@ func (s *Services) GetAccountPublicJWKs(ctx context.Context, requestID string) d
 	jwks := s.jwt.JWKs()
 
 	logger.InfoContext(ctx, "Got account public JWKs successfully")
-	return dtos.NewJWKsDTO(jwks)
+	return dtos.NewJWKsDTO(utils.MapSlice(jwks, func(jwk *utils.ES256JWK) utils.JWK {
+		return jwk
+	}))
 }
 
 type updateAccount2FAOptions struct {
 	requestID   string
-	id          int
+	id          int32
 	email       string
 	prev2FAType string
 }
@@ -1250,8 +1251,8 @@ func (s *Services) updateAccountTOTP2FA(
 	}
 
 	token, err := s.jwt.Create2FAToken(tokens.AccountTokenOptions{
-		ID:      int(account.ID),
-		Version: int(account.Version),
+		ID:      account.ID,
+		Version: account.Version,
 		Email:   account.Email,
 	})
 	if err != nil {
@@ -1261,7 +1262,7 @@ func (s *Services) updateAccountTOTP2FA(
 
 	return dtos.NewAuthDTOWithData(
 		token,
-		"Please scan QR code with your authentication app",
+		"Please scan QR Code with your authentication app",
 		map[string]string{
 			"image":         totpKey.Img(),
 			"recovery_keys": totpKey.Codes(),
@@ -1284,7 +1285,7 @@ func (s *Services) updateAccountEmail2FA(
 		AccountID: opts.id,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate two factor code", "error", err)
+		logger.ErrorContext(ctx, "Failed to generate two factor Code", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
@@ -1331,7 +1332,7 @@ func (s *Services) updateAccountEmail2FA(
 	if err := s.mail.Publish2FAEmail(ctx, mailer.TwoFactorEmailOptions{
 		RequestID: opts.requestID,
 		Email:     account.Email,
-		Name:      fmt.Sprintf("%s %s", account.FirstName, account.LastName),
+		Name:      fmt.Sprintf("%s %s", account.GivenName, account.FamilyName),
 		Code:      code,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to publish two factor email", "error", err)
@@ -1339,8 +1340,8 @@ func (s *Services) updateAccountEmail2FA(
 	}
 
 	token, err := s.jwt.Create2FAToken(tokens.AccountTokenOptions{
-		ID:      int(account.ID),
-		Version: int(account.Version),
+		ID:      account.ID,
+		Version: account.Version,
 		Email:   account.Email,
 	})
 	if err != nil {
@@ -1348,7 +1349,7 @@ func (s *Services) updateAccountEmail2FA(
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
-	return dtos.NewTempAuthDTO(token, "Please provide email two factor code", s.jwt.Get2FATTL()), nil
+	return dtos.NewTempAuthDTO(token, "Please provide email two factor Code", s.jwt.Get2FATTL()), nil
 }
 
 type UpdateAccount2FAOptions struct {
@@ -1385,11 +1386,11 @@ func (s *Services) UpdateAccount2FA(
 	); err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "Email auth provider not found", "error", err)
+			logger.WarnContext(ctx, "Email auth Provider not found", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 		}
 
-		logger.ErrorContext(ctx, "Failed to get auth provider", "error", err)
+		logger.ErrorContext(ctx, "Failed to get auth Provider", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 

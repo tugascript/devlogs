@@ -9,19 +9,19 @@ package dtos
 import "github.com/tugascript/devlogs/idp/internal/providers/database"
 
 type AccountDTO struct {
-	ID            int    `json:"id"`
-	FirstName     string `json:"first_name"`
-	LastName      string `json:"last_name"`
+	ID            int32  `json:"id"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
 	Email         string `json:"email"`
 	TwoFactorType string `json:"two_factor_type"`
 
-	version     int
-	isConfirmed bool
-	password    string
-	dek         string
+	version       int32
+	emailVerified bool
+	password      string
+	dek           string
 }
 
-func (a *AccountDTO) Version() int {
+func (a *AccountDTO) Version() int32 {
 	return a.version
 }
 
@@ -29,8 +29,8 @@ func (a *AccountDTO) Password() string {
 	return a.password
 }
 
-func (a *AccountDTO) IsConfirmed() bool {
-	return a.isConfirmed
+func (a *AccountDTO) EmailVerified() bool {
+	return a.emailVerified
 }
 
 func (a *AccountDTO) DEK() string {
@@ -39,13 +39,13 @@ func (a *AccountDTO) DEK() string {
 
 func MapAccountToDTO(account *database.Account) AccountDTO {
 	return AccountDTO{
-		ID:            int(account.ID),
-		version:       int(account.Version),
-		FirstName:     account.FirstName,
-		LastName:      account.LastName,
+		ID:            account.ID,
+		version:       account.Version,
+		GivenName:     account.GivenName,
+		FamilyName:    account.FamilyName,
 		Email:         account.Email,
 		TwoFactorType: account.TwoFactorType,
-		isConfirmed:   account.IsConfirmed,
+		emailVerified: account.EmailVerified,
 		password:      account.Password.String,
 		dek:           account.Dek,
 	}

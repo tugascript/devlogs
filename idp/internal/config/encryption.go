@@ -10,12 +10,12 @@ import "encoding/json"
 
 type EncryptionConfig struct {
 	accountSecret string
-	appSecret     string
+	oidcSecret    string
 	userSecret    string
 	oldSecrets    []string
 }
 
-func NewEncryptionConfig(accountSecret, appSecret, userSecret, oldSecrets string) EncryptionConfig {
+func NewEncryptionConfig(accountSecret, oidcSecret, userSecret, oldSecrets string) EncryptionConfig {
 	var secretSlice []string
 	if err := json.Unmarshal([]byte(oldSecrets), &secretSlice); err != nil {
 		panic(err)
@@ -23,7 +23,7 @@ func NewEncryptionConfig(accountSecret, appSecret, userSecret, oldSecrets string
 
 	return EncryptionConfig{
 		accountSecret: accountSecret,
-		appSecret:     appSecret,
+		oidcSecret:    oidcSecret,
 		userSecret:    userSecret,
 		oldSecrets:    secretSlice,
 	}
@@ -33,8 +33,8 @@ func (e *EncryptionConfig) AccountSecret() string {
 	return e.accountSecret
 }
 
-func (e *EncryptionConfig) AppSecret() string {
-	return e.appSecret
+func (e *EncryptionConfig) OIDCSecret() string {
+	return e.oidcSecret
 }
 
 func (e *EncryptionConfig) UserSecret() string {

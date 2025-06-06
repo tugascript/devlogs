@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
@@ -24,6 +25,39 @@ import (
 
 const usersAuthLocation string = "users_auth"
 
+type ProcessUserAuthHeaderOptions struct {
+	RequestID  string
+	AuthHeader string
+	Name       AppKeyName
+}
+
+func (s *Services) ProcessUserAuthHeader(
+	ctx context.Context,
+	opts ProcessUserAuthHeaderOptions,
+) (tokens.UserClaims, tokens.AppClaims, []string, *exceptions.ServiceError) {
+	if opts.AuthHeader == "" {
+		return tokens.UserClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
+	}
+
+	parts := strings.Split(opts.AuthHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return tokens.UserClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
+	}
+
+	userClaims, appClaims, scope, _, _, err := s.jwt.VerifyUserToken(
+		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
+			RequestID: opts.RequestID,
+			Name:      opts.Name,
+		}),
+		parts[1],
+	)
+	if err != nil {
+		return tokens.UserClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
+	}
+
+	return userClaims, appClaims, strings.Split(scope, " "), nil
+}
+
 type sendUserConfirmationEmailOptions struct {
 	requestID          string
 	accountID          int32
@@ -32,29 +66,19 @@ type sendUserConfirmationEmailOptions struct {
 	appClientID        string
 	appName            string
 	appConfirmationURI string
-	appDEK             string
-	appJwtCryptoSuite  string
 }
 
 func (s *Services) sendUserConfirmationEmail(
 	ctx context.Context,
 	logger *slog.Logger,
 	userDTO *dtos.UserDTO,
+	profileDTO *dtos.AppProfileDTO,
 	opts sendUserConfirmationEmailOptions,
 ) *exceptions.ServiceError {
-	cryptoSuite, serviceErr := dtos.GetJwtCryptoSuite(opts.appJwtCryptoSuite)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get JWT crypto suite", "error", serviceErr)
-		return serviceErr
-	}
-
-	appKeyDTO, serviceErr := s.GetOrCreateAppKey(ctx, GetOrCreateAppKeyOptions{
-		RequestID:         opts.requestID,
-		AppID:             opts.appID,
-		AppDEK:            opts.appDEK,
-		AppJwtCryptoSuite: cryptoSuite,
-		AccountID:         opts.accountID,
-		Name:              AppKeyNameConfirm,
+	appKeyDTO, serviceErr := s.GetOrCreateAccountKey(ctx, GetOrCreateAccountKeyOptions{
+		RequestID: opts.requestID,
+		AccountID: opts.accountID,
+		Name:      AppKeyNameConfirm,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get or create app key", "error", serviceErr)
@@ -62,14 +86,16 @@ func (s *Services) sendUserConfirmationEmail(
 	}
 
 	token, err := s.jwt.CreateUserToken(tokens.UserTokenOptions{
-		CryptoSuite:     cryptoSuite,
+		CryptoSuite:     appKeyDTO.JWTCryptoSuite(),
 		Type:            tokens.TokenTypeConfirmation,
 		PrivateKey:      appKeyDTO.PrivateKey(),
 		KID:             appKeyDTO.PublicKID(),
 		AccountUsername: opts.accountUsername,
-		UserID:          int32(userDTO.ID),
-		UserVersion:     int32(userDTO.Version()),
+		UserID:          userDTO.ID,
+		UserVersion:     userDTO.Version(),
 		UserEmail:       userDTO.Email,
+		ProfileRoles:    profileDTO.Roles,
+		Scopes:          []string{tokens.UserScopeConfirmation},
 		AppID:           opts.appID,
 		AppClientID:     opts.appClientID,
 	})
@@ -93,22 +119,14 @@ func (s *Services) sendUserConfirmationEmail(
 }
 
 type RegisterUserOptions struct {
-	RequestID          string
-	AccountID          int32
-	AccountUsername    string
-	AppID              int32
-	AppName            string
-	AppClientID        string
-	AppDEK             string
-	AppJwtCryptoSuite  string
-	AppConfirmationURI string
-	Email              string
-	Username           string
-	Password           string
-	AllowedProviders   []string
-	UserData           reflect.Value
-	AppData            reflect.Value
-	AppDataMap         map[string]any
+	RequestID       string
+	AccountID       int32
+	AccountUsername string
+	AppID           int32
+	Email           string
+	Username        string
+	Password        string
+	UserData        reflect.Value
 }
 
 func (s *Services) RegisterUser(
@@ -121,34 +139,44 @@ func (s *Services) RegisterUser(
 	)
 	logger.InfoContext(ctx, "Registering user...")
 
-	userDTO, serviceErr := s.CreateAppUser(ctx, CreateAppUserOptions{
-		RequestID:        opts.RequestID,
-		AccountID:        opts.AccountID,
-		AppID:            opts.AppID,
-		Email:            opts.Email,
-		Username:         opts.Username,
-		Password:         opts.Password,
-		Provider:         AuthProviderUsernamePassword,
-		AllowedProviders: opts.AllowedProviders,
-		UserData:         opts.UserData,
-		AppData:          opts.AppData,
-		AppDataMap:       opts.AppDataMap,
+	appDTO, serviceErr := s.GetAppByID(ctx, GetAppByIDOptions{
+		RequestID: opts.RequestID,
+		AccountID: opts.AccountID,
+		AppID:     opts.AppID,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get app by ID", "error", serviceErr)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
+	if !slices.Contains(appDTO.Providers, AuthProviderUsernamePassword) {
+		logger.WarnContext(ctx, "Invalid Provider")
+		return dtos.MessageDTO{}, exceptions.NewForbiddenError()
+	}
+
+	userDTO, profileDTO, serviceErr := s.CreateAppUser(ctx, CreateAppUserOptions{
+		RequestID: opts.RequestID,
+		AccountID: opts.AccountID,
+		AppID:     opts.AppID,
+		Email:     opts.Email,
+		Username:  opts.Username,
+		Password:  opts.Password,
+		Provider:  AuthProviderUsernamePassword,
+		UserData:  opts.UserData,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to register user", "error", serviceErr)
 		return dtos.MessageDTO{}, serviceErr
 	}
 
-	if serviceErr := s.sendUserConfirmationEmail(ctx, logger, &userDTO, sendUserConfirmationEmailOptions{
+	if serviceErr := s.sendUserConfirmationEmail(ctx, logger, &userDTO, &profileDTO, sendUserConfirmationEmailOptions{
 		requestID:          opts.RequestID,
 		accountID:          opts.AccountID,
 		accountUsername:    opts.AccountUsername,
 		appID:              opts.AppID,
-		appClientID:        opts.AppClientID,
-		appName:            opts.AppName,
-		appConfirmationURI: opts.AppConfirmationURI,
-		appDEK:             opts.AppDEK,
-		appJwtCryptoSuite:  opts.AppJwtCryptoSuite,
+		appClientID:        appDTO.ClientID,
+		appName:            appDTO.Name,
+		appConfirmationURI: appDTO.ConfirmationURI,
 	}); serviceErr != nil {
 		return dtos.MessageDTO{}, serviceErr
 	}
@@ -161,45 +189,41 @@ func (s *Services) GenerateFullUserAuthDTO(
 	ctx context.Context,
 	logger *slog.Logger,
 	requestID string,
+	accountID int32,
 	userDTO *dtos.UserDTO,
 	appDTO *dtos.AppDTO,
 	appProfileDTO *dtos.AppProfileDTO,
 	accountUsername,
 	logSuccessMessage string,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
-	appKeysDTO, serviceErr := s.GetOrCreateAppKeys(ctx, GetOrCreateAppKeysOptions{
+	accountKeyDTOs, serviceErr := s.GetOrCreateMultipleAccountKeys(ctx, GetOrCreateMultipleAccountKeysOptions{
 		RequestID: requestID,
-		AppID:     int32(appDTO.ID()),
-		AppDEK:    appDTO.DEK(),
-		AccountID: int32(appDTO.AccountID()),
-		AppKeyParams: []AppKeyParam{
-			{
-				Name:           AppKeyNameAccess,
-				JwtCryptoSuite: getCryptoSuite(true, appDTO.JwtCryptoSuite),
-			},
-			{
-				Name:           AppKeyNameRefresh,
-				JwtCryptoSuite: getCryptoSuite(false, appDTO.JwtCryptoSuite),
-			},
-		},
+		AccountID: accountID,
+		Names:     []AppKeyName{AppKeyNameAccess, AppKeyNameRefresh},
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get or create app keys", "error", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	accessTokenKey := appKeysDTO[AppKeyNameAccess]
+	keyDTOsMap := make(map[AppKeyName]dtos.AccountKeyDTO)
+	for _, key := range accountKeyDTOs {
+		keyDTOsMap[AppKeyName(key.Name())] = key
+	}
+
+	accessTokenKey := keyDTOsMap[AppKeyNameAccess]
 	accessToken, err := s.jwt.CreateUserToken(tokens.UserTokenOptions{
 		CryptoSuite:     accessTokenKey.JWTCryptoSuite(),
 		Type:            tokens.TokenTypeAccess,
 		PrivateKey:      accessTokenKey.PrivateKey(),
 		KID:             accessTokenKey.PublicKID(),
 		AccountUsername: accountUsername,
-		UserID:          int32(userDTO.ID),
-		UserVersion:     int32(userDTO.Version()),
+		UserID:          userDTO.ID,
+		UserVersion:     userDTO.Version(),
 		UserEmail:       userDTO.Email,
-		AppProfileRoles: appProfileDTO.UserRoles(),
-		AppID:           int32(appDTO.ID()),
+		Scopes:          appDTO.DefaultScopes,
+		ProfileRoles:    appProfileDTO.Roles,
+		AppID:           appDTO.ID(),
 		AppClientID:     appDTO.ClientID,
 	})
 	if err != nil {
@@ -207,17 +231,19 @@ func (s *Services) GenerateFullUserAuthDTO(
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
-	refreshTokenKey := appKeysDTO[AppKeyNameRefresh]
+	refreshTokenKey := keyDTOsMap[AppKeyNameRefresh]
 	refreshToken, err := s.jwt.CreateUserToken(tokens.UserTokenOptions{
 		CryptoSuite:     refreshTokenKey.JWTCryptoSuite(),
 		Type:            tokens.TokenTypeRefresh,
 		PrivateKey:      refreshTokenKey.PrivateKey(),
 		KID:             refreshTokenKey.PublicKID(),
 		AccountUsername: accountUsername,
-		UserID:          int32(userDTO.ID),
-		UserVersion:     int32(userDTO.Version()),
+		UserID:          userDTO.ID,
+		UserVersion:     userDTO.Version(),
 		UserEmail:       userDTO.Email,
-		AppID:           int32(appDTO.ID()),
+		Scopes:          []string{tokens.UserScopeRefresh},
+		ProfileRoles:    appProfileDTO.Roles,
+		AppID:           appDTO.ID(),
 		AppClientID:     appDTO.ClientID,
 	})
 	if err != nil {
@@ -229,7 +255,7 @@ func (s *Services) GenerateFullUserAuthDTO(
 	return dtos.NewFullAuthDTO(accessToken, refreshToken, s.jwt.GetAccessTTL()), nil
 }
 
-type ConfirmAppUserOptions struct {
+type ConfirmAuthUserOptions struct {
 	RequestID         string
 	AccountID         int32
 	AccountUsername   string
@@ -237,11 +263,11 @@ type ConfirmAppUserOptions struct {
 	ConfirmationToken string
 }
 
-func (s *Services) ConfirmAppUser(
+func (s *Services) ConfirmAuthUser(
 	ctx context.Context,
-	opts ConfirmAppUserOptions,
+	opts ConfirmAuthUserOptions,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "ConfirmUser").With(
+	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "ConfirmAuthUser").With(
 		"accountId", opts.AccountID,
 		"appId", opts.AppID,
 	)
@@ -263,15 +289,14 @@ func (s *Services) ConfirmAppUser(
 	}
 
 	if !slices.Contains(appDTO.Providers, AuthProviderUsernamePassword) {
-		logger.WarnContext(ctx, "Invalid provider", "provider", AuthProviderUsernamePassword)
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+		logger.WarnContext(ctx, "Invalid Provider", "Provider", AuthProviderUsernamePassword)
+		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 	}
 
-	userClaims, appClaims, _, _, err := s.jwt.VerifyUserToken(
-		s.GetAppKeyFn(ctx, GetAppKeyFnOptions{
+	userClaims, appClaims, _, _, _, err := s.jwt.VerifyUserToken(
+		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
 			RequestID: opts.RequestID,
 			Name:      AppKeyNameConfirm,
-			AppID:     int32(appDTO.ID()),
 		}),
 		opts.ConfirmationToken,
 	)
@@ -279,16 +304,16 @@ func (s *Services) ConfirmAppUser(
 		logger.ErrorContext(ctx, "Failed to verify user token", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
-	if appClaims.ID != opts.AppID {
-		logger.WarnContext(ctx, "Invalid app ID", "tokenAppId", appClaims.ID, "appId", opts.AppID)
+	if appClaims.AppID != opts.AppID {
+		logger.WarnContext(ctx, "Invalid app ID", "tokenAppId", appClaims.AppID, "appId", opts.AppID)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	userDTO, serviceErr := s.ConfirmUser(ctx, ConfirmUserOptions{
+	userDTO, profileDTO, serviceErr := s.ConfirmAppUser(ctx, ConfirmAppUserOptions{
 		RequestID: opts.RequestID,
 		AccountID: opts.AccountID,
-		UserID:    userClaims.ID,
-		Version:   userClaims.Version,
+		UserID:    userClaims.UserID,
+		Version:   userClaims.UserVersion,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeNotFound {
@@ -300,25 +325,11 @@ func (s *Services) ConfirmAppUser(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	profileDTO, serviceErr := s.GetAppProfileByIDs(ctx, GetAppProfileByIDsOptions{
-		RequestID: opts.RequestID,
-		AppID:     opts.AppID,
-		UserID:    int32(userDTO.ID),
-	})
-	if serviceErr != nil {
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "App profile not found")
-			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-		}
-
-		logger.ErrorContext(ctx, "Failed to get app profile", "error", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
 	return s.GenerateFullUserAuthDTO(
 		ctx,
 		logger,
 		opts.RequestID,
+		opts.AccountID,
 		&userDTO,
 		&appDTO,
 		&profileDTO,
@@ -327,62 +338,62 @@ func (s *Services) ConfirmAppUser(
 	)
 }
 
-type getUserByUsernameOrEmailOptions struct {
-	requestID       string
-	accountID       int32
-	usernameColumn  string
-	usernameOrEmail string
+type GetUserByUsernameOrEmailOptions struct {
+	RequestID       string
+	AccountID       int32
+	UsernameColumn  string
+	UsernameOrEmail string
 }
 
-func (s *Services) getUserByUsernameOrEmail(
+func (s *Services) GetUserByUsernameOrEmail(
 	ctx context.Context,
-	opts getUserByUsernameOrEmailOptions,
+	opts GetUserByUsernameOrEmailOptions,
 ) (dtos.UserDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.requestID, usersAuthLocation, "GetUserByUsernameOrEmail").With(
-		"accountId", opts.accountID,
+	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "GetUserByUsernameOrEmail").With(
+		"accountId", opts.AccountID,
 	)
 	logger.InfoContext(ctx, "Getting user by username or email...")
 
-	switch opts.usernameColumn {
+	switch opts.UsernameColumn {
 	case UsernameColumnBoth:
-		if utils.IsValidEmail(opts.usernameOrEmail) {
+		if utils.IsValidEmail(opts.UsernameOrEmail) {
 			return s.GetUserByEmail(ctx, GetUserByEmailOptions{
-				RequestID: opts.requestID,
-				AccountID: opts.accountID,
-				Email:     opts.usernameOrEmail,
+				RequestID: opts.RequestID,
+				AccountID: opts.AccountID,
+				Email:     opts.UsernameOrEmail,
 			})
 		}
-		if utils.IsValidSlug(opts.usernameOrEmail) {
+		if utils.IsValidSlug(opts.UsernameOrEmail) {
 			return s.GetUserByUsername(ctx, GetUserByUsernameOptions{
-				RequestID: opts.requestID,
-				AccountID: opts.accountID,
-				Username:  opts.usernameOrEmail,
+				RequestID: opts.RequestID,
+				AccountID: opts.AccountID,
+				Username:  opts.UsernameOrEmail,
 			})
 		}
-		logger.WarnContext(ctx, "Invalid username or email", "usernameOrEmail", opts.usernameOrEmail)
+		logger.WarnContext(ctx, "Invalid username or email", "usernameOrEmail", opts.UsernameOrEmail)
 		return dtos.UserDTO{}, exceptions.NewUnauthorizedError()
 	case UsernameColumnEmail:
-		if !utils.IsValidEmail(opts.usernameOrEmail) {
-			logger.WarnContext(ctx, "Invalid email", "email", opts.usernameOrEmail)
+		if !utils.IsValidEmail(opts.UsernameOrEmail) {
+			logger.WarnContext(ctx, "Invalid email", "email", opts.UsernameOrEmail)
 			return dtos.UserDTO{}, exceptions.NewValidationError("Invalid email")
 		}
 		return s.GetUserByEmail(ctx, GetUserByEmailOptions{
-			RequestID: opts.requestID,
-			AccountID: opts.accountID,
-			Email:     opts.usernameOrEmail,
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+			Email:     opts.UsernameOrEmail,
 		})
 	case UsernameColumnUsername:
-		if !utils.IsValidSlug(opts.usernameOrEmail) {
-			logger.WarnContext(ctx, "Invalid username", "username", opts.usernameOrEmail)
+		if !utils.IsValidSlug(opts.UsernameOrEmail) {
+			logger.WarnContext(ctx, "Invalid username", "username", opts.UsernameOrEmail)
 			return dtos.UserDTO{}, exceptions.NewValidationError("Invalid username")
 		}
 		return s.GetUserByUsername(ctx, GetUserByUsernameOptions{
-			RequestID: opts.requestID,
-			AccountID: opts.accountID,
-			Username:  opts.usernameOrEmail,
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+			Username:  opts.UsernameOrEmail,
 		})
 	default:
-		logger.WarnContext(ctx, "Invalid username column", "usernameColumn", opts.usernameColumn)
+		logger.WarnContext(ctx, "Invalid username column", "usernameColumn", opts.UsernameColumn)
 		return dtos.UserDTO{}, exceptions.NewUnauthorizedError()
 	}
 }
@@ -422,27 +433,34 @@ func (s *Services) LoginUser(
 	}
 
 	if !slices.Contains(appDTO.Providers, AuthProviderUsernamePassword) {
-		logger.WarnContext(ctx, "Invalid provider", "provider", AuthProviderUsernamePassword)
+		logger.WarnContext(ctx, "Invalid Provider", "Provider", AuthProviderUsernamePassword)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	userDTO, serviceErr := s.getUserByUsernameOrEmail(ctx, getUserByUsernameOrEmailOptions{
-		requestID:       opts.RequestID,
-		accountID:       opts.AccountID,
-		usernameColumn:  appDTO.UsernameColumn,
-		usernameOrEmail: opts.UsernameOrEmail,
+	userDTO, serviceErr := s.GetUserByUsernameOrEmail(ctx, GetUserByUsernameOrEmailOptions{
+		RequestID:       opts.RequestID,
+		AccountID:       opts.AccountID,
+		UsernameColumn:  appDTO.UsernameColumn,
+		UsernameOrEmail: opts.UsernameOrEmail,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeNotFound {
 			logger.WarnContext(ctx, "User not found")
 			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 		}
-		if serviceErr.Code == exceptions.CodeValidation {
-			logger.WarnContext(ctx, "Invalid username or email", "usernameOrEmail", opts.UsernameOrEmail)
-			return dtos.AuthDTO{}, serviceErr
-		}
 
 		logger.ErrorContext(ctx, "Failed to get user by username or email", "error", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	profileDTO, serviceErr := s.GetOrCreateAppProfile(ctx, GetOrCreateAppProfileOptions{
+		RequestID: opts.RequestID,
+		AccountID: opts.AccountID,
+		AppID:     appDTO.ID(),
+		UserID:    userDTO.ID,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get app profile", "error", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
 
@@ -456,19 +474,17 @@ func (s *Services) LoginUser(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	if !userDTO.IsConfirmed() {
+	if !userDTO.EmailVerified() {
 		logger.InfoContext(ctx, "User is not confirmed, sending new confirmation email")
 
-		if serviceErr := s.sendUserConfirmationEmail(ctx, logger, &userDTO, sendUserConfirmationEmailOptions{
+		if serviceErr := s.sendUserConfirmationEmail(ctx, logger, &userDTO, &profileDTO, sendUserConfirmationEmailOptions{
 			requestID:          opts.RequestID,
 			accountID:          opts.AccountID,
 			accountUsername:    opts.AccountUsername,
-			appID:              int32(appDTO.ID()),
+			appID:              appDTO.ID(),
 			appClientID:        appDTO.ClientID,
 			appName:            appDTO.Name,
 			appConfirmationURI: appDTO.ConfirmationURI,
-			appDEK:             appDTO.DEK(),
-			appJwtCryptoSuite:  string(appDTO.JwtCryptoSuite),
 		}); serviceErr != nil {
 			return dtos.AuthDTO{}, serviceErr
 		}
@@ -477,13 +493,10 @@ func (s *Services) LoginUser(
 	switch userDTO.TwoFactorType {
 	case TwoFactorEmail, TwoFactorTotp:
 		logger.WarnContext(ctx, "User has two-factor authentication enabled")
-		appKeyDTO, serviceErr := s.GetOrCreateAppKey(ctx, GetOrCreateAppKeyOptions{
-			RequestID:         opts.RequestID,
-			AppID:             opts.AppID,
-			AppDEK:            appDTO.DEK(),
-			AppJwtCryptoSuite: appDTO.JwtCryptoSuite,
-			AccountID:         opts.AccountID,
-			Name:              AppKeyNameAccess,
+		appKeyDTO, serviceErr := s.GetOrCreateAccountKey(ctx, GetOrCreateAccountKeyOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+			Name:      AppKeyName2FA,
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to get or create app key", "error", serviceErr)
@@ -498,6 +511,7 @@ func (s *Services) LoginUser(
 			UserID:          int32(userDTO.ID),
 			UserVersion:     int32(userDTO.Version()),
 			UserEmail:       userDTO.Email,
+			Scopes:          []string{tokens.UserScope2FA},
 			AppID:           int32(appDTO.ID()),
 			AppClientID:     appDTO.ClientID,
 		})
@@ -509,12 +523,12 @@ func (s *Services) LoginUser(
 		if userDTO.TwoFactorType == TwoFactorEmail {
 			code, err := s.cache.AddTwoFactorCode(ctx, cache.AddTwoFactorCodeOptions{
 				RequestID: opts.RequestID,
-				AccountID: int(opts.AccountID),
+				AccountID: opts.AccountID,
 				UserID:    userDTO.ID,
 				TTL:       s.jwt.Get2FATTL(),
 			})
 			if err != nil {
-				logger.ErrorContext(ctx, "Failed to add two-factor code", "error", err)
+				logger.ErrorContext(ctx, "Failed to add two-factor Code", "error", err)
 				return dtos.AuthDTO{}, exceptions.NewServerError()
 			}
 
@@ -531,30 +545,16 @@ func (s *Services) LoginUser(
 
 		return dtos.NewTempAuthDTO(
 			twoFAToken,
-			"Please provide two factor code",
+			"Please provide two factor Code",
 			s.jwt.Get2FATTL(),
 		), nil
-	}
-
-	profileDTO, serviceErr := s.GetAppProfileByIDs(ctx, GetAppProfileByIDsOptions{
-		RequestID: opts.RequestID,
-		AppID:     opts.AppID,
-		UserID:    int32(userDTO.ID),
-	})
-	if serviceErr != nil {
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "App profile not found")
-			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-		}
-
-		logger.ErrorContext(ctx, "Failed to get app profile", "error", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
 	}
 
 	return s.GenerateFullUserAuthDTO(
 		ctx,
 		logger,
 		opts.RequestID,
+		opts.AccountID,
 		&userDTO,
 		&appDTO,
 		&profileDTO,
@@ -563,23 +563,23 @@ func (s *Services) LoginUser(
 	)
 }
 
-type VerifyUserTotpOptions struct {
-	RequestID string
-	UserID    int32
-	Code      string
-	DEK       string
+type verifyUserTotpOptions struct {
+	requestID string
+	userID    int32
+	code      string
+	dek       string
 }
 
-func (s *Services) VerifyUserTotp(
+func (s *Services) verifyUserTotp(
 	ctx context.Context,
-	opts VerifyUserTotpOptions,
+	opts verifyUserTotpOptions,
 ) (bool, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "VerifyUserTotp").With(
-		"userId", opts.UserID,
+	logger := s.buildLogger(opts.requestID, usersAuthLocation, "verifyUserTotp").With(
+		"userId", opts.userID,
 	)
 	logger.InfoContext(ctx, "Verifying user TOTP...")
 
-	userTOTP, err := s.database.FindUserTotpByUserID(ctx, opts.UserID)
+	userTOTP, err := s.database.FindUserTotpByUserID(ctx, opts.userID)
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code == exceptions.CodeNotFound {
@@ -592,19 +592,19 @@ func (s *Services) VerifyUserTotp(
 	}
 
 	ok, newDEK, err := s.encrypt.VerifyTotpCode(ctx, encryption.VerifyAccountTotpCodeOptions{
-		RequestID:       opts.RequestID,
+		RequestID:       opts.requestID,
 		EncryptedSecret: userTOTP.Secret,
-		StoredDEK:       opts.DEK,
-		Code:            opts.Code,
+		StoredDEK:       opts.dek,
+		Code:            opts.code,
 		TotpType:        encryption.TotpTypeUser,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", err)
+		logger.ErrorContext(ctx, "Failed to verify TOTP Code", "error", err)
 		return false, exceptions.NewServerError()
 	}
 
 	if !ok {
-		logger.WarnContext(ctx, "Invalid TOTP code")
+		logger.WarnContext(ctx, "Invalid TOTP Code")
 		return false, exceptions.NewUnauthorizedError()
 	}
 
@@ -622,40 +622,40 @@ func (s *Services) VerifyUserTotp(
 	return true, nil
 }
 
-type VerifierUserEmailCodeOptions struct {
-	RequestID string
-	AccountID int
-	UserID    int
-	Code      string
+type verifierUserEmailCodeOptions struct {
+	requestID string
+	accountID int32
+	userID    int32
+	code      string
 }
 
-func (s *Services) VerifyUserEmailCode(
+func (s *Services) verifyUserEmailCode(
 	ctx context.Context,
-	opts VerifierUserEmailCodeOptions,
+	opts verifierUserEmailCodeOptions,
 ) (bool, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "VerifyUserEmailCode").With(
-		"accountId", opts.AccountID,
-		"userId", opts.UserID,
+	logger := s.buildLogger(opts.requestID, usersAuthLocation, "verifyUserEmailCode").With(
+		"accountId", opts.accountID,
+		"userId", opts.userID,
 	)
-	logger.InfoContext(ctx, "Verifying user email code...")
+	logger.InfoContext(ctx, "Verifying user email Code...")
 
 	ok, err := s.cache.VerifyTwoFactorCode(ctx, cache.VerifyTwoFactorCodeOptions{
-		RequestID: opts.RequestID,
-		AccountID: opts.AccountID,
-		UserID:    opts.UserID,
-		Code:      opts.Code,
+		RequestID: opts.requestID,
+		AccountID: opts.accountID,
+		UserID:    opts.userID,
+		Code:      opts.code,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to verify two factor code", "error", err)
+		logger.ErrorContext(ctx, "Failed to verify two factor Code", "error", err)
 		return false, exceptions.NewServerError()
 	}
 
 	if !ok {
-		logger.WarnContext(ctx, "Invalid two factor code")
+		logger.WarnContext(ctx, "Invalid two factor Code")
 		return false, exceptions.NewUnauthorizedError()
 	}
 
-	logger.InfoContext(ctx, "User two factor code verified successfully")
+	logger.InfoContext(ctx, "User two factor Code verified successfully")
 	return true, nil
 }
 
@@ -667,7 +667,6 @@ type TwoFactorLoginUserOptions struct {
 	UserID          int32
 	Version         int32
 	Code            string
-	TwoFactorToken  string
 }
 
 func (s *Services) TwoFactorLoginUser(
@@ -697,26 +696,46 @@ func (s *Services) TwoFactorLoginUser(
 		UserID:    opts.UserID,
 	})
 	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "User not found")
+			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+		}
+
 		logger.ErrorContext(ctx, "Failed to get user by ID", "error", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	// Verify the two-factor code based on the user's two-factor type
+	profileDTO, serviceErr := s.GetAppProfile(ctx, GetAppProfileOptions{
+		RequestID: opts.RequestID,
+		AppID:     appDTO.ID(),
+		UserID:    opts.UserID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "App profile not found")
+			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get app profile", "error", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	// Verify the two-factor Code based on the user's two-factor type
 	var verified bool
 	switch userDTO.TwoFactorType {
 	case TwoFactorTotp:
-		verified, serviceErr = s.VerifyUserTotp(ctx, VerifyUserTotpOptions{
-			RequestID: opts.RequestID,
-			UserID:    opts.UserID,
-			Code:      opts.Code,
-			DEK:       userDTO.DEK(),
+		verified, serviceErr = s.verifyUserTotp(ctx, verifyUserTotpOptions{
+			requestID: opts.RequestID,
+			userID:    opts.UserID,
+			code:      opts.Code,
+			dek:       userDTO.DEK(),
 		})
 	case TwoFactorEmail:
-		verified, serviceErr = s.VerifyUserEmailCode(ctx, VerifierUserEmailCodeOptions{
-			RequestID: opts.RequestID,
-			AccountID: int(opts.AccountID),
-			UserID:    int(opts.UserID),
-			Code:      opts.Code,
+		verified, serviceErr = s.verifyUserEmailCode(ctx, verifierUserEmailCodeOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			userID:    opts.UserID,
+			code:      opts.Code,
 		})
 	default:
 		logger.WarnContext(ctx, "Invalid two-factor type", "twoFactorType", userDTO.TwoFactorType)
@@ -727,24 +746,15 @@ func (s *Services) TwoFactorLoginUser(
 		return dtos.AuthDTO{}, serviceErr
 	}
 	if !verified {
-		logger.WarnContext(ctx, "Two-factor code verification failed")
+		logger.WarnContext(ctx, "Two-factor Code verification failed")
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-	}
-
-	profileDTO, serviceErr := s.GetAppProfileByIDs(ctx, GetAppProfileByIDsOptions{
-		RequestID: opts.RequestID,
-		AppID:     opts.AppID,
-		UserID:    opts.UserID,
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get app profile", "error", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
 	}
 
 	return s.GenerateFullUserAuthDTO(
 		ctx,
 		logger,
 		opts.RequestID,
+		opts.AccountID,
 		&userDTO,
 		&appDTO,
 		&profileDTO,
@@ -772,26 +782,10 @@ func (s *Services) LogoutUser(
 	)
 	logger.InfoContext(ctx, "Logging out user...")
 
-	appDTO, serviceErr := s.GetAppByID(ctx, GetAppByIDOptions{
-		RequestID: opts.RequestID,
-		AccountID: opts.AccountID,
-		AppID:     opts.AppID,
-	})
-	if serviceErr != nil {
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "App not found")
-			return exceptions.NewUnauthorizedError()
-		}
-
-		logger.ErrorContext(ctx, "Failed to get app by ID", "error", serviceErr)
-		return serviceErr
-	}
-
-	userClaims, _, tokenID, exp, err := s.jwt.VerifyUserToken(
-		s.GetAppKeyFn(ctx, GetAppKeyFnOptions{
+	userClaims, appClaims, scope, tokenID, exp, err := s.jwt.VerifyUserToken(
+		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
 			RequestID: opts.RequestID,
 			Name:      AppKeyNameRefresh,
-			AppID:     int32(appDTO.ID()),
 		}),
 		opts.Token,
 	)
@@ -799,8 +793,16 @@ func (s *Services) LogoutUser(
 		logger.ErrorContext(ctx, "Failed to verify user token", "error", err)
 		return exceptions.NewUnauthorizedError()
 	}
-	if userClaims.ID != opts.UserID {
-		logger.WarnContext(ctx, "Invalid user ID", "tokenUserId", userClaims.ID, "userId", opts.UserID)
+	if strings.Contains(scope, tokens.UserScopeRefresh) {
+		logger.WarnContext(ctx, "Invalid scope", "scope", scope)
+		return exceptions.NewUnauthorizedError()
+	}
+	if userClaims.UserID != opts.UserID {
+		logger.WarnContext(ctx, "Invalid user ID", "tokenUserId", userClaims.UserID, "userId", opts.UserID)
+		return exceptions.NewUnauthorizedError()
+	}
+	if appClaims.AppID != opts.AppID {
+		logger.WarnContext(ctx, "Invalid app ID", "tokenAppId", appClaims.AppID, "appId", opts.AppID)
 		return exceptions.NewUnauthorizedError()
 	}
 
@@ -819,8 +821,8 @@ func (s *Services) LogoutUser(
 		return serviceErr
 	}
 
-	if userDTO.Version() != int(userClaims.Version) {
-		logger.WarnContext(ctx, "User version mismatch", "tokenVersion", userClaims.Version, "userVersion", userDTO.Version())
+	if userDTO.Version() != userClaims.UserVersion {
+		logger.WarnContext(ctx, "User version mismatch", "tokenVersion", userClaims.UserVersion, "userVersion", userDTO.Version())
 		return exceptions.NewUnauthorizedError()
 	}
 
@@ -845,4 +847,110 @@ func (s *Services) LogoutUser(
 
 	logger.InfoContext(ctx, "User logged out successfully")
 	return nil
+}
+
+type RefreshUserAccessOptions struct {
+	RequestID       string
+	AccountID       int32
+	AppID           int32
+	AccountUsername string
+	Token           string
+}
+
+func (s *Services) RefreshUserAccess(
+	ctx context.Context,
+	opts RefreshUserAccessOptions,
+) (dtos.AuthDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "RefreshUserAccess").With(
+		"accountId", opts.AccountID,
+	)
+	logger.InfoContext(ctx, "Refreshing user access token...")
+
+	userClaims, appClaims, _, tokenID, _, err := s.jwt.VerifyUserToken(
+		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
+			RequestID: opts.RequestID,
+			Name:      AppKeyNameRefresh,
+		}),
+		opts.Token,
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to verify refresh token", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	}
+	if appClaims.AppID != opts.AppID {
+		logger.WarnContext(ctx, "Invalid app ID", "tokenAppId", appClaims.AppID, "appId", opts.AppID)
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	// Check if token is blacklisted
+	blt, err := s.database.GetBlacklistedToken(ctx, tokenID)
+	if err == nil {
+		logger.WarnContext(ctx, "Token is blacklisted", "blacklistedAt", blt.CreatedAt)
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	} else if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
+		logger.ErrorContext(ctx, "Failed to check blacklisted token", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewServerError()
+	}
+
+	userDTO, serviceErr := s.GetUserByID(ctx, GetUserByIDOptions{
+		RequestID: opts.RequestID,
+		AccountID: opts.AccountID,
+		UserID:    userClaims.UserID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "User not found")
+			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+		}
+		logger.ErrorContext(ctx, "Failed to get user by ID", "error", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	// Verify user version matches the token
+	if userDTO.Version() != userClaims.UserVersion {
+		logger.WarnContext(ctx, "User version mismatch", "tokenVersion", userClaims.UserVersion, "userVersion", userDTO.Version())
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	appDTO, serviceErr := s.GetAppByID(ctx, GetAppByIDOptions{
+		RequestID: opts.RequestID,
+		AccountID: opts.AccountID,
+		AppID:     appClaims.AppID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "App not found")
+			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get app by ID", "error", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	appProfileDTO, serviceErr := s.GetAppProfile(ctx, GetAppProfileOptions{
+		RequestID: opts.RequestID,
+		AppID:     appClaims.AppID,
+		UserID:    userClaims.UserID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "App profile not found")
+			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get app profile", "error", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	return s.GenerateFullUserAuthDTO(
+		ctx,
+		logger,
+		opts.RequestID,
+		opts.AccountID,
+		&userDTO,
+		&appDTO,
+		&appProfileDTO,
+		opts.AccountUsername,
+		"User access token refreshed successfully",
+	)
 }

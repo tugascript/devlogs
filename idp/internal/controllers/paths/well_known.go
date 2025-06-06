@@ -7,5 +7,8 @@
 package paths
 
 const (
-	UserSchemasBase string = "/users/schemas"
+	WellKnownBase string = "/.well-known"
+
+	WellKnownOIDC string = "/openid-configuration"
+	WellKnownJWKs string = "/jwks.json"
 )

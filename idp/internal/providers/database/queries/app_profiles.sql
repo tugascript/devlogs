@@ -1,4 +1,4 @@
--- name: CreateAppProfileWithoutData :exec
+-- name: CreateAppProfile :one
 INSERT INTO "app_profiles" (
     "account_id",
     "user_id",
@@ -7,20 +7,20 @@ INSERT INTO "app_profiles" (
     $1,
     $2,
     $3
-);
+) RETURNING *;
 
--- name: CreateAppProfileWithData :exec
+-- name: CreateAppProfileWithRoles :one
 INSERT INTO "app_profiles" (
     "account_id",
     "user_id",
     "app_id",
-    "profile_data"
+    "user_roles"
 ) VALUES (
     $1,
     $2,
     $3,
     $4
-);
+) RETURNING *;
 
 -- name: FindAppProfileByAppIDAndUserID :one
 SELECT * FROM "app_profiles"

@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"reflect"
-	"slices"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -65,7 +64,7 @@ func (s *Services) CreateUser(
 	opts CreateUserOptions,
 ) (dtos.UserDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, usersLocation, "CreateUser").With(
-		"accountID", opts.AccountID,
+		"AccountID", opts.AccountID,
 		"email", opts.Email,
 		"username", opts.Username,
 	)
@@ -142,7 +141,7 @@ func (s *Services) CreateUser(
 		UserID:    user.ID,
 		Provider:  AuthProviderEmail,
 	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to create user auth provider", "error", err)
+		logger.ErrorContext(ctx, "Failed to create user auth Provider", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.UserDTO{}, serviceErr
 	}
@@ -151,162 +150,164 @@ func (s *Services) CreateUser(
 	return dtos.MapUserToDTO(&user)
 }
 
-type CreateAppUserOptions struct {
-	RequestID        string
-	AccountID        int32
-	AppID            int32
-	Email            string
-	Username         string
-	Password         string
-	Provider         string
-	AllowedProviders []string
-	UserData         reflect.Value
-	AppData          reflect.Value
-	AppDataMap       map[string]any
+type ListUsersOptions struct {
+	RequestID string
+	AccountID int32
+	Offset    int32
+	Limit     int32
+	Order     string
 }
 
-func (s *Services) CreateAppUser(
+func (s *Services) ListUsers(
 	ctx context.Context,
-	opts CreateAppUserOptions,
-) (dtos.UserDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, usersLocation, "CreateAppUser").With(
-		"appID", opts.AppID,
+	opts ListUsersOptions,
+) ([]dtos.UserDTO, int64, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersLocation, "ListUsers").With(
 		"accountID", opts.AccountID,
-		"provider", opts.Provider,
+		"offset", opts.Offset,
+		"limit", opts.Limit,
+		"order", opts.Order,
 	)
-	logger.InfoContext(ctx, "Registering user...")
+	logger.InfoContext(ctx, "Listing users...")
 
-	if !slices.Contains(opts.AllowedProviders, opts.Provider) {
-		logger.WarnContext(ctx, "Invalid provider")
-		return dtos.UserDTO{}, exceptions.NewForbiddenError()
+	order := utils.Lowered(opts.Order)
+	var users []database.User
+	var err error
+
+	switch order {
+	case "date":
+		users, err = s.database.FindPaginatedUsersByAccountIDOrderedByID(ctx,
+			database.FindPaginatedUsersByAccountIDOrderedByIDParams{
+				AccountID: opts.AccountID,
+				Offset:    opts.Offset,
+				Limit:     opts.Limit,
+			},
+		)
+	case "email":
+		users, err = s.database.FindPaginatedUsersByAccountIDOrderedByEmail(ctx,
+			database.FindPaginatedUsersByAccountIDOrderedByEmailParams{
+				AccountID: opts.AccountID,
+				Offset:    opts.Offset,
+				Limit:     opts.Limit,
+			},
+		)
+	case "username":
+		users, err = s.database.FindPaginatedUsersByAccountIDOrderedByUsername(ctx,
+			database.FindPaginatedUsersByAccountIDOrderedByUsernameParams{
+				AccountID: opts.AccountID,
+				Offset:    opts.Offset,
+				Limit:     opts.Limit,
+			},
+		)
+	default:
+		logger.WarnContext(ctx, "Unknown order type, failing", "order", order)
+		return nil, 0, exceptions.NewValidationError("Unknown order type")
 	}
-
-	var password pgtype.Text
-	if opts.Provider == AuthProviderUsernamePassword {
-		if opts.Password == "" {
-			logger.WarnContext(ctx, "Password is required")
-			return dtos.UserDTO{}, exceptions.NewValidationError("Password is required")
-		}
-
-		hashedPassword, err := utils.HashString(opts.Password)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to hash password", "error", err)
-			return dtos.UserDTO{}, exceptions.NewServerError()
-		}
-
-		if err := password.Scan(hashedPassword); err != nil {
-			logger.ErrorContext(ctx, "Failed pass password to text", "error", err)
-			return dtos.UserDTO{}, exceptions.NewServerError()
-		}
-	}
-
-	email := utils.Lowered(opts.Email)
-	count, err := s.database.CountUsersByEmailAndAccountID(ctx, database.CountUsersByEmailAndAccountIDParams{
-		Email:     email,
-		AccountID: opts.AccountID,
-	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to count user by email", "error", err)
-		return dtos.UserDTO{}, exceptions.FromDBError(err)
-	}
-	if count > 0 {
-		logger.WarnContext(ctx, "Email already in use")
-		return dtos.UserDTO{}, exceptions.NewConflictError("Email already in use")
+		logger.ErrorContext(ctx, "Failed to list users", "error", err)
+		return nil, 0, exceptions.FromDBError(err)
 	}
 
-	username, serviceErr := s.setUserUsername(ctx, logger, opts.AccountID, opts.Username)
+	count, err := s.database.CountUsersByAccountID(ctx, opts.AccountID)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count users", "error", err)
+		return nil, 0, exceptions.FromDBError(err)
+	}
+
+	userDTOs, serviceErr := utils.MapSliceWithErr(users, dtos.MapUserToDTO)
 	if serviceErr != nil {
-		return dtos.UserDTO{}, serviceErr
+		logger.ErrorContext(ctx, "Failed to map users to DTOs", "error", serviceErr)
+		return nil, 0, exceptions.NewServerError()
 	}
 
-	data, err := json.Marshal(opts.UserData)
+	logger.InfoContext(ctx, "Listed users successfully")
+	return userDTOs, count, nil
+}
+
+type FilterUsersOptions struct {
+	RequestID string
+	AccountID int32
+	Offset    int32
+	Limit     int32
+	Order     string
+	Search    string
+}
+
+func (s *Services) FilterUsers(
+	ctx context.Context,
+	opts FilterUsersOptions,
+) ([]dtos.UserDTO, int64, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersLocation, "FilterUsers").With(
+		"accountId", opts.AccountID,
+		"search", opts.Search,
+		"order", opts.Order,
+	)
+	logger.InfoContext(ctx, "Filtering users...")
+
+	search := utils.DbSearch(opts.Search)
+	var users []database.User
+	var err error
+
+	switch opts.Order {
+	case "id":
+		users, err = s.database.FilterUsersByEmailOrUsernameAndByAccountIDOrderedByID(ctx,
+			database.FilterUsersByEmailOrUsernameAndByAccountIDOrderedByIDParams{
+				AccountID: opts.AccountID,
+				Email:     search,
+				Username:  search,
+				Offset:    opts.Offset,
+				Limit:     opts.Limit,
+			},
+		)
+	case "email":
+		users, err = s.database.FilterUsersByEmailOrUsernameAndByAccountIDOrderedByEmail(ctx,
+			database.FilterUsersByEmailOrUsernameAndByAccountIDOrderedByEmailParams{
+				AccountID: opts.AccountID,
+				Email:     search,
+				Username:  search,
+				Offset:    opts.Offset,
+				Limit:     opts.Limit,
+			},
+		)
+	case "username":
+		users, err = s.database.FilterUsersByEmailOrUsernameAndByAccountIDOrderedByUsername(ctx,
+			database.FilterUsersByEmailOrUsernameAndByAccountIDOrderedByUsernameParams{
+				AccountID: opts.AccountID,
+				Email:     search,
+				Username:  search,
+				Offset:    opts.Offset,
+				Limit:     opts.Limit,
+			},
+		)
+	default:
+		logger.WarnContext(ctx, "Unknown order type, failing", "order", opts.Order)
+		return nil, 0, exceptions.NewValidationError("Unknown order type")
+	}
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to marshal user data", "error", err)
-		return dtos.UserDTO{}, exceptions.NewServerError()
+		logger.ErrorContext(ctx, "Failed to filter users", "error", err)
+		return nil, 0, exceptions.FromDBError(err)
 	}
 
-	dek, err := s.encrypt.GenerateUserDEK(ctx, opts.RequestID)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate user DEK", "error", err)
-		return dtos.UserDTO{}, exceptions.NewServerError()
-	}
-
-	qrs, txn, err := s.database.BeginTx(ctx)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-		return dtos.UserDTO{}, exceptions.FromDBError(err)
-	}
-	defer func() {
-		logger.DebugContext(ctx, "Finalizing transaction")
-		s.database.FinalizeTx(ctx, txn, err, serviceErr)
-	}()
-
-	var user database.User
-	if opts.Provider == AuthProviderUsernamePassword {
-		user, err = qrs.CreateUserWithPassword(ctx, database.CreateUserWithPasswordParams{
+	count, err := s.database.CountFilteredUsersByEmailOrUsernameAndByAccountID(ctx,
+		database.CountFilteredUsersByEmailOrUsernameAndByAccountIDParams{
 			AccountID: opts.AccountID,
-			Email:     email,
-			Username:  username,
-			Password:  password,
-			UserData:  data,
-			Dek:       dek,
-		})
-	} else {
-		user, err = qrs.CreateUserWithoutPassword(ctx, database.CreateUserWithoutPasswordParams{
-			AccountID: opts.AccountID,
-			Email:     email,
-			Username:  username,
-			UserData:  data,
-			Dek:       dek,
-		})
-	}
+			Email:     search,
+			Username:  search,
+		},
+	)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create user", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.UserDTO{}, serviceErr
+		logger.ErrorContext(ctx, "Failed to count filtered users", "error", err)
+		return nil, 0, exceptions.FromDBError(err)
 	}
 
-	if err := qrs.CreateUserAuthProvider(ctx, database.CreateUserAuthProviderParams{
-		AccountID: opts.AccountID,
-		UserID:    user.ID,
-		Provider:  opts.Provider,
-	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to create user auth provider", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.UserDTO{}, serviceErr
+	userDTOs, serviceErr := utils.MapSliceWithErr(users, dtos.MapUserToDTO)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map users to DTOs", "error", serviceErr)
+		return nil, 0, exceptions.NewServerError()
 	}
 
-	if !opts.AppData.IsZero() || len(opts.AppDataMap) > 0 {
-		appData, err := json.Marshal(opts.AppData)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to marshal app data", "error", err)
-			return dtos.UserDTO{}, exceptions.NewServerError()
-		}
-
-		if err := qrs.CreateAppProfileWithData(ctx, database.CreateAppProfileWithDataParams{
-			AccountID:   opts.AccountID,
-			UserID:      user.ID,
-			AppID:       opts.AppID,
-			ProfileData: appData,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to create app profile", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.UserDTO{}, serviceErr
-		}
-	} else {
-		if err := qrs.CreateAppProfileWithoutData(ctx, database.CreateAppProfileWithoutDataParams{
-			AccountID: opts.AccountID,
-			UserID:    user.ID,
-			AppID:     opts.AppID,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to create app profile", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.UserDTO{}, serviceErr
-		}
-	}
-
-	logger.InfoContext(ctx, "Created user successfully")
-	return dtos.MapUserToDTO(&user)
+	logger.InfoContext(ctx, "Filtered users successfully")
+	return userDTOs, count, nil
 }
 
 type GetUserByIDOptions struct {
@@ -340,23 +341,62 @@ func (s *Services) GetUserByID(
 	return dtos.MapUserToDTO(&user)
 }
 
-type ConfirmUserOptions struct {
+type GetUserByUsernameOptions struct {
 	RequestID string
 	AccountID int32
-	UserID    int32
-	Version   int32
+	Username  string
 }
 
-func (s *Services) ConfirmUser(
+func (s *Services) GetUserByUsername(
 	ctx context.Context,
-	opts ConfirmUserOptions,
+	opts GetUserByUsernameOptions,
 ) (dtos.UserDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, usersLocation, "ConfirmUser").With(
+	logger := s.buildLogger(opts.RequestID, usersLocation, "GetUserByUsername").With(
+		"accountId", opts.AccountID,
+		"username", opts.Username,
+	)
+	logger.InfoContext(ctx, "Getting user by username...")
+
+	username := utils.Lowered(opts.Username)
+	user, err := s.database.FindUserByUsernameAndAccountID(ctx, database.FindUserByUsernameAndAccountIDParams{
+		Username:  username,
+		AccountID: opts.AccountID,
+	})
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "User not found")
+			return dtos.UserDTO{}, exceptions.NewNotFoundError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to find user by username", "error", err)
+		return dtos.UserDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Got user by username successfully")
+	return dtos.MapUserToDTO(&user)
+}
+
+type UpdateUserOptions struct {
+	RequestID     string
+	AccountID     int32
+	UserID        int32
+	Email         string
+	Username      string
+	UserData      reflect.Value
+	IsActive      bool
+	EmailVerified bool
+}
+
+func (s *Services) UpdateUser(
+	ctx context.Context,
+	opts UpdateUserOptions,
+) (dtos.UserDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersLocation, "UpdateUser").With(
 		"userId", opts.UserID,
 		"accountId", opts.AccountID,
-		"version", opts.Version,
 	)
-	logger.InfoContext(ctx, "Confirming user...")
+	logger.InfoContext(ctx, "Updating user...")
 
 	userDTO, serviceErr := s.GetUserByID(ctx, GetUserByIDOptions{
 		RequestID: opts.RequestID,
@@ -366,26 +406,162 @@ func (s *Services) ConfirmUser(
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeNotFound {
 			logger.WarnContext(ctx, "User not found")
-			return dtos.UserDTO{}, exceptions.NewUnauthorizedError()
+			return dtos.UserDTO{}, exceptions.NewNotFoundError()
 		}
 
 		logger.ErrorContext(ctx, "Failed to get user by ID", "error", serviceErr)
 		return dtos.UserDTO{}, serviceErr
 	}
 
-	userVersion := userDTO.Version()
-	if userVersion != int(opts.Version) {
-		logger.WarnContext(ctx, "User version mismatch", "currentVersion", userVersion)
-		return dtos.UserDTO{}, exceptions.NewUnauthorizedError()
+	email := utils.Lowered(opts.Email)
+	if email != userDTO.Email {
+		count, err := s.database.CountUsersByEmailAndAccountID(ctx, database.CountUsersByEmailAndAccountIDParams{
+			Email:     email,
+			AccountID: opts.AccountID,
+		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to count user by email", "error", err)
+			return dtos.UserDTO{}, exceptions.FromDBError(err)
+		}
+		if count > 0 {
+			logger.WarnContext(ctx, "Email already in use")
+			return dtos.UserDTO{}, exceptions.NewConflictError("Email already in use")
+		}
 	}
 
-	user, err := s.database.ConfirmUser(ctx, opts.UserID)
+	username := utils.Lowered(opts.Username)
+	if username != userDTO.Username {
+		count, err := s.database.CountUsersByUsernameAndAccountID(ctx, database.CountUsersByUsernameAndAccountIDParams{
+			Username:  username,
+			AccountID: opts.AccountID,
+		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to count users by username", "error", err)
+			return dtos.UserDTO{}, exceptions.FromDBError(err)
+		}
+		if count > 0 {
+			logger.WarnContext(ctx, "Username already in use")
+			return dtos.UserDTO{}, exceptions.NewConflictError("Username already in use")
+		}
+	}
+
+	data, err := json.Marshal(opts.UserData)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to confirm user", "error", err)
+		logger.ErrorContext(ctx, "Failed to marshal user data", "error", err)
+		return dtos.UserDTO{}, exceptions.NewServerError()
+	}
+
+	user, err := s.database.UpdateUser(ctx, database.UpdateUserParams{
+		ID:            opts.UserID,
+		Email:         email,
+		Username:      username,
+		UserData:      data,
+		IsActive:      opts.IsActive,
+		EmailVerified: opts.EmailVerified,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update user", "error", err)
 		return dtos.UserDTO{}, exceptions.FromDBError(err)
 	}
-	logger.InfoContext(ctx, "Confirmed user successfully")
+
+	logger.InfoContext(ctx, "Updated user successfully")
 	return dtos.MapUserToDTO(&user)
+}
+
+type UpdateUserPasswordOptions struct {
+	RequestID string
+	AccountID int32
+	UserID    int32
+	Password  string
+}
+
+func (s *Services) UpdateUserPassword(
+	ctx context.Context,
+	opts UpdateUserPasswordOptions,
+) (dtos.UserDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersLocation, "UpdateUserPassword").With(
+		"userId", opts.UserID,
+		"accountId", opts.AccountID,
+	)
+	logger.InfoContext(ctx, "Updating user password...")
+
+	userDTO, serviceErr := s.GetUserByID(ctx, GetUserByIDOptions{
+		RequestID: opts.RequestID,
+		UserID:    opts.UserID,
+		AccountID: opts.AccountID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "User not found")
+			return dtos.UserDTO{}, exceptions.NewNotFoundError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get user by ID", "error", serviceErr)
+		return dtos.UserDTO{}, serviceErr
+	}
+
+	var password pgtype.Text
+	hashedPassword, err := utils.HashString(opts.Password)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to hash password", "error", err)
+		return dtos.UserDTO{}, exceptions.NewServerError()
+	}
+	if err := password.Scan(hashedPassword); err != nil {
+		logger.ErrorContext(ctx, "Failed to set password", "error", err)
+		return dtos.UserDTO{}, exceptions.NewServerError()
+	}
+
+	user, err := s.database.UpdateUserPassword(ctx, database.UpdateUserPasswordParams{
+		Password: password,
+		ID:       userDTO.ID,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update user password", "error", err)
+		return dtos.UserDTO{}, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Updated user password successfully")
+	return dtos.MapUserToDTO(&user)
+}
+
+type DeleteUserOptions struct {
+	RequestID string
+	AccountID int32
+	UserID    int32
+}
+
+func (s *Services) DeleteUser(
+	ctx context.Context,
+	opts DeleteUserOptions,
+) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.RequestID, usersLocation, "DeleteUser").With(
+		"userId", opts.UserID,
+		"accountId", opts.AccountID,
+	)
+	logger.InfoContext(ctx, "Deleting user...")
+
+	userDTO, serviceErr := s.GetUserByID(ctx, GetUserByIDOptions{
+		RequestID: opts.RequestID,
+		UserID:    opts.UserID,
+		AccountID: opts.AccountID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "User not found")
+			return exceptions.NewNotFoundError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get user by ID", "error", serviceErr)
+		return serviceErr
+	}
+
+	if err := s.database.DeleteUser(ctx, userDTO.ID); err != nil {
+		logger.ErrorContext(ctx, "Failed to delete user", "error", err)
+		return exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Deleted user successfully")
+	return nil
 }
 
 type GetUserByEmailOptions struct {
@@ -420,40 +596,5 @@ func (s *Services) GetUserByEmail(
 	}
 
 	logger.InfoContext(ctx, "Got user by email successfully")
-	return dtos.MapUserToDTO(&user)
-}
-
-type GetUserByUsernameOptions struct {
-	RequestID string
-	AccountID int32
-	Username  string
-}
-
-func (s *Services) GetUserByUsername(
-	ctx context.Context,
-	opts GetUserByUsernameOptions,
-) (dtos.UserDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, usersLocation, "GetUserByUsername").With(
-		"accountId", opts.AccountID,
-	)
-	logger.InfoContext(ctx, "Getting user by username...")
-
-	username := utils.Lowered(opts.Username)
-	user, err := s.database.FindUserByUsernameAndAccountID(ctx, database.FindUserByUsernameAndAccountIDParams{
-		Username:  username,
-		AccountID: opts.AccountID,
-	})
-	if err != nil {
-		serviceErr := exceptions.FromDBError(err)
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "User not found")
-			return dtos.UserDTO{}, exceptions.NewNotFoundError()
-		}
-
-		logger.ErrorContext(ctx, "Failed to find user by username", "error", err)
-		return dtos.UserDTO{}, serviceErr
-	}
-
-	logger.InfoContext(ctx, "Got user by username successfully")
 	return dtos.MapUserToDTO(&user)
 }

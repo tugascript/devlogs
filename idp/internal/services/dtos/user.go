@@ -14,19 +14,19 @@ import (
 )
 
 type UserDTO struct {
-	ID            int    `json:"id"`
+	ID            int32  `json:"id"`
 	Email         string `json:"email"`
 	Username      string `json:"username"`
 	TwoFactorType string `json:"two_factor_type"`
 	DataDTO
 
-	version     int
-	isConfirmed bool
-	password    string
-	dek         string
+	version       int32
+	emailVerified bool
+	password      string
+	dek           string
 }
 
-func (u *UserDTO) Version() int {
+func (u *UserDTO) Version() int32 {
 	return u.version
 }
 
@@ -34,8 +34,8 @@ func (u *UserDTO) Password() string {
 	return u.password
 }
 
-func (u *UserDTO) IsConfirmed() bool {
-	return u.isConfirmed
+func (u *UserDTO) EmailVerified() bool {
+	return u.emailVerified
 }
 
 func (u *UserDTO) DEK() string {
@@ -49,13 +49,13 @@ func MapUserToDTO(user *database.User) (UserDTO, *exceptions.ServiceError) {
 	}
 
 	return UserDTO{
-		ID:            int(user.ID),
+		ID:            user.ID,
 		Email:         user.Email,
 		Username:      user.Username,
 		TwoFactorType: user.TwoFactorType,
 		DataDTO:       data,
-		version:       int(user.Version),
-		isConfirmed:   user.IsConfirmed,
+		version:       user.Version,
+		emailVerified: user.EmailVerified,
 		password:      user.Password.String,
 		dek:           user.Dek,
 	}, nil

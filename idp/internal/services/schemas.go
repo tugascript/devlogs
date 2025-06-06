@@ -9,59 +9,130 @@ package services
 import (
 	"context"
 	"reflect"
-	"strings"
-	"unicode"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
-	"github.com/tugascript/devlogs/idp/internal/services/dtos"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const (
 	schemaLocation string = "schema"
 
-	dataSchemaErrorMessage = "data does not match schema"
+	invalidBodyMsg  string = "invalid body"
+	unkwonFieldMsg  string = "unknown field"
+	invalidFieldMsg string = "invalid field"
 )
 
-type SchemaField struct {
-	Type     string `json:"type"`
-	Unique   bool   `json:"unique"`
-	Required bool   `json:"required"`
-	Default  any    `json:"default,omitempty"`
-	Validate string `json:"validate,omitempty"`
+type AddressClaim struct {
+	Formatted     string `json:"formatted" validate:"omitempty,min=1,max=1000"`
+	StreetAddress string `json:"street_address" validate:"omitempty,min=1,max=500"`
+	PostalCode    string `json:"postal_code" validate:"omitempty,min=1,max=11"`
+	Country       string `json:"country" validate:"omitempty,min=2,max=2,iso3166_1_alpha2"`
+	Region        string `json:"region" validate:"omitempty,min=1,max=150"`
+	Locality      string `json:"locality" validate:"omitempty,min=1,max=255"`
 }
 
-func GetSchemaFieldType(fieldType string) reflect.Type {
-	switch fieldType {
-	case "string":
-		return reflect.TypeOf("")
-	case "int":
-		return reflect.TypeOf(0)
-	case "float":
-		return reflect.TypeOf(0.0)
-	case "bool":
-		return reflect.TypeOf(false)
-	default:
-		return reflect.TypeOf(new(interface{})).Elem()
-	}
+type schemaField struct {
+	name      string
+	fieldType reflect.Type
+	tag       reflect.StructTag
 }
 
-func GetSchemaFieldStructName(fieldName string) string {
-	words := strings.Split(fieldName, "_")
-	var result strings.Builder
-	for _, word := range words {
-		if len(word) > 0 {
-			runes := []rune(word)
-			runes[0] = unicode.ToUpper(runes[0])
-			result.WriteString(string(runes))
+var schemaMapping = map[string]schemaField{
+	"name": {
+		name:      "Name",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"name" validate:"omitempty,min=1,max=150"`),
+	},
+	"given_name": {
+		name:      "GivenName",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"given_name" validate:"omitempty,min=1,max=50"`),
+	},
+	"family_name": {
+		name:      "FamilyName",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"family_name" validate:"omitempty,min=1,max=50"`),
+	},
+	"middle_name": {
+		name:      "MiddleName",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"middle_name" validate:"omitempty,min=1,max=50"`),
+	},
+	"nickname": {
+		name:      "Nickname",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"nickname" validate:"omitempty,min=1,max=150"`),
+	},
+	"profile": {
+		name:      "Profile",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"profile" validate:"omitempty,url"`),
+	},
+	"picture": {
+		name:      "Picture",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"picture" validate:"omitempty,url"`),
+	},
+	"website": {
+		name:      "Website",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"website" validate:"omitempty,url"`),
+	},
+	"gender": {
+		name:      "Gender",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"gender" validate:"omitempty,oneof=male female other unknown"`),
+	},
+	"birthdate": {
+		name:      "Birthdate",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"birthdate" validate:"omitempty,datetime=2006-01-02"`),
+	},
+	"zoneinfo": {
+		name:      "Zoneinfo",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"zoneinfo" validate:"omitempty,tzdata"`),
+	},
+	"locale": {
+		name:      "Locale",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"locale" validate:"omitempty,bcp47_language_tag"`),
+	},
+	"phone_number": {
+		name:      "PhoneNumber",
+		fieldType: reflect.TypeOf(""),
+		tag:       reflect.StructTag(`json:"phone_number" validate:"omitempty,e164"`),
+	},
+	"address": {
+		name:      "Address",
+		fieldType: reflect.TypeOf(AddressClaim{}),
+		tag:       reflect.StructTag(`json:"address" validate:"omitempty"`),
+	},
+}
+
+func BuildClaimSchema(claims []string) reflect.Type {
+
+	fields := make([]reflect.StructField, 0, len(claims))
+
+	for _, claim := range claims {
+		schemaField, ok := schemaMapping[claim]
+		if !ok {
+			continue
 		}
+
+		field := reflect.StructField{
+			Name:      schemaField.name,
+			Type:      schemaField.fieldType,
+			Tag:       schemaField.tag,
+			Anonymous: false,
+		}
+		fields = append(fields, field)
 	}
-	return result.String()
+
+	return reflect.StructOf(fields)
 }
 
 type UnmarshalSchemaBodyOptions struct {
 	RequestID  string
-	SchemaDTO  dtos.SchemaDTO
 	SchemaType reflect.Type
 	Data       map[string]any
 }
@@ -69,37 +140,40 @@ type UnmarshalSchemaBodyOptions struct {
 func (s *Services) UnmarshalSchemaBody(
 	ctx context.Context,
 	opts UnmarshalSchemaBodyOptions,
-) (reflect.Value, *exceptions.ServiceError) {
+) (reflect.Value, *exceptions.ServicErrorWithFields) {
 	logger := s.buildLogger(opts.RequestID, schemaLocation, "UnmarshalSchemaBody")
 	logger.DebugContext(ctx, "Unmarshalling schema body")
 
+	fieldErrors := make([]exceptions.FieldError, 0)
 	value := reflect.New(opts.SchemaType).Elem()
 	for fieldName, fieldValue := range opts.Data {
-		field := value.FieldByName(GetSchemaFieldStructName(fieldName))
-		if !(field.IsValid() && field.CanSet()) {
-			logger.WarnContext(ctx, "Invalid field name: %s", fieldName)
-			return reflect.Value{}, exceptions.NewValidationError(dataSchemaErrorMessage)
-		}
-
-		schemaField, ok := opts.SchemaDTO[fieldName]
+		schemaMap, ok := schemaMapping[fieldName]
 		if !ok {
 			logger.WarnContext(ctx, "Field not found in schema: %s", fieldName)
-			return reflect.Value{}, exceptions.NewValidationError(dataSchemaErrorMessage)
+			fieldErrors = append(fieldErrors, exceptions.FieldError{
+				Param:   fieldName,
+				Message: unkwonFieldMsg,
+				Value:   fieldValue,
+			})
+			continue
 		}
 
-		expectedType := GetSchemaFieldType(schemaField.Type)
-		valueType := reflect.TypeOf(fieldValue)
-		if valueType != expectedType {
-			convertedVal, err := utils.ConvertType(fieldValue, expectedType)
-			if err != nil {
-				logger.WarnContext(ctx, "Failed to convert field value: %s", err)
-				return reflect.Value{}, exceptions.NewValidationError(dataSchemaErrorMessage)
-			}
-			field.Set(reflect.ValueOf(convertedVal))
+		field := value.FieldByName(schemaMap.name)
+		if !(field.IsValid() && field.CanSet()) {
+			logger.WarnContext(ctx, "Invalid field name: %s", fieldName)
+			fieldErrors = append(fieldErrors, exceptions.FieldError{
+				Param:   fieldName,
+				Message: invalidFieldMsg,
+				Value:   fieldValue,
+			})
 			continue
 		}
 
 		field.Set(reflect.ValueOf(fieldValue))
+	}
+
+	if len(fieldErrors) > 0 {
+		return reflect.Value{}, exceptions.NewErrorWithFields(invalidBodyMsg, fieldErrors)
 	}
 
 	return value, nil

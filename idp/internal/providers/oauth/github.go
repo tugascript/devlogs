@@ -208,3 +208,50 @@ func (p *Providers) GetGithubUserData(
 
 	return userRes.ToUserData(), nil
 }
+
+func (p *Providers) GetGithubUserMap(
+	ctx context.Context,
+	opts UserDataOptions,
+) (string, map[string]any, *exceptions.ServiceError) {
+	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  githubLocation,
+		Method:    "GetGithubUserMap",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Getting GitHub user map...")
+
+	body, status, err := getUserResponse(logger, ctx, githubUserURL, opts.Token)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get GitHub user data", "error", err)
+
+		if status > 0 && status < 500 {
+			return "", nil, exceptions.NewUnauthorizedError()
+		}
+
+		return "", nil, exceptions.NewServerError()
+	}
+
+	userMap := make(map[string]any)
+	if err = json.Unmarshal(body, &userMap); err != nil {
+		logger.ErrorContext(ctx, "Failed to unmarshal user data", "error", err)
+		return "", nil, exceptions.NewServerError()
+	}
+
+	if len(userMap) == 0 {
+		logger.WarnContext(ctx, "Empty user data")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	email, ok := userMap["email"].(string)
+	if !ok {
+		logger.WarnContext(ctx, "Email not found in user data")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+	if email == "" {
+		logger.WarnContext(ctx, "Empty email in user data")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	return utils.Lowered(email), userMap, nil
+}

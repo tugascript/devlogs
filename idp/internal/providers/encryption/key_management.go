@@ -53,7 +53,7 @@ func (e *Encryption) GenerateEd25519KeyPair(
 	})
 	logger.DebugContext(ctx, "Generating Ed25519 key pair...")
 
-	dek, accountDEK, isOldKey, err := e.decryptAppDEK(ctx, opts.RequestID, opts.StoredDEK, opts.AccountDEK)
+	dek, accountDEK, isOldKey, err := e.decryptOIDCDEK(ctx, opts.RequestID, opts.StoredDEK, opts.AccountDEK)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
 		return KeyPair{}, nil, "", err
@@ -78,7 +78,7 @@ func (e *Encryption) GenerateEd25519KeyPair(
 		return KeyPair{}, nil, "", err
 	}
 
-	newDEK, err := reEncryptDEK(isOldKey, dek, e.appSecretKey.key)
+	newDEK, err := reEncryptDEK(isOldKey, dek, e.oidcSecretKey.key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to re-encrypt StoredDEK", "error", err)
 		return KeyPair{}, nil, "", err
@@ -117,7 +117,7 @@ func (e *Encryption) DecryptEd25519PrivateKey(
 	})
 	logger.DebugContext(ctx, "Decrypt Ed25519 private key...")
 
-	dek, accountDEK, isOldKey, err := e.decryptAppDEK(ctx, opts.RequestID, opts.StoredDEK, opts.AccountDEK)
+	dek, accountDEK, isOldKey, err := e.decryptOIDCDEK(ctx, opts.RequestID, opts.StoredDEK, opts.AccountDEK)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
 		return nil, "", err
@@ -135,7 +135,7 @@ func (e *Encryption) DecryptEd25519PrivateKey(
 		return nil, "", err
 	}
 
-	newDEK, err := reEncryptDEK(isOldKey, dek, e.appSecretKey.key)
+	newDEK, err := reEncryptDEK(isOldKey, dek, e.oidcSecretKey.key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to encrypt StoredDEK", "error", err)
 		return nil, "", err
@@ -162,7 +162,7 @@ func (e *Encryption) GenerateES256KeyPair(
 	})
 	logger.DebugContext(ctx, "Generating ES256 key pair...")
 
-	dek, accountDEK, isOldKey, err := e.decryptAppDEK(ctx, opts.RequestID, opts.StoredDEK, opts.AccountDEK)
+	dek, accountDEK, isOldKey, err := e.decryptOIDCDEK(ctx, opts.RequestID, opts.StoredDEK, opts.AccountDEK)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
 		return KeyPair{}, nil, "", err
@@ -193,7 +193,7 @@ func (e *Encryption) GenerateES256KeyPair(
 		return KeyPair{}, nil, "", err
 	}
 
-	newDEK, err := reEncryptDEK(isOldKey, dek, e.appSecretKey.key)
+	newDEK, err := reEncryptDEK(isOldKey, dek, e.oidcSecretKey.key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to re-encrypt StoredDEK", "error", err)
 		return KeyPair{}, nil, "", err
@@ -225,7 +225,7 @@ func (e *Encryption) DecryptES256PrivateKey(
 	})
 	logger.DebugContext(ctx, "Decrypt ES256 private key...")
 
-	dek, accountDEK, isOldKey, err := e.decryptAppDEK(ctx, opts.RequestID, opts.StoredDEK, opts.AccountDEK)
+	dek, accountDEK, isOldKey, err := e.decryptOIDCDEK(ctx, opts.RequestID, opts.StoredDEK, opts.AccountDEK)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
 		return nil, "", err
@@ -255,7 +255,7 @@ func (e *Encryption) DecryptES256PrivateKey(
 		return nil, "", err
 	}
 
-	newDEK, err := reEncryptDEK(isOldKey, dek, e.appSecretKey.key)
+	newDEK, err := reEncryptDEK(isOldKey, dek, e.oidcSecretKey.key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to encrypt StoredDEK", "error", err)
 		return nil, "", err

@@ -218,3 +218,103 @@ func (p *Providers) GetGoogleUserData(
 
 	return userRes.ToUserData(), nil
 }
+
+func (p *Providers) GetGoogleUserMap(
+	ctx context.Context,
+	opts UserDataOptions,
+) (string, map[string]any, *exceptions.ServiceError) {
+	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  googleLocation,
+		Method:    "GetGoogleUserData",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Getting Google user map...")
+
+	body, status, err := getUserResponse(logger, ctx, googleUserURL, opts.Token)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get Google user data", "error", err)
+
+		if status > 0 && status < 500 {
+			return "", nil, exceptions.NewUnauthorizedError()
+		}
+
+		return "", nil, exceptions.NewServerError()
+	}
+
+	userMap := make(map[string]any)
+	if err = json.Unmarshal(body, &userMap); err != nil {
+		logger.ErrorContext(ctx, "Failed to unmarshal user data", "error", err)
+		return "", nil, exceptions.NewServerError()
+	}
+
+	if len(userMap) == 0 {
+		logger.WarnContext(ctx, "Empty user data")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	if opts.Scopes != nil {
+		var extPrms extraParams
+		for _, s := range opts.Scopes {
+			switch s {
+			case ScopeGender:
+				extPrms.addParam("genders")
+			case ScopeLocation:
+				extPrms.addParam("addresses")
+			case ScopeBirthday:
+				extPrms.addParam("birthdays")
+			}
+		}
+
+		if !extPrms.isEmpty() {
+			body, status, err := getUserResponse(logger, ctx, googleMeURL, opts.Token)
+			if err != nil {
+				logger.ErrorContext(ctx, "Failed to get ME data", "error", err)
+
+				if status > 0 && status < 500 {
+					return "", nil, exceptions.NewForbiddenError()
+				}
+
+				return "", nil, exceptions.NewServerError()
+			}
+
+			meRes := GoogleMeResponse{}
+			if err := json.Unmarshal(body, &meRes); err != nil {
+				logger.ErrorContext(ctx, "Failed to parse Google ME data", "error", err)
+				return "", nil, exceptions.NewServerError()
+			}
+
+			if len(meRes.Addresses) > 0 {
+				userMap["address"] = meRes.Addresses[0]
+			}
+			if len(meRes.Birthdays) > 0 {
+				userMap["birthday"] = meRes.Birthdays[0]
+			}
+			if len(meRes.Genders) > 0 {
+				userMap["gender"] = meRes.Genders[0]
+			}
+		}
+	}
+
+	email, ok := userMap["email"].(string)
+	if !ok {
+		logger.WarnContext(ctx, "Email not found in user data")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+	if email == "" {
+		logger.WarnContext(ctx, "Empty email in user data")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	isVerified, ok := userMap["email_verified"].(bool)
+	if !ok {
+		logger.WarnContext(ctx, "Email verification status not found in user data")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+	if !isVerified {
+		logger.WarnContext(ctx, "Email not verified")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	return email, userMap, nil
+}

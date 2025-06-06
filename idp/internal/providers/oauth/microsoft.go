@@ -118,3 +118,48 @@ func (p *Providers) GetMicrosoftUserData(
 
 	return userRes.ToUserData(), nil
 }
+
+func (p *Providers) GetMicrosoftUserMap(
+	ctx context.Context,
+	opts UserDataOptions,
+) (string, map[string]any, *exceptions.ServiceError) {
+	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  microsoftLocation,
+		Method:    "GetMicrosoftUserMap",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Getting Microsoft user map...")
+
+	body, status, err := getUserResponse(logger, ctx, microsoftUserURL, opts.Token)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get Microsoft user data", "error", err)
+
+		if status > 0 && status < 500 {
+			return "", nil, exceptions.NewUnauthorizedError()
+		}
+
+		return "", nil, exceptions.NewServerError()
+	}
+
+	userMap := map[string]any{}
+	if err := json.Unmarshal(body, &userMap); err != nil {
+		logger.ErrorContext(ctx, "Failed to parse Microsoft user data", "error", err)
+		return "", nil, exceptions.NewServerError()
+	}
+
+	email, ok := userMap["mail"].(string)
+	if !ok {
+		email, ok = userMap["userPrincipalName"].(string)
+		if !ok {
+			logger.ErrorContext(ctx, "Failed to get email from Microsoft user data")
+			return "", nil, exceptions.NewServerError()
+		}
+	}
+	if email == "" {
+		logger.WarnContext(ctx, "Email is empty in Microsoft user data")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	return email, userMap, nil
+}

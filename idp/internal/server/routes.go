@@ -12,5 +12,8 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	s.routes.AccountCredentialsRoutes(s.App)
 	s.routes.AccountsRoutes(s.App)
 	s.routes.AppsRoutes(s.App)
-	s.routes.UserSchemasRoutes(s.App)
+	s.routes.OIDCConfigsRoutes(s.App)
+	s.routes.UsersRoutes(s.App)
+	s.routes.WellKnownRoutes(s.App)
+	s.routes.UsersAuthRoutes(s.App)
 }

@@ -113,7 +113,7 @@ func (e *Encryption) decryptAccountDEK(ctx context.Context, requestID, storedDEK
 	})
 }
 
-func (e *Encryption) decryptAppDEK(
+func (e *Encryption) decryptOIDCDEK(
 	ctx context.Context,
 	requestID,
 	storedDEK,
@@ -122,10 +122,10 @@ func (e *Encryption) decryptAppDEK(
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  dekLocation,
-		Method:    "decryptAppDEK",
+		Method:    "decryptOIDCDEK",
 		RequestID: requestID,
 	})
-	logger.DebugContext(ctx, "Decrypting App StoredDEK...")
+	logger.DebugContext(ctx, "Decrypting OIDC StoredDEK...")
 
 	decryptedAccountDEK, _, err := e.decryptAccountDEK(ctx, requestID, accountDEK)
 	if err != nil {
@@ -141,7 +141,7 @@ func (e *Encryption) decryptAppDEK(
 
 	dek, isOld, err := decryptDEK(logger, ctx, decryptDEKOptions{
 		storedDEK:  encryptedDEK,
-		secret:     &e.appSecretKey,
+		secret:     &e.oidcSecretKey,
 		oldSecrets: e.oldSecrets,
 	})
 	if err != nil {
@@ -185,14 +185,14 @@ func (e *Encryption) GenerateAccountDEK(ctx context.Context, requestID string) (
 	return encryptedDEK, nil
 }
 
-func (e *Encryption) GenerateAppDEK(ctx context.Context, requestID, accountDEK string) (string, string, error) {
+func (e *Encryption) GenerateOIDCDEK(ctx context.Context, requestID, accountDEK string) (string, string, error) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  dekLocation,
-		Method:    "GenerateAppDEK",
+		Method:    "GenerateOIDCDEK",
 		RequestID: requestID,
 	})
-	logger.DebugContext(ctx, "Generate App StoredDEK...")
+	logger.DebugContext(ctx, "Generate OIDC StoredDEK...")
 
 	dek, isOldKey, err := e.decryptAccountDEK(ctx, requestID, accountDEK)
 	if err != nil {
@@ -200,7 +200,7 @@ func (e *Encryption) GenerateAppDEK(ctx context.Context, requestID, accountDEK s
 		return "", "", err
 	}
 
-	_, encryptedDEK, err := generateDEK(e.appSecretKey.kid, e.appSecretKey.key)
+	_, encryptedDEK, err := generateDEK(e.oidcSecretKey.kid, e.oidcSecretKey.key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate the StoredDEK", "error", err)
 		return "", "", err
@@ -212,13 +212,13 @@ func (e *Encryption) GenerateAppDEK(ctx context.Context, requestID, accountDEK s
 		return "", "", err
 	}
 
-	newDEK, err := reEncryptDEK(isOldKey, dek, e.appSecretKey.key)
+	newAccountDEK, err := reEncryptDEK(isOldKey, dek, e.accountSecretKey.key)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to encrypt StoredDEK", "error", err)
+		logger.ErrorContext(ctx, "Failed to encrypt Account DEK", "error", err)
 		return "", "", err
 	}
 
-	return doubleEncryptedDEK, newDEK, nil
+	return doubleEncryptedDEK, newAccountDEK, nil
 }
 
 func (e *Encryption) GenerateUserDEK(ctx context.Context, requestID string) (string, error) {

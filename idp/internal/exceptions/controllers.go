@@ -87,12 +87,6 @@ func NewErrorResponse(err *ServiceError) ErrorResponse {
 	}
 }
 
-type FieldError struct {
-	Param   string      `json:"param"`
-	Message string      `json:"message"`
-	Value   interface{} `json:"value"`
-}
-
 type ValidationErrorResponse struct {
 	Code     string       `json:"code"`
 	Message  string       `json:"message"`
@@ -223,7 +217,7 @@ func selectIntErrMessage(tag string) string {
 	}
 }
 
-func buildFieldErrorMessage(tag string, val interface{}) string {
+func buildFieldErrorMessage(tag string, val any) string {
 	switch val.(type) {
 	case string:
 		return selectStrErrMessage(tag)

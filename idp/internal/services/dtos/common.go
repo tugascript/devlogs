@@ -31,10 +31,14 @@ func NewMessageDTO(msg string) MessageDTO {
 }
 
 type JWKsDTO struct {
-	Keys []utils.ES256JWK `json:"keys"`
+	Keys []utils.JWK `json:"keys"`
 }
 
-func NewJWKsDTO(jwks []utils.ES256JWK) JWKsDTO {
+func NewJWKsDTO(jwks []utils.JWK) JWKsDTO {
+	if len(jwks) == 0 {
+		return JWKsDTO{Keys: make([]utils.JWK, 0)}
+	}
+
 	return JWKsDTO{Keys: jwks}
 }
 
@@ -107,7 +111,7 @@ func NewPaginationDTO[T any](
 	}
 }
 
-func hashMapToSlice(jsonMap []byte) ([]string, *exceptions.ServiceError) {
+func jsonHashMapToSlice(jsonMap []byte) ([]string, *exceptions.ServiceError) {
 	hashMap := make(map[string]bool)
 	if err := json.Unmarshal(jsonMap, &hashMap); err != nil {
 		return nil, exceptions.NewServerError()

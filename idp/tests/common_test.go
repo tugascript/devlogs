@@ -374,12 +374,12 @@ func GenerateFakeAccountData(t *testing.T, provider string) services.CreateAccou
 	}
 
 	return services.CreateAccountOptions{
-		RequestID: uuid.NewString(),
-		Email:     fakeData.Email,
-		FirstName: fakeData.FirstName,
-		LastName:  fakeData.LastName,
-		Provider:  provider,
-		Password:  fakeData.Password,
+		RequestID:  uuid.NewString(),
+		Email:      fakeData.Email,
+		GivenName:  fakeData.FirstName,
+		FamilyName: fakeData.LastName,
+		Provider:   provider,
+		Password:   fakeData.Password,
 	}
 }
 

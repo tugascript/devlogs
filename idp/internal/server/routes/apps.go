@@ -14,13 +14,34 @@ import (
 )
 
 func (r *Routes) AppsRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.AppsBase, r.controllers.AccountAccessClaimsMiddleware)
+	router := v1PathRouter(app).Group(paths.AppsBase)
 	appsWriteScope := r.controllers.ScopeMiddleware(tokens.AccountScopeAppsWrite)
 
-	router.Get(paths.Base, r.controllers.ListApps)
-	router.Post(paths.Base, appsWriteScope, r.controllers.CreateApp)
-	router.Get(paths.AppsSingle, r.controllers.GetApp)
-	router.Put(paths.AppsSingle, appsWriteScope, r.controllers.UpdateApp)
-	router.Delete(paths.AppsSingle, appsWriteScope, r.controllers.DeleteApp)
-	router.Patch(paths.AppsRefreshSecret, appsWriteScope, r.controllers.RefreshAppSecret)
+	router.Get(
+		paths.Base,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.ListApps,
+	)
+	router.Post(
+		paths.Base,
+		r.controllers.AccountAccessClaimsMiddleware,
+		appsWriteScope,
+		r.controllers.CreateApp,
+	)
+	router.Get(
+		paths.AppsSingle,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.GetApp,
+	)
+	router.Delete(
+		paths.AppsSingle,
+		r.controllers.AccountAccessClaimsMiddleware,
+		appsWriteScope,
+		r.controllers.DeleteApp,
+	)
+	router.Patch(
+		paths.AppsRefreshSecret,
+		r.controllers.AccountAccessClaimsMiddleware, appsWriteScope,
+		r.controllers.RefreshAppSecret,
+	)
 }

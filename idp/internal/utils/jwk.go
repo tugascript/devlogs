@@ -21,7 +21,7 @@ import (
 type JWK interface {
 	GetKeyType() string
 	GetKeyID() string
-	ToUsableKey() (interface{}, error)
+	ToUsableKey() (any, error)
 	ToJSON() ([]byte, error)
 }
 
@@ -43,7 +43,7 @@ func (j *Ed25519JWK) GetKeyID() string {
 	return j.Kid
 }
 
-func (j *Ed25519JWK) ToUsableKey() (interface{}, error) {
+func (j *Ed25519JWK) ToUsableKey() (any, error) {
 	return DecodeEd25519Jwk(*j)
 }
 
@@ -70,7 +70,7 @@ func (j *ES256JWK) GetKeyID() string {
 	return j.Kid
 }
 
-func (j *ES256JWK) ToUsableKey() (interface{}, error) {
+func (j *ES256JWK) ToUsableKey() (any, error) {
 	return DecodeP256Jwk(*j)
 }
 

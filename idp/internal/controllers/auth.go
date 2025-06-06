@@ -71,8 +71,8 @@ func (c *Controllers) RegisterAccount(ctx *fiber.Ctx) error {
 	messageDTO, serviceErr := c.services.RegisterAccount(ctx.UserContext(), services.RegisterAccountOptions{
 		RequestID: requestID,
 		Email:     body.Email,
-		FirstName: body.FirstName,
-		LastName:  body.LastName,
+		GivenName: body.GivenName,
+		LastName:  body.FamilyName,
 		Password:  body.Password,
 	})
 	if serviceErr != nil {

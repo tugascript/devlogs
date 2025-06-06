@@ -35,31 +35,31 @@ const (
 )
 
 type AccountTokenOptions struct {
-	ID       int
-	Version  int
+	ID       int32
+	Version  int32
 	Email    string
 	Audience string
 	Scopes   []AccountScope
 }
 
 type AccountClaims struct {
-	ID      int `json:"id"`
-	Version int `json:"version"`
+	ID      int32 `json:"id"`
+	Version int32 `json:"version"`
 }
 
 type accountTokenClaims struct {
 	Account AccountClaims `json:"account"`
-	Scopes  string        `json:"scopes"`
+	Scope   string        `json:"scope"`
 	jwt.RegisteredClaims
 }
 
 type accountTokenOptions struct {
 	method         jwt.SigningMethod
-	privateKey     interface{}
+	privateKey     any
 	kid            string
 	ttlSec         int64
-	accountID      int
-	accountVersion int
+	accountID      int32
+	accountVersion int32
 	accountEmail   string
 	audience       string
 	scopes         []AccountScope
@@ -112,13 +112,13 @@ func (t *Tokens) createToken(opts accountTokenOptions) (string, error) {
 			ExpiresAt: exp,
 			ID:        uuid.NewString(),
 		},
-		Scopes: scopes,
+		Scope: scopes,
 	})
 	token.Header["kid"] = opts.kid
 	return token.SignedString(opts.privateKey)
 }
 
-func verifyToken(token string, pubKeyFn func(token *jwt.Token) (interface{}, error)) (accountTokenClaims, error) {
+func verifyToken(token string, pubKeyFn func(token *jwt.Token) (any, error)) (accountTokenClaims, error) {
 	claims := new(accountTokenClaims)
 
 	if _, err := jwt.ParseWithClaims(token, claims, pubKeyFn); err != nil {

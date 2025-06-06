@@ -65,9 +65,11 @@ func (c *Controllers) CreateApp(ctx *fiber.Ctx) error {
 	}
 
 	appDTO, serviceErr := c.services.CreateApp(ctx.UserContext(), services.CreateAppOptions{
-		RequestID: requestID,
-		AccountID: int32(accountClaims.ID),
-		Name:      body.Name,
+		RequestID:      requestID,
+		AccountID:      int32(accountClaims.ID),
+		Name:           body.Name,
+		Type:           body.Type,
+		UsernameColumn: body.UsernameColumn,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -101,16 +103,15 @@ func (c *Controllers) UpdateApp(ctx *fiber.Ctx) error {
 	}
 
 	appDTO, serviceErr := c.services.UpdateApp(ctx.UserContext(), services.UpdateAppOptions{
-		RequestID:      requestID,
-		AccountID:      int32(accountClaims.ID),
-		ClientID:       urlParams.ClientID,
-		Name:           body.Name,
-		CallbackUris:   body.CallbackUris,
-		LogoutUris:     body.LogoutUris,
-		UserScopes:     body.Scopes,
-		AuthProviders:  body.Providers,
-		IDTokenTtl:     body.IDTokenTtl,
-		JwtCryptoSuite: body.JwtCryptoSuite,
+		RequestID:     requestID,
+		AccountID:     int32(accountClaims.ID),
+		ClientID:      urlParams.ClientID,
+		Name:          body.Name,
+		CallbackUris:  body.CallbackURIs,
+		LogoutUris:    body.LogoutURIs,
+		DefaultScopes: body.DefaultScopes,
+		AuthProviders: body.Providers,
+		IDTokenTtl:    body.IDTokenTTL,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)

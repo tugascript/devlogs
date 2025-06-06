@@ -39,7 +39,7 @@ func generateCode() (string, error) {
 	return string(code), nil
 }
 
-func generateKey(accountID, userID int) string {
+func generateKey(accountID, userID int32) string {
 	if userID > 0 {
 		return fmt.Sprintf("%s:%d:%s:%d", twoFactorPrefix, accountID, twoFactorUserPrefix, userID)
 	}
@@ -49,8 +49,8 @@ func generateKey(accountID, userID int) string {
 
 type AddTwoFactorCodeOptions struct {
 	RequestID string
-	AccountID int
-	UserID    int
+	AccountID int32
+	UserID    int32
 	TTL       int64
 }
 
@@ -91,8 +91,8 @@ func (c *Cache) AddTwoFactorCode(ctx context.Context, opts AddTwoFactorCodeOptio
 
 type VerifyTwoFactorCodeOptions struct {
 	RequestID string
-	AccountID int
-	UserID    int
+	AccountID int32
+	UserID    int32
 	Code      string
 }
 

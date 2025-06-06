@@ -27,7 +27,7 @@ const (
 type SaveDeleteAccountRequestOptions struct {
 	RequestID       string
 	PrefixType      DeleteAccountPrefixType
-	ID              int
+	ID              int32
 	DurationSeconds int64
 }
 

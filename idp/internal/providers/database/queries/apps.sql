@@ -7,35 +7,18 @@
 -- name: CreateApp :one
 INSERT INTO "apps" (
   "account_id",
+  "type",
   "name",
   "username_column",
-  "profile_schema",
   "client_id",
-  "client_secret",
-  "dek"
+  "client_secret"
 ) VALUES (
   $1,
   $2,
   $3,
   $4,
   $5,
-  $6,
-  $7
-) RETURNING *;
-
--- name: CreateDefaultApp :one
-INSERT INTO "apps" (
-    "account_id",
-    "name",
-    "client_id",
-    "client_secret",
-    "dek"
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5
+  $6
 ) RETURNING *;
 
 
@@ -55,12 +38,13 @@ WHERE "id" = $1 LIMIT 1;
 -- name: UpdateApp :one
 UPDATE "apps"
 SET "name" = $2,
-    "callback_uris" = $3,
-    "logout_uris" = $4,
-    "user_scopes" = $5,
-    "auth_providers" = $6,
-    "id_token_ttl" = $7,
-    "jwt_crypto_suite" = $8,
+    "confirmation_uri" = $3,
+    "callback_uris" = $4,
+    "logout_uris" = $5,
+    "user_roles" = $6,
+    "default_scopes" = $7,
+    "auth_providers" = $8,
+    "id_token_ttl" = $9,
     "updated_at" = now()
 WHERE "id" = $1
 RETURNING *;
@@ -109,9 +93,3 @@ UPDATE "apps" SET
     "updated_at" = now()
 WHERE "id" = $2
 RETURNING *;
-
--- name: UpdateAppDek :exec
-UPDATE "apps" SET
-    "dek" = $1,
-    "updated_at" = now()
-WHERE "id" = $2;

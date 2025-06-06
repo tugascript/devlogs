@@ -70,13 +70,3 @@ type UpdatePasswordBody struct {
 type DeleteWithPasswordBody struct {
 	Password string `json:"password,omitempty" validate:"optional,min=1"`
 }
-
-type SchemaFieldBody struct {
-	Type     string   `json:"type" validate:"required,oneof=string int float bool"`
-	Unique   bool     `json:"unique,omitempty"`
-	Required bool     `json:"required,omitempty"`
-	Default  any      `json:"default,omitempty"`
-	Validate []string `json:"validate,omitempty"`
-}
-
-type DataBody map[string]any

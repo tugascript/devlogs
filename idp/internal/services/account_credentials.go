@@ -183,7 +183,7 @@ func (s *Services) GetAccountCredentialsByClientIDAndAccountID(
 
 type ListAccountKeyByAccountID struct {
 	RequestID string
-	AccountID int
+	AccountID int32
 	Offset    int
 	Limit     int
 }

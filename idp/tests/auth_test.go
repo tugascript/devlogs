@@ -71,11 +71,11 @@ func TestRegister(t *testing.T) {
 			t.Fatal("Failed to generate fake data", err)
 		}
 		return bodies.RegisterAccountBody{
-			Email:     fakeData.Email,
-			FirstName: fakeData.FirstName,
-			LastName:  fakeData.LastName,
-			Password:  fakeData.Password,
-			Password2: fakeData.Password,
+			Email:      fakeData.Email,
+			GivenName:  fakeData.FirstName,
+			FamilyName: fakeData.LastName,
+			Password:   fakeData.Password,
+			Password2:  fakeData.Password,
 		}
 	}
 
@@ -265,10 +265,10 @@ func TestConfirm(t *testing.T) {
 			ReqFn: func(t *testing.T) (bodies.ConfirmationTokenBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
 				return generateConfirmationToken(t, dtos.AccountDTO{
-					ID:        account.ID,
-					FirstName: account.FirstName,
-					LastName:  account.LastName,
-					Email:     account.Email,
+					ID:         account.ID,
+					GivenName:  account.GivenName,
+					FamilyName: account.FamilyName,
+					Email:      account.Email,
 				}), ""
 			},
 			ExpStatus: http.StatusUnauthorized,

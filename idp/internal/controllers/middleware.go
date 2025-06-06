@@ -8,7 +8,6 @@ package controllers
 
 import (
 	"errors"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 	"log/slog"
 	"slices"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const middlewareLocation string = "middleware"
@@ -42,6 +42,32 @@ func processClaimsMiddleware(
 	return ctx.Next()
 }
 
+func (c *Controllers) UserClaimsMiddleware(name services.AppKeyName) func(ctx *fiber.Ctx) error {
+	return func(ctx *fiber.Ctx) error {
+		requestID := getRequestID(ctx)
+		logger := c.buildLogger(requestID, middlewareLocation, "ProcessUserClaimsMiddleware")
+
+		authHeader := ctx.Get("Authorization")
+		if authHeader == "" {
+			return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
+		}
+
+		userClaims, appClaims, userScopes, serviceErr := c.services.ProcessUserAuthHeader(ctx.UserContext(), services.ProcessUserAuthHeaderOptions{
+			RequestID:  requestID,
+			AuthHeader: authHeader,
+			Name:       name,
+		})
+		if serviceErr != nil {
+			return serviceErrorResponse(logger, ctx, serviceErr)
+		}
+
+		ctx.Locals("user", userClaims)
+		ctx.Locals("app", appClaims)
+		ctx.Locals("user_scopes", userScopes)
+		return ctx.Next()
+	}
+}
+
 func (c *Controllers) AccountAccessClaimsMiddleware(ctx *fiber.Ctx) error {
 	logger := c.buildLogger(getRequestID(ctx), middlewareLocation, "AccountAccessClaimsMiddleware")
 	return processClaimsMiddleware(logger, ctx, c.services.ProcessAccountAuthHeader)
@@ -50,6 +76,24 @@ func (c *Controllers) AccountAccessClaimsMiddleware(ctx *fiber.Ctx) error {
 func (c *Controllers) TwoFAAccessClaimsMiddleware(ctx *fiber.Ctx) error {
 	logger := c.buildLogger(getRequestID(ctx), middlewareLocation, "TwoFAAccessClaimsMiddleware")
 	return processClaimsMiddleware(logger, ctx, c.services.Process2FAAuthHeader)
+}
+
+func (c *Controllers) AppAccessClaimsMiddleware(ctx *fiber.Ctx) error {
+	logger := c.buildLogger(getRequestID(ctx), middlewareLocation, "AppAccessClaimsMiddleware")
+
+	authHeader := ctx.Get("Authorization")
+	if authHeader == "" {
+		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
+	}
+
+	appID, appClientID, serviceErr := c.services.ProcessAppAuthHeader(authHeader)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	ctx.Locals("appID", appID)
+	ctx.Locals("appClientID", appClientID)
+	return ctx.Next()
 }
 
 func (c *Controllers) ScopeMiddleware(scope tokens.AccountScope) func(*fiber.Ctx) error {
@@ -160,6 +204,39 @@ func getScopes(ctx *fiber.Ctx) ([]tokens.AccountScope, *exceptions.ServiceError)
 	}
 
 	return scopes, nil
+}
+
+func getAppClaims(ctx *fiber.Ctx) (int32, string, *exceptions.ServiceError) {
+	appID, ok := ctx.Locals("appID").(int32)
+	if !ok || appID == 0 {
+		return 0, "", exceptions.NewUnauthorizedError()
+	}
+
+	appClientID, ok := ctx.Locals("appClientID").(string)
+	if !ok || appClientID == "" {
+		return 0, "", exceptions.NewUnauthorizedError()
+	}
+
+	return appID, appClientID, nil
+}
+
+func getUserClaims(ctx *fiber.Ctx) (tokens.UserClaims, tokens.AppClaims, []string, *exceptions.ServiceError) {
+	user, ok := ctx.Locals("user").(tokens.UserClaims)
+	if !ok || user.UserID == 0 {
+		return tokens.UserClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
+	}
+
+	app, ok := ctx.Locals("app").(tokens.AppClaims)
+	if !ok || app.AppID == 0 {
+		return tokens.UserClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
+	}
+
+	scopes, ok := ctx.Locals("user_scopes").([]string)
+	if !ok || scopes == nil {
+		return tokens.UserClaims{}, tokens.AppClaims{}, nil, exceptions.NewForbiddenError()
+	}
+
+	return user, app, scopes, nil
 }
 
 func getHostAccount(ctx *fiber.Ctx) (string, int, *exceptions.ServiceError) {

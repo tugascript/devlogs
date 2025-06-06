@@ -156,20 +156,14 @@ func (p *Providers) GetFacebookAccessToken(
 	})
 }
 
-func (p *Providers) GetFacebookUserData(
-	ctx context.Context,
-	opts UserDataOptions,
-) (UserData, *exceptions.ServiceError) {
-	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
-		Layer:     logLayer,
-		Location:  facebookLocation,
-		Method:    "GetFacebookUserData",
-		RequestID: opts.RequestID,
-	})
-	logger.DebugContext(ctx, "Getting Facebook user data...")
-
+func buildFacebookParams(scopes []string) extraParams {
 	extPrms := extraParams{params: "email"}
-	for _, s := range opts.Scopes {
+
+	if len(scopes) == 0 {
+		return extPrms
+	}
+
+	for _, s := range scopes {
 		switch s {
 		case ScopeProfile:
 			for _, sp := range facebookProfileParams {
@@ -183,6 +177,23 @@ func (p *Providers) GetFacebookUserData(
 			extPrms.addParam("location")
 		}
 	}
+
+	return extPrms
+}
+
+func (p *Providers) GetFacebookUserData(
+	ctx context.Context,
+	opts UserDataOptions,
+) (UserData, *exceptions.ServiceError) {
+	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  facebookLocation,
+		Method:    "GetFacebookUserData",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Getting Facebook user data...")
+
+	extPrms := buildFacebookParams(opts.Scopes)
 
 	body, status, err := getUserResponse(
 		logger,
@@ -207,4 +218,58 @@ func (p *Providers) GetFacebookUserData(
 	}
 
 	return userRes.ToUserData(), nil
+}
+
+func (p *Providers) GetFacebookUserMap(
+	ctx context.Context,
+	opts UserDataOptions,
+) (string, map[string]any, *exceptions.ServiceError) {
+	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  facebookLocation,
+		Method:    "GetFacebookUserMap",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Getting Facebook user map...")
+
+	extPrms := buildFacebookParams(opts.Scopes)
+	body, status, err := getUserResponse(
+		logger,
+		ctx,
+		fmt.Sprintf("%s?fields=%s", facebookUserURL, extPrms),
+		opts.Token,
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get Facebook user data", "error", err)
+
+		if status > 0 && status < 500 {
+			return "", nil, exceptions.NewUnauthorizedError()
+		}
+
+		return "", nil, exceptions.NewServerError()
+	}
+
+	userRes := make(map[string]any)
+	if err := json.Unmarshal(body, &userRes); err != nil {
+		logger.ErrorContext(ctx, "Failed to parse Facebook user data", "error", err)
+		return "", nil, exceptions.NewServerError()
+	}
+
+	if len(userRes) == 0 {
+		logger.WarnContext(ctx, "Empty user data")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	email, ok := userRes["email"].(string)
+	if !ok {
+		logger.ErrorContext(ctx, "Failed to get email from user data")
+		return "", nil, exceptions.NewServerError()
+	}
+	if email == "" {
+		logger.WarnContext(ctx, "Empty email in user data")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	logger.DebugContext(ctx, "Successfully retrieved Facebook user data")
+	return utils.Lowered(email), userRes, nil
 }

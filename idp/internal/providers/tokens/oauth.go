@@ -45,7 +45,7 @@ func (t *Tokens) VerifyOAuthToken(token string) (AccountClaims, []AccountScope, 
 		return AccountClaims{}, nil, err
 	}
 
-	scopes, err := splitAccountScopes(claims.Scopes)
+	scopes, err := splitAccountScopes(claims.Scope)
 	if err != nil {
 		return AccountClaims{}, nil, err
 	}

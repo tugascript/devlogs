@@ -38,10 +38,24 @@ type ServiceError struct {
 	Message string
 }
 
+type ServicErrorWithFields struct {
+	Code    string
+	Message string
+	Fields  []FieldError
+}
+
 func NewError(code string, message string) *ServiceError {
 	return &ServiceError{
 		Code:    code,
 		Message: message,
+	}
+}
+
+func NewErrorWithFields(message string, fields []FieldError) *ServicErrorWithFields {
+	return &ServicErrorWithFields{
+		Code:    CodeValidation,
+		Message: message,
+		Fields:  fields,
 	}
 }
 

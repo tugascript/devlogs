@@ -15,6 +15,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/tugascript/devlogs/idp/internal/config"
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -330,4 +331,15 @@ func extractTokenKID(token *jwt.Token) (string, error) {
 	}
 
 	return kid, nil
+}
+
+func GetSupportedCryptoSuite(cryptoSuite string) (SupportedCryptoSuite, *exceptions.ServiceError) {
+	switch cryptoSuite {
+	case string(SupportedCryptoSuiteEd25519):
+		return SupportedCryptoSuiteEd25519, nil
+	case string(SupportedCryptoSuiteES256):
+		return SupportedCryptoSuiteES256, nil
+	default:
+		return "", exceptions.NewServerError()
+	}
 }

@@ -7,6 +7,7 @@
 package services
 
 import (
+	"encoding/json"
 	"log/slog"
 
 	"github.com/tugascript/devlogs/idp/internal/utils"
@@ -37,4 +38,19 @@ func (s *Services) buildLogger(requestID, location, function string) *slog.Logge
 		Method:    function,
 		RequestID: requestID,
 	})
+}
+
+func mapSliceToJsonMap(scopes []string) ([]byte, error) {
+	scopeMap := make(map[string]bool)
+
+	for _, scope := range scopes {
+		scopeMap[scope] = true
+	}
+
+	jsonMap, err := json.Marshal(scopeMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonMap, nil
 }

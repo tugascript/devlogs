@@ -8,11 +8,9 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -20,9 +18,11 @@ import (
 const appsLocation string = "apps"
 
 type CreateAppOptions struct {
-	RequestID string
-	AccountID int32
-	Name      string
+	RequestID      string
+	AccountID      int32
+	Type           string
+	Name           string
+	UsernameColumn string
 }
 
 func (s *Services) CreateApp(ctx context.Context, opts CreateAppOptions) (dtos.AppDTO, *exceptions.ServiceError) {
@@ -31,20 +31,6 @@ func (s *Services) CreateApp(ctx context.Context, opts CreateAppOptions) (dtos.A
 		"name", opts.Name,
 	)
 	logger.InfoContext(ctx, "Creating app...")
-
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
-		RequestID: opts.RequestID,
-		ID:        opts.AccountID,
-	})
-	if serviceErr != nil {
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.InfoContext(ctx, "Account not found")
-			return dtos.AppDTO{}, exceptions.NewUnauthorizedError()
-		}
-
-		logger.ErrorContext(ctx, "Failed to get account by ID", "error", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
 
 	name := utils.Capitalized(opts.Name)
 	count, err := s.database.CountAppsByNameAndAccountID(ctx, database.CountAppsByNameAndAccountIDParams{
@@ -78,55 +64,13 @@ func (s *Services) CreateApp(ctx context.Context, opts CreateAppOptions) (dtos.A
 		return dtos.AppDTO{}, exceptions.NewServerError()
 	}
 
-	encryptedDek, newDEK, err := s.encrypt.GenerateAppDEK(ctx, opts.RequestID, accountDTO.DEK())
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate app StoredDEK", "error", err)
-		return dtos.AppDTO{}, exceptions.NewServerError()
-	}
-
-	if newDEK != "" {
-		qrs, txn, err := s.database.BeginTx(ctx)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-			return dtos.AppDTO{}, exceptions.FromDBError(err)
-		}
-		defer func() {
-			logger.DebugContext(ctx, "Finalizing transaction")
-			s.database.FinalizeTx(ctx, txn, err, serviceErr)
-		}()
-
-		if err := qrs.UpdateAccountDEK(ctx, database.UpdateAccountDEKParams{
-			Dek: newDEK,
-			ID:  int32(accountDTO.ID),
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to update account DEK", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		app, err := qrs.CreateApp(ctx, database.CreateAppParams{
-			AccountID:    opts.AccountID,
-			Name:         name,
-			ClientID:     clientId,
-			ClientSecret: hashedSecret,
-			Dek:          encryptedDek,
-		})
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create app", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		logger.InfoContext(ctx, "App created successfully")
-		return dtos.MapAppToDTOWithSecret(&app, clientSecret)
-	}
-
 	app, err := s.database.CreateApp(ctx, database.CreateAppParams{
-		AccountID:    opts.AccountID,
-		Name:         name,
-		ClientID:     clientId,
-		ClientSecret: hashedSecret,
-		Dek:          encryptedDek,
+		AccountID:      opts.AccountID,
+		Name:           name,
+		Type:           opts.Type,
+		UsernameColumn: opts.UsernameColumn,
+		ClientID:       clientId,
+		ClientSecret:   hashedSecret,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -209,84 +153,17 @@ func (s *Services) GetAppByID(
 	return dtos.MapAppToDTO(&app)
 }
 
-func mapSliceToJsonMap(scopes []string) ([]byte, error) {
-	scopeMap := make(map[string]bool)
-
-	for _, scope := range scopes {
-		scopeMap[scope] = true
-	}
-
-	jsonMap, err := json.Marshal(scopeMap)
-	if err != nil {
-		return nil, err
-	}
-
-	return jsonMap, nil
-}
-
-type updateAppWithNewCryptoSuiteOptions struct {
-	ID             int32
-	RequestID      string
-	Name           string
-	CallbackUris   []string
-	LogoutUris     []string
-	UserScopes     []byte
-	AuthProviders  []byte
-	IDTokenTtl     int32
-	JwtCryptoSuite tokens.SupportedCryptoSuite
-}
-
-func (s *Services) updateAppWithNewCryptoSuite(ctx context.Context, opts updateAppWithNewCryptoSuiteOptions) (dtos.AppDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, appsLocation, "updateAppWithNewCryptoSuite").With(
-		"id", opts.ID,
-	)
-	logger.InfoContext(ctx, "Updating app with new crypto suite...")
-
-	var serviceErr *exceptions.ServiceError
-	qrs, txn, err := s.database.BeginTx(ctx)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to begin transaction", "error", err)
-		return dtos.AppDTO{}, exceptions.FromDBError(err)
-	}
-	defer func() {
-		logger.DebugContext(ctx, "Finalizing transaction")
-		s.database.FinalizeTx(ctx, txn, err, serviceErr)
-	}()
-
-	app, err := qrs.UpdateApp(ctx, database.UpdateAppParams{
-		ID:             opts.ID,
-		Name:           opts.Name,
-		CallbackUris:   opts.CallbackUris,
-		LogoutUris:     opts.LogoutUris,
-		UserScopes:     opts.UserScopes,
-		AuthProviders:  opts.AuthProviders,
-		IDTokenTtl:     opts.IDTokenTtl,
-		JwtCryptoSuite: string(opts.JwtCryptoSuite),
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to update app", "error", err)
-		return dtos.AppDTO{}, exceptions.FromDBError(err)
-	}
-	if err := qrs.DeleteDistributedAppKeysByAppID(ctx, opts.ID); err != nil {
-		logger.ErrorContext(ctx, "Failed to delete distributed app keys", "error", err)
-		return dtos.AppDTO{}, exceptions.FromDBError(err)
-	}
-
-	logger.InfoContext(ctx, "App updated successfully")
-	return dtos.MapAppToDTO(&app)
-}
-
 type UpdateAppOptions struct {
-	RequestID      string
-	AccountID      int32
-	ClientID       string
-	Name           string
-	CallbackUris   []string
-	LogoutUris     []string
-	UserScopes     []string
-	AuthProviders  []string
-	IDTokenTtl     int32
-	JwtCryptoSuite tokens.SupportedCryptoSuite
+	RequestID       string
+	AccountID       int32
+	ClientID        string
+	Name            string
+	ConfirmationURI string
+	CallbackUris    []string
+	LogoutUris      []string
+	DefaultScopes   []string
+	AuthProviders   []string
+	IDTokenTtl      int32
 }
 
 func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.AppDTO, *exceptions.ServiceError) {
@@ -307,7 +184,7 @@ func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.A
 
 	name := utils.Capitalized(opts.Name)
 
-	userScopesMap, err := mapSliceToJsonMap(opts.UserScopes)
+	defaultScopesMap, err := mapSliceToJsonMap(opts.DefaultScopes)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to encode user scopes to json map", "error", err)
 		return dtos.AppDTO{}, exceptions.NewServerError()
@@ -319,29 +196,15 @@ func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.A
 		return dtos.AppDTO{}, exceptions.NewServerError()
 	}
 
-	if app.JwtCryptoSuite != opts.JwtCryptoSuite {
-		return s.updateAppWithNewCryptoSuite(ctx, updateAppWithNewCryptoSuiteOptions{
-			ID:             int32(app.ID()),
-			RequestID:      opts.RequestID,
-			Name:           name,
-			CallbackUris:   opts.CallbackUris,
-			LogoutUris:     opts.LogoutUris,
-			UserScopes:     userScopesMap,
-			AuthProviders:  authProvidersMap,
-			IDTokenTtl:     opts.IDTokenTtl,
-			JwtCryptoSuite: opts.JwtCryptoSuite,
-		})
-	}
-
 	appModel, err := s.database.UpdateApp(ctx, database.UpdateAppParams{
-		ID:             int32(app.ID()),
-		Name:           name,
-		CallbackUris:   opts.CallbackUris,
-		LogoutUris:     opts.LogoutUris,
-		UserScopes:     userScopesMap,
-		AuthProviders:  authProvidersMap,
-		IDTokenTtl:     opts.IDTokenTtl,
-		JwtCryptoSuite: string(opts.JwtCryptoSuite),
+		ID:              int32(app.ID()),
+		Name:            name,
+		ConfirmationUri: opts.ConfirmationURI,
+		CallbackUris:    opts.CallbackUris,
+		LogoutUris:      opts.LogoutUris,
+		DefaultScopes:   defaultScopesMap,
+		AuthProviders:   authProvidersMap,
+		IDTokenTtl:      opts.IDTokenTtl,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update app", "error", err)

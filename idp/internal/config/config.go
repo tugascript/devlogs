@@ -146,7 +146,7 @@ var variables = [44]string{
 	"JWT_APPS_PRIVATE_KEY",
 	"JWT_APPS_TTL_SEC",
 	"ACCOUNT_SECRET",
-	"APP_SECRET",
+	"OIDC_SECRET",
 	"USER_SECRET",
 	"OLD_SECRETS",
 }
@@ -300,7 +300,7 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 		),
 		encryptionConfig: NewEncryptionConfig(
 			variablesMap["ACCOUNT_SECRET"],
-			variablesMap["APP_SECRET"],
+			variablesMap["OIDC_SECRET"],
 			variablesMap["USER_SECRET"],
 			variablesMap["OLD_SECRETS"],
 		),

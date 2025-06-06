@@ -7,17 +7,18 @@
 package bodies
 
 type CreateAppBody struct {
-	Name          string `json:"name" validate:"required,max=50,min=3,alphanum"`
-	UsernameField string `json:"username_field,omitempty" validate:"optional,oneof=email username both"`
-	Type          string `json:"type" validate:"required,oneof=web mobile spa desktop all"`
+	Name           string `json:"name" validate:"required,max=50,min=3,alphanum"`
+	Type           string `json:"type" validate:"required,oneof=web mobile spa desktop all"`
+	UsernameColumn string `json:"username_column" validate:"required,oneof=email username both"`
 }
 
 type UpdateAppBody struct {
-	Name           string   `json:"name" validate:"required,max=50,min=3,alphanum"`
-	CallbackUris   []string `json:"callback_uris" validate:"required,url"`
-	LogoutUris     []string `json:"logout_uris" validate:"required,url"`
-	Scopes         []string `json:"scopes" validate:"required,oneof=email profile read:app_profile"`
-	Providers      []string `json:"providers" validate:"required,oneof=email_password client_credentials github google facebook apple microsoft"`
-	IDTokenTtl     int32    `json:"id_token_ttl" validate:"required,gte=30,lte=2592000"` // 30 secs to 30 days
-	JwtCryptoSuite string   `json:"jwt_crypto_suite" validate:"required,oneof=EdDSA ES256"`
+	Name            string   `json:"name" validate:"required,max=50,min=3,alphanum"`
+	DefaultScopes   []string `json:"default_scopes" validate:"required,oneof=openid email profile address phone"`
+	CallbackURIs    []string `json:"callback_uris" validate:"required,url"`
+	LogoutURIs      []string `json:"logout_uris" validate:"required,url"`
+	Providers       []string `json:"providers" validate:"required,oneof=email_password client_credentials github google facebook apple microsoft"`
+	IDTokenTTL      int32    `json:"id_token_ttl" validate:"required,gte=30,lte=2592000"` // 30 secs to 30 days
+	UsernameColumn  string   `json:"username_column" validate:"required,oneof=email username both"`
+	ConfirmationURI string   `json:"confirmation_uri" validate:"required,url"`
 }

@@ -45,7 +45,7 @@ func (t *Tokens) Verify2FAToken(token string) (AccountClaims, []AccountScope, er
 		return AccountClaims{}, nil, err
 	}
 
-	scopes, err := splitAccountScopes(claims.Scopes)
+	scopes, err := splitAccountScopes(claims.Scope)
 	if err != nil {
 		return AccountClaims{}, nil, err
 	}

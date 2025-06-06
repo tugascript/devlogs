@@ -9,36 +9,48 @@ package tokens
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
+type UserScope = string
+
+const (
+	UserScopeConfirmation UserScope = "confirmation"
+	UserScopeRefresh      UserScope = "refresh"
+	UserScope2FA          UserScope = "2fa"
+)
+
 type UserClaims struct {
-	ID      int32    `json:"id"`
-	Version int32    `json:"version"`
-	Roles   []string `json:"roles,omitempty"`
+	UserID      int32    `json:"user_id"`
+	UserVersion int32    `json:"user_version"`
+	Roles       []string `json:"roles,omitempty"`
 }
 
 type userTokenClaims struct {
-	User UserClaims `json:"user"`
-	App  AppClaims  `json:"app"`
+	UserClaims
+	AppClaims
+	Scope string `json:"scope"`
 	jwt.RegisteredClaims
 }
 
 type UserTokenOptions struct {
 	CryptoSuite     SupportedCryptoSuite
 	Type            TokenType
-	PrivateKey      interface{}
+	PrivateKey      any
 	KID             string
 	AccountUsername string
 	UserID          int32
 	UserVersion     int32
 	UserEmail       string
-	AppProfileRoles []string
+	ProfileRoles    []string
+	Scopes          []string
 	AppID           int32
 	AppClientID     string
+	IDTTL           int64
 }
 
 func getUserSigningMethod(cryptoSuite SupportedCryptoSuite) (jwt.SigningMethod, error) {
@@ -52,7 +64,7 @@ func getUserSigningMethod(cryptoSuite SupportedCryptoSuite) (jwt.SigningMethod, 
 	}
 }
 
-func (t *Tokens) getUserTTL(tokenType TokenType) (int64, error) {
+func (t *Tokens) getUserTTL(tokenType TokenType, idTTL int64) (int64, error) {
 	switch tokenType {
 	case TokenTypeAccess:
 		return t.accessData.ttlSec, nil
@@ -66,13 +78,15 @@ func (t *Tokens) getUserTTL(tokenType TokenType) (int64, error) {
 		return t.oauthData.ttlSec, nil
 	case TokenTypeTwoFA:
 		return t.twoFAData.ttlSec, nil
+	case TokenTypeID:
+		return idTTL, nil
 	default:
 		return 0, errors.New("unsupported token type")
 	}
 }
 
 func (t *Tokens) CreateUserToken(opts UserTokenOptions) (string, error) {
-	ttl, err := t.getUserTTL(opts.Type)
+	ttl, err := t.getUserTTL(opts.Type, opts.IDTTL)
 	if err != nil {
 		return "", err
 	}
@@ -92,15 +106,16 @@ func (t *Tokens) CreateUserToken(opts UserTokenOptions) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(method, userTokenClaims{
-		User: UserClaims{
-			ID:      opts.UserID,
-			Version: opts.UserVersion,
-			Roles:   opts.AppProfileRoles,
+		UserClaims: UserClaims{
+			UserID:      opts.UserID,
+			UserVersion: opts.UserVersion,
+			Roles:       opts.ProfileRoles,
 		},
-		App: AppClaims{
-			ID:       opts.AppID,
+		AppClaims: AppClaims{
+			AppID:    opts.AppID,
 			ClientID: opts.AppClientID,
 		},
+		Scope: strings.Join(opts.Scopes, " "),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    iss,
 			Audience:  jwt.ClaimStrings{iss},
@@ -116,12 +131,12 @@ func (t *Tokens) CreateUserToken(opts UserTokenOptions) (string, error) {
 }
 
 func (t *Tokens) VerifyUserToken(
-	keyFn func(kid string) (interface{}, error),
+	keyFn func(kid string) (any, error),
 	token string,
-) (UserClaims, AppClaims, uuid.UUID, time.Time, error) {
+) (UserClaims, AppClaims, string, uuid.UUID, time.Time, error) {
 	claims := new(userTokenClaims)
 
-	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (any, error) {
 		kid, err := extractTokenKID(token)
 		if err != nil {
 			return nil, err
@@ -130,13 +145,13 @@ func (t *Tokens) VerifyUserToken(
 		return keyFn(kid)
 	})
 	if err != nil {
-		return UserClaims{}, AppClaims{}, uuid.Nil, time.Time{}, err
+		return UserClaims{}, AppClaims{}, "", uuid.Nil, time.Time{}, err
 	}
 
 	tokenID, err := uuid.Parse(claims.ID)
 	if err != nil {
-		return UserClaims{}, AppClaims{}, uuid.Nil, time.Time{}, err
+		return UserClaims{}, AppClaims{}, "", uuid.Nil, time.Time{}, err
 	}
 
-	return claims.User, claims.App, tokenID, claims.ExpiresAt.Time, nil
+	return claims.UserClaims, claims.AppClaims, claims.Scope, tokenID, claims.ExpiresAt.Time, nil
 }

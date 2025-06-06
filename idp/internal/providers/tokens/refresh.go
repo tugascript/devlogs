@@ -47,7 +47,7 @@ func (t *Tokens) VerifyRefreshToken(token string) (AccountClaims, []AccountScope
 		return AccountClaims{}, nil, uuid.Nil, time.Time{}, err
 	}
 
-	scopes, err := splitAccountScopes(claims.Scopes)
+	scopes, err := splitAccountScopes(claims.Scope)
 	if err != nil {
 		return AccountClaims{}, nil, uuid.Nil, time.Time{}, err
 	}

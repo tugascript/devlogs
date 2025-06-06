@@ -9,7 +9,9 @@ package utils
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
@@ -79,4 +81,13 @@ func BcryptCompareHash(str, hash string) bool {
 	}
 
 	return true
+}
+
+func Sha256HashBytes(bytes []byte) string {
+	hash := sha256.Sum256(bytes)
+	return hex.EncodeToString(hash[:])
+}
+
+func GenerateETag(bytes []byte) string {
+	return `"` + Sha256HashBytes(bytes) + `"`
 }

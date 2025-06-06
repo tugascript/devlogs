@@ -6,8 +6,8 @@
 
 -- name: CreateAccountWithPassword :one
 INSERT INTO "accounts" (
-    "first_name",
-    "last_name",
+    "given_name",
+    "family_name",
     "username",
     "email", 
     "password",
@@ -23,13 +23,13 @@ INSERT INTO "accounts" (
 
 -- name: CreateAccountWithoutPassword :one
 INSERT INTO "accounts" (
-    "first_name",
-    "last_name",
+    "given_name",
+    "family_name",
     "username",
     "email",
     "dek",
     "version",
-    "is_confirmed"
+    "email_verified"
 ) VALUES (
     $1, 
     $2, 
@@ -70,7 +70,7 @@ WHERE "username" = $1 LIMIT 1;
 
 -- name: ConfirmAccount :one
 UPDATE "accounts" SET
-    "is_confirmed" = true,
+    "email_verified" = true,
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
@@ -93,8 +93,8 @@ WHERE "id" = $1;
 
 -- name: UpdateAccount :one
 UPDATE "accounts" SET
-    "first_name" = $1,
-    "last_name" = $2,
+    "given_name" = $1,
+    "family_name" = $2,
     "username" = $3,
     "updated_at" = now()
 WHERE "id" = $4

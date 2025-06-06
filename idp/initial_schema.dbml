@@ -1,14 +1,16 @@
 Table accounts as A {
     id serial [pk]
-    first_name varchar(50) [not null]
-    last_name varchar(50) [not null]
+    given_name varchar(50) [not null]
+    family_name varchar(50) [not null]
     username varchar(63) [not null]
     email varchar(250) [not null]
+    organization varchar(50)
     dek text [not null]
     password text
     version integer [not null, default: 1]
-    is_confirmed boolean [not null, default: false]
+    email_verified boolean [not null, default: false]
 
+    is_active boolean [not null, default: true]
     two_factor_type varchar(5) [not null, default: 'none']
 
     created_at timestamptz [not null, default: `now()`]
@@ -80,7 +82,7 @@ Table external_auth_providers as SAP {
 
     name varchar(50) [not null]
     provider varchar(50) [not null]
-    icon varchar(50) [not null]
+    icon text [not null]
     account_id integer [not null]
 
     client_id text [not null]
@@ -89,7 +91,9 @@ Table external_auth_providers as SAP {
     auth_url text [not null]
     token_url text [not null]
     user_info_url text [not null]
+    email_key varchar(50) [not null]
     user_schema jsonb [not null]
+    user_mapping jsonb [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -102,21 +106,55 @@ Table external_auth_providers as SAP {
 }
 Ref: SAP.account_id > A.id [delete: cascade]
 
-Table user_schemas as US {
+Table oidc_configs as OIDC {
     id serial [pk]
 
     account_id integer [not null]
 
-    schema_data jsonb [not null, default: '{ "first_name": { "type": "string", "unique": false, "required": true, "validate": "required,min=2,max=50" }, "last_name": { "type": "string", "unique": false, "required": true, "validate": "required,min=2,max=50" } }']
+    dek text [not null]
+
+    claims jsonb [not null, default: '{ "given_name": true, "family_name": true }']
+    scopes jsonb [not null, default: '{ "email": true, "profile": true, "openid": true }']
+    jwt_crypto_suite varchar(7) [not null, default: 'ES256']
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
 
     Indexes {
-        (account_id) [unique, name: 'user_schemas_account_id_uidx']
+        (account_id) [unique, name: 'oidc_configs_account_id_uidx']
     }
 }
-Ref: US.account_id > A.id [delete: cascade]
+Ref: OIDC.account_id > A.id [delete: cascade]
+
+Table account_keys as AK {
+    id serial [pk]
+    
+    account_id integer [not null]
+    oidc_config_id integer [not null]
+
+    name varchar(10) [not null]
+    jwt_crypto_suite varchar(5) [not null]
+
+    public_kid varchar(20) [not null]
+    public_key jsonb [not null]
+    private_key text [not null]
+
+    is_distributed boolean [not null, default: false]
+    expires_at timestamptz [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'account_keys_account_id_idx']
+        (oidc_config_id) [name: 'account_keys_oidc_config_id_idx']
+        (public_kid) [unique, name: 'account_keys_public_kid_uidx']
+        (name, account_id, expires_at, id) [name: 'account_keys_name_account_id_expires_at_id_idx']
+        (account_id, is_distributed, expires_at) [name: 'account_keys_account_id_is_distributed_expires_at_idx']
+    }
+}
+Ref: AK.account_id > A.id [delete: cascade]
+Ref: AK.oidc_config_id > OIDC.id [delete: cascade]
 
 Table users as U {
     id serial [pk]
@@ -128,7 +166,9 @@ Table users as U {
     password text
     dek text [not null]
     version integer [not null, default: 1]
-    is_confirmed boolean [not null, default: false]
+    email_verified boolean [not null, default: false]
+
+    is_active boolean [not null, default: true]
     two_factor_type varchar(5) [not null, default: 'none']
 
     user_data jsonb [not null, default: '{}']
@@ -215,21 +255,17 @@ Table apps as APP {
     name varchar(50) [not null]
     client_id varchar(22) [not null]
     client_secret text [not null]
-    dek text [not null]
 
     confirmation_uri varchar(250) [not null]
     callback_uris "varchar(250)[]" [not null, default: '{}']
     logout_uris "varchar(250)[]" [not null, default: '{}']
 
-    user_scopes jsonb [not null, default: '{ "email": true, "openid": true, "profile": true, "read:app_profile": true }']
-    user_roles jsonb [not null, default: '{ "user": true }']
+    default_scopes jsonb [not null, default: '{ "email": true, "openid": true }']
+    user_roles jsonb [not null, default: '{ "user": true, "staff": true, "admin": true }']
     auth_providers jsonb [not null, default: '{ "username_password": true }']
     username_column varchar(8) [not null, default: 'email']
-    profile_schema jsonb [not null, default: '{}']
 
     id_token_ttl integer [not null, default: 3600]
-
-    jwt_crypto_suite varchar(7) [not null, default: 'ES256']
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -250,9 +286,7 @@ Table app_profiles as AUP {
     account_id integer [not null]
     user_id integer [not null]
     app_id integer [not null]
-
     user_roles jsonb [not null, default: '{ "user": true }']
-    profile_data jsonb [not null, default: '{}']
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -267,36 +301,6 @@ Table app_profiles as AUP {
 Ref: AUP.account_id > A.id [delete: cascade]
 Ref: AUP.user_id > U.id [delete: cascade]
 Ref: AUP.app_id > APP.id [delete: cascade]
-
-Table app_keys as AK {
-    id serial [pk]
-    
-    app_id integer [not null]
-    account_id integer [not null]
-
-    name varchar(10) [not null]
-    jwt_crypto_suite varchar(5) [not null]
-
-    public_kid varchar(20) [not null]
-    public_key jsonb [not null]
-    private_key text [not null]
-
-    is_distributed boolean [not null, default: false]
-    expires_at timestamptz [not null]
-
-    created_at timestamptz [not null, default: `now()`]
-    updated_at timestamptz [not null, default: `now()`]
-
-    Indexes {
-        (app_id) [name: 'app_keys_app_id_idx']
-        (account_id) [name: 'app_keys_account_id_idx']
-        (public_kid) [unique, name: 'app_keys_public_kid_uidx']
-        (name, app_id, expires_at, id) [name: 'app_keys_name_app_id_expires_at_id_idx']
-        (account_id, is_distributed, expires_at) [name: 'app_keys_account_id_is_distributed_expires_at_idx']
-    }
-}
-Ref: AK.app_id > APP.id [delete: cascade]
-Ref: AK.account_id > A.id [delete: cascade]
 
 Table blacklisted_tokens as BT {
     id uuid [pk]

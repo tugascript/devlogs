@@ -10,16 +10,17 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
+	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
 )
 
 const (
-	userSchemasLocation string = "user_schemas"
+	oidcConfigsLocation string = "oidc_configs"
 )
 
-func (c *Controllers) CreateUserSchema(ctx *fiber.Ctx) error {
+func (c *Controllers) CreateOIDCConfig(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, userSchemasLocation, "CreateUserSchema")
+	logger := c.buildLogger(requestID, oidcConfigsLocation, "CreateOIDCConfig")
 	logRequest(logger, ctx)
 
 	accountClaims, serviceErr := getAccountClaims(ctx)
@@ -27,33 +28,37 @@ func (c *Controllers) CreateUserSchema(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	body := make(map[string]bodies.SchemaFieldBody)
+	body := new(bodies.OIDCConfigBody)
 	if err := ctx.BodyParser(&body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-
-	schema, errorRes := c.ValidateSchemaBody(ctx.UserContext(), body)
-	if errorRes != nil {
-		logResponse(logger, ctx, fiber.StatusBadRequest)
-		return ctx.Status(fiber.StatusBadRequest).JSON(errorRes)
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	userSchemaDTO, serviceErr := c.services.CreateUserSchema(ctx.UserContext(), services.CreateUserSchemaOptions{
-		RequestID: requestID,
-		AccountID: int32(accountClaims.ID),
-		Schema:    schema,
+	jwtCryptoSuite, serviceErr := tokens.GetSupportedCryptoSuite(body.JwtCryptoSuite)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	oidcConfigDTO, serviceErr := c.services.CreateOIDCConfig(ctx.UserContext(), services.CreateOIDCConfigOptions{
+		RequestID:      requestID,
+		AccountID:      int32(accountClaims.ID),
+		Claims:         body.Claims,
+		Scopes:         body.Scopes,
+		JwtCryptoSuite: jwtCryptoSuite,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
 	logResponse(logger, ctx, fiber.StatusCreated)
-	return ctx.Status(fiber.StatusCreated).JSON(&userSchemaDTO)
+	return ctx.Status(fiber.StatusCreated).JSON(&oidcConfigDTO)
 }
 
-func (c *Controllers) GetUserSchema(ctx *fiber.Ctx) error {
+func (c *Controllers) GetOIDCConfig(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, userSchemasLocation, "GetUserSchema")
+	logger := c.buildLogger(requestID, oidcConfigsLocation, "GetUserSchema")
 	logRequest(logger, ctx)
 
 	accountClaims, serviceErr := getAccountClaims(ctx)
@@ -61,9 +66,9 @@ func (c *Controllers) GetUserSchema(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	userSchemaDTO, serviceErr := c.services.GetOrCreateUserSchema(
+	oidcConfigDTO, serviceErr := c.services.GetOrCreateOIDCConfig(
 		ctx.UserContext(),
-		services.GetOrCreateUserSchemaOptions{
+		services.GetOrCreateOIDCConfigOptions{
 			RequestID: requestID,
 			AccountID: int32(accountClaims.ID),
 		},
@@ -73,12 +78,12 @@ func (c *Controllers) GetUserSchema(ctx *fiber.Ctx) error {
 	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
-	return ctx.Status(fiber.StatusOK).JSON(&userSchemaDTO)
+	return ctx.Status(fiber.StatusOK).JSON(&oidcConfigDTO)
 }
 
-func (c *Controllers) UpdateUserSchema(ctx *fiber.Ctx) error {
+func (c *Controllers) UpdateOIDCConfig(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, userSchemasLocation, "UpdateUserSchema")
+	logger := c.buildLogger(requestID, oidcConfigsLocation, "UpdateOIDCConfig")
 	logRequest(logger, ctx)
 
 	accountClaims, serviceErr := getAccountClaims(ctx)
@@ -86,27 +91,23 @@ func (c *Controllers) UpdateUserSchema(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	body := make(map[string]bodies.SchemaFieldBody)
+	body := new(bodies.OIDCConfigBody)
 	if err := ctx.BodyParser(&body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-
-	schema, errorRes := c.ValidateSchemaBody(ctx.UserContext(), body)
-	if errorRes != nil {
-		logger.WarnContext(ctx.UserContext(), "invalid schema body", errorRes)
-		logResponse(logger, ctx, fiber.StatusBadRequest)
-		return ctx.Status(fiber.StatusBadRequest).JSON(errorRes)
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	userSchemaDTO, serviceErr := c.services.UpdateUserSchema(ctx.UserContext(), services.UpdateUserSchemaOptions{
+	oidcConfigDTO, serviceErr := c.services.UpdateOIDCConfig(ctx.UserContext(), services.UpdateOIDCConfigOptions{
 		RequestID: requestID,
 		AccountID: int32(accountClaims.ID),
-		Schema:    schema,
+		Claims:    body.Claims,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
-	return ctx.Status(fiber.StatusOK).JSON(&userSchemaDTO)
+	return ctx.Status(fiber.StatusOK).JSON(&oidcConfigDTO)
 }

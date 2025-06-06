@@ -197,11 +197,11 @@ func (c *Controllers) UpdateAccount(ctx *fiber.Ctx) error {
 	}
 
 	accountDTO, serviceErr := c.services.UpdateAccount(ctx.UserContext(), services.UpdateAccountOptions{
-		RequestID: requestID,
-		ID:        int32(accountClaims.ID),
-		FirstName: body.FirstName,
-		LastName:  body.LastName,
-		Username:  body.Username,
+		RequestID:  requestID,
+		ID:         int32(accountClaims.ID),
+		GivenName:  body.GivenName,
+		FamilyName: body.FamilyName,
+		Username:   body.Username,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
