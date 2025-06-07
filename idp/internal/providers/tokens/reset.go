@@ -12,31 +12,31 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func (t *Tokens) CreateConfirmationToken(opts AccountTokenOptions) (string, error) {
+func (t *Tokens) CreateResetToken(opts AccountTokenOptions) (string, error) {
 	return t.createToken(accountTokenOptions{
 		method:         jwt.SigningMethodEdDSA,
-		privateKey:     t.confirmationData.curKeyPair.privateKey,
-		kid:            t.confirmationData.curKeyPair.kid,
-		ttlSec:         t.confirmationData.ttlSec,
+		privateKey:     t.resetData.curKeyPair.privateKey,
+		kid:            t.resetData.curKeyPair.kid,
+		ttlSec:         t.resetData.ttlSec,
 		accountID:      opts.ID,
 		accountVersion: opts.Version,
 		accountEmail:   opts.Email,
-		scopes:         []AccountScope{AccountScopeConfirmation},
+		scopes:         []AccountScope{AccountScopeReset},
 	})
 }
 
-func (t *Tokens) VerifyConfirmationToken(token string) (AccountClaims, error) {
+func (t *Tokens) VerifyResetToken(token string) (AccountClaims, error) {
 	claims, err := verifyToken(token, func(token *jwt.Token) (any, error) {
 		kid, err := extractTokenKID(token)
 		if err != nil {
 			return nil, err
 		}
 
-		if t.confirmationData.prevPubKey != nil && t.confirmationData.prevPubKey.kid == kid {
-			return t.confirmationData.prevPubKey.publicKey, nil
+		if t.resetData.prevPubKey != nil && t.resetData.prevPubKey.kid == kid {
+			return t.resetData.prevPubKey.publicKey, nil
 		}
-		if t.confirmationData.curKeyPair.kid == kid {
-			return t.confirmationData.curKeyPair.publicKey, nil
+		if t.resetData.curKeyPair.kid == kid {
+			return t.resetData.curKeyPair.publicKey, nil
 		}
 
 		return nil, errors.New("no key found for kid")

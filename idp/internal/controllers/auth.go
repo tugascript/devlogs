@@ -214,3 +214,54 @@ func (c *Controllers) RefreshAccount(ctx *fiber.Ctx) error {
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
+
+func (c *Controllers) ForgoutAccountPassword(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, authLocation, "ForgoutAccountPassword")
+	logRequest(logger, ctx)
+
+	body := new(bodies.ForgoutPasswordBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	messageDTO, serviceErr := c.services.ForgoutAccountPassword(ctx.UserContext(), services.ForgoutAccountPasswordOptions{
+		RequestID: requestID,
+		Email:     body.Email,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&messageDTO)
+}
+
+func (c *Controllers) ResetAccountPassword(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, authLocation, "ResetAccountPassword")
+	logRequest(logger, ctx)
+
+	body := new(bodies.ResetPasswordBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	messageDTO, serviceErr := c.services.ResetAccountPassword(ctx.UserContext(), services.ResetAccountPasswordOptions{
+		RequestID:  requestID,
+		ResetToken: body.ResetToken,
+		Password:   body.Password,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&messageDTO)
+}

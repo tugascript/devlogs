@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -22,7 +23,12 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const authLocation string = "auth"
+const (
+	authLocation string = "auth"
+
+	forgotMessage string = "Reset password email sent if account exists"
+	resetMessage  string = "Password reset successfully"
+)
 
 func processAuthHeader(
 	authHeader string,
@@ -573,6 +579,123 @@ func (s *Services) RefreshTokenAccount(
 		scopes,
 		"Refreshed access token successfully",
 	)
+}
+
+type ForgoutAccountPasswordOptions struct {
+	RequestID string
+	Email     string
+}
+
+func (s *Services) ForgoutAccountPassword(
+	ctx context.Context,
+	opts ForgoutAccountPasswordOptions,
+) (dtos.MessageDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, authLocation, "ForgoutAccountPassword")
+	logger.InfoContext(ctx, "Forgout account password...")
+
+	accountDTO, serviceErr := s.GetAccountByEmail(ctx, GetAccountByEmailOptions(opts))
+	if serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account not found")
+			return dtos.NewMessageDTO(forgotMessage), nil
+		}
+
+		logger.ErrorContext(ctx, "Failed get account by email", "serviceErr", serviceErr)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
+	resetToken, err := s.jwt.CreateResetToken(tokens.AccountTokenOptions{
+		ID:      accountDTO.ID,
+		Version: accountDTO.Version(),
+		Email:   accountDTO.Email,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate rest token", "error", err)
+		return dtos.MessageDTO{}, exceptions.NewServerError()
+	}
+
+	if err := s.mail.PublishResetEmail(ctx, mailer.ResetEmailOptions{
+		RequestID: opts.RequestID,
+		Email:     accountDTO.Email,
+		Name: fmt.Sprintf(
+			"%s %s",
+			utils.Capitalized(accountDTO.GivenName),
+			utils.Capitalized(accountDTO.FamilyName),
+		),
+		ResetToken: resetToken,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to publish reset email", "error", err)
+		return dtos.MessageDTO{}, exceptions.NewServerError()
+	}
+
+	logger.InfoContext(ctx, "Reset email sent successfully")
+	return dtos.NewMessageDTO(forgotMessage), nil
+}
+
+type ResetAccountPasswordOptions struct {
+	RequestID  string
+	ResetToken string
+	Password   string
+}
+
+func (s *Services) ResetAccountPassword(
+	ctx context.Context,
+	opts ResetAccountPasswordOptions,
+) (dtos.MessageDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, authLocation, "ResetAccountPassword")
+	logger.InfoContext(ctx, "Reset account password...")
+
+	accountClaims, err := s.jwt.VerifyResetToken(opts.ResetToken)
+	if err != nil {
+		logger.InfoContext(ctx, "Failed to verify reset token", "error", err)
+		return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+		RequestID: opts.RequestID,
+		ID:        accountClaims.ID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account not found", "error", serviceErr)
+			return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get account", "error", serviceErr)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
+	accountVersion := accountDTO.Version()
+	if accountVersion != accountClaims.Version {
+		logger.WarnContext(ctx, "Account and claims versions do not match",
+			"accountVersion", accountVersion,
+			"claimsVersion", accountClaims.Version,
+		)
+		return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	var password pgtype.Text
+	hashedPassword, err := utils.HashString(opts.Password)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to hash password", "error", err)
+		return dtos.MessageDTO{}, exceptions.NewServerError()
+	}
+
+	if err := password.Scan(hashedPassword); err != nil {
+		logger.ErrorContext(ctx, "Failed pass password to text", "error", err)
+		return dtos.MessageDTO{}, exceptions.NewServerError()
+	}
+
+	if _, err := s.database.UpdateAccountPassword(ctx, database.UpdateAccountPasswordParams{
+		Password: password,
+		ID:       accountClaims.ID,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to update account password", "error", err)
+		return dtos.MessageDTO{}, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Account password reset successfully")
+	return dtos.NewMessageDTO(resetMessage), nil
 }
 
 type updateAccount2FAOptions struct {

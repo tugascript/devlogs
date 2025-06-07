@@ -23,6 +23,16 @@ type TwoFactorLoginBody struct {
 	Code string `json:"code" validate:"required,min=6,max=6,numeric"`
 }
 
+type ForgoutPasswordBody struct {
+	Email string `json:"email" validate:"required,email"`
+}
+
+type ResetPasswordBody struct {
+	Password   string `json:"password" validate:"required,min=8,max=100,password"`
+	Password2  string `json:"password2" validate:"required,eqfield=Password"`
+	ResetToken string `json:"reset_token" validate:"required,jwt"`
+}
+
 type GrantRefreshTokenBody struct {
 	GrantType    string `json:"grant_type" validate:"required,eq=refresh_token"`
 	RefreshToken string `json:"refresh_token" validate:"required,jwt"`

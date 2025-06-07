@@ -26,6 +26,7 @@ const (
 	AccountScopeOAuth        AccountScope = "oauth"
 	AccountScopeConfirmation AccountScope = "confirmation"
 	AccountScopeRefresh      AccountScope = "refresh"
+	AccountScopeReset        AccountScope = "reset"
 
 	AccountScopeUsersRead  AccountScope = "users:read"
 	AccountScopeUsersWrite AccountScope = "users:write"
