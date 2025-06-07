@@ -257,6 +257,7 @@ Table apps as APP {
     client_secret text [not null]
 
     confirmation_uri varchar(250) [not null]
+    reset_uri varchar(250) [not null]
     callback_uris "varchar(250)[]" [not null, default: '{}']
     logout_uris "varchar(250)[]" [not null, default: '{}']
 

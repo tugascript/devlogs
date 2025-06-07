@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -23,7 +25,12 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const usersAuthLocation string = "users_auth"
+const (
+	usersAuthLocation string = "users_auth"
+
+	forgotUserMessage string = "Reset password email sent if user exists"
+	resetUserMessage  string = "Password reset successfully"
+)
 
 type ProcessUserAuthHeaderOptions struct {
 	RequestID  string
@@ -906,9 +913,9 @@ func (s *Services) RefreshUserAccess(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	// Verify user version matches the token
-	if userDTO.Version() != userClaims.UserVersion {
-		logger.WarnContext(ctx, "User version mismatch", "tokenVersion", userClaims.UserVersion, "userVersion", userDTO.Version())
+	userVersion := userDTO.Version()
+	if userVersion != userClaims.UserVersion {
+		logger.WarnContext(ctx, "User version mismatch", "claimsVersion", userClaims.UserVersion, "userVersion", userVersion)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
@@ -953,4 +960,275 @@ func (s *Services) RefreshUserAccess(
 		opts.AccountUsername,
 		"User access token refreshed successfully",
 	)
+}
+
+type ForgoutUserPasswordOptions struct {
+	RequestID       string
+	AccountID       int32
+	AccountUsername string
+	AppID           int32
+	AppClientID     string
+	Email           string
+}
+
+func (s *Services) ForgoutUserPassword(
+	ctx context.Context,
+	opts ForgoutUserPasswordOptions,
+) (dtos.MessageDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "ForgoutUserPassword").With(
+		"accountId", opts.AccountID,
+		"appId", opts.AppID,
+	)
+	logger.InfoContext(ctx, "Forgout user password...")
+
+	appDTO, serviceErr := s.GetAppByID(ctx, GetAppByIDOptions{
+		RequestID: opts.RequestID,
+		AccountID: opts.AccountID,
+		AppID:     opts.AppID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "App not found")
+			return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get app by ID", "serviceError", serviceErr)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
+	if !slices.Contains(appDTO.Providers, AuthProviderUsernamePassword) {
+		logger.WarnContext(ctx, "Username and password provider missing", "appProviders", appDTO.Providers)
+		return dtos.MessageDTO{}, exceptions.NewForbiddenError()
+	}
+
+	email := utils.Lowered(opts.Email)
+	userDTO, serviceErr := s.GetUserByEmail(ctx, GetUserByEmailOptions{
+		RequestID: opts.RequestID,
+		AccountID: opts.AccountID,
+		Email:     email,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "User not found")
+			return dtos.NewMessageDTO(forgotUserMessage), nil
+		}
+
+		logger.ErrorContext(ctx, "Failed to get user by email", "serviceError", serviceErr)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
+	profileDTO, serviceErr := s.GetAppProfile(ctx, GetAppProfileOptions{
+		RequestID: opts.RequestID,
+		AppID:     opts.AppID,
+		UserID:    userDTO.ID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "App profile not found")
+			return dtos.NewMessageDTO(forgotMessage), nil
+		}
+
+		logger.ErrorContext(ctx, "Failed to get app profile", "serviceError", serviceErr)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
+	appKeyDTO, serviceErr := s.GetOrCreateAccountKey(ctx, GetOrCreateAccountKeyOptions{
+		RequestID: opts.RequestID,
+		AccountID: opts.AccountID,
+		Name:      AppKeyNameReset,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get or create app key", "serviceError", serviceErr)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
+	resetToken, err := s.jwt.CreateUserToken(tokens.UserTokenOptions{
+		CryptoSuite:     appKeyDTO.JWTCryptoSuite(),
+		Type:            tokens.TokenTypeConfirmation,
+		PrivateKey:      appKeyDTO.PrivateKey(),
+		KID:             appKeyDTO.PublicKID(),
+		AccountUsername: opts.AccountUsername,
+		UserID:          userDTO.ID,
+		UserVersion:     userDTO.Version(),
+		UserEmail:       userDTO.Email,
+		ProfileRoles:    profileDTO.Roles,
+		Scopes:          []string{tokens.UserScopeReset},
+		AppID:           opts.AppID,
+		AppClientID:     opts.AppClientID,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create reset token", "error", err)
+		return dtos.MessageDTO{}, exceptions.NewServerError()
+	}
+
+	if err := s.mail.PublishUserResetEmail(ctx, mailer.UserResetEmailOptions{
+		RequestID:  opts.RequestID,
+		AppName:    appDTO.Name,
+		Email:      userDTO.Email,
+		ResetToken: resetToken,
+		ResetURI:   appDTO.ResetURI,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to publish reset email", "error", err)
+		return dtos.MessageDTO{}, exceptions.NewServerError()
+	}
+
+	return dtos.NewMessageDTO(forgotUserMessage), nil
+}
+
+type ResetUserPasswordOptions struct {
+	RequestID  string
+	AccountID  int32
+	AppID      int32
+	Password   string
+	ResetToken string
+}
+
+func (s *Services) ResetUserPassword(
+	ctx context.Context,
+	opts ResetUserPasswordOptions,
+) (dtos.MessageDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "ResetUserPassword").With(
+		"accountId", opts.AccountID,
+		"appId", opts.AppID,
+	)
+	logger.InfoContext(ctx, "Forgout user password...")
+
+	userClaims, appClaims, _, _, _, err := s.jwt.VerifyUserToken(
+		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
+			RequestID: opts.RequestID,
+			Name:      AppKeyNameReset,
+		}),
+		opts.ResetToken,
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to verify refresh token", "error", err)
+		return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
+	}
+	if appClaims.AppID != opts.AppID {
+		logger.WarnContext(ctx, "Invalid app ID", "tokenAppId", appClaims.AppID, "appId", opts.AppID)
+		return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	appDTO, serviceErr := s.GetAppByID(ctx, GetAppByIDOptions{
+		RequestID: opts.RequestID,
+		AccountID: opts.AccountID,
+		AppID:     opts.AppID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "App not found")
+			return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get app by ID", "serviceError", serviceErr)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
+	if !slices.Contains(appDTO.Providers, AuthProviderUsernamePassword) {
+		logger.WarnContext(ctx, "Username and password provider missing", "appProviders", appDTO.Providers)
+		return dtos.MessageDTO{}, exceptions.NewForbiddenError()
+	}
+
+	userDTO, serviceErr := s.GetUserByID(ctx, GetUserByIDOptions{
+		RequestID: opts.RequestID,
+		UserID:    userClaims.UserID,
+		AccountID: opts.AccountID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "User not found")
+			return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get user by ID", "serviceError", serviceErr)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
+	userVersion := userDTO.Version()
+	if userVersion != userClaims.UserVersion {
+		logger.WarnContext(ctx, "User and claims versions do not match",
+			"userVersion", userVersion,
+			"claimsVersion", userClaims.UserVersion,
+		)
+		return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	if _, serviceErr := s.GetAppProfile(ctx, GetAppProfileOptions{
+		RequestID: opts.RequestID,
+		AppID:     appClaims.AppID,
+		UserID:    userClaims.UserID,
+	}); serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "App profile not found", "serviceError", serviceErr)
+			return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get app profile", "serviceError", serviceErr)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
+	var password pgtype.Text
+	hashedPassword, err := utils.HashString(opts.Password)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to hash password", "error", err)
+		return dtos.MessageDTO{}, exceptions.NewServerError()
+	}
+
+	if err := password.Scan(hashedPassword); err != nil {
+		logger.ErrorContext(ctx, "Failed pass password to text", "error", err)
+		return dtos.MessageDTO{}, exceptions.NewServerError()
+	}
+
+	_, err = s.database.FindUserAuthProviderByUserIDAndProvider(ctx, database.FindUserAuthProviderByUserIDAndProviderParams{
+		UserID:   userClaims.UserID,
+		Provider: AuthProviderUsernamePassword,
+	})
+	if err == nil {
+		if _, err := s.database.UpdateUserPassword(ctx, database.UpdateUserPasswordParams{
+			ID:       userDTO.ID,
+			Password: password,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to update user password", "error", err)
+			return dtos.MessageDTO{}, exceptions.FromDBError(err)
+		}
+
+		logger.InfoContext(ctx, "User password reset successfully")
+		return dtos.NewMessageDTO(resetUserMessage), nil
+	}
+	if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
+		logger.ErrorContext(ctx, "Failed to find user auth provider", "error", err)
+		return dtos.MessageDTO{}, exceptions.NewServerError()
+	}
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return dtos.MessageDTO{}, exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	if _, err = qrs.UpdateUserPassword(ctx, database.UpdateUserPasswordParams{
+		ID:       userDTO.ID,
+		Password: password,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to update user password", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
+	if err = qrs.CreateUserAuthProvider(ctx, database.CreateUserAuthProviderParams{
+		AccountID: opts.AccountID,
+		UserID:    userClaims.UserID,
+		Provider:  AuthProviderUsernamePassword,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to create username and password user auth provider", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "User password reset successfully")
+	return dtos.NewMessageDTO(resetUserMessage), nil
 }

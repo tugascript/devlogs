@@ -22,6 +22,6 @@ func (r *Routes) AuthRoutes(app *fiber.App) {
 	router.Post(paths.AuthLogin2FA, r.controllers.TwoFAAccessClaimsMiddleware, r.controllers.TwoFactorLoginAccount)
 	router.Post(paths.AuthRefresh, r.controllers.RefreshAccount)
 	router.Post(paths.AuthLogout, r.controllers.AccountAccessClaimsMiddleware, r.controllers.LogoutAccount)
-	router.Post(paths.AuthForgoutPassword, r.controllers.ForgoutAccountPassword)
+	router.Post(paths.AuthForgotPassword, r.controllers.ForgoutAccountPassword)
 	router.Post(paths.AuthResetPassword, r.controllers.ResetAccountPassword)
 }

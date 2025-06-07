@@ -143,7 +143,7 @@ func (e *EmailPublisher) PublishUserConfirmationEmail(ctx context.Context, opts 
 	if opts.ConfirmationURI[lastIndex] == '/' {
 		confirmationURL = fmt.Sprintf("%s%s", opts.ConfirmationURI, opts.ConfirmationToken)
 	} else {
-		confirmationURL = fmt.Sprintf("https://%s/%s", opts.ConfirmationURI, opts.ConfirmationToken)
+		confirmationURL = fmt.Sprintf("%s/%s", opts.ConfirmationURI, opts.ConfirmationToken)
 	}
 
 	t, err := template.New("user_confirmation").Parse(userConfirmationTemplate)

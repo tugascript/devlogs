@@ -37,3 +37,30 @@ func (q *Queries) CreateUserAuthProvider(ctx context.Context, arg CreateUserAuth
 	_, err := q.db.Exec(ctx, createUserAuthProvider, arg.AccountID, arg.UserID, arg.Provider)
 	return err
 }
+
+const findUserAuthProviderByUserIDAndProvider = `-- name: FindUserAuthProviderByUserIDAndProvider :one
+SELECT id, user_id, account_id, provider, created_at, updated_at FROM "user_auth_providers"
+WHERE
+  "user_id" = $1 AND
+  "provider" = $2
+LIMIT 1
+`
+
+type FindUserAuthProviderByUserIDAndProviderParams struct {
+	UserID   int32
+	Provider string
+}
+
+func (q *Queries) FindUserAuthProviderByUserIDAndProvider(ctx context.Context, arg FindUserAuthProviderByUserIDAndProviderParams) (UserAuthProvider, error) {
+	row := q.db.QueryRow(ctx, findUserAuthProviderByUserIDAndProvider, arg.UserID, arg.Provider)
+	var i UserAuthProvider
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AccountID,
+		&i.Provider,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

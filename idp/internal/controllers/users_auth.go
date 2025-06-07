@@ -264,3 +264,80 @@ func (c *Controllers) RefreshUser(ctx *fiber.Ctx) error {
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
+
+func (c *Controllers) ForgotUserPassword(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, usersAuthLocation, "ForgotUserPassword")
+	logRequest(logger, ctx)
+
+	accountUsername, accountID, serviceErr := getHostAccount(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	appID, appClientID, serviceErr := getAppClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.ForgoutPasswordBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	messageDTO, serviceErr := c.services.ForgoutUserPassword(ctx.UserContext(), services.ForgoutUserPasswordOptions{
+		RequestID:       requestID,
+		AccountID:       int32(accountID),
+		AccountUsername: accountUsername,
+		AppID:           appID,
+		AppClientID:     appClientID,
+		Email:           body.Email,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&messageDTO)
+}
+
+func (c *Controllers) ResetUserPassword(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, usersAuthLocation, "ResetUserPassword")
+	logRequest(logger, ctx)
+
+	_, accountID, serviceErr := getHostAccount(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	appID, _, serviceErr := getAppClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.ResetPasswordBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	messageDTO, serviceErr := c.services.ResetUserPassword(ctx.UserContext(), services.ResetUserPasswordOptions{
+		RequestID:  requestID,
+		AccountID:  int32(accountID),
+		AppID:      appID,
+		ResetToken: body.ResetToken,
+		Password:   body.Password,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&messageDTO)
+}

@@ -39,12 +39,13 @@ WHERE "id" = $1 LIMIT 1;
 UPDATE "apps"
 SET "name" = $2,
     "confirmation_uri" = $3,
-    "callback_uris" = $4,
-    "logout_uris" = $5,
-    "user_roles" = $6,
-    "default_scopes" = $7,
-    "auth_providers" = $8,
-    "id_token_ttl" = $9,
+    "reset_uri" = $4,
+    "callback_uris" = $5,
+    "logout_uris" = $6,
+    "user_roles" = $7,
+    "default_scopes" = $8,
+    "auth_providers" = $9,
+    "id_token_ttl" = $10,
     "updated_at" = now()
 WHERE "id" = $1
 RETURNING *;

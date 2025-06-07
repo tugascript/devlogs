@@ -103,15 +103,17 @@ func (c *Controllers) UpdateApp(ctx *fiber.Ctx) error {
 	}
 
 	appDTO, serviceErr := c.services.UpdateApp(ctx.UserContext(), services.UpdateAppOptions{
-		RequestID:     requestID,
-		AccountID:     int32(accountClaims.ID),
-		ClientID:      urlParams.ClientID,
-		Name:          body.Name,
-		CallbackUris:  body.CallbackURIs,
-		LogoutUris:    body.LogoutURIs,
-		DefaultScopes: body.DefaultScopes,
-		AuthProviders: body.Providers,
-		IDTokenTtl:    body.IDTokenTTL,
+		RequestID:       requestID,
+		AccountID:       int32(accountClaims.ID),
+		ClientID:        urlParams.ClientID,
+		Name:            body.Name,
+		ConfirmationURI: body.ConfirmationURI,
+		ResetURI:        body.ResetURI,
+		CallbackUris:    body.CallbackURIs,
+		LogoutUris:      body.LogoutURIs,
+		DefaultScopes:   body.DefaultScopes,
+		AuthProviders:   body.Providers,
+		IDTokenTtl:      body.IDTokenTTL,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)

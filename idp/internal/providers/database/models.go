@@ -72,6 +72,7 @@ type App struct {
 	ClientID        string
 	ClientSecret    string
 	ConfirmationUri string
+	ResetUri        string
 	CallbackUris    []string
 	LogoutUris      []string
 	DefaultScopes   []byte

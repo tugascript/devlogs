@@ -30,4 +30,6 @@ func (r *Routes) UsersAuthRoutes(app *fiber.App) {
 		r.controllers.UserClaimsMiddleware(services.AppKeyNameAccess),
 		r.controllers.LogoutUser,
 	)
+	router.Post(paths.AuthForgotPassword, r.controllers.AppAccessClaimsMiddleware, r.controllers.ForgotUserPassword)
+	router.Post(paths.AuthResetPassword, r.controllers.AppAccessClaimsMiddleware, r.controllers.ResetUserPassword)
 }

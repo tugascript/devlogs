@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-06-02T00:30:26.782Z
+-- Generated at: 2025-06-07T01:23:11.236Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
@@ -147,6 +147,7 @@ CREATE TABLE "apps" (
   "client_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
   "confirmation_uri" varchar(250) NOT NULL,
+  "reset_uri" varchar(250) NOT NULL,
   "callback_uris" varchar(250)[] NOT NULL DEFAULT '{}',
   "logout_uris" varchar(250)[] NOT NULL DEFAULT '{}',
   "default_scopes" jsonb NOT NULL DEFAULT '{ "email": true, "openid": true }',

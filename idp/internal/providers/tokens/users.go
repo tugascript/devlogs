@@ -21,6 +21,7 @@ type UserScope = string
 const (
 	UserScopeConfirmation UserScope = "confirmation"
 	UserScopeRefresh      UserScope = "refresh"
+	UserScopeReset        UserScope = "reset"
 	UserScope2FA          UserScope = "2fa"
 )
 

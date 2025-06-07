@@ -9,12 +9,12 @@ package paths
 const (
 	AuthBase string = "/auth"
 
-	AuthRegister        string = "/register"
-	AuthConfirmEmail    string = "/confirm-email"
-	AuthLogin           string = "/login"
-	AuthLogin2FA        string = "/login/2fa"
-	AuthRefresh         string = "/refresh"
-	AuthLogout          string = "/logout"
-	AuthForgoutPassword string = "/forgot-password"
-	AuthResetPassword   string = "/reset-password"
+	AuthRegister       string = "/register"
+	AuthConfirmEmail   string = "/confirm-email"
+	AuthLogin          string = "/login"
+	AuthLogin2FA       string = "/login/2fa"
+	AuthRefresh        string = "/refresh"
+	AuthLogout         string = "/logout"
+	AuthForgotPassword string = "/forgot-password"
+	AuthResetPassword  string = "/reset-password"
 )

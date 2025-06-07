@@ -15,3 +15,9 @@ INSERT INTO "user_auth_providers" (
   $3
 );
 
+-- name: FindUserAuthProviderByUserIDAndProvider :one
+SELECT * FROM "user_auth_providers"
+WHERE
+  "user_id" = $1 AND
+  "provider" = $2
+LIMIT 1;

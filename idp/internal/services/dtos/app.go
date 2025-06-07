@@ -22,6 +22,7 @@ type AppDTO struct {
 	CallbackURIs    []string `json:"callback_uris"`
 	LogoutURIs      []string `json:"logout_uris"`
 	ConfirmationURI string   `json:"confirmation_uri"`
+	ResetURI        string   `json:"reset_uri"`
 	DefaultScopes   []string `json:"default_scopes"`
 	UserRoles       []string `json:"user_roles"`
 	UsernameColumn  string   `json:"username_column"`
@@ -64,6 +65,7 @@ func MapAppToDTO(app *database.App) (AppDTO, *exceptions.ServiceError) {
 		DefaultScopes:   defaultScopes,
 		UserRoles:       userRoles,
 		ConfirmationURI: app.ConfirmationUri,
+		ResetURI:        app.ResetUri,
 		UsernameColumn:  app.UsernameColumn,
 		Providers:       authProviders,
 		IDTokenTTL:      app.IDTokenTtl,
@@ -98,6 +100,7 @@ func MapAppToDTOWithSecret(app *database.App, secret string) (AppDTO, *exception
 		ConfirmationURI: app.ConfirmationUri,
 		DefaultScopes:   defaultScopes,
 		UserRoles:       userRoles,
+		ResetURI:        app.ResetUri,
 		UsernameColumn:  app.UsernameColumn,
 		Providers:       authProviders,
 		IDTokenTTL:      app.IDTokenTtl,

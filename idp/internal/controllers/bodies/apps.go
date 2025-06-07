@@ -21,4 +21,5 @@ type UpdateAppBody struct {
 	IDTokenTTL      int32    `json:"id_token_ttl" validate:"required,gte=30,lte=2592000"` // 30 secs to 30 days
 	UsernameColumn  string   `json:"username_column" validate:"required,oneof=email username both"`
 	ConfirmationURI string   `json:"confirmation_uri" validate:"required,url"`
+	ResetURI        string   `json:"reset_uri" validate:"required,url"`
 }

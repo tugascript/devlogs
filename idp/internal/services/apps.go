@@ -159,6 +159,7 @@ type UpdateAppOptions struct {
 	ClientID        string
 	Name            string
 	ConfirmationURI string
+	ResetURI        string
 	CallbackUris    []string
 	LogoutUris      []string
 	DefaultScopes   []string
@@ -200,6 +201,7 @@ func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.A
 		ID:              int32(app.ID()),
 		Name:            name,
 		ConfirmationUri: opts.ConfirmationURI,
+		ResetUri:        opts.ResetURI,
 		CallbackUris:    opts.CallbackUris,
 		LogoutUris:      opts.LogoutUris,
 		DefaultScopes:   defaultScopesMap,
