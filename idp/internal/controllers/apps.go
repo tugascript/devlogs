@@ -34,9 +34,9 @@ func (c *Controllers) GetApp(ctx *fiber.Ctx) error {
 	}
 
 	appDTO, serviceErr := c.services.GetAppByClientID(ctx.UserContext(), services.GetAppByClientIDOptions{
-		RequestID: requestID,
-		AccountID: int32(accountClaims.ID),
-		ClientID:  urlParams.ClientID,
+		RequestID:       requestID,
+		AccountPublicID: accountClaims.AccountID,
+		ClientID:        urlParams.ClientID,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -65,11 +65,11 @@ func (c *Controllers) CreateApp(ctx *fiber.Ctx) error {
 	}
 
 	appDTO, serviceErr := c.services.CreateApp(ctx.UserContext(), services.CreateAppOptions{
-		RequestID:      requestID,
-		AccountID:      int32(accountClaims.ID),
-		Name:           body.Name,
-		Type:           body.Type,
-		UsernameColumn: body.UsernameColumn,
+		RequestID:       requestID,
+		AccountPublicID: accountClaims.AccountID,
+		Name:            body.Name,
+		Type:            body.Type,
+		UsernameColumn:  body.UsernameColumn,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -104,7 +104,7 @@ func (c *Controllers) UpdateApp(ctx *fiber.Ctx) error {
 
 	appDTO, serviceErr := c.services.UpdateApp(ctx.UserContext(), services.UpdateAppOptions{
 		RequestID:       requestID,
-		AccountID:       int32(accountClaims.ID),
+		AccountPublicID: accountClaims.AccountID,
 		ClientID:        urlParams.ClientID,
 		Name:            body.Name,
 		ConfirmationURI: body.ConfirmationURI,
@@ -139,9 +139,9 @@ func (c *Controllers) RefreshAppSecret(ctx *fiber.Ctx) error {
 	}
 
 	appDTO, serviceErr := c.services.UpdateAppSecret(ctx.UserContext(), services.UpdateAppSecretOptions{
-		RequestID: requestID,
-		AccountID: int32(accountClaims.ID),
-		ClientID:  urlParams.ClientID,
+		RequestID:       requestID,
+		AccountPublicID: accountClaims.AccountID,
+		ClientID:        urlParams.ClientID,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -167,9 +167,9 @@ func (c *Controllers) DeleteApp(ctx *fiber.Ctx) error {
 	}
 
 	serviceErr = c.services.DeleteApp(ctx.UserContext(), services.DeleteAppOptions{
-		RequestID: requestID,
-		AccountID: int32(accountClaims.ID),
-		ClientID:  urlParams.ClientID,
+		RequestID:       requestID,
+		AccountPublicID: accountClaims.AccountID,
+		ClientID:        urlParams.ClientID,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -204,20 +204,20 @@ func (c *Controllers) ListApps(ctx *fiber.Ctx) error {
 
 	if queryParams.Name != "" {
 		apps, count, serviceErr = c.services.FilterAccountApps(ctx.UserContext(), services.FilterAccountAppsOptions{
-			RequestID: requestID,
-			AccountID: int32(accountClaims.ID),
-			Offset:    int64(queryParams.Offset),
-			Limit:     int64(queryParams.Limit),
-			Order:     queryParams.Order,
-			Name:      queryParams.Name,
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			Offset:          int64(queryParams.Offset),
+			Limit:           int64(queryParams.Limit),
+			Order:           queryParams.Order,
+			Name:            queryParams.Name,
 		})
 	} else {
 		apps, count, serviceErr = c.services.ListAccountApps(ctx.UserContext(), services.ListAccountAppsOptions{
-			RequestID: requestID,
-			AccountID: int32(accountClaims.ID),
-			Offset:    int64(queryParams.Offset),
-			Limit:     int64(queryParams.Limit),
-			Order:     queryParams.Order,
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			Offset:          int64(queryParams.Offset),
+			Limit:           int64(queryParams.Limit),
+			Order:           queryParams.Order,
 		})
 	}
 

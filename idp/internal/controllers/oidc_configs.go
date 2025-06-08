@@ -10,7 +10,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
-	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
 )
 
@@ -36,17 +35,11 @@ func (c *Controllers) CreateOIDCConfig(ctx *fiber.Ctx) error {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	jwtCryptoSuite, serviceErr := tokens.GetSupportedCryptoSuite(body.JwtCryptoSuite)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
 	oidcConfigDTO, serviceErr := c.services.CreateOIDCConfig(ctx.UserContext(), services.CreateOIDCConfigOptions{
-		RequestID:      requestID,
-		AccountID:      int32(accountClaims.ID),
-		Claims:         body.Claims,
-		Scopes:         body.Scopes,
-		JwtCryptoSuite: jwtCryptoSuite,
+		RequestID:       requestID,
+		AccountPublicID: accountClaims.AccountID,
+		Claims:          body.Claims,
+		Scopes:          body.Scopes,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -66,11 +59,11 @@ func (c *Controllers) GetOIDCConfig(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	oidcConfigDTO, serviceErr := c.services.GetOrCreateOIDCConfig(
+	oidcConfigDTO, serviceErr := c.services.GetOrCreateOIDCConfigByPublicID(
 		ctx.UserContext(),
-		services.GetOrCreateOIDCConfigOptions{
-			RequestID: requestID,
-			AccountID: int32(accountClaims.ID),
+		services.GetOrCreateOIDCConfigByPublicIDOptions{
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
 		},
 	)
 	if serviceErr != nil {
@@ -100,9 +93,10 @@ func (c *Controllers) UpdateOIDCConfig(ctx *fiber.Ctx) error {
 	}
 
 	oidcConfigDTO, serviceErr := c.services.UpdateOIDCConfig(ctx.UserContext(), services.UpdateOIDCConfigOptions{
-		RequestID: requestID,
-		AccountID: int32(accountClaims.ID),
-		Claims:    body.Claims,
+		RequestID:       requestID,
+		AccountPublicID: accountClaims.AccountID,
+		Claims:          body.Claims,
+		Scopes:          body.Scopes,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)

@@ -203,10 +203,10 @@ func TestConfirm(t *testing.T) {
 
 	generateConfirmationToken := func(t *testing.T, accountDTO dtos.AccountDTO) bodies.ConfirmationTokenBody {
 		testTokens := GetTestTokens(t)
-		token, err := testTokens.CreateConfirmationToken(tokens.AccountTokenOptions{
-			ID:      accountDTO.ID,
-			Version: accountDTO.Version(),
-			Email:   accountDTO.Email,
+		token, err := testTokens.CreateConfirmationToken(tokens.AccountAccessTokenOptions{
+			PublicID: accountDTO.ID,
+			Version:  accountDTO.Version(),
+			Email:    accountDTO.Email,
 		})
 		if err != nil {
 			t.Fatal("Failed to create confirmation token", err)
@@ -1251,10 +1251,10 @@ func TestOAuthToken(t *testing.T) {
 			t.Fatal("Failed to generate OAuth code", err)
 		}
 
-		accessToken, err := testTokens.CreateOAuthToken(tokens.AccountTokenOptions{
-			ID:      account.ID,
-			Version: account.Version(),
-			Email:   account.Email,
+		accessToken, err := testTokens.CreateOAuthToken(tokens.AccountAccessTokenOptions{
+			PublicID: account.ID,
+			Version:  account.Version(),
+			Email:    account.Email,
 		})
 		if err != nil {
 			t.Fatal("Failed to create OAuth token", err)
@@ -1267,10 +1267,10 @@ func TestOAuthToken(t *testing.T) {
 		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 		testTokens := GetTestTokens(t)
 
-		refreshToken, err := testTokens.CreateRefreshToken(tokens.AccountTokenOptions{
-			ID:      account.ID,
-			Version: account.Version(),
-			Email:   account.Email,
+		refreshToken, err := testTokens.CreateRefreshToken(tokens.AccountAccessTokenOptions{
+			PublicID: account.ID,
+			Version:  account.Version(),
+			Email:    account.Email,
 		})
 		if err != nil {
 			t.Fatal("Failed to create refresh token", err)
@@ -1386,10 +1386,10 @@ func TestOAuthToken(t *testing.T) {
 			ReqFn: func(t *testing.T) (string, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				testTokens := GetTestTokens(t)
-				refreshToken, err := testTokens.CreateRefreshToken(tokens.AccountTokenOptions{
-					ID:      account.ID,
-					Version: account.Version() + 2,
-					Email:   account.Email,
+				refreshToken, err := testTokens.CreateRefreshToken(tokens.AccountAccessTokenOptions{
+					PublicID: account.ID,
+					Version:  account.Version() + 2,
+					Email:    account.Email,
 				})
 				if err != nil {
 					t.Fatal("Failed to create refresh token", err)

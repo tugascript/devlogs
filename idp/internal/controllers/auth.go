@@ -143,8 +143,8 @@ func (c *Controllers) TwoFactorLoginAccount(ctx *fiber.Ctx) error {
 
 	authDTO, serviceErr := c.services.TwoFactorLoginAccount(ctx.UserContext(), services.TwoFactorLoginAccountOptions{
 		RequestID: requestID,
-		ID:        int32(accountClaims.ID),
-		Version:   accountClaims.Version,
+		PublicID:  accountClaims.AccountID,
+		Version:   accountClaims.AccountVersion,
 		Code:      body.Code,
 	})
 	if serviceErr != nil {

@@ -1,9 +1,10 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-06-07T01:23:11.236Z
+-- Generated at: 2025-06-08T02:10:38.444Z
 
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
+  "public_id" uuid NOT NULL,
   "given_name" varchar(50) NOT NULL,
   "family_name" varchar(50) NOT NULL,
   "username" varchar(63) NOT NULL,
@@ -72,8 +73,7 @@ CREATE TABLE "oidc_configs" (
   "account_id" integer NOT NULL,
   "dek" text NOT NULL,
   "claims" jsonb NOT NULL DEFAULT '{ "given_name": true, "family_name": true }',
-  "scopes" jsonb NOT NULL DEFAULT '{ "email": true, "profile": true, "openid": true }',
-  "jwt_crypto_suite" varchar(7) NOT NULL DEFAULT 'ES256',
+  "scopes" jsonb NOT NULL DEFAULT '{ "email": true, "profile": true }',
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -95,6 +95,7 @@ CREATE TABLE "account_keys" (
 
 CREATE TABLE "users" (
   "id" serial PRIMARY KEY,
+  "public_id" uuid NOT NULL,
   "account_id" integer NOT NULL,
   "email" varchar(250) NOT NULL,
   "username" varchar(100) NOT NULL,
@@ -146,6 +147,7 @@ CREATE TABLE "apps" (
   "name" varchar(50) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
+  "version" integer NOT NULL DEFAULT 1,
   "confirmation_uri" varchar(250) NOT NULL,
   "reset_uri" varchar(250) NOT NULL,
   "callback_uris" varchar(250)[] NOT NULL DEFAULT '{}',
@@ -155,6 +157,24 @@ CREATE TABLE "apps" (
   "auth_providers" jsonb NOT NULL DEFAULT '{ "username_password": true }',
   "username_column" varchar(8) NOT NULL DEFAULT 'email',
   "id_token_ttl" integer NOT NULL DEFAULT 3600,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "app_designs" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "app_id" integer NOT NULL,
+  "primary_light_color" varchar(6) NOT NULL,
+  "primary_dark_color" varchar(6) NOT NULL,
+  "secondary_light_color" varchar(6) NOT NULL,
+  "secondary_dark_color" varchar(6) NOT NULL,
+  "background_light_color" varchar(6) NOT NULL,
+  "background_dark_color" varchar(6) NOT NULL,
+  "text_light_color" varchar(6) NOT NULL,
+  "text_dark_color" varchar(6) NOT NULL,
+  "favicon_url" varchar(250) NOT NULL,
+  "logo_url" varchar(250) NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -176,6 +196,10 @@ CREATE TABLE "blacklisted_tokens" (
 );
 
 CREATE UNIQUE INDEX "accounts_email_uidx" ON "accounts" ("email");
+
+CREATE UNIQUE INDEX "accounts_public_id_uidx" ON "accounts" ("public_id");
+
+CREATE INDEX "accounts_public_id_version_idx" ON "accounts" ("public_id", "version");
 
 CREATE UNIQUE INDEX "accounts_username_uidx" ON "accounts" ("username");
 
@@ -215,6 +239,10 @@ CREATE UNIQUE INDEX "users_account_id_username_uidx" ON "users" ("account_id", "
 
 CREATE INDEX "users_account_id_idx" ON "users" ("account_id");
 
+CREATE UNIQUE INDEX "users_public_id_uidx" ON "users" ("public_id");
+
+CREATE INDEX "users_public_id_version_idx" ON "users" ("public_id", "version");
+
 CREATE INDEX "user_totps_account_id_idx" ON "user_totps" ("account_id");
 
 CREATE UNIQUE INDEX "user_totps_user_id_uidx" ON "user_totps" ("user_id");
@@ -235,11 +263,17 @@ CREATE INDEX "apps_account_id_idx" ON "apps" ("account_id");
 
 CREATE UNIQUE INDEX "apps_client_id_uidx" ON "apps" ("client_id");
 
+CREATE INDEX "apps_client_id_version_idx" ON "apps" ("client_id", "version");
+
 CREATE INDEX "apps_name_idx" ON "apps" ("name");
 
 CREATE INDEX "apps_username_column_idx" ON "apps" ("username_column");
 
 CREATE UNIQUE INDEX "apps_account_id_name_uidx" ON "apps" ("account_id", "name");
+
+CREATE INDEX "app_designs_account_id_idx" ON "app_designs" ("account_id");
+
+CREATE UNIQUE INDEX "app_designs_app_id_uidx" ON "app_designs" ("app_id");
 
 CREATE INDEX "user_profiles_account_id_idx" ON "app_profiles" ("account_id");
 
@@ -278,6 +312,10 @@ ALTER TABLE "user_credentials" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("
 ALTER TABLE "user_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "apps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "app_designs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "app_designs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_profiles" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

@@ -6,6 +6,7 @@
 
 -- name: CreateAccountWithPassword :one
 INSERT INTO "accounts" (
+    "public_id",
     "given_name",
     "family_name",
     "username",
@@ -13,16 +14,18 @@ INSERT INTO "accounts" (
     "password",
     "dek"
 ) VALUES (
-    $1, 
-    $2, 
+    $1,
+    $2,
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7
 ) RETURNING *;
 
 -- name: CreateAccountWithoutPassword :one
 INSERT INTO "accounts" (
+    "public_id",
     "given_name",
     "family_name",
     "username",
@@ -36,6 +39,7 @@ INSERT INTO "accounts" (
     $3,
     $4,
     $5,
+    $6,
     2,
     true
 ) RETURNING *;
@@ -63,6 +67,10 @@ WHERE "email" = $1 LIMIT 1;
 -- name: FindAccountById :one
 SELECT * FROM "accounts"
 WHERE "id" = $1 LIMIT 1;
+
+-- name: FindAccountByPublicID :one
+SELECT * FROM "accounts"
+WHERE "public_id" = $1 LIMIT 1;
 
 -- name: CountAccountByUsername :one
 SELECT COUNT("id") FROM "accounts"
@@ -106,6 +114,10 @@ UPDATE "accounts" SET
     "updated_at" = now()
 WHERE "id" = $2;
 
--- name: GetAccountIDByUsername :one
+-- name: FindAccountIDByUsername :one
 SELECT "id" FROM "accounts"
 WHERE "username" = $1 LIMIT 1;
+
+-- name: FindAccountIDByPublicIDAndVersion :one
+SELECT "id" FROM "accounts"
+WHERE "public_id" = $1 AND "version" = $2 LIMIT 1;

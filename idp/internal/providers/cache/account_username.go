@@ -3,9 +3,10 @@ package cache
 import (
 	"context"
 	"fmt"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 	"strconv"
 	"time"
+
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 
 type AddAccountUsernameOptions struct {
 	RequestID string
-	ID        int
+	ID        int32
 	Username  string
 }
 
@@ -26,12 +27,12 @@ func (c *Cache) AddAccountUsername(ctx context.Context, opts AddAccountUsernameO
 		Location:  accountUsernameLocation,
 		Method:    "AddAccountUsername",
 		RequestID: opts.RequestID,
-	}).With("accountID", opts.ID)
+	}).With("accountId", opts.ID)
 	logger.DebugContext(ctx, "Adding account username...")
 
 	return c.storage.Set(
 		fmt.Sprintf("%s:%s", accountUsernamePrefix, opts.Username),
-		[]byte(strconv.Itoa(opts.ID)),
+		[]byte(strconv.Itoa(int(opts.ID))),
 		time.Duration(c.usernameTTL)*time.Second,
 	)
 }
@@ -41,7 +42,10 @@ type GetAccountIDByUsernameOptions struct {
 	Username  string
 }
 
-func (c *Cache) GetAccountIDByUsername(ctx context.Context, opts GetAccountIDByUsernameOptions) (int, error) {
+func (c *Cache) GetAccountIDByUsername(
+	ctx context.Context,
+	opts GetAccountIDByUsernameOptions,
+) (int32, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  accountUsernameLocation,
@@ -63,5 +67,5 @@ func (c *Cache) GetAccountIDByUsername(ctx context.Context, opts GetAccountIDByU
 		return 0, err
 	}
 
-	return id, nil
+	return int32(id), nil
 }

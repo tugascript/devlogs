@@ -12,23 +12,34 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
+	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 )
 
-func (t *Tokens) CreateRefreshToken(opts AccountTokenOptions) (string, error) {
-	return t.createToken(accountTokenOptions{
-		method:         jwt.SigningMethodEdDSA,
-		privateKey:     t.refreshData.curKeyPair.privateKey,
-		kid:            t.refreshData.curKeyPair.kid,
-		ttlSec:         t.refreshData.ttlSec,
-		accountID:      opts.ID,
-		accountVersion: opts.Version,
-		accountEmail:   opts.Email,
-		scopes:         []AccountScope{AccountScopeRefresh},
+var baseRefreshPaths = []string{paths.AuthBase + paths.AuthRefresh, paths.OAuthBase + paths.OAuthToken}
+
+type AccountRefreshTokenOptions struct {
+	PublicID uuid.UUID
+	Version  int32
+	Scopes   []AccountScope
+}
+
+func (t *Tokens) CreateRefreshToken(opts AccountRefreshTokenOptions) (string, error) {
+	return t.createAuthToken(accountAuthTokenOptions{
+		method:          jwt.SigningMethodEdDSA,
+		privateKey:      t.refreshData.curKeyPair.privateKey,
+		kid:             t.refreshData.curKeyPair.kid,
+		ttlSec:          t.refreshData.ttlSec,
+		accountPublicID: opts.PublicID,
+		accountVersion:  opts.Version,
+		scopes:          opts.Scopes,
+		tokenSubject:    opts.PublicID.String(),
+		paths:           baseRefreshPaths,
 	})
 }
 
 func (t *Tokens) VerifyRefreshToken(token string) (AccountClaims, []AccountScope, uuid.UUID, time.Time, error) {
-	claims, err := verifyToken(token, func(token *jwt.Token) (any, error) {
+	claims, err := verifyAuthToken(token, func(token *jwt.Token) (any, error) {
 		kid, err := extractTokenKID(token)
 		if err != nil {
 			return nil, err
@@ -57,7 +68,7 @@ func (t *Tokens) VerifyRefreshToken(token string) (AccountClaims, []AccountScope
 		return AccountClaims{}, nil, uuid.Nil, time.Time{}, err
 	}
 
-	return claims.Account, scopes, tokenID, claims.ExpiresAt.Time, nil
+	return claims.AccountClaims, scopes, tokenID, claims.ExpiresAt.Time, nil
 }
 
 func (t *Tokens) GetRefreshTTL() int64 {

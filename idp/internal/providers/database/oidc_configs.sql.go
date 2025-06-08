@@ -34,7 +34,7 @@ INSERT INTO "oidc_configs" (
 ) VALUES (
     $1,
     $2
-) RETURNING id, account_id, dek, claims, scopes, jwt_crypto_suite, created_at, updated_at
+) RETURNING id, account_id, dek, claims, scopes, created_at, updated_at
 `
 
 type CreateDefaultOIDCConfigParams struct {
@@ -51,7 +51,6 @@ func (q *Queries) CreateDefaultOIDCConfig(ctx context.Context, arg CreateDefault
 		&i.Dek,
 		&i.Claims,
 		&i.Scopes,
-		&i.JwtCryptoSuite,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -63,23 +62,20 @@ INSERT INTO "oidc_configs" (
     "account_id",
     "claims",
     "scopes",
-    "jwt_crypto_suite",
     "dek"
 ) VALUES (
     $1,
     $2,
     $3,
-    $4,
-    $5
-) RETURNING id, account_id, dek, claims, scopes, jwt_crypto_suite, created_at, updated_at
+    $4
+) RETURNING id, account_id, dek, claims, scopes, created_at, updated_at
 `
 
 type CreateOIDCConfigParams struct {
-	AccountID      int32
-	Claims         []byte
-	Scopes         []byte
-	JwtCryptoSuite string
-	Dek            string
+	AccountID int32
+	Claims    []byte
+	Scopes    []byte
+	Dek       string
 }
 
 func (q *Queries) CreateOIDCConfig(ctx context.Context, arg CreateOIDCConfigParams) (OidcConfig, error) {
@@ -87,7 +83,6 @@ func (q *Queries) CreateOIDCConfig(ctx context.Context, arg CreateOIDCConfigPara
 		arg.AccountID,
 		arg.Claims,
 		arg.Scopes,
-		arg.JwtCryptoSuite,
 		arg.Dek,
 	)
 	var i OidcConfig
@@ -97,7 +92,6 @@ func (q *Queries) CreateOIDCConfig(ctx context.Context, arg CreateOIDCConfigPara
 		&i.Dek,
 		&i.Claims,
 		&i.Scopes,
-		&i.JwtCryptoSuite,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -105,7 +99,7 @@ func (q *Queries) CreateOIDCConfig(ctx context.Context, arg CreateOIDCConfigPara
 }
 
 const findOIDCConfigByAccountID = `-- name: FindOIDCConfigByAccountID :one
-SELECT id, account_id, dek, claims, scopes, jwt_crypto_suite, created_at, updated_at FROM "oidc_configs"
+SELECT id, account_id, dek, claims, scopes, created_at, updated_at FROM "oidc_configs"
 WHERE "account_id" = $1
 LIMIT 1
 `
@@ -119,7 +113,6 @@ func (q *Queries) FindOIDCConfigByAccountID(ctx context.Context, accountID int32
 		&i.Dek,
 		&i.Claims,
 		&i.Scopes,
-		&i.JwtCryptoSuite,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -129,18 +122,20 @@ func (q *Queries) FindOIDCConfigByAccountID(ctx context.Context, accountID int32
 const updateOIDCConfig = `-- name: UpdateOIDCConfig :one
 UPDATE "oidc_configs" SET
     "claims" = $1,
+    "scopes" = $2,
     "updated_at" = now()
-WHERE "id" = $2
-RETURNING id, account_id, dek, claims, scopes, jwt_crypto_suite, created_at, updated_at
+WHERE "id" = $3
+RETURNING id, account_id, dek, claims, scopes, created_at, updated_at
 `
 
 type UpdateOIDCConfigParams struct {
 	Claims []byte
+	Scopes []byte
 	ID     int32
 }
 
 func (q *Queries) UpdateOIDCConfig(ctx context.Context, arg UpdateOIDCConfigParams) (OidcConfig, error) {
-	row := q.db.QueryRow(ctx, updateOIDCConfig, arg.Claims, arg.ID)
+	row := q.db.QueryRow(ctx, updateOIDCConfig, arg.Claims, arg.Scopes, arg.ID)
 	var i OidcConfig
 	err := row.Scan(
 		&i.ID,
@@ -148,7 +143,6 @@ func (q *Queries) UpdateOIDCConfig(ctx context.Context, arg UpdateOIDCConfigPara
 		&i.Dek,
 		&i.Claims,
 		&i.Scopes,
-		&i.JwtCryptoSuite,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

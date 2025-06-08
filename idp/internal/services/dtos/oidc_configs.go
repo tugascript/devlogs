@@ -6,9 +6,8 @@ import (
 )
 
 type OIDCConfigDTO struct {
-	Claims         []string `json:"claims"`
-	Scopes         []string `json:"scopes"`
-	JwtCryptoSuite string   `json:"jwt_crypto_suite"`
+	Claims []string `json:"claims"`
+	Scopes []string `json:"scopes"`
 
 	id  int32
 	dek string
@@ -35,10 +34,9 @@ func MapOIDCConfigToDTO(oidcConfig *database.OidcConfig) (OIDCConfigDTO, *except
 	}
 
 	return OIDCConfigDTO{
-		Claims:         append(claims, claimSlice...),
-		Scopes:         scopes,
-		JwtCryptoSuite: oidcConfig.JwtCryptoSuite,
-		id:             oidcConfig.ID,
-		dek:            oidcConfig.Dek,
+		Claims: append(claims, claimSlice...),
+		Scopes: scopes,
+		id:     oidcConfig.ID,
+		dek:    oidcConfig.Dek,
 	}, nil
 }

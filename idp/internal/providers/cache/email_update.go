@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -27,7 +29,7 @@ const (
 type SaveUpdateEmailRequestOptions struct {
 	RequestID       string
 	PrefixType      EmailUpdatePrefixType
-	ID              int
+	PublicID        uuid.UUID
 	Email           string
 	DurationSeconds int64
 }
@@ -40,11 +42,11 @@ func (c *Cache) SaveUpdateEmailRequest(ctx context.Context, opts SaveUpdateEmail
 		RequestID: opts.RequestID,
 	}).With(
 		"prefixType", opts.PrefixType,
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.DebugContext(ctx, "Saving update email request...")
 
-	key := fmt.Sprintf("%s:%s:%d", emailUpdatePrefix, opts.PrefixType, opts.ID)
+	key := fmt.Sprintf("%s:%s:%s", emailUpdatePrefix, opts.PrefixType, opts.PublicID.String())
 	val := []byte(opts.Email)
 	exp := time.Duration(opts.DurationSeconds) * time.Second
 	if err := c.storage.Set(key, val, exp); err != nil {
@@ -58,7 +60,7 @@ func (c *Cache) SaveUpdateEmailRequest(ctx context.Context, opts SaveUpdateEmail
 type GetUpdateEmailRequestOptions struct {
 	RequestID  string
 	PrefixType EmailUpdatePrefixType
-	ID         int
+	PublicID   uuid.UUID
 }
 
 func (c *Cache) GetUpdateEmailRequest(ctx context.Context, opts GetUpdateEmailRequestOptions) (string, bool, error) {
@@ -69,11 +71,11 @@ func (c *Cache) GetUpdateEmailRequest(ctx context.Context, opts GetUpdateEmailRe
 		RequestID: opts.RequestID,
 	}).With(
 		"prefixType", opts.PrefixType,
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.DebugContext(ctx, "Getting update email request...")
 
-	key := fmt.Sprintf("%s:%s:%d", emailUpdatePrefix, opts.PrefixType, opts.ID)
+	key := fmt.Sprintf("%s:%s:%s", emailUpdatePrefix, opts.PrefixType, opts.PublicID.String())
 	valByte, err := c.storage.Get(key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting the update email request", "error", err)

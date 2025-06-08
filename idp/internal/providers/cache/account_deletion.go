@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -27,7 +29,7 @@ const (
 type SaveDeleteAccountRequestOptions struct {
 	RequestID       string
 	PrefixType      DeleteAccountPrefixType
-	ID              int32
+	PublicID        uuid.UUID
 	DurationSeconds int64
 }
 
@@ -39,11 +41,11 @@ func (c *Cache) SaveDeleteAccountRequest(ctx context.Context, opts SaveDeleteAcc
 		RequestID: opts.RequestID,
 	}).With(
 		"prefixType", opts.PrefixType,
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.DebugContext(ctx, "Saving delete account request...")
 
-	key := fmt.Sprintf("%s:%s:%d", deleteAccountPrefix, opts.PrefixType, opts.ID)
+	key := fmt.Sprintf("%s:%s:%s", deleteAccountPrefix, opts.PrefixType, opts.PublicID.String())
 	val := []byte("true")
 	exp := time.Duration(opts.DurationSeconds) * time.Second
 	if err := c.storage.Set(key, val, exp); err != nil {
@@ -57,7 +59,7 @@ func (c *Cache) SaveDeleteAccountRequest(ctx context.Context, opts SaveDeleteAcc
 type GetDeleteAccountRequestOptions struct {
 	RequestID  string
 	PrefixType DeleteAccountPrefixType
-	ID         int
+	PublicID   uuid.UUID
 }
 
 func (c *Cache) GetDeleteAccountRequest(ctx context.Context, opts GetDeleteAccountRequestOptions) (bool, error) {
@@ -68,11 +70,11 @@ func (c *Cache) GetDeleteAccountRequest(ctx context.Context, opts GetDeleteAccou
 		RequestID: opts.RequestID,
 	}).With(
 		"prefixType", opts.PrefixType,
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.DebugContext(ctx, "Getting delete account request...")
 
-	key := fmt.Sprintf("%s:%s:%d", deleteAccountPrefix, opts.PrefixType, opts.ID)
+	key := fmt.Sprintf("%s:%s:%s", deleteAccountPrefix, opts.PrefixType, opts.PublicID.String())
 	val, err := c.storage.Get(key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting the delete account request", "error", err)

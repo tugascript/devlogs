@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
+	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 )
 
 type WellKnownOIDCConfigurationDTO struct {
@@ -40,7 +41,7 @@ type WellKnownOIDCConfigurationDTO struct {
 	// Required
 	SubjectTypesSupported []string `json:"subject_types_supported"`
 	// Required
-	IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported"`
+	IDTokenSigningAlgValuesSupported []tokens.SupportedCryptoSuite `json:"id_token_signing_alg_values_supported"`
 
 	// Recommended
 	ScopesSupported []string `json:"scopes_supported,omitempty"`
@@ -57,6 +58,7 @@ var ResponseTypesSupported = []string{"code", "id_token", "token", "id_token tok
 var SubjectTypesSupported = []string{"public", "pairwise"}
 var CodeChallengeMethodsSupported = []string{"S256"}
 var GrantTypesSupported = []string{"authorization_code", "refresh_token", "client_credentials"}
+var DefaultScopes = []string{"openid"}
 
 func MapOIDCConfigDTOToWellKnownOIDCConfigurationDTO(configDTO *OIDCConfigDTO, backendDomain, username string) WellKnownOIDCConfigurationDTO {
 	baseURL := fmt.Sprintf("https://%s.%s", username, backendDomain)
@@ -73,8 +75,8 @@ func MapOIDCConfigDTOToWellKnownOIDCConfigurationDTO(configDTO *OIDCConfigDTO, b
 		TokenEndpointAuthMethodsSupported: AuthMethodsSupported,
 		ResponseTypesSupported:            ResponseTypesSupported,
 		SubjectTypesSupported:             SubjectTypesSupported,
-		IDTokenSigningAlgValuesSupported:  []string{configDTO.JwtCryptoSuite},
-		ScopesSupported:                   configDTO.Scopes,
+		IDTokenSigningAlgValuesSupported:  []tokens.SupportedCryptoSuite{tokens.SupportedCryptoSuiteES256},
+		ScopesSupported:                   append(DefaultScopes, configDTO.Scopes...),
 		ClaimsSupported:                   configDTO.Claims,
 		CodeChallengeMethodsSupported:     CodeChallengeMethodsSupported,
 		GrantTypesSupported:               GrantTypesSupported,

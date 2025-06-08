@@ -84,7 +84,6 @@ func New(
 		tokensCfg.OAuth(),
 		tokensCfg.TwoFA(),
 		tokensCfg.Apps(),
-		cfg.FrontendDomain(),
 		cfg.BackendDomain(),
 	)
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")

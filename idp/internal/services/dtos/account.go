@@ -6,19 +6,28 @@
 
 package dtos
 
-import "github.com/tugascript/devlogs/idp/internal/providers/database"
+import (
+	"github.com/google/uuid"
+
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
+)
 
 type AccountDTO struct {
-	ID            int32  `json:"id"`
-	GivenName     string `json:"given_name"`
-	FamilyName    string `json:"family_name"`
-	Email         string `json:"email"`
-	TwoFactorType string `json:"two_factor_type"`
+	PublicID      uuid.UUID `json:"id"`
+	GivenName     string    `json:"given_name"`
+	FamilyName    string    `json:"family_name"`
+	Email         string    `json:"email"`
+	TwoFactorType string    `json:"two_factor_type"`
 
+	id            int32
 	version       int32
 	emailVerified bool
 	password      string
 	dek           string
+}
+
+func (a *AccountDTO) ID() int32 {
+	return a.id
 }
 
 func (a *AccountDTO) Version() int32 {
@@ -39,7 +48,8 @@ func (a *AccountDTO) DEK() string {
 
 func MapAccountToDTO(account *database.Account) AccountDTO {
 	return AccountDTO{
-		ID:            account.ID,
+		id:            account.ID,
+		PublicID:      account.PublicID,
 		version:       account.Version,
 		GivenName:     account.GivenName,
 		FamilyName:    account.FamilyName,

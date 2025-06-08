@@ -70,6 +70,12 @@ func (s *Services) CreateUser(
 	)
 	logger.InfoContext(ctx, "Creating user...")
 
+	publicID, err := uuid.NewRandom()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate user public ID", "error", err)
+		return dtos.UserDTO{}, exceptions.NewServerError()
+	}
+
 	email := utils.Lowered(opts.Email)
 	count, err := s.database.CountUsersByEmailAndAccountID(ctx, database.CountUsersByEmailAndAccountIDParams{
 		Email:     email,
@@ -124,6 +130,7 @@ func (s *Services) CreateUser(
 
 	user, err := qrs.CreateUserWithPassword(ctx, database.CreateUserWithPasswordParams{
 		AccountID: opts.AccountID,
+		PublicID:  publicID,
 		Email:     email,
 		Username:  username,
 		Password:  password,
@@ -328,8 +335,14 @@ func (s *Services) GetUserByID(
 
 	user, err := s.database.FindUserByID(ctx, opts.UserID)
 	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "User not found", "error", err)
+			return dtos.UserDTO{}, serviceErr
+		}
+
 		logger.ErrorContext(ctx, "Failed to find user by ID", "error", err)
-		return dtos.UserDTO{}, exceptions.FromDBError(err)
+		return dtos.UserDTO{}, serviceErr
 	}
 
 	if user.AccountID != opts.AccountID {
@@ -338,6 +351,48 @@ func (s *Services) GetUserByID(
 	}
 
 	logger.InfoContext(ctx, "Got user by ID successfully")
+	return dtos.MapUserToDTO(&user)
+}
+
+type GetUserByPublicIDAndVersionOptions struct {
+	RequestID string
+	PublicID  uuid.UUID
+	AccountID int32
+	Version   int32
+}
+
+func (s *Services) GetUserByPublicIDAndVersion(
+	ctx context.Context,
+	opts GetUserByPublicIDAndVersionOptions,
+) (dtos.UserDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersLocation, "GetUserByPublicIDAndVersion").With(
+		"publicId", opts.PublicID,
+		"accountId", opts.AccountID,
+		"version", opts.Version,
+	)
+	logger.InfoContext(ctx, "Getting user by public ID and version...")
+
+	user, err := s.database.FindUserByPublicIDAndVersion(ctx, database.FindUserByPublicIDAndVersionParams{
+		PublicID: opts.PublicID,
+		Version:  opts.Version,
+	})
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "User not found", "error", err)
+			return dtos.UserDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to find user by public ID", "error", err)
+		return dtos.UserDTO{}, serviceErr
+	}
+
+	if user.AccountID != opts.AccountID {
+		logger.WarnContext(ctx, "User does not belong to account")
+		return dtos.UserDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	logger.InfoContext(ctx, "Got user by public ID and version successfully")
 	return dtos.MapUserToDTO(&user)
 }
 
@@ -513,7 +568,7 @@ func (s *Services) UpdateUserPassword(
 
 	user, err := s.database.UpdateUserPassword(ctx, database.UpdateUserPasswordParams{
 		Password: password,
-		ID:       userDTO.ID,
+		ID:       userDTO.ID(),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update user password", "error", err)
@@ -555,7 +610,7 @@ func (s *Services) DeleteUser(
 		return serviceErr
 	}
 
-	if err := s.database.DeleteUser(ctx, userDTO.ID); err != nil {
+	if err := s.database.DeleteUser(ctx, userDTO.ID()); err != nil {
 		logger.ErrorContext(ctx, "Failed to delete user", "error", err)
 		return exceptions.FromDBError(err)
 	}

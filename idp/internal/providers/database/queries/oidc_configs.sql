@@ -13,14 +13,12 @@ INSERT INTO "oidc_configs" (
     "account_id",
     "claims",
     "scopes",
-    "jwt_crypto_suite",
     "dek"
 ) VALUES (
     $1,
     $2,
     $3,
-    $4,
-    $5
+    $4
 ) RETURNING *;
 
 -- name: CreateDefaultOIDCConfig :one
@@ -40,8 +38,9 @@ LIMIT 1;
 -- name: UpdateOIDCConfig :one
 UPDATE "oidc_configs" SET
     "claims" = $1,
+    "scopes" = $2,
     "updated_at" = now()
-WHERE "id" = $2
+WHERE "id" = $3
 RETURNING *;
 
 -- name: UpdateOIDCConfigDek :exec

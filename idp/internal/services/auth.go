@@ -10,8 +10,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
@@ -30,20 +30,32 @@ const (
 	resetMessage  string = "Password reset successfully"
 )
 
-func processAuthHeader(
+func processPurposeAuthHeader(
 	authHeader string,
-	verify func(string) (tokens.AccountClaims, []tokens.AccountScope, error),
+	verify func(string) (tokens.AccountClaims, error),
+) (tokens.AccountClaims, *exceptions.ServiceError) {
+	token, serviceErr := extractAuthHeaderToken(authHeader)
+	if serviceErr != nil {
+		return tokens.AccountClaims{}, serviceErr
+	}
+
+	accountClaims, err := verify(token)
+	if err != nil {
+		return tokens.AccountClaims{}, exceptions.NewUnauthorizedError()
+	}
+
+	return accountClaims, nil
+}
+
+func (s *Services) ProcessAccountAuthHeader(
+	authHeader string,
 ) (tokens.AccountClaims, []tokens.AccountScope, *exceptions.ServiceError) {
-	authHeaderSlice := strings.Split(authHeader, " ")
-
-	if len(authHeaderSlice) != 2 {
-		return tokens.AccountClaims{}, nil, exceptions.NewUnauthorizedError()
-	}
-	if utils.Lowered(authHeaderSlice[0]) != "bearer" {
-		return tokens.AccountClaims{}, nil, exceptions.NewUnauthorizedError()
+	token, serviceErr := extractAuthHeaderToken(authHeader)
+	if serviceErr != nil {
+		return tokens.AccountClaims{}, nil, serviceErr
 	}
 
-	accountClaims, scopes, err := verify(authHeaderSlice[1])
+	accountClaims, scopes, err := s.jwt.VerifyAccessToken(token)
 	if err != nil {
 		return tokens.AccountClaims{}, nil, exceptions.NewUnauthorizedError()
 	}
@@ -51,22 +63,16 @@ func processAuthHeader(
 	return accountClaims, scopes, nil
 }
 
-func (s *Services) ProcessAccountAuthHeader(
-	authHeader string,
-) (tokens.AccountClaims, []tokens.AccountScope, *exceptions.ServiceError) {
-	return processAuthHeader(authHeader, s.jwt.VerifyAccessToken)
-}
-
 func (s *Services) Process2FAAuthHeader(
 	authHeader string,
-) (tokens.AccountClaims, []tokens.AccountScope, *exceptions.ServiceError) {
-	return processAuthHeader(authHeader, s.jwt.Verify2FAToken)
+) (tokens.AccountClaims, *exceptions.ServiceError) {
+	return processPurposeAuthHeader(authHeader, s.jwt.Verify2FAToken)
 }
 
 func (s *Services) ProcessOAuthHeader(
 	authHeader string,
-) (tokens.AccountClaims, []tokens.AccountScope, *exceptions.ServiceError) {
-	return processAuthHeader(authHeader, s.jwt.VerifyOAuthToken)
+) (tokens.AccountClaims, *exceptions.ServiceError) {
+	return processPurposeAuthHeader(authHeader, s.jwt.VerifyOAuthToken)
 }
 
 func (s *Services) GetRefreshTTL() int64 {
@@ -79,10 +85,9 @@ func (s *Services) sendConfirmationEmail(
 	requestID string,
 	accountDTO *dtos.AccountDTO,
 ) *exceptions.ServiceError {
-	confirmationToken, err := s.jwt.CreateConfirmationToken(tokens.AccountTokenOptions{
-		ID:      accountDTO.ID,
-		Version: accountDTO.Version(),
-		Email:   accountDTO.Email,
+	confirmationToken, err := s.jwt.CreateConfirmationToken(tokens.AccountAccessTokenOptions{
+		PublicID: accountDTO.PublicID,
+		Version:  accountDTO.Version(),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate confirmation token", "error", err)
@@ -153,19 +158,22 @@ func (s *Services) GenerateFullAuthDTO(
 	scopes []tokens.AccountScope,
 	logSuccessMessage string,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
-	tokenOpts := tokens.AccountTokenOptions{
-		ID:      accountDTO.ID,
-		Version: accountDTO.Version(),
-		Email:   accountDTO.Email,
-		Scopes:  scopes,
-	}
-	accessToken, err := s.jwt.CreateAccessToken(tokenOpts)
+	accessToken, err := s.jwt.CreateAccessToken(tokens.AccountAccessTokenOptions{
+		PublicID:     accountDTO.PublicID,
+		Version:      accountDTO.Version(),
+		Scopes:       scopes,
+		TokenSubject: accountDTO.PublicID.String(),
+	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate access token", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
-	refreshToken, err := s.jwt.CreateRefreshToken(tokenOpts)
+	refreshToken, err := s.jwt.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
+		PublicID: accountDTO.PublicID,
+		Version:  accountDTO.Version(),
+		Scopes:   scopes,
+	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate refresh token", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
@@ -193,9 +201,9 @@ func (s *Services) ConfirmAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        int32(claims.ID),
+		PublicID:  claims.AccountID,
 	})
 	if serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to get account by token AccountID", "error", serviceErr)
@@ -203,9 +211,9 @@ func (s *Services) ConfirmAccount(
 	}
 
 	accountVersion := accountDTO.Version()
-	if claims.Version != accountVersion {
+	if claims.AccountVersion != accountVersion {
 		logger.WarnContext(ctx, "Account versions do not match",
-			"claimsVersion", claims.Version,
+			"claimsVersion", claims.AccountVersion,
 			"accountVersion", accountVersion,
 		)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
@@ -271,10 +279,9 @@ func (s *Services) LoginAccount(
 
 	switch accountDTO.TwoFactorType {
 	case TwoFactorEmail, TwoFactorTotp:
-		twoFAToken, err := s.jwt.Create2FAToken(tokens.AccountTokenOptions{
-			ID:      accountDTO.ID,
-			Version: accountDTO.Version(),
-			Email:   accountDTO.Email,
+		twoFAToken, err := s.jwt.Create2FAToken(tokens.Account2FATokenOptions{
+			PublicID: accountDTO.PublicID,
+			Version:  accountDTO.Version(),
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to generate 2FA JWT", "error", err)
@@ -284,7 +291,7 @@ func (s *Services) LoginAccount(
 		if accountDTO.TwoFactorType == TwoFactorEmail {
 			code, err := s.cache.AddTwoFactorCode(ctx, cache.AddTwoFactorCodeOptions{
 				RequestID: opts.RequestID,
-				AccountID: accountDTO.ID,
+				AccountID: accountDTO.ID(),
 				TTL:       s.jwt.Get2FATTL(),
 			})
 			if err != nil {
@@ -375,7 +382,7 @@ func (s *Services) VerifyAccountTotp(
 
 type TwoFactorLoginAccountOptions struct {
 	RequestID string
-	ID        int32
+	PublicID  uuid.UUID
 	Version   int32
 	Code      string
 }
@@ -387,9 +394,9 @@ func (s *Services) TwoFactorLoginAccount(
 	logger := s.buildLogger(opts.RequestID, authLocation, "TwoFactorLoginAccount")
 	logger.InfoContext(ctx, "2FA logging in account...")
 
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        opts.ID,
+		PublicID:  opts.PublicID,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -400,7 +407,7 @@ func (s *Services) TwoFactorLoginAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	logger = logger.With("accountId", accountDTO.ID)
+	logger = logger.With("accountId", accountDTO.ID())
 	accountVersion := accountDTO.Version()
 	if accountVersion != opts.Version {
 		logger.WarnContext(ctx, "Account versions do not match",
@@ -419,7 +426,7 @@ func (s *Services) TwoFactorLoginAccount(
 	case TwoFactorTotp:
 		ok, serviceErr = s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions{
 			RequestID: opts.RequestID,
-			ID:        opts.ID,
+			ID:        accountDTO.ID(),
 			Code:      opts.Code,
 			DEK:       accountDTO.DEK(),
 		})
@@ -430,7 +437,7 @@ func (s *Services) TwoFactorLoginAccount(
 	case TwoFactorEmail:
 		ok, err = s.cache.VerifyTwoFactorCode(ctx, cache.VerifyTwoFactorCodeOptions{
 			RequestID: opts.RequestID,
-			AccountID: accountDTO.ID,
+			AccountID: accountDTO.ID(),
 			Code:      opts.Code,
 		})
 		if err != nil {
@@ -471,9 +478,9 @@ func (s *Services) LogoutAccount(
 		return exceptions.NewUnauthorizedError()
 	}
 
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        int32(claims.ID),
+		PublicID:  uuid.UUID(claims.AccountID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to find account of refresh token")
@@ -481,9 +488,9 @@ func (s *Services) LogoutAccount(
 	}
 
 	accountVersion := accountDTO.Version()
-	if accountVersion != claims.Version {
+	if accountVersion != claims.AccountVersion {
 		logger.WarnContext(ctx, "Account versions do not match",
-			"claimsVersion", claims.Version,
+			"claimsVersion", claims.AccountVersion,
 			"accountVersion", accountVersion,
 		)
 		return exceptions.NewUnauthorizedError()
@@ -541,9 +548,9 @@ func (s *Services) RefreshTokenAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        int32(claims.ID),
+		PublicID:  claims.AccountID,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -556,9 +563,9 @@ func (s *Services) RefreshTokenAccount(
 	}
 
 	accountVersion := accountDTO.Version()
-	if accountVersion != claims.Version {
+	if accountVersion != claims.AccountVersion {
 		logger.WarnContext(ctx, "Account versions do not match",
-			"claimsVersion", claims.Version,
+			"claimsVersion", claims.AccountVersion,
 			"accountVersion", accountVersion,
 		)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
@@ -604,10 +611,9 @@ func (s *Services) ForgoutAccountPassword(
 		return dtos.MessageDTO{}, serviceErr
 	}
 
-	resetToken, err := s.jwt.CreateResetToken(tokens.AccountTokenOptions{
-		ID:      accountDTO.ID,
-		Version: accountDTO.Version(),
-		Email:   accountDTO.Email,
+	resetToken, err := s.jwt.CreateResetToken(tokens.AccountResetTokenOptions{
+		PublicID: accountDTO.PublicID,
+		Version:  accountDTO.Version(),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate rest token", "error", err)
@@ -651,9 +657,9 @@ func (s *Services) ResetAccountPassword(
 		return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        accountClaims.ID,
+		PublicID:  accountClaims.AccountID,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -666,10 +672,10 @@ func (s *Services) ResetAccountPassword(
 	}
 
 	accountVersion := accountDTO.Version()
-	if accountVersion != accountClaims.Version {
+	if accountVersion != accountClaims.AccountVersion {
 		logger.WarnContext(ctx, "Account and claims versions do not match",
 			"accountVersion", accountVersion,
-			"claimsVersion", accountClaims.Version,
+			"claimsVersion", accountClaims.AccountVersion,
 		)
 		return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
 	}
@@ -688,7 +694,7 @@ func (s *Services) ResetAccountPassword(
 
 	if _, err := s.database.UpdateAccountPassword(ctx, database.UpdateAccountPasswordParams{
 		Password: password,
-		ID:       accountClaims.ID,
+		ID:       accountDTO.ID(),
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to update account password", "error", err)
 		return dtos.MessageDTO{}, exceptions.FromDBError(err)
@@ -815,10 +821,9 @@ func (s *Services) updateAccountTOTP2FA(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	token, err := s.jwt.Create2FAToken(tokens.AccountTokenOptions{
-		ID:      account.ID,
-		Version: account.Version,
-		Email:   account.Email,
+	token, err := s.jwt.Create2FAToken(tokens.Account2FATokenOptions{
+		PublicID: account.PublicID,
+		Version:  account.Version,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate 2FA access token", "error", err)
@@ -904,10 +909,9 @@ func (s *Services) updateAccountEmail2FA(
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
-	token, err := s.jwt.Create2FAToken(tokens.AccountTokenOptions{
-		ID:      account.ID,
-		Version: account.Version,
-		Email:   account.Email,
+	token, err := s.jwt.Create2FAToken(tokens.Account2FATokenOptions{
+		PublicID: account.PublicID,
+		Version:  account.Version,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate 2FA access token", "error", err)
@@ -919,7 +923,7 @@ func (s *Services) updateAccountEmail2FA(
 
 type UpdateAccount2FAOptions struct {
 	RequestID     string
-	ID            int32
+	PublicID      uuid.UUID
 	TwoFactorType string
 	Password      string
 }
@@ -929,14 +933,14 @@ func (s *Services) UpdateAccount2FA(
 	opts UpdateAccount2FAOptions,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, authLocation, "UpdateAccount2FA").With(
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 		"twoFactorType", opts.TwoFactorType,
 	)
 	logger.InfoContext(ctx, "Updating account 2FA...")
 
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        opts.ID,
+		PublicID:  opts.PublicID,
 	})
 	if serviceErr != nil {
 		return dtos.AuthDTO{}, serviceErr
@@ -962,11 +966,10 @@ func (s *Services) UpdateAccount2FA(
 	if accountDTO.TwoFactorType == opts.TwoFactorType {
 		logger.InfoContext(ctx, "Account already uses given 2FA type")
 
-		token, err := s.jwt.CreateAccessToken(tokens.AccountTokenOptions{
-			ID:      accountDTO.ID,
-			Version: accountDTO.Version(),
-			Email:   accountDTO.Email,
-			Scopes:  []tokens.AccountScope{tokens.AccountScopeAdmin},
+		token, err := s.jwt.CreateAccessToken(tokens.AccountAccessTokenOptions{
+			PublicID: accountDTO.PublicID,
+			Version:  accountDTO.Version(),
+			Scopes:   []tokens.AccountScope{tokens.AccountScopeAdmin},
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to generate access token", "error", err)
@@ -988,7 +991,7 @@ func (s *Services) UpdateAccount2FA(
 
 	updateOpts := updateAccount2FAOptions{
 		requestID:   opts.RequestID,
-		id:          accountDTO.ID,
+		id:          accountDTO.ID(),
 		email:       accountDTO.Email,
 		prev2FAType: accountDTO.TwoFactorType,
 	}

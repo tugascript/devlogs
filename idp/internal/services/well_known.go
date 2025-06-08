@@ -27,7 +27,7 @@ func (s *Services) wellKnownJWKs(
 	opts WellKnownJWKsOptions,
 ) (dtos.JWKsDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, wellKnownLocation, "wellKnownJWKs").With(
-		"accountId", opts.AccountID,
+		"accountID", opts.AccountID,
 	)
 	logger.InfoContext(ctx, "Getting well known JWKs...")
 
@@ -48,7 +48,8 @@ func (s *Services) WellKnownJWKsWithCache(
 	opts WellKnownJWKsOptions,
 ) (dtos.JWKsDTO, string, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, wellKnownLocation, "WellKnownJWKs").With(
-		"accountId", opts.AccountID,
+		"accountID", opts.AccountID,
+		"accountUsername", opts.AccountUsername,
 	)
 	logger.InfoContext(ctx, "Getting well known JWKs with cache...")
 
@@ -84,7 +85,7 @@ func (s *Services) WellKnownJWKsWithCache(
 	return jwks, etag, nil
 }
 
-type WellKnownOIDCConfigurationOptions struct {
+type WellKnownOIDCConfigurationWithCacheOptions struct {
 	RequestID       string
 	AccountID       int32
 	BackendDomain   string
@@ -93,10 +94,11 @@ type WellKnownOIDCConfigurationOptions struct {
 
 func (s *Services) wellKnownOIDCConfiguration(
 	ctx context.Context,
-	opts WellKnownOIDCConfigurationOptions,
+	opts WellKnownOIDCConfigurationWithCacheOptions,
 ) (dtos.WellKnownOIDCConfigurationDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, wellKnownLocation, "wellKnownOIDCConfiguration").With(
-		"accountId", opts.AccountID,
+		"accountID", opts.AccountID,
+		"accountUsername", opts.AccountUsername,
 	)
 	logger.InfoContext(ctx, "Getting well known OIDC configuration...")
 
@@ -114,10 +116,11 @@ func (s *Services) wellKnownOIDCConfiguration(
 
 func (s *Services) WellKnownOIDCConfigurationWithCache(
 	ctx context.Context,
-	opts WellKnownOIDCConfigurationOptions,
+	opts WellKnownOIDCConfigurationWithCacheOptions,
 ) (dtos.WellKnownOIDCConfigurationDTO, string, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, wellKnownLocation, "WellKnownOIDCConfiguration").With(
-		"accountId", opts.AccountID,
+		"accountID", opts.AccountID,
+		"accountUsername", opts.AccountUsername,
 	)
 	logger.InfoContext(ctx, "Getting well known OIDC configuration with cache...")
 

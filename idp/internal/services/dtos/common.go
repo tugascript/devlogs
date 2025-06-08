@@ -31,12 +31,12 @@ func NewMessageDTO(msg string) MessageDTO {
 }
 
 type JWKsDTO struct {
-	Keys []utils.JWK `json:"keys"`
+	Keys []utils.ES256JWK `json:"keys"`
 }
 
-func NewJWKsDTO(jwks []utils.JWK) JWKsDTO {
+func NewJWKsDTO(jwks []utils.ES256JWK) JWKsDTO {
 	if len(jwks) == 0 {
-		return JWKsDTO{Keys: make([]utils.JWK, 0)}
+		return JWKsDTO{Keys: make([]utils.ES256JWK, 0)}
 	}
 
 	return JWKsDTO{Keys: jwks}

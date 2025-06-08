@@ -10,20 +10,19 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/google/uuid"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 )
 
 const oidcConfigLocation string = "oidc_configs"
 
 type CreateOIDCConfigOptions struct {
-	RequestID      string
-	AccountID      int32
-	Claims         []string
-	Scopes         []string
-	JwtCryptoSuite tokens.SupportedCryptoSuite
+	RequestID       string
+	AccountPublicID uuid.UUID
+	Claims          []string
+	Scopes          []string
 }
 
 func (s *Services) CreateOIDCConfig(
@@ -31,11 +30,24 @@ func (s *Services) CreateOIDCConfig(
 	opts CreateOIDCConfigOptions,
 ) (dtos.OIDCConfigDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, oidcConfigLocation, "CreateOIDCConfig").With(
-		"accountId", opts.AccountID,
+		"accountPublicId", opts.AccountPublicID,
 	)
 	logger.Info("Creating OIDC config...")
 
-	count, err := s.database.CountOIDCConfigsByAccountID(ctx, opts.AccountID)
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.AccountPublicID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account not found", "serviceErr", serviceErr)
+			return dtos.OIDCConfigDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		return dtos.OIDCConfigDTO{}, serviceErr
+	}
+
+	count, err := s.database.CountOIDCConfigsByAccountID(ctx, accountDTO.ID())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count user schemas by account id", "error", err)
 		return dtos.OIDCConfigDTO{}, exceptions.FromDBError(err)
@@ -43,14 +55,6 @@ func (s *Services) CreateOIDCConfig(
 	if count > 0 {
 		logger.ErrorContext(ctx, "User schema already exists", "error", err)
 		return dtos.OIDCConfigDTO{}, exceptions.NewConflictError("User schema already exists")
-	}
-
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
-		RequestID: opts.RequestID,
-		ID:        opts.AccountID,
-	})
-	if serviceErr != nil {
-		return dtos.OIDCConfigDTO{}, serviceErr
 	}
 
 	encryptedDek, newAccountDEK, err := s.encrypt.GenerateOIDCDEK(ctx, opts.RequestID, accountDTO.DEK())
@@ -73,11 +77,10 @@ func (s *Services) CreateOIDCConfig(
 
 	if newAccountDEK == "" {
 		config, err := s.database.CreateOIDCConfig(ctx, database.CreateOIDCConfigParams{
-			AccountID:      opts.AccountID,
-			Claims:         claimsData,
-			Scopes:         scopesData,
-			JwtCryptoSuite: string(opts.JwtCryptoSuite),
-			Dek:            encryptedDek,
+			AccountID: accountDTO.ID(),
+			Claims:    claimsData,
+			Scopes:    scopesData,
+			Dek:       encryptedDek,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create OIDC config", "error", err)
@@ -99,11 +102,10 @@ func (s *Services) CreateOIDCConfig(
 	}()
 
 	config, err := qrs.CreateOIDCConfig(ctx, database.CreateOIDCConfigParams{
-		AccountID:      opts.AccountID,
-		Claims:         claimsData,
-		Scopes:         scopesData,
-		JwtCryptoSuite: string(opts.JwtCryptoSuite),
-		Dek:            encryptedDek,
+		AccountID: accountDTO.ID(),
+		Claims:    claimsData,
+		Scopes:    scopesData,
+		Dek:       encryptedDek,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create OIDC config", "error", err)
@@ -112,7 +114,7 @@ func (s *Services) CreateOIDCConfig(
 	}
 
 	if err := qrs.UpdateAccountDEK(ctx, database.UpdateAccountDEKParams{
-		ID:  opts.AccountID,
+		ID:  accountDTO.ID(),
 		Dek: newAccountDEK,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to update account DEK", "error", err)
@@ -124,14 +126,14 @@ func (s *Services) CreateOIDCConfig(
 	return dtos.MapOIDCConfigToDTO(&config)
 }
 
-type GetOrCreateOIDCConfigOptions struct {
+type GetOIDCConfigByAccountIDOptions struct {
 	RequestID string
 	AccountID int32
 }
 
 func (s *Services) GetOIDCConfigByAccountID(
 	ctx context.Context,
-	opts GetOrCreateOIDCConfigOptions,
+	opts GetOIDCConfigByAccountIDOptions,
 ) (dtos.OIDCConfigDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, oidcConfigLocation, "GetOIDCConfigByAccountID").With(
 		"accountId", opts.AccountID,
@@ -148,24 +150,29 @@ func (s *Services) GetOIDCConfigByAccountID(
 	return dtos.MapOIDCConfigToDTO(&config)
 }
 
+type createDefaultOIDCConfigOptions struct {
+	requestID string
+	accountID int32
+}
+
 func (s *Services) createDefaultOIDCConfig(
 	ctx context.Context,
-	opts GetOrCreateOIDCConfigOptions,
+	opts createDefaultOIDCConfigOptions,
 ) (dtos.OIDCConfigDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, oidcConfigLocation, "createDefaultOIDCConfig").With(
-		"accountId", opts.AccountID,
+	logger := s.buildLogger(opts.requestID, oidcConfigLocation, "createDefaultOIDCConfig").With(
+		"accountId", opts.accountID,
 	)
 	logger.InfoContext(ctx, "Creating default OIDC config...")
 
 	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
-		RequestID: opts.RequestID,
-		ID:        opts.AccountID,
+		RequestID: opts.requestID,
+		ID:        opts.accountID,
 	})
 	if serviceErr != nil {
 		return dtos.OIDCConfigDTO{}, serviceErr
 	}
 
-	encryptedDek, newAccountDEK, err := s.encrypt.GenerateOIDCDEK(ctx, opts.RequestID, accountDTO.DEK())
+	encryptedDek, newAccountDEK, err := s.encrypt.GenerateOIDCDEK(ctx, opts.requestID, accountDTO.DEK())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate OIDC StoredDEK", "error", err)
 		return dtos.OIDCConfigDTO{}, exceptions.NewServerError()
@@ -173,7 +180,7 @@ func (s *Services) createDefaultOIDCConfig(
 
 	if newAccountDEK == "" {
 		config, err := s.database.CreateDefaultOIDCConfig(ctx, database.CreateDefaultOIDCConfigParams{
-			AccountID: opts.AccountID,
+			AccountID: opts.accountID,
 			Dek:       encryptedDek,
 		})
 		if err != nil {
@@ -196,7 +203,7 @@ func (s *Services) createDefaultOIDCConfig(
 	}()
 
 	config, err := qrs.CreateDefaultOIDCConfig(ctx, database.CreateDefaultOIDCConfigParams{
-		AccountID: opts.AccountID,
+		AccountID: opts.accountID,
 		Dek:       encryptedDek,
 	})
 	if err != nil {
@@ -207,7 +214,7 @@ func (s *Services) createDefaultOIDCConfig(
 
 	if err := qrs.UpdateAccountDEK(ctx, database.UpdateAccountDEKParams{
 		Dek: newAccountDEK,
-		ID:  opts.AccountID,
+		ID:  opts.accountID,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to update account DEK", "error", err)
 		serviceErr = exceptions.FromDBError(err)
@@ -219,6 +226,11 @@ func (s *Services) createDefaultOIDCConfig(
 
 }
 
+type GetOrCreateOIDCConfigOptions struct {
+	RequestID string
+	AccountID int32
+}
+
 func (s *Services) GetOrCreateOIDCConfig(
 	ctx context.Context,
 	opts GetOrCreateOIDCConfigOptions,
@@ -228,7 +240,7 @@ func (s *Services) GetOrCreateOIDCConfig(
 	)
 	logger.InfoContext(ctx, "Getting or creating user schema...")
 
-	configDto, serviceErr := s.GetOIDCConfigByAccountID(ctx, opts)
+	configDto, serviceErr := s.GetOIDCConfigByAccountID(ctx, GetOIDCConfigByAccountIDOptions(opts))
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
 			logger.ErrorContext(ctx, "Failed to get OIDC config", "error", serviceErr)
@@ -236,19 +248,54 @@ func (s *Services) GetOrCreateOIDCConfig(
 		}
 
 		logger.DebugContext(ctx, "OIDC config not found, creating new one")
-		return s.createDefaultOIDCConfig(ctx, opts)
+		return s.createDefaultOIDCConfig(ctx, createDefaultOIDCConfigOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+		})
 	}
 
 	logger.InfoContext(ctx, "OIDC config found")
 	return configDto, nil
 }
 
+type GetOrCreateOIDCConfigByPublicIDOptions struct {
+	RequestID       string
+	AccountPublicID uuid.UUID
+}
+
+func (s *Services) GetOrCreateOIDCConfigByPublicID(
+	ctx context.Context,
+	opts GetOrCreateOIDCConfigByPublicIDOptions,
+) (dtos.OIDCConfigDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, oidcConfigLocation, "GetOrCreateOIDCConfigByPublicID").With(
+		"accountPublicID", opts.AccountPublicID,
+	)
+	logger.InfoContext(ctx, "Getting or creating OIDC config...")
+
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.AccountPublicID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account not found", "serviceErr", serviceErr)
+			return dtos.OIDCConfigDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		return dtos.OIDCConfigDTO{}, serviceErr
+	}
+
+	return s.GetOrCreateOIDCConfig(ctx, GetOrCreateOIDCConfigOptions{
+		RequestID: opts.RequestID,
+		AccountID: accountDTO.ID(),
+	})
+}
+
 type UpdateOIDCConfigOptions struct {
-	RequestID      string
-	AccountID      int32
-	Claims         []string
-	Scopes         []string
-	JwtCryptoSuite tokens.SupportedCryptoSuite
+	RequestID       string
+	AccountPublicID uuid.UUID
+	Claims          []string
+	Scopes          []string
 }
 
 func (s *Services) UpdateOIDCConfig(
@@ -256,13 +303,26 @@ func (s *Services) UpdateOIDCConfig(
 	opts UpdateOIDCConfigOptions,
 ) (dtos.OIDCConfigDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, oidcConfigLocation, "UpdateOIDCConfig").With(
-		"accountId", opts.AccountID,
+		"accountPublicId", opts.AccountPublicID,
 	)
 	logger.InfoContext(ctx, "Updating OIDC config...")
 
-	configDTO, serviceErr := s.GetOIDCConfigByAccountID(ctx, GetOrCreateOIDCConfigOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		AccountID: opts.AccountID,
+		PublicID:  opts.AccountPublicID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account not found", "serviceErr", serviceErr)
+			return dtos.OIDCConfigDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		return dtos.OIDCConfigDTO{}, serviceErr
+	}
+
+	configDTO, serviceErr := s.GetOIDCConfigByAccountID(ctx, GetOIDCConfigByAccountIDOptions{
+		RequestID: opts.RequestID,
+		AccountID: accountDTO.ID(),
 	})
 	if serviceErr != nil {
 		return dtos.OIDCConfigDTO{}, serviceErr
@@ -274,9 +334,16 @@ func (s *Services) UpdateOIDCConfig(
 		return dtos.OIDCConfigDTO{}, exceptions.NewServerError()
 	}
 
+	scopesData, err := mapSliceToJsonMap(opts.Scopes)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to marshal scopes", "error", err)
+		return dtos.OIDCConfigDTO{}, exceptions.NewServerError()
+	}
+
 	config, err := s.database.UpdateOIDCConfig(ctx, database.UpdateOIDCConfigParams{
 		ID:     configDTO.ID(),
 		Claims: claimsData,
+		Scopes: scopesData,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update OIDC config", "error", err)
@@ -287,16 +354,21 @@ func (s *Services) UpdateOIDCConfig(
 	return dtos.MapOIDCConfigToDTO(&config)
 }
 
+type GetOIDCConfigUserStructOptions struct {
+	RequestID string
+	AccountID int32
+}
+
 func (s *Services) GetOIDCConfigUserStruct(
 	ctx context.Context,
-	opts GetOrCreateOIDCConfigOptions,
+	opts GetOIDCConfigUserStructOptions,
 ) (reflect.Type, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, oidcConfigLocation, "GetUserSchemaStruct").With(
 		"accountId", opts.AccountID,
 	)
 	logger.InfoContext(ctx, "Getting user schema struct...")
 
-	oidcConfigDTO, serviceErr := s.GetOrCreateOIDCConfig(ctx, opts)
+	oidcConfigDTO, serviceErr := s.GetOrCreateOIDCConfig(ctx, GetOrCreateOIDCConfigOptions(opts))
 	if serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to get OIDC config", "error", serviceErr)
 		return nil, serviceErr

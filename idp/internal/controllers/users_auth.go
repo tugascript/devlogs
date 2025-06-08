@@ -29,9 +29,17 @@ func (c *Controllers) RegisterUser(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	appID, _, serviceErr := getAppClaims(ctx)
+	appClaims, appAccountUsername, serviceErr := getAppClaims(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	if appAccountUsername != accountUsername {
+		logger.WarnContext(ctx.UserContext(), "Account username mismatch",
+			"appAccountUsername", appAccountUsername,
+			"accountUsername", accountUsername,
+		)
+		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 	}
 
 	body := new(bodies.RegisterUserBody)
@@ -42,9 +50,9 @@ func (c *Controllers) RegisterUser(ctx *fiber.Ctx) error {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	userSchema, serviceErr := c.services.GetOIDCConfigUserStruct(ctx.UserContext(), services.GetOrCreateOIDCConfigOptions{
+	userSchema, serviceErr := c.services.GetOIDCConfigUserStruct(ctx.UserContext(), services.GetOIDCConfigUserStructOptions{
 		RequestID: requestID,
-		AccountID: int32(accountID),
+		AccountID: accountID,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -61,9 +69,10 @@ func (c *Controllers) RegisterUser(ctx *fiber.Ctx) error {
 
 	messageDTO, serviceErr := c.services.RegisterUser(ctx.UserContext(), services.RegisterUserOptions{
 		RequestID:       requestID,
-		AccountID:       int32(accountID),
+		AccountID:       accountID,
 		AccountUsername: accountUsername,
-		AppID:           appID,
+		AppClientID:     appClaims.ClientID,
+		AppVersion:      appClaims.Version,
 		Email:           body.Email,
 		Username:        body.Username,
 		Password:        body.Password,
@@ -87,9 +96,17 @@ func (c *Controllers) ConfirmUser(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	appID, _, serviceErr := getAppClaims(ctx)
+	appClaims, appAccountUsername, serviceErr := getAppClaims(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	if appAccountUsername != accountUsername {
+		logger.WarnContext(ctx.UserContext(), "Account username mismatch",
+			"appAccountUsername", appAccountUsername,
+			"accountUsername", accountUsername,
+		)
+		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 	}
 
 	body := new(bodies.ConfirmationTokenBody)
@@ -102,9 +119,10 @@ func (c *Controllers) ConfirmUser(ctx *fiber.Ctx) error {
 
 	authDTO, serviceErr := c.services.ConfirmAuthUser(ctx.UserContext(), services.ConfirmAuthUserOptions{
 		RequestID:         requestID,
-		AccountID:         int32(accountID),
+		AccountID:         accountID,
 		AccountUsername:   accountUsername,
-		AppID:             appID,
+		AppClientID:       appClaims.ClientID,
+		AppVersion:        appClaims.Version,
 		ConfirmationToken: body.ConfirmationToken,
 	})
 	if serviceErr != nil {
@@ -125,9 +143,17 @@ func (c *Controllers) LoginUser(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	appID, _, serviceErr := getAppClaims(ctx)
+	appClaims, appAccountUsername, serviceErr := getAppClaims(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	if appAccountUsername != accountUsername {
+		logger.WarnContext(ctx.UserContext(), "Account username mismatch",
+			"appAccountUsername", appAccountUsername,
+			"accountUsername", accountUsername,
+		)
+		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 	}
 
 	body := new(bodies.LoginUserBody)
@@ -140,9 +166,10 @@ func (c *Controllers) LoginUser(ctx *fiber.Ctx) error {
 
 	authDTO, serviceErr := c.services.LoginUser(ctx.UserContext(), services.LoginUserOptions{
 		RequestID:       requestID,
-		AccountID:       int32(accountID),
+		AccountID:       accountID,
 		AccountUsername: accountUsername,
-		AppID:           appID,
+		AppClientID:     appClaims.ClientID,
+		AppVersion:      appClaims.Version,
 		UsernameOrEmail: body.UsernameOrEmail,
 		Password:        body.Password,
 	})
@@ -181,11 +208,12 @@ func (c *Controllers) TwoFactorLoginUser(ctx *fiber.Ctx) error {
 
 	authDTO, serviceErr := c.services.TwoFactorLoginUser(ctx.UserContext(), services.TwoFactorLoginUserOptions{
 		RequestID:       requestID,
-		AccountID:       int32(accountID),
+		AccountID:       accountID,
 		AccountUsername: accountUsername,
-		AppID:           appClaims.AppID,
-		UserID:          userClaims.UserID,
-		Version:         userClaims.UserVersion,
+		AppClientID:     appClaims.ClientID,
+		AppVersion:      appClaims.Version,
+		UserPublicID:    userClaims.UserID,
+		UserVersion:     userClaims.UserVersion,
 		Code:            body.Code,
 	})
 	if serviceErr != nil {
@@ -215,10 +243,10 @@ func (c *Controllers) LogoutUser(ctx *fiber.Ctx) error {
 	}
 
 	if serviceErr := c.services.LogoutUser(ctx.UserContext(), services.LogoutUserOptions{
-		RequestID: requestID,
-		UserID:    userClaims.UserID,
-		AppID:     appClaims.AppID,
-		Token:     body.RefreshToken,
+		RequestID:    requestID,
+		UserPublicID: userClaims.UserID,
+		AppClientID:  appClaims.ClientID,
+		Token:        body.RefreshToken,
 	}); serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
@@ -237,9 +265,17 @@ func (c *Controllers) RefreshUser(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	appID, _, serviceErr := getAppClaims(ctx)
+	appClaims, appAccountUsername, serviceErr := getAppClaims(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	if appAccountUsername != accountUsername {
+		logger.WarnContext(ctx.UserContext(), "Account username mismatch",
+			"appAccountUsername", appAccountUsername,
+			"accountUsername", accountUsername,
+		)
+		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 	}
 
 	body := new(bodies.RefreshTokenBody)
@@ -252,9 +288,10 @@ func (c *Controllers) RefreshUser(ctx *fiber.Ctx) error {
 
 	authDTO, serviceErr := c.services.RefreshUserAccess(ctx.UserContext(), services.RefreshUserAccessOptions{
 		RequestID:       requestID,
-		AccountID:       int32(accountID),
+		AccountID:       accountID,
 		AccountUsername: accountUsername,
-		AppID:           appID,
+		AppClientID:     appClaims.ClientID,
+		AppVersion:      appClaims.Version,
 		Token:           body.RefreshToken,
 	})
 	if serviceErr != nil {
@@ -275,9 +312,17 @@ func (c *Controllers) ForgotUserPassword(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	appID, appClientID, serviceErr := getAppClaims(ctx)
+	appClaims, appAccountUsername, serviceErr := getAppClaims(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	if appAccountUsername != accountUsername {
+		logger.WarnContext(ctx.UserContext(), "Account username mismatch",
+			"appAccountUsername", appAccountUsername,
+			"accountUsername", accountUsername,
+		)
+		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 	}
 
 	body := new(bodies.ForgoutPasswordBody)
@@ -292,8 +337,8 @@ func (c *Controllers) ForgotUserPassword(ctx *fiber.Ctx) error {
 		RequestID:       requestID,
 		AccountID:       int32(accountID),
 		AccountUsername: accountUsername,
-		AppID:           appID,
-		AppClientID:     appClientID,
+		AppClientID:     appClaims.ClientID,
+		AppVersion:      appClaims.Version,
 		Email:           body.Email,
 	})
 	if serviceErr != nil {
@@ -309,14 +354,22 @@ func (c *Controllers) ResetUserPassword(ctx *fiber.Ctx) error {
 	logger := c.buildLogger(requestID, usersAuthLocation, "ResetUserPassword")
 	logRequest(logger, ctx)
 
-	_, accountID, serviceErr := getHostAccount(ctx)
+	accountUsername, accountID, serviceErr := getHostAccount(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	appID, _, serviceErr := getAppClaims(ctx)
+	appClaims, appAccountUsername, serviceErr := getAppClaims(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	if appAccountUsername != accountUsername {
+		logger.WarnContext(ctx.UserContext(), "Account username mismatch",
+			"appAccountUsername", appAccountUsername,
+			"accountUsername", accountUsername,
+		)
+		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 	}
 
 	body := new(bodies.ResetPasswordBody)
@@ -328,11 +381,12 @@ func (c *Controllers) ResetUserPassword(ctx *fiber.Ctx) error {
 	}
 
 	messageDTO, serviceErr := c.services.ResetUserPassword(ctx.UserContext(), services.ResetUserPasswordOptions{
-		RequestID:  requestID,
-		AccountID:  int32(accountID),
-		AppID:      appID,
-		ResetToken: body.ResetToken,
-		Password:   body.Password,
+		RequestID:   requestID,
+		AccountID:   accountID,
+		AppClientID: appClaims.ClientID,
+		AppVersion:  appClaims.Version,
+		ResetToken:  body.ResetToken,
+		Password:    body.Password,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)

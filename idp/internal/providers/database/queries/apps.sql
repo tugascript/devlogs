@@ -31,6 +31,10 @@ LIMIT 1;
 SELECT * FROM "apps"
 WHERE "client_id" = $1 LIMIT 1;
 
+-- name: FindAppByClientIDAndVersion :one
+SELECT * FROM "apps"
+WHERE "client_id" = $1 AND "version" = $2 LIMIT 1;
+
 -- name: FindAppByID :one
 SELECT * FROM "apps"
 WHERE "id" = $1 LIMIT 1;
@@ -91,6 +95,7 @@ LIMIT 1;
 -- name: UpdateAppClientSecret :one
 UPDATE "apps" SET
     "client_secret" = $1,
+    "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $2
 RETURNING *;

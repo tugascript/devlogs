@@ -100,12 +100,19 @@ func (s *Services) CreateAccount(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
+	publicID, err := uuid.NewRandom()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate public ID", "error", err)
+		return dtos.AccountDTO{}, exceptions.NewServerError()
+	}
+
 	givenName := utils.Capitalized(opts.GivenName)
 	familyName := utils.Capitalized(opts.FamilyName)
 	username := uuid.NewString()
 	var account database.Account
 	if provider == AuthProviderEmail {
 		account, err = qrs.CreateAccountWithPassword(ctx, database.CreateAccountWithPasswordParams{
+			PublicID:   publicID,
 			GivenName:  givenName,
 			FamilyName: familyName,
 			Username:   username,
@@ -115,6 +122,7 @@ func (s *Services) CreateAccount(
 		})
 	} else {
 		account, err = qrs.CreateAccountWithoutPassword(ctx, database.CreateAccountWithoutPasswordParams{
+			PublicID:   publicID,
 			GivenName:  givenName,
 			FamilyName: familyName,
 			Username:   username,
@@ -199,6 +207,36 @@ func (s *Services) GetAccountByID(
 	return dtos.MapAccountToDTO(&account), nil
 }
 
+type GetAccountByPublicIDOptions struct {
+	RequestID string
+	PublicID  uuid.UUID
+}
+
+func (s *Services) GetAccountByPublicID(
+	ctx context.Context,
+	opts GetAccountByPublicIDOptions,
+) (dtos.AccountDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountsLocation, "GetAccountByPublicID").With(
+		"publicID", opts.PublicID,
+	)
+	logger.InfoContext(ctx, "Getting account by PublicID...")
+
+	account, err := s.database.FindAccountByPublicID(ctx, opts.PublicID)
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.InfoContext(ctx, "Account not found", "error", err)
+			return dtos.AccountDTO{}, serviceErr
+		}
+
+		logger.ErrorContext(ctx, "Failed to get account", "error", err)
+		return dtos.AccountDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Got account by AccountID successfully")
+	return dtos.MapAccountToDTO(&account), nil
+}
+
 func (s *Services) updateAccountEmailInDB(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -239,7 +277,7 @@ func (s *Services) updateAccountEmailInDB(
 
 type UpdateAccountEmailOptions struct {
 	RequestID string
-	ID        int32
+	PublicID  uuid.UUID
 	Email     string
 	Password  string
 }
@@ -249,13 +287,13 @@ func (s *Services) UpdateAccountEmail(
 	opts UpdateAccountEmailOptions,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "UpdateAccountEmail").With(
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.InfoContext(ctx, "Updating account email...")
 
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        opts.ID,
+		PublicID:  opts.PublicID,
 	})
 	if serviceErr != nil {
 		logger.InfoContext(ctx, "Failed to get account", "error", serviceErr)
@@ -293,7 +331,7 @@ func (s *Services) UpdateAccountEmail(
 		err = s.cache.SaveUpdateEmailRequest(ctx, cache.SaveUpdateEmailRequestOptions{
 			RequestID:       opts.RequestID,
 			PrefixType:      cache.EmailUpdateAccountPrefix,
-			ID:              int(opts.ID),
+			PublicID:        accountDTO.PublicID,
 			Email:           opts.Email,
 			DurationSeconds: s.jwt.GetOAuthTTL(),
 		})
@@ -317,7 +355,7 @@ func (s *Services) UpdateAccountEmail(
 		return dtos.AuthDTO{}, exceptions.NewConflictError("Email already in use")
 	}
 
-	account, err := s.updateAccountEmailInDB(ctx, logger, opts.ID, accountDTO.Email, newEmail)
+	account, err := s.updateAccountEmailInDB(ctx, logger, accountDTO.ID(), accountDTO.Email, newEmail)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account email", "error", err)
 		serviceErr = exceptions.FromDBError(err)
@@ -337,7 +375,7 @@ func (s *Services) UpdateAccountEmail(
 
 type ConfirmUpdateAccountEmailOptions struct {
 	RequestID string
-	ID        int32
+	PublicID  uuid.UUID
 	Code      string
 }
 
@@ -346,15 +384,14 @@ func (s *Services) ConfirmUpdateAccountEmail(
 	opts ConfirmUpdateAccountEmailOptions,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "ConfirmUpdateAccountEmail").With(
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.InfoContext(ctx, "Confirming account email update...")
 
-	// Get the cached email update request
 	newEmail, exists, err := s.cache.GetUpdateEmailRequest(ctx, cache.GetUpdateEmailRequestOptions{
 		RequestID:  opts.RequestID,
 		PrefixType: cache.EmailUpdateAccountPrefix,
-		ID:         int(opts.ID),
+		PublicID:   opts.PublicID,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get email update request", "error", err)
@@ -365,10 +402,9 @@ func (s *Services) ConfirmUpdateAccountEmail(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	// Verify 2FA Code
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        opts.ID,
+		PublicID:  opts.PublicID,
 	})
 	if serviceErr != nil {
 		logger.InfoContext(ctx, "Failed to get account", "error", serviceErr)
@@ -382,7 +418,7 @@ func (s *Services) ConfirmUpdateAccountEmail(
 	case TwoFactorEmail:
 		ok, err := s.cache.VerifyTwoFactorCode(ctx, cache.VerifyTwoFactorCodeOptions{
 			RequestID: opts.RequestID,
-			AccountID: accountDTO.ID,
+			AccountID: accountDTO.ID(),
 			Code:      opts.Code,
 		})
 		if err != nil {
@@ -396,7 +432,7 @@ func (s *Services) ConfirmUpdateAccountEmail(
 	case TwoFactorTotp:
 		ok, serviceErr := s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions{
 			RequestID: opts.RequestID,
-			ID:        int32(accountDTO.ID),
+			ID:        accountDTO.ID(),
 			Code:      opts.Code,
 			DEK:       accountDTO.DEK(),
 		})
@@ -424,7 +460,7 @@ func (s *Services) ConfirmUpdateAccountEmail(
 		return dtos.AuthDTO{}, exceptions.NewConflictError("Email already in use")
 	}
 
-	account, err := s.updateAccountEmailInDB(ctx, logger, opts.ID, accountDTO.Email, newEmail)
+	account, err := s.updateAccountEmailInDB(ctx, logger, accountDTO.ID(), accountDTO.Email, newEmail)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account email", "error", err)
 		return dtos.AuthDTO{}, exceptions.FromDBError(err)
@@ -466,7 +502,7 @@ func (s *Services) updateAccountPasswordInDB(
 
 type UpdateAccountPasswordOptions struct {
 	RequestID   string
-	ID          int32
+	PublicID    uuid.UUID
 	Password    string
 	NewPassword string
 }
@@ -476,13 +512,13 @@ func (s *Services) UpdateAccountPassword(
 	opts UpdateAccountPasswordOptions,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "UpdateAccountPassword").With(
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.InfoContext(ctx, "Updating account password...")
 
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        opts.ID,
+		PublicID:  opts.PublicID,
 	})
 	if serviceErr != nil {
 		logger.InfoContext(ctx, "Failed to get account", "error", serviceErr)
@@ -520,7 +556,7 @@ func (s *Services) UpdateAccountPassword(
 		err = s.cache.SaveUpdatePasswordRequest(ctx, cache.SaveUpdatePasswordRequestOptions{
 			RequestID:       opts.RequestID,
 			PrefixType:      cache.PasswordUpdateAccountPrefix,
-			ID:              int(opts.ID),
+			PublicID:        accountDTO.PublicID,
 			NewPassword:     opts.NewPassword,
 			DurationSeconds: s.jwt.GetOAuthTTL(),
 		})
@@ -539,7 +575,7 @@ func (s *Services) UpdateAccountPassword(
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
-	account, err := s.updateAccountPasswordInDB(ctx, logger, opts.ID, hashedPassword)
+	account, err := s.updateAccountPasswordInDB(ctx, logger, accountDTO.ID(), hashedPassword)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account password", "error", err)
 		return dtos.AuthDTO{}, exceptions.FromDBError(err)
@@ -557,7 +593,7 @@ func (s *Services) UpdateAccountPassword(
 
 type ConfirmUpdateAccountPasswordOptions struct {
 	RequestID string
-	ID        int32
+	PublicID  uuid.UUID
 	Code      string
 }
 
@@ -566,15 +602,23 @@ func (s *Services) ConfirmUpdateAccountPassword(
 	opts ConfirmUpdateAccountPasswordOptions,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "ConfirmUpdateAccountPassword").With(
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.InfoContext(ctx, "Confirming account password update...")
 
-	// Get the cached password update request
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.PublicID,
+	})
+	if serviceErr != nil {
+		logger.InfoContext(ctx, "Failed to get account", "error", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
 	newPassword, exists, err := s.cache.GetUpdatePasswordRequest(ctx, cache.GetUpdatePasswordRequestOptions{
 		RequestID:  opts.RequestID,
 		PrefixType: cache.PasswordUpdateAccountPrefix,
-		ID:         int(opts.ID),
+		PublicID:   accountDTO.PublicID,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get password update request", "error", err)
@@ -585,16 +629,6 @@ func (s *Services) ConfirmUpdateAccountPassword(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	// Verify 2FA Code
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
-		RequestID: opts.RequestID,
-		ID:        opts.ID,
-	})
-	if serviceErr != nil {
-		logger.InfoContext(ctx, "Failed to get account", "error", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
 	switch accountDTO.TwoFactorType {
 	case TwoFactorNone:
 		logger.WarnContext(ctx, "Account has no 2FA enabled")
@@ -602,7 +636,7 @@ func (s *Services) ConfirmUpdateAccountPassword(
 	case TwoFactorEmail:
 		ok, err := s.cache.VerifyTwoFactorCode(ctx, cache.VerifyTwoFactorCodeOptions{
 			RequestID: opts.RequestID,
-			AccountID: accountDTO.ID,
+			AccountID: accountDTO.ID(),
 			Code:      opts.Code,
 		})
 		if err != nil {
@@ -616,7 +650,7 @@ func (s *Services) ConfirmUpdateAccountPassword(
 	case TwoFactorTotp:
 		ok, serviceErr := s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions{
 			RequestID: opts.RequestID,
-			ID:        int32(accountDTO.ID),
+			ID:        accountDTO.ID(),
 			Code:      opts.Code,
 			DEK:       accountDTO.DEK(),
 		})
@@ -633,7 +667,7 @@ func (s *Services) ConfirmUpdateAccountPassword(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	account, err := s.updateAccountPasswordInDB(ctx, logger, opts.ID, newPassword)
+	account, err := s.updateAccountPasswordInDB(ctx, logger, accountDTO.ID(), newPassword)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account password", "error", err)
 		return dtos.AuthDTO{}, exceptions.FromDBError(err)
@@ -652,7 +686,7 @@ func (s *Services) ConfirmUpdateAccountPassword(
 
 type UpdateAccountOptions struct {
 	RequestID  string
-	ID         int32
+	PublicID   uuid.UUID
 	GivenName  string
 	FamilyName string
 	Username   string
@@ -663,14 +697,15 @@ func (s *Services) UpdateAccount(
 	opts UpdateAccountOptions,
 ) (dtos.AccountDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "UpdateAccount").With(
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.InfoContext(ctx, "Updating account...")
 
-	if _, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        opts.ID,
-	}); serviceErr != nil {
+		PublicID:  opts.PublicID,
+	})
+	if serviceErr != nil {
 		logger.InfoContext(ctx, "Failed to get account", "error", serviceErr)
 		return dtos.AccountDTO{}, serviceErr
 	}
@@ -692,7 +727,7 @@ func (s *Services) UpdateAccount(
 		GivenName:  givenName,
 		FamilyName: familyName,
 		Username:   username,
-		ID:         opts.ID,
+		ID:         accountDTO.ID(),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account", "error", err)
@@ -705,7 +740,7 @@ func (s *Services) UpdateAccount(
 
 type DeleteAccountOptions struct {
 	RequestID string
-	ID        int32
+	PublicID  uuid.UUID
 	Password  string
 }
 
@@ -714,13 +749,13 @@ func (s *Services) DeleteAccount(
 	opts DeleteAccountOptions,
 ) (bool, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "DeleteAccount").With(
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.InfoContext(ctx, "Deleting account...")
 
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        opts.ID,
+		PublicID:  opts.PublicID,
 	})
 	if serviceErr != nil {
 		logger.InfoContext(ctx, "Failed to get account", "error", serviceErr)
@@ -760,7 +795,7 @@ func (s *Services) DeleteAccount(
 		if err := s.cache.SaveDeleteAccountRequest(ctx, cache.SaveDeleteAccountRequestOptions{
 			RequestID:       opts.RequestID,
 			PrefixType:      cache.DeleteAccountAccountPrefix,
-			ID:              accountDTO.ID,
+			PublicID:        accountDTO.PublicID,
 			DurationSeconds: s.jwt.GetOAuthTTL(),
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache delete account request", "error", err)
@@ -771,7 +806,7 @@ func (s *Services) DeleteAccount(
 		return false, nil
 	}
 
-	if err := s.database.DeleteAccount(ctx, opts.ID); err != nil {
+	if err := s.database.DeleteAccount(ctx, accountDTO.ID()); err != nil {
 		logger.ErrorContext(ctx, "Failed to delete account", "error", err)
 		return false, exceptions.FromDBError(err)
 	}
@@ -782,7 +817,7 @@ func (s *Services) DeleteAccount(
 
 type ConfirmDeleteAccountOptions struct {
 	RequestID string
-	ID        int32
+	PublicID  uuid.UUID
 	Code      string
 }
 
@@ -791,15 +826,14 @@ func (s *Services) ConfirmDeleteAccount(
 	opts ConfirmDeleteAccountOptions,
 ) *exceptions.ServiceError {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "ConfirmDeleteAccount").With(
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.InfoContext(ctx, "Confirming account deletion...")
 
-	// Get the cached delete account request
 	exists, err := s.cache.GetDeleteAccountRequest(ctx, cache.GetDeleteAccountRequestOptions{
 		RequestID:  opts.RequestID,
 		PrefixType: cache.DeleteAccountAccountPrefix,
-		ID:         int(opts.ID),
+		PublicID:   opts.PublicID,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get delete account request", "error", err)
@@ -810,10 +844,9 @@ func (s *Services) ConfirmDeleteAccount(
 		return exceptions.NewUnauthorizedError()
 	}
 
-	// Verify 2FA Code
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        opts.ID,
+		PublicID:  opts.PublicID,
 	})
 	if serviceErr != nil {
 		logger.InfoContext(ctx, "Failed to get account", "error", serviceErr)
@@ -824,7 +857,7 @@ func (s *Services) ConfirmDeleteAccount(
 	case TwoFactorEmail:
 		ok, err := s.cache.VerifyTwoFactorCode(ctx, cache.VerifyTwoFactorCodeOptions{
 			RequestID: opts.RequestID,
-			AccountID: accountDTO.ID,
+			AccountID: accountDTO.ID(),
 			Code:      opts.Code,
 		})
 		if err != nil {
@@ -838,7 +871,7 @@ func (s *Services) ConfirmDeleteAccount(
 	case TwoFactorTotp:
 		ok, serviceErr := s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions{
 			RequestID: opts.RequestID,
-			ID:        int32(accountDTO.ID),
+			ID:        accountDTO.ID(),
 			Code:      opts.Code,
 			DEK:       accountDTO.DEK(),
 		})
@@ -855,7 +888,7 @@ func (s *Services) ConfirmDeleteAccount(
 		return exceptions.NewUnauthorizedError()
 	}
 
-	if err := s.database.DeleteAccount(ctx, opts.ID); err != nil {
+	if err := s.database.DeleteAccount(ctx, accountDTO.ID()); err != nil {
 		logger.ErrorContext(ctx, "Failed to delete account", "error", err)
 		return exceptions.FromDBError(err)
 	}
@@ -872,11 +905,11 @@ type GetAccountIDByUsernameOptions struct {
 func (s *Services) getAccountIDByUsername(
 	ctx context.Context,
 	opts GetAccountIDByUsernameOptions,
-) (int, *exceptions.ServiceError) {
+) (int32, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "getAccountIDByUsername")
 	logger.InfoContext(ctx, "Getting account ID by username...")
 
-	accountID, err := s.database.GetAccountIDByUsername(ctx, utils.Lowered(opts.Username))
+	accountID, err := s.database.FindAccountIDByUsername(ctx, utils.Lowered(opts.Username))
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code == exceptions.CodeNotFound {
@@ -889,13 +922,13 @@ func (s *Services) getAccountIDByUsername(
 	}
 
 	logger.InfoContext(ctx, "Got account ID by username successfully")
-	return int(accountID), nil
+	return accountID, nil
 }
 
 func (s *Services) GetAndCacheAccountIDByUsername(
 	ctx context.Context,
 	opts GetAccountIDByUsernameOptions,
-) (int, *exceptions.ServiceError) {
+) (int32, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "GetAndCacheAccountIDByUsername")
 	logger.InfoContext(ctx, "Getting and caching account ID by username...")
 
@@ -953,4 +986,40 @@ func (s *Services) UpdateAccountDEK(ctx context.Context, opts UpdateAccountDEKOp
 
 	logger.InfoContext(ctx, "Updated account DEK successfully")
 	return nil
+}
+
+type GetAccountIDByPublicIDAndVersionOptions struct {
+	RequestID string
+	PublicID  uuid.UUID
+	Version   int32
+}
+
+func (s *Services) GetAccountIDByPublicIDAndVersion(
+	ctx context.Context,
+	opts GetAccountIDByPublicIDAndVersionOptions,
+) (int32, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountsLocation, "GetAccountIDByPublicIDAndVersion").With(
+		"publicID", opts.PublicID,
+		"version", opts.Version,
+	)
+	logger.InfoContext(ctx, "Getting account ID by public ID and version...")
+
+	accountID, err := s.database.FindAccountIDByPublicIDAndVersion(ctx, database.FindAccountIDByPublicIDAndVersionParams{
+		PublicID: opts.PublicID,
+		Version:  opts.Version,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account ID by public ID and version", "error", err)
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.InfoContext(ctx, "Account not found", "error", err)
+			return 0, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get account ID by public ID and version", "error", err)
+		return 0, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Got account ID by public ID and version successfully")
+	return accountID, nil
 }

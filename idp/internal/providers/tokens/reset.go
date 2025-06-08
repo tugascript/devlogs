@@ -10,23 +10,30 @@ import (
 	"errors"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+
+	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 )
 
-func (t *Tokens) CreateResetToken(opts AccountTokenOptions) (string, error) {
-	return t.createToken(accountTokenOptions{
-		method:         jwt.SigningMethodEdDSA,
-		privateKey:     t.resetData.curKeyPair.privateKey,
-		kid:            t.resetData.curKeyPair.kid,
-		ttlSec:         t.resetData.ttlSec,
-		accountID:      opts.ID,
-		accountVersion: opts.Version,
-		accountEmail:   opts.Email,
-		scopes:         []AccountScope{AccountScopeReset},
+type AccountResetTokenOptions struct {
+	PublicID uuid.UUID
+	Version  int32
+}
+
+func (t *Tokens) CreateResetToken(opts AccountResetTokenOptions) (string, error) {
+	return t.createPurposeToken(accountPurposeTokenOptions{
+		privateKey:      t.resetData.curKeyPair.privateKey,
+		kid:             t.resetData.curKeyPair.kid,
+		ttlSec:          t.resetData.ttlSec,
+		accountPublicID: opts.PublicID,
+		accountVersion:  opts.Version,
+		path:            paths.AuthBase + paths.AuthResetPassword,
+		purpose:         TokenPurposeReset,
 	})
 }
 
 func (t *Tokens) VerifyResetToken(token string) (AccountClaims, error) {
-	claims, err := verifyToken(token, func(token *jwt.Token) (any, error) {
+	claims, err := verifyPurposeToken(token, func(token *jwt.Token) (any, error) {
 		kid, err := extractTokenKID(token)
 		if err != nil {
 			return nil, err
@@ -45,5 +52,5 @@ func (t *Tokens) VerifyResetToken(token string) (AccountClaims, error) {
 		return AccountClaims{}, err
 	}
 
-	return claims.Account, nil
+	return claims.AccountClaims, nil
 }

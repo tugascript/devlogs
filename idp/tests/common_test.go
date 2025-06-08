@@ -397,21 +397,21 @@ func CreateTestAccount(t *testing.T, userData services.CreateAccountOptions) dto
 
 func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (string, string) {
 	tks := GetTestTokens(t)
-	accessToken, err := tks.CreateAccessToken(tokens.AccountTokenOptions{
-		ID:      account.ID,
-		Version: account.Version(),
-		Email:   account.Email,
-		Scopes:  []tokens.AccountScope{tokens.AccountScopeAdmin},
+	accessToken, err := tks.CreateAccessToken(tokens.AccountAccessTokenOptions{
+		PublicID: account.ID,
+		Version:  account.Version(),
+		Email:    account.Email,
+		Scopes:   []tokens.AccountScope{tokens.AccountScopeAdmin},
 	})
 	if err != nil {
 		t.Fatal("Failed to create access token", err)
 	}
 
-	refreshToken, err := tks.CreateRefreshToken(tokens.AccountTokenOptions{
-		ID:      account.ID,
-		Version: account.Version(),
-		Email:   account.Email,
-		Scopes:  []tokens.AccountScope{tokens.AccountScopeRefresh},
+	refreshToken, err := tks.CreateRefreshToken(tokens.AccountAccessTokenOptions{
+		PublicID: account.ID,
+		Version:  account.Version(),
+		Email:    account.Email,
+		Scopes:   []tokens.AccountScope{tokens.AccountScopeRefresh},
 	})
 	if err != nil {
 		t.Fatal("Failed to create refresh token", err)

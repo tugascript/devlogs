@@ -11,6 +11,7 @@ import (
 	"crypto/ed25519"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 
 	"github.com/golang-jwt/jwt/v5"
 
@@ -21,19 +22,39 @@ import (
 
 type SupportedCryptoSuite string
 
-type TokenType string
-
 const (
 	SupportedCryptoSuiteEd25519 SupportedCryptoSuite = "EdDSA"
 	SupportedCryptoSuiteES256   SupportedCryptoSuite = "ES256"
+)
 
-	TokenTypeAccess       TokenType = "access"
-	TokenTypeRefresh      TokenType = "refresh"
-	TokenTypeConfirmation TokenType = "confirmation"
-	TokenTypeReset        TokenType = "reset"
-	TokenTypeOAuth        TokenType = "oauth"
-	TokenTypeTwoFA        TokenType = "twoFA"
-	TokenTypeID           TokenType = "id"
+type AuthTokenType string
+
+const (
+	AuthTokenTypeAccess            AuthTokenType = "access"
+	AuthTokenTypeClientCredentials AuthTokenType = "client_credentials"
+	AuthTokenTypeRefresh           AuthTokenType = "refresh"
+)
+
+type PurposeTokenType string
+
+const (
+	PurposeTokenTypeConfirmation PurposeTokenType = "email_verification"
+	PurposeTokenTypeReset        PurposeTokenType = "password_reset"
+	PurposeTokenTypeOAuth        PurposeTokenType = "oauth_code"
+	PurposeTokenTypeTwoFA        PurposeTokenType = "2fa_code"
+)
+
+type IDTokenType string
+
+const IDTokenTypeID IDTokenType = "id"
+
+type TokenPurpose string
+
+const (
+	TokenPurpose2FA          TokenPurpose = "2fa"
+	TokenPurposeOAuth        TokenPurpose = "oauth"
+	TokenPurposeConfirmation TokenPurpose = "confirmation"
+	TokenPurposeReset        TokenPurpose = "reset"
 )
 
 type PreviousPublicKey struct {
@@ -214,7 +235,6 @@ func newEs256TokenSecretData(privateKey, previousPublicKey string, ttlSec int64)
 }
 
 type Tokens struct {
-	frontendDomain         string
 	backendDomain          string
 	accessData             Es256TokenSecretData
 	accountCredentialsData Es256TokenSecretData
@@ -236,7 +256,6 @@ func NewTokens(
 	oauthCfg,
 	twoFACfg,
 	appsCfg config.SingleJwtConfig,
-	frontendDomain,
 	backendDomain string,
 ) *Tokens {
 	accessData := newEs256TokenSecretData(
@@ -314,9 +333,8 @@ func NewTokens(
 			twoFACfg.PreviousPublicKey(),
 			twoFACfg.TtlSec(),
 		),
-		frontendDomain: frontendDomain,
-		backendDomain:  backendDomain,
-		jwks:           jwks,
+		backendDomain: backendDomain,
+		jwks:          jwks,
 	}
 }
 
@@ -342,4 +360,13 @@ func GetSupportedCryptoSuite(cryptoSuite string) (SupportedCryptoSuite, *excepti
 	default:
 		return "", exceptions.NewServerError()
 	}
+}
+
+func buildPathAudience(backendDomain, path string) string {
+	lastLoc := len(backendDomain) - 1
+	if backendDomain[lastLoc] == '/' {
+		return fmt.Sprintf("https://%s%s", backendDomain[:lastLoc], path)
+	}
+
+	return fmt.Sprintf("https://%s%s", backendDomain, path)
 }

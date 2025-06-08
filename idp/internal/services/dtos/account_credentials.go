@@ -19,8 +19,8 @@ type AccountCredentialsDTO struct {
 	Alias        string   `json:"alias"`
 	Scopes       []string `json:"scopes"`
 
-	id           int
-	accountId    int
+	id           int32
+	accountId    int32
 	hashedSecret string
 }
 
@@ -28,11 +28,11 @@ func (ak *AccountCredentialsDTO) HashedSecret() string {
 	return ak.hashedSecret
 }
 
-func (ak *AccountCredentialsDTO) AccountID() int {
+func (ak *AccountCredentialsDTO) AccountID() int32 {
 	return ak.accountId
 }
 
-func (ak *AccountCredentialsDTO) ID() int {
+func (ak *AccountCredentialsDTO) ID() int32 {
 	return ak.id
 }
 
@@ -61,11 +61,11 @@ func MapAccountCredentialsToDTO(
 	}
 
 	return AccountCredentialsDTO{
-		id:           int(accountKeys.ID),
+		id:           accountKeys.ID,
 		ClientID:     accountKeys.ClientID,
 		Scopes:       scopes,
 		hashedSecret: accountKeys.ClientSecret,
-		accountId:    int(accountKeys.AccountID),
+		accountId:    accountKeys.AccountID,
 	}, nil
 }
 
@@ -79,11 +79,11 @@ func MapAccountCredentialsToDTOWithSecret(
 	}
 
 	return AccountCredentialsDTO{
-		id:           int(accountKeys.ID),
+		id:           accountKeys.ID,
 		ClientID:     accountKeys.ClientID,
 		ClientSecret: secret,
 		Scopes:       scopes,
 		hashedSecret: accountKeys.ClientSecret,
-		accountId:    int(accountKeys.AccountID),
+		accountId:    accountKeys.AccountID,
 	}, nil
 }

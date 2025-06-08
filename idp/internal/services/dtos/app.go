@@ -12,8 +12,10 @@ import (
 )
 
 type AppDTO struct {
-	id        int32
-	accountID int32
+	id           int32
+	accountID    int32
+	version      int32
+	hashedSecret string
 
 	Type            string   `json:"type"`
 	Name            string   `json:"name"`
@@ -38,6 +40,14 @@ func (a *AppDTO) AccountID() int32 {
 	return a.accountID
 }
 
+func (a *AppDTO) Version() int32 {
+	return a.version
+}
+
+func (a *AppDTO) HashedSecret() string {
+	return a.hashedSecret
+}
+
 func MapAppToDTO(app *database.App) (AppDTO, *exceptions.ServiceError) {
 	defaultScopes, serviceErr := jsonHashMapToSlice(app.DefaultScopes)
 	if serviceErr != nil {
@@ -57,6 +67,8 @@ func MapAppToDTO(app *database.App) (AppDTO, *exceptions.ServiceError) {
 	return AppDTO{
 		id:              app.ID,
 		accountID:       app.AccountID,
+		version:         app.Version,
+		hashedSecret:    app.ClientSecret,
 		Type:            app.Type,
 		ClientID:        app.ClientID,
 		Name:            app.Name,
@@ -91,6 +103,8 @@ func MapAppToDTOWithSecret(app *database.App, secret string) (AppDTO, *exception
 	return AppDTO{
 		id:              app.ID,
 		accountID:       app.AccountID,
+		version:         app.Version,
+		hashedSecret:    app.ClientSecret,
 		ClientID:        app.ClientID,
 		Type:            app.Type,
 		ClientSecret:    secret,

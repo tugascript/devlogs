@@ -13,6 +13,7 @@ import (
 
 type Account struct {
 	ID            int32
+	PublicID      uuid.UUID
 	GivenName     string
 	FamilyName    string
 	Username      string
@@ -71,6 +72,7 @@ type App struct {
 	Name            string
 	ClientID        string
 	ClientSecret    string
+	Version         int32
 	ConfirmationUri string
 	ResetUri        string
 	CallbackUris    []string
@@ -82,6 +84,24 @@ type App struct {
 	IDTokenTtl      int32
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
+
+type AppDesign struct {
+	ID                   int32
+	AccountID            int32
+	AppID                int32
+	PrimaryLightColor    string
+	PrimaryDarkColor     string
+	SecondaryLightColor  string
+	SecondaryDarkColor   string
+	BackgroundLightColor string
+	BackgroundDarkColor  string
+	TextLightColor       string
+	TextDarkColor        string
+	FaviconUrl           string
+	LogoUrl              string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 type AppProfile struct {
@@ -128,18 +148,18 @@ type ExternalAuthProvider struct {
 }
 
 type OidcConfig struct {
-	ID             int32
-	AccountID      int32
-	Dek            string
-	Claims         []byte
-	Scopes         []byte
-	JwtCryptoSuite string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID        int32
+	AccountID int32
+	Dek       string
+	Claims    []byte
+	Scopes    []byte
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type User struct {
 	ID            int32
+	PublicID      uuid.UUID
 	AccountID     int32
 	Email         string
 	Username      string

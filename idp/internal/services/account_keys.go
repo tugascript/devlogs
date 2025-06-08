@@ -40,9 +40,9 @@ func isDistributedKey(name AppKeyName) bool {
 	return name == AppKeyNameAccess || name == AppKeyNameClient || name == AppKeyNameID || name == AppKeyNameOAuth
 }
 
-func getCryptoSuite(isDistributed bool, cryptoSuite tokens.SupportedCryptoSuite) tokens.SupportedCryptoSuite {
+func getCryptoSuite(isDistributed bool) tokens.SupportedCryptoSuite {
 	if isDistributed {
-		return cryptoSuite
+		return tokens.SupportedCryptoSuiteES256
 	}
 	return tokens.SupportedCryptoSuiteEd25519
 }
@@ -120,7 +120,7 @@ func (s *Services) createAccountKey(
 	}
 
 	isDistributed := isDistributedKey(opts.name)
-	cryptoSuite := getCryptoSuite(isDistributed, tokens.SupportedCryptoSuite(oidcConfig.JwtCryptoSuite))
+	cryptoSuite := getCryptoSuite(isDistributed)
 	keyPair, privateKey, dek, serviceErr := s.generateAccountKeyKeyPair(ctx, generateAccountKeyKeyPairOptions{
 		requestID:   opts.requestID,
 		cryptoSuite: cryptoSuite,
@@ -210,7 +210,7 @@ func (s *Services) decryptAccountKeyPrivateKey(
 	logger := s.buildLogger(requestID, appKeysLocation, "decryptAccountKeyPrivateKey")
 	logger.InfoContext(ctx, "Decrypting private key...")
 
-	oidcConfig, serviceErr := s.GetOIDCConfigByAccountID(ctx, GetOrCreateOIDCConfigOptions{
+	oidcConfig, serviceErr := s.GetOIDCConfigByAccountID(ctx, GetOIDCConfigByAccountIDOptions{
 		RequestID: requestID,
 		AccountID: accountKey.AccountID,
 	})
@@ -391,13 +391,12 @@ func (s *Services) getMultipleAccountKeys(
 }
 
 type createMultipleAccountKeysOptions struct {
-	requestID             string
-	accountID             int32
-	accountDEK            string
-	oidcConfigID          int32
-	oidcConfigDEK         string
-	oidcConfigCryptoSuite tokens.SupportedCryptoSuite
-	names                 []AppKeyName
+	requestID     string
+	accountID     int32
+	accountDEK    string
+	oidcConfigID  int32
+	oidcConfigDEK string
+	names         []AppKeyName
 }
 
 func (s *Services) createMultipleAccountKeys(
@@ -427,7 +426,7 @@ func (s *Services) createMultipleAccountKeys(
 	expiresAt := now.Add(time.Duration(KeyDurationHours) * time.Hour)
 	for _, name := range opts.names {
 		isDistributed := isDistributedKey(name)
-		cryptoSuite := getCryptoSuite(isDistributed, opts.oidcConfigCryptoSuite)
+		cryptoSuite := getCryptoSuite(isDistributed)
 		var keyPair encryption.KeyPair
 		var privateKey any
 		keyPair, privateKey, newDEK, serviceErr = s.generateAccountKeyKeyPair(ctx, generateAccountKeyKeyPairOptions{
@@ -554,21 +553,13 @@ func (s *Services) GetOrCreateMultipleAccountKeys(
 		return accountKeyDTOs, nil
 	}
 	if keysCount == 0 {
-		var cryptoSuite tokens.SupportedCryptoSuite
-		cryptoSuite, serviceErr = tokens.GetSupportedCryptoSuite(oidcConfigDTO.JwtCryptoSuite)
-		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Unsupported crypto suite", "crytoSuite", oidcConfigDTO.JwtCryptoSuite)
-			return nil, serviceErr
-		}
-
 		return s.createMultipleAccountKeys(ctx, createMultipleAccountKeysOptions{
-			requestID:             opts.RequestID,
-			accountID:             opts.AccountID,
-			accountDEK:            accountDTO.DEK(),
-			oidcConfigID:          oidcConfigDTO.ID(),
-			oidcConfigDEK:         oidcConfigDTO.DEK(),
-			oidcConfigCryptoSuite: cryptoSuite,
-			names:                 opts.Names,
+			requestID:     opts.RequestID,
+			accountID:     opts.AccountID,
+			accountDEK:    accountDTO.DEK(),
+			oidcConfigID:  oidcConfigDTO.ID(),
+			oidcConfigDEK: oidcConfigDTO.DEK(),
+			names:         opts.Names,
 		})
 	}
 
@@ -587,7 +578,7 @@ func (s *Services) GetOrCreateMultipleAccountKeys(
 	if len(newNames) == 1 {
 		accountKeyDTO, serviceErr := s.createAccountKey(ctx, createAccountKeyOptions{
 			requestID:  opts.RequestID,
-			accountID:  accountDTO.ID,
+			accountID:  accountDTO.ID(),
 			accountDEK: accountDTO.DEK(),
 			name:       newNames[0],
 		})
@@ -602,20 +593,13 @@ func (s *Services) GetOrCreateMultipleAccountKeys(
 		return append(accountKeyDTOs, accountKeyDTO), nil
 	}
 
-	cryptoSuite, serviceErr := tokens.GetSupportedCryptoSuite(oidcConfigDTO.JwtCryptoSuite)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Unsupported crypto suite", "crytoSuite", oidcConfigDTO.JwtCryptoSuite)
-		return nil, serviceErr
-	}
-
 	newAccountKeyDTOs, serviceErr := s.createMultipleAccountKeys(ctx, createMultipleAccountKeysOptions{
-		requestID:             opts.RequestID,
-		accountID:             accountDTO.ID,
-		accountDEK:            accountDTO.DEK(),
-		oidcConfigID:          oidcConfigDTO.ID(),
-		oidcConfigDEK:         oidcConfigDTO.DEK(),
-		oidcConfigCryptoSuite: cryptoSuite,
-		names:                 newNames,
+		requestID:     opts.RequestID,
+		accountID:     accountDTO.ID(),
+		accountDEK:    accountDTO.DEK(),
+		oidcConfigID:  oidcConfigDTO.ID(),
+		oidcConfigDEK: oidcConfigDTO.DEK(),
+		names:         newNames,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to create multiple account keys", "serviceErr", serviceErr)
@@ -699,9 +683,9 @@ type GetDistributedJWKsOptions struct {
 func (s *Services) GetDistributedJWKs(
 	ctx context.Context,
 	opts GetDistributedJWKsOptions,
-) ([]utils.JWK, *exceptions.ServiceError) {
+) ([]utils.ES256JWK, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appKeysLocation, "GetDistributedJWKs").With(
-		"accountId", opts.AccountID,
+		"accountID", opts.AccountID,
 	)
 	logger.InfoContext(ctx, "Getting distributed JWKs...")
 
@@ -717,7 +701,7 @@ func (s *Services) GetDistributedJWKs(
 		return nil, nil
 	}
 
-	jwks := make([]utils.JWK, 0, len(accountKeys))
+	jwks := make([]utils.ES256JWK, 0, len(accountKeys))
 	for _, ak := range accountKeys {
 		publicKey, err := dtos.DecodePublicKeyJSON(ak.JwtCryptoSuite, ak.PublicKey)
 		if err != nil {
@@ -725,7 +709,13 @@ func (s *Services) GetDistributedJWKs(
 			return nil, exceptions.NewServerError()
 		}
 
-		jwks = append(jwks, publicKey)
+		jwk, ok := publicKey.(*utils.ES256JWK)
+		if !ok {
+			logger.ErrorContext(ctx, "Failed to convert public key to ES256JWK", "error", err)
+			return nil, exceptions.NewServerError()
+		}
+
+		jwks = append(jwks, *jwk)
 	}
 
 	logger.InfoContext(ctx, "Distributed JWKs retrieved successfully")

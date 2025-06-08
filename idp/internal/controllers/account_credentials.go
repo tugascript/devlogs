@@ -37,10 +37,10 @@ func (c *Controllers) CreateAccountCredentials(ctx *fiber.Ctx) error {
 	}
 
 	accountKeysDTO, serviceErr := c.services.CreateAccountCredentials(ctx.UserContext(), services.CreateAccountCredentialsOptions{
-		RequestID: requestID,
-		AccountID: int32(accountClaims.ID),
-		Alias:     body.Alias,
-		Scopes:    body.Scopes,
+		RequestID:       requestID,
+		AccountPublicID: accountClaims.AccountID,
+		Alias:           body.Alias,
+		Scopes:          body.Scopes,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -70,11 +70,11 @@ func (c *Controllers) ListAccountCredentials(ctx *fiber.Ctx) error {
 
 	accountKeysDTOs, count, serviceErr := c.services.ListAccountCredentialsByAccountID(
 		ctx.UserContext(),
-		services.ListAccountKeyByAccountID{
-			RequestID: requestID,
-			AccountID: accountClaims.ID,
-			Offset:    queryParams.Offset,
-			Limit:     queryParams.Limit,
+		services.ListAccountKeyByAccountPublicID{
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			Offset:          queryParams.Offset,
+			Limit:           queryParams.Limit,
 		},
 	)
 	if serviceErr != nil {
@@ -108,12 +108,12 @@ func (c *Controllers) GetSingleAccountCredentials(ctx *fiber.Ctx) error {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	accountKeysDTO, serviceErr := c.services.GetAccountCredentialsByClientIDAndAccountID(
+	accountKeysDTO, serviceErr := c.services.GetAccountCredentialsByClientIDAndAccountPublicID(
 		ctx.UserContext(),
-		services.GetAccountCredentialsByClientIDAndAccountIDOptions{
-			RequestID: requestID,
-			AccountID: int32(accountClaims.ID),
-			ClientID:  urlParams.ClientID,
+		services.GetAccountCredentialsByClientIDAndAccountPublicIDOptions{
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			ClientID:        urlParams.ClientID,
 		},
 	)
 
@@ -143,9 +143,9 @@ func (c *Controllers) RefreshAccountCredentialsSecret(ctx *fiber.Ctx) error {
 	accountKeysDTO, serviceErr := c.services.UpdateAccountCredentialsSecret(
 		ctx.UserContext(),
 		services.UpdateAccountCredentialsSecretOptions{
-			RequestID: requestID,
-			AccountID: int32(accountClaims.ID),
-			ClientID:  urlParams.ClientID,
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			ClientID:        urlParams.ClientID,
 		},
 	)
 	if serviceErr != nil {
@@ -182,11 +182,11 @@ func (c *Controllers) UpdateAccountCredentials(ctx *fiber.Ctx) error {
 	accountKeysDTO, serviceErr := c.services.UpdateAccountCredentials(
 		ctx.UserContext(),
 		services.UpdateAccountCredentialsScopesOptions{
-			RequestID: requestID,
-			AccountID: int32(accountClaims.ID),
-			ClientID:  urlParams.ClientID,
-			Scopes:    body.Scopes,
-			Alias:     body.Alias,
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			ClientID:        urlParams.ClientID,
+			Scopes:          body.Scopes,
+			Alias:           body.Alias,
 		},
 	)
 	if serviceErr != nil {
@@ -213,9 +213,9 @@ func (c *Controllers) DeleteAccountCredentials(ctx *fiber.Ctx) error {
 	}
 
 	if serviceErr := c.services.DeleteAccountCredentials(ctx.UserContext(), services.DeleteAccountCredentialsOptions{
-		RequestID: requestID,
-		AccountID: int32(accountClaims.ID),
-		ClientID:  urlParams.ClientID,
+		RequestID:       requestID,
+		AccountPublicID: accountClaims.AccountID,
+		ClientID:        urlParams.ClientID,
 	}); serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}

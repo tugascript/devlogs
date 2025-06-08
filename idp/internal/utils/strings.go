@@ -97,6 +97,15 @@ func IsValidSlug(s string) bool {
 	return len(s) > 0 && slugRegex.MatchString(s)
 }
 
+func IsValidSubdomain(s string) bool {
+	length := len(s)
+	if length < 1 || length > 63 {
+		return false
+	}
+
+	return IsValidSlug(s)
+}
+
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 func IsValidEmail(email string) bool {

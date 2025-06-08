@@ -9,35 +9,49 @@ package tokens
 import (
 	"crypto/ecdsa"
 	"errors"
-	"slices"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+
+	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 )
 
-func (t *Tokens) getAccessTokenPrivateKey(scopes []AccountScope) *ecdsa.PrivateKey {
-	if slices.Contains(scopes, AccountScopeClientCredentials) {
-		return t.accountCredentialsData.curKeyPair.privateKey
-	}
+var baseAccessPaths = []string{paths.Base}
 
-	return t.accessData.curKeyPair.privateKey
+type AccountAccessTokenOptions struct {
+	PublicID     uuid.UUID
+	Version      int32
+	Scopes       []AccountScope
+	TokenSubject string
 }
 
-func (t *Tokens) CreateAccessToken(opts AccountTokenOptions) (string, error) {
-	return t.createToken(accountTokenOptions{
-		method:         jwt.SigningMethodES256,
-		privateKey:     t.getAccessTokenPrivateKey(opts.Scopes),
-		kid:            t.accessData.curKeyPair.kid,
-		ttlSec:         t.accessData.ttlSec,
-		accountID:      opts.ID,
-		accountVersion: opts.Version,
-		accountEmail:   opts.Email,
-		audience:       opts.Audience,
-		scopes:         opts.Scopes,
+func (t *Tokens) getAccessTokenPrivateKeyKIDAndTTL(tokenSubject, publicID string) (*ecdsa.PrivateKey, string, int64) {
+	if tokenSubject != publicID {
+		return t.accountCredentialsData.curKeyPair.privateKey,
+			t.accountCredentialsData.curKeyPair.kid,
+			t.accountCredentialsData.ttlSec
+	}
+
+	return t.accessData.curKeyPair.privateKey, t.accessData.curKeyPair.kid, t.accessData.ttlSec
+}
+
+func (t *Tokens) CreateAccessToken(opts AccountAccessTokenOptions) (string, error) {
+	privateKey, kid, ttl := t.getAccessTokenPrivateKeyKIDAndTTL(opts.TokenSubject, opts.PublicID.String())
+	return t.createAuthToken(accountAuthTokenOptions{
+		method:          jwt.SigningMethodES256,
+		privateKey:      privateKey,
+		kid:             kid,
+		ttlSec:          ttl,
+		accountPublicID: opts.PublicID,
+		accountVersion:  opts.Version,
+		scopes:          opts.Scopes,
+		tokenSubject:    opts.TokenSubject,
+		paths:           baseAccessPaths,
 	})
 }
 
 func (t *Tokens) VerifyAccessToken(token string) (AccountClaims, []AccountScope, error) {
-	claims, err := verifyToken(token, func(token *jwt.Token) (any, error) {
+	claims, err := verifyAuthToken(token, func(token *jwt.Token) (any, error) {
 		kid, err := extractTokenKID(token)
 		if err != nil {
 			return ecdsa.PublicKey{}, err
@@ -67,7 +81,7 @@ func (t *Tokens) VerifyAccessToken(token string) (AccountClaims, []AccountScope,
 		return AccountClaims{}, nil, err
 	}
 
-	return claims.Account, scopes, nil
+	return claims.AccountClaims, scopes, nil
 }
 
 func (t *Tokens) GetAccessTTL() int64 {

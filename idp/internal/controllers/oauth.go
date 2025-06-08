@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -173,12 +172,9 @@ func (c *Controllers) processAccountOAuthHeader(ctx *fiber.Ctx) *exceptions.Serv
 		return exceptions.NewUnauthorizedError()
 	}
 
-	accountClaims, scopes, serviceErr := c.services.ProcessOAuthHeader(authHeader)
+	accountClaims, serviceErr := c.services.ProcessOAuthHeader(authHeader)
 	if serviceErr != nil {
 		return serviceErr
-	}
-	if !slices.Contains(scopes, tokens.AccountScopeOAuth) {
-		return exceptions.NewUnauthorizedError()
 	}
 
 	ctx.Locals("account", accountClaims)
@@ -222,8 +218,8 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 
 	authDTO, serviceErr := c.services.OAuthLoginAccount(ctx.UserContext(), services.OAuthLoginAccountOptions{
 		RequestID: requestID,
-		ID:        int32(account.ID),
-		Version:   account.Version,
+		PublicID:  account.AccountID,
+		Version:   account.AccountVersion,
 		Code:      body.Code,
 	})
 	if serviceErr != nil {
@@ -315,9 +311,9 @@ func (c *Controllers) accountClientCredentialsToken(ctx *fiber.Ctx, requestID st
 		services.ClientCredentialsLoginAccountOptions{
 			RequestID:    requestID,
 			Audience:     body.Audience,
-			Scopes:       scopes,
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
+			Scopes:       scopes,
 		},
 	)
 	if serviceErr != nil {

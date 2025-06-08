@@ -26,9 +26,9 @@ func (c *Controllers) GetCurrentAccount(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	accountDTO, serviceErr := c.services.GetAccountByID(ctx.UserContext(), services.GetAccountByIDOptions{
+	accountDTO, serviceErr := c.services.GetAccountByPublicID(ctx.UserContext(), services.GetAccountByPublicIDOptions{
 		RequestID: requestID,
-		ID:        int32(accountClaims.ID),
+		PublicID:  accountClaims.AccountID,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -58,7 +58,7 @@ func (c *Controllers) UpdateAccountPassword(ctx *fiber.Ctx) error {
 
 	authDTO, serviceErr := c.services.UpdateAccountPassword(ctx.UserContext(), services.UpdateAccountPasswordOptions{
 		RequestID:   requestID,
-		ID:          int32(accountClaims.ID),
+		PublicID:    accountClaims.AccountID,
 		Password:    body.OldPassword,
 		NewPassword: body.Password,
 	})
@@ -96,7 +96,7 @@ func (c *Controllers) ConfirmUpdateAccountPassword(ctx *fiber.Ctx) error {
 
 	authDTO, serviceErr := c.services.ConfirmUpdateAccountPassword(ctx.UserContext(), services.ConfirmUpdateAccountPasswordOptions{
 		RequestID: requestID,
-		ID:        int32(accountClaims.ID),
+		PublicID:  accountClaims.AccountID,
 		Code:      body.Code,
 	})
 	if serviceErr != nil {
@@ -128,7 +128,7 @@ func (c *Controllers) UpdateAccountEmail(ctx *fiber.Ctx) error {
 
 	authDTO, serviceErr := c.services.UpdateAccountEmail(ctx.UserContext(), services.UpdateAccountEmailOptions{
 		RequestID: requestID,
-		ID:        int32(accountClaims.ID),
+		PublicID:  accountClaims.AccountID,
 		Email:     body.Email,
 		Password:  body.Password,
 	})
@@ -166,7 +166,7 @@ func (c *Controllers) ConfirmUpdateAccountEmail(ctx *fiber.Ctx) error {
 
 	authDTO, serviceErr := c.services.ConfirmUpdateAccountEmail(ctx.UserContext(), services.ConfirmUpdateAccountEmailOptions{
 		RequestID: requestID,
-		ID:        int32(accountClaims.ID),
+		PublicID:  accountClaims.AccountID,
 		Code:      body.Code,
 	})
 	if serviceErr != nil {
@@ -198,7 +198,7 @@ func (c *Controllers) UpdateAccount(ctx *fiber.Ctx) error {
 
 	accountDTO, serviceErr := c.services.UpdateAccount(ctx.UserContext(), services.UpdateAccountOptions{
 		RequestID:  requestID,
-		ID:         int32(accountClaims.ID),
+		PublicID:   accountClaims.AccountID,
 		GivenName:  body.GivenName,
 		FamilyName: body.FamilyName,
 		Username:   body.Username,
@@ -231,7 +231,7 @@ func (c *Controllers) DeleteAccount(ctx *fiber.Ctx) error {
 
 	deleted, serviceErr := c.services.DeleteAccount(ctx.UserContext(), services.DeleteAccountOptions{
 		RequestID: requestID,
-		ID:        int32(accountClaims.ID),
+		PublicID:  accountClaims.AccountID,
 		Password:  body.Password,
 	})
 	if serviceErr != nil {
@@ -268,7 +268,7 @@ func (c *Controllers) ConfirmDeleteAccount(ctx *fiber.Ctx) error {
 
 	serviceErr = c.services.ConfirmDeleteAccount(ctx.UserContext(), services.ConfirmDeleteAccountOptions{
 		RequestID: requestID,
-		ID:        int32(accountClaims.ID),
+		PublicID:  accountClaims.AccountID,
 		Code:      body.Code,
 	})
 	if serviceErr != nil {

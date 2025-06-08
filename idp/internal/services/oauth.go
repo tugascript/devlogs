@@ -14,6 +14,8 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/google/uuid"
+
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -317,10 +319,9 @@ func (s *Services) ExtLoginAccount(
 		return "", serviceErr
 	}
 
-	oauthToken, err := s.jwt.CreateOAuthToken(tokens.AccountTokenOptions{
-		ID:      accountDTO.ID,
-		Version: accountDTO.Version(),
-		Email:   accountDTO.Email,
+	oauthToken, err := s.jwt.CreateOAuthToken(tokens.AccountOAuthTokenOptions{
+		PublicID: accountDTO.PublicID,
+		Version:  accountDTO.Version(),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate OAuth Token", "error", err)
@@ -401,10 +402,9 @@ func (s *Services) AppleLoginAccount(
 		return "", serviceErr
 	}
 
-	oauthToken, err := s.jwt.CreateOAuthToken(tokens.AccountTokenOptions{
-		ID:      accountDTO.ID,
-		Version: accountDTO.Version(),
-		Email:   accountDTO.Email,
+	oauthToken, err := s.jwt.CreateOAuthToken(tokens.AccountOAuthTokenOptions{
+		PublicID: accountDTO.PublicID,
+		Version:  accountDTO.Version(),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate OAuth Token", "error", err)
@@ -420,7 +420,7 @@ func (s *Services) AppleLoginAccount(
 
 type OAuthLoginAccountOptions struct {
 	RequestID string
-	ID        int32
+	PublicID  uuid.UUID
 	Version   int32
 	Code      string
 }
@@ -429,12 +429,12 @@ func (s *Services) OAuthLoginAccount(
 	ctx context.Context,
 	opts OAuthLoginAccountOptions,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, oauthLocation, "OAuthLoginAccount").With("accountId", opts.ID)
+	logger := s.buildLogger(opts.RequestID, oauthLocation, "OAuthLoginAccount").With("accountPublicId", opts.PublicID)
 	logger.InfoContext(ctx, "OAuth account logging in...")
 
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		ID:        opts.ID,
+		PublicID:  opts.PublicID,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -487,9 +487,6 @@ func processAccountClientCredentialsScopes(ccScopes []string, scopes []string) (
 			return nil, exceptions.NewUnauthorizedError()
 		}
 	}
-	if !slices.Contains(scopes, tokens.AccountScopeClientCredentials) {
-		scopes = append(scopes, tokens.AccountScopeClientCredentials)
-	}
 
 	return scopes, nil
 }
@@ -538,7 +535,7 @@ func (s *Services) ClientCredentialsLoginAccount(
 
 	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
 		RequestID: opts.RequestID,
-		ID:        int32(accountClientCredentialsDTO.AccountID()),
+		ID:        accountClientCredentialsDTO.AccountID(),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get account", "error", serviceErr)
@@ -551,12 +548,11 @@ func (s *Services) ClientCredentialsLoginAccount(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	accessToken, err := s.jwt.CreateAccessToken(tokens.AccountTokenOptions{
-		ID:       accountDTO.ID,
-		Version:  accountDTO.Version(),
-		Email:    accountDTO.Email,
-		Audience: opts.Audience,
-		Scopes:   scopes,
+	accessToken, err := s.jwt.CreateAccessToken(tokens.AccountAccessTokenOptions{
+		PublicID:     accountDTO.PublicID,
+		Version:      accountDTO.Version(),
+		Scopes:       scopes,
+		TokenSubject: accountClientCredentialsDTO.ClientID,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate access token", "error", err)
@@ -574,7 +570,5 @@ func (s *Services) GetAccountPublicJWKs(ctx context.Context, requestID string) d
 	jwks := s.jwt.JWKs()
 
 	logger.InfoContext(ctx, "Got account public JWKs successfully")
-	return dtos.NewJWKsDTO(utils.MapSlice(jwks, func(jwk *utils.ES256JWK) utils.JWK {
-		return jwk
-	}))
+	return dtos.NewJWKsDTO(jwks)
 }

@@ -30,7 +30,7 @@ func (c *Controllers) WellKnownJWKs(ctx *fiber.Ctx) error {
 
 	jwksDTO, etag, serviceErr := c.services.WellKnownJWKsWithCache(ctx.UserContext(), services.WellKnownJWKsOptions{
 		RequestID:       requestID,
-		AccountID:       int32(accountID),
+		AccountPublicID: accountPublicID,
 		AccountUsername: accountUsername,
 	})
 	if serviceErr != nil {
@@ -53,14 +53,14 @@ func (c *Controllers) WellKnownOIDCConfiguration(ctx *fiber.Ctx) error {
 	logger := c.buildLogger(requestID, wellKnownLocation, "WellKnownOIDCConfiguration")
 	logRequest(logger, ctx)
 
-	accountUsername, accountID, serviceErr := getHostAccount(ctx)
+	accountUsername, accountPublicID, serviceErr := getHostAccount(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	configDTO, etag, serviceErr := c.services.WellKnownOIDCConfigurationWithCache(ctx.UserContext(), services.WellKnownOIDCConfigurationOptions{
+	configDTO, etag, serviceErr := c.services.WellKnownOIDCConfigurationWithCache(ctx.UserContext(), services.WellKnownOIDCConfigurationWithCacheOptions{
 		RequestID:       requestID,
-		AccountID:       int32(accountID),
+		AccountPublicID: accountPublicID,
 		BackendDomain:   c.backendDomain,
 		AccountUsername: accountUsername,
 	})

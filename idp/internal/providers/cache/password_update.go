@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -27,7 +29,7 @@ const (
 type SaveUpdatePasswordRequestOptions struct {
 	RequestID       string
 	PrefixType      PasswordUpdatePrefixType
-	ID              int
+	PublicID        uuid.UUID
 	NewPassword     string
 	DurationSeconds int64
 }
@@ -40,7 +42,7 @@ func (c *Cache) SaveUpdatePasswordRequest(ctx context.Context, opts SaveUpdatePa
 		RequestID: opts.RequestID,
 	}).With(
 		"prefixType", opts.PrefixType,
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.DebugContext(ctx, "Saving update password request...")
 
@@ -50,7 +52,7 @@ func (c *Cache) SaveUpdatePasswordRequest(ctx context.Context, opts SaveUpdatePa
 		return err
 	}
 
-	key := fmt.Sprintf("%s:%s:%d", passwordUpdatePrefix, opts.PrefixType, opts.ID)
+	key := fmt.Sprintf("%s:%s:%s", passwordUpdatePrefix, opts.PrefixType, opts.PublicID.String())
 	val := []byte(hashedPassword)
 	exp := time.Duration(opts.DurationSeconds) * time.Second
 	if err := c.storage.Set(key, val, exp); err != nil {
@@ -64,7 +66,7 @@ func (c *Cache) SaveUpdatePasswordRequest(ctx context.Context, opts SaveUpdatePa
 type GetUpdatePasswordRequestOptions struct {
 	RequestID  string
 	PrefixType PasswordUpdatePrefixType
-	ID         int
+	PublicID   uuid.UUID
 }
 
 func (c *Cache) GetUpdatePasswordRequest(ctx context.Context, opts GetUpdatePasswordRequestOptions) (string, bool, error) {
@@ -75,11 +77,11 @@ func (c *Cache) GetUpdatePasswordRequest(ctx context.Context, opts GetUpdatePass
 		RequestID: opts.RequestID,
 	}).With(
 		"prefixType", opts.PrefixType,
-		"id", opts.ID,
+		"publicID", opts.PublicID,
 	)
 	logger.DebugContext(ctx, "Getting update password request...")
 
-	key := fmt.Sprintf("%s:%s:%d", passwordUpdatePrefix, opts.PrefixType, opts.ID)
+	key := fmt.Sprintf("%s:%s:%s", passwordUpdatePrefix, opts.PrefixType, opts.PublicID.String())
 	valByte, err := c.storage.Get(key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting the update password request", "error", err)

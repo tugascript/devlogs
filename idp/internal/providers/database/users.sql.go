@@ -8,6 +8,7 @@ package database
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -17,7 +18,7 @@ UPDATE "users" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
+RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
 `
 
 func (q *Queries) ConfirmUser(ctx context.Context, id int32) (User, error) {
@@ -25,6 +26,7 @@ func (q *Queries) ConfirmUser(ctx context.Context, id int32) (User, error) {
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.AccountID,
 		&i.Email,
 		&i.Username,
@@ -113,6 +115,7 @@ const createUserWithPassword = `-- name: CreateUserWithPassword :one
 
 INSERT INTO "users" (
     "account_id",
+    "public_id",
     "email",
     "username",
     "password",
@@ -124,12 +127,14 @@ INSERT INTO "users" (
     $3,
     $4,
     $5,
-    $6
-) RETURNING id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
+    $6,
+    $7
+) RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
 `
 
 type CreateUserWithPasswordParams struct {
 	AccountID int32
+	PublicID  uuid.UUID
 	Email     string
 	Username  string
 	Password  pgtype.Text
@@ -145,6 +150,7 @@ type CreateUserWithPasswordParams struct {
 func (q *Queries) CreateUserWithPassword(ctx context.Context, arg CreateUserWithPasswordParams) (User, error) {
 	row := q.db.QueryRow(ctx, createUserWithPassword,
 		arg.AccountID,
+		arg.PublicID,
 		arg.Email,
 		arg.Username,
 		arg.Password,
@@ -154,6 +160,7 @@ func (q *Queries) CreateUserWithPassword(ctx context.Context, arg CreateUserWith
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.AccountID,
 		&i.Email,
 		&i.Username,
@@ -173,6 +180,7 @@ func (q *Queries) CreateUserWithPassword(ctx context.Context, arg CreateUserWith
 const createUserWithoutPassword = `-- name: CreateUserWithoutPassword :one
 INSERT INTO "users" (
     "account_id",
+    "public_id",
     "email",
     "username",
     "user_data",
@@ -182,12 +190,14 @@ INSERT INTO "users" (
     $2,
     $3,
     $4,
-    $5
-) RETURNING id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
+    $5,
+    $6
+) RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
 `
 
 type CreateUserWithoutPasswordParams struct {
 	AccountID int32
+	PublicID  uuid.UUID
 	Email     string
 	Username  string
 	UserData  []byte
@@ -197,6 +207,7 @@ type CreateUserWithoutPasswordParams struct {
 func (q *Queries) CreateUserWithoutPassword(ctx context.Context, arg CreateUserWithoutPasswordParams) (User, error) {
 	row := q.db.QueryRow(ctx, createUserWithoutPassword,
 		arg.AccountID,
+		arg.PublicID,
 		arg.Email,
 		arg.Username,
 		arg.UserData,
@@ -205,6 +216,7 @@ func (q *Queries) CreateUserWithoutPassword(ctx context.Context, arg CreateUserW
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.AccountID,
 		&i.Email,
 		&i.Username,
@@ -232,7 +244,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
 }
 
 const filterUsersByEmailOrUsernameAndByAccountIDOrderedByEmail = `-- name: FilterUsersByEmailOrUsernameAndByAccountIDOrderedByEmail :many
-SELECT id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "account_id" = $1 AND ("email" ILIKE $2 OR "username" ILIKE $3)
 ORDER BY "email" ASC
 OFFSET $4 LIMIT $5
@@ -263,6 +275,7 @@ func (q *Queries) FilterUsersByEmailOrUsernameAndByAccountIDOrderedByEmail(ctx c
 		var i User
 		if err := rows.Scan(
 			&i.ID,
+			&i.PublicID,
 			&i.AccountID,
 			&i.Email,
 			&i.Username,
@@ -287,7 +300,7 @@ func (q *Queries) FilterUsersByEmailOrUsernameAndByAccountIDOrderedByEmail(ctx c
 }
 
 const filterUsersByEmailOrUsernameAndByAccountIDOrderedByID = `-- name: FilterUsersByEmailOrUsernameAndByAccountIDOrderedByID :many
-SELECT id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "account_id" = $1 AND ("email" ILIKE $2 OR "username" ILIKE $3)
 ORDER BY "id" DESC
 OFFSET $4 LIMIT $5
@@ -318,6 +331,7 @@ func (q *Queries) FilterUsersByEmailOrUsernameAndByAccountIDOrderedByID(ctx cont
 		var i User
 		if err := rows.Scan(
 			&i.ID,
+			&i.PublicID,
 			&i.AccountID,
 			&i.Email,
 			&i.Username,
@@ -342,7 +356,7 @@ func (q *Queries) FilterUsersByEmailOrUsernameAndByAccountIDOrderedByID(ctx cont
 }
 
 const filterUsersByEmailOrUsernameAndByAccountIDOrderedByUsername = `-- name: FilterUsersByEmailOrUsernameAndByAccountIDOrderedByUsername :many
-SELECT id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "account_id" = $1 AND ("email" ILIKE $2 OR "username" ILIKE $3)
 ORDER BY "username" ASC
 OFFSET $4 LIMIT $5
@@ -373,6 +387,7 @@ func (q *Queries) FilterUsersByEmailOrUsernameAndByAccountIDOrderedByUsername(ct
 		var i User
 		if err := rows.Scan(
 			&i.ID,
+			&i.PublicID,
 			&i.AccountID,
 			&i.Email,
 			&i.Username,
@@ -397,7 +412,7 @@ func (q *Queries) FilterUsersByEmailOrUsernameAndByAccountIDOrderedByUsername(ct
 }
 
 const findPaginatedUsersByAccountIDOrderedByEmail = `-- name: FindPaginatedUsersByAccountIDOrderedByEmail :many
-SELECT id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "account_id" = $1
 ORDER BY "email" ASC
 OFFSET $2 LIMIT $3
@@ -420,6 +435,7 @@ func (q *Queries) FindPaginatedUsersByAccountIDOrderedByEmail(ctx context.Contex
 		var i User
 		if err := rows.Scan(
 			&i.ID,
+			&i.PublicID,
 			&i.AccountID,
 			&i.Email,
 			&i.Username,
@@ -444,7 +460,7 @@ func (q *Queries) FindPaginatedUsersByAccountIDOrderedByEmail(ctx context.Contex
 }
 
 const findPaginatedUsersByAccountIDOrderedByID = `-- name: FindPaginatedUsersByAccountIDOrderedByID :many
-SELECT id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "account_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3
@@ -467,6 +483,7 @@ func (q *Queries) FindPaginatedUsersByAccountIDOrderedByID(ctx context.Context, 
 		var i User
 		if err := rows.Scan(
 			&i.ID,
+			&i.PublicID,
 			&i.AccountID,
 			&i.Email,
 			&i.Username,
@@ -491,7 +508,7 @@ func (q *Queries) FindPaginatedUsersByAccountIDOrderedByID(ctx context.Context, 
 }
 
 const findPaginatedUsersByAccountIDOrderedByUsername = `-- name: FindPaginatedUsersByAccountIDOrderedByUsername :many
-SELECT id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "account_id" = $1
 ORDER BY "username" ASC
 OFFSET $2 LIMIT $3
@@ -514,6 +531,7 @@ func (q *Queries) FindPaginatedUsersByAccountIDOrderedByUsername(ctx context.Con
 		var i User
 		if err := rows.Scan(
 			&i.ID,
+			&i.PublicID,
 			&i.AccountID,
 			&i.Email,
 			&i.Username,
@@ -538,7 +556,7 @@ func (q *Queries) FindPaginatedUsersByAccountIDOrderedByUsername(ctx context.Con
 }
 
 const findUserByEmailAndAccountID = `-- name: FindUserByEmailAndAccountID :one
-SELECT id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "email" = $1 AND "account_id" = $2
 LIMIT 1
 `
@@ -553,6 +571,7 @@ func (q *Queries) FindUserByEmailAndAccountID(ctx context.Context, arg FindUserB
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.AccountID,
 		&i.Email,
 		&i.Username,
@@ -570,7 +589,7 @@ func (q *Queries) FindUserByEmailAndAccountID(ctx context.Context, arg FindUserB
 }
 
 const findUserByID = `-- name: FindUserByID :one
-SELECT id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "id" = $1 LIMIT 1
 `
 
@@ -579,6 +598,39 @@ func (q *Queries) FindUserByID(ctx context.Context, id int32) (User, error) {
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
+		&i.AccountID,
+		&i.Email,
+		&i.Username,
+		&i.Password,
+		&i.Dek,
+		&i.Version,
+		&i.EmailVerified,
+		&i.IsActive,
+		&i.TwoFactorType,
+		&i.UserData,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findUserByPublicIDAndVersion = `-- name: FindUserByPublicIDAndVersion :one
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+WHERE "public_id" = $1 AND "version" = $2 LIMIT 1
+`
+
+type FindUserByPublicIDAndVersionParams struct {
+	PublicID uuid.UUID
+	Version  int32
+}
+
+func (q *Queries) FindUserByPublicIDAndVersion(ctx context.Context, arg FindUserByPublicIDAndVersionParams) (User, error) {
+	row := q.db.QueryRow(ctx, findUserByPublicIDAndVersion, arg.PublicID, arg.Version)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
 		&i.AccountID,
 		&i.Email,
 		&i.Username,
@@ -596,7 +648,7 @@ func (q *Queries) FindUserByID(ctx context.Context, id int32) (User, error) {
 }
 
 const findUserByUsernameAndAccountID = `-- name: FindUserByUsernameAndAccountID :one
-SELECT id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "username" = $1 AND "account_id" = $2
 LIMIT 1
 `
@@ -611,6 +663,7 @@ func (q *Queries) FindUserByUsernameAndAccountID(ctx context.Context, arg FindUs
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.AccountID,
 		&i.Email,
 		&i.Username,
@@ -637,7 +690,7 @@ UPDATE "users" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $6
-RETURNING id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
+RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
 `
 
 type UpdateUserParams struct {
@@ -661,6 +714,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.AccountID,
 		&i.Email,
 		&i.Username,
@@ -700,7 +754,7 @@ UPDATE "users" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $2
-RETURNING id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
+RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
 `
 
 type UpdateUserPasswordParams struct {
@@ -713,6 +767,7 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.AccountID,
 		&i.Email,
 		&i.Username,

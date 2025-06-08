@@ -11,10 +11,11 @@ import (
 	"log/slog"
 	"reflect"
 	"slices"
-	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -38,38 +39,67 @@ type ProcessUserAuthHeaderOptions struct {
 	Name       AppKeyName
 }
 
-func (s *Services) ProcessUserAuthHeader(
+func (s *Services) ProcessUserAccessHeader(
 	ctx context.Context,
 	opts ProcessUserAuthHeaderOptions,
-) (tokens.UserClaims, tokens.AppClaims, []string, *exceptions.ServiceError) {
-	if opts.AuthHeader == "" {
-		return tokens.UserClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
+) (tokens.UserAuthClaims, tokens.AppClaims, []string, *exceptions.ServiceError) {
+	token, serviceErr := extractAuthHeaderToken(opts.AuthHeader)
+	if serviceErr != nil {
+		return tokens.UserAuthClaims{}, tokens.AppClaims{}, nil, serviceErr
 	}
 
-	parts := strings.Split(opts.AuthHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		return tokens.UserClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
+	userClaims, appClaims, scope, _, _, err := s.jwt.VerifyUserAuthToken(
+		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
+			RequestID: opts.RequestID,
+			Name:      AppKeyNameAccess,
+		}),
+		token,
+	)
+	if err != nil {
+		return tokens.UserAuthClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
 	}
 
-	userClaims, appClaims, scope, _, _, err := s.jwt.VerifyUserToken(
+	return userClaims, appClaims, scope, nil
+}
+
+type ProcessUserPurposeHeaderOptions struct {
+	RequestID  string
+	AuthHeader string
+	TokenType  tokens.PurposeTokenType
+	Name       AppKeyName
+}
+
+func (s *Services) ProcessUserPurposeHeader(
+	ctx context.Context,
+	opts ProcessUserPurposeHeaderOptions,
+) (tokens.UserPurposeClaims, tokens.AppClaims, error) {
+	token, serviceErr := extractAuthHeaderToken(opts.AuthHeader)
+	if serviceErr != nil {
+		return tokens.UserPurposeClaims{}, tokens.AppClaims{}, serviceErr
+	}
+
+	userClaims, appClaims, purpose, err := s.jwt.VerifyUserPurposeToken(
 		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
 			RequestID: opts.RequestID,
 			Name:      opts.Name,
 		}),
-		parts[1],
+		token,
 	)
 	if err != nil {
-		return tokens.UserClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
+		return tokens.UserPurposeClaims{}, tokens.AppClaims{}, err
+	}
+	if purpose != opts.TokenType {
+		return tokens.UserPurposeClaims{}, tokens.AppClaims{}, exceptions.NewUnauthorizedError()
 	}
 
-	return userClaims, appClaims, strings.Split(scope, " "), nil
+	return userClaims, appClaims, nil
 }
 
 type sendUserConfirmationEmailOptions struct {
 	requestID          string
 	accountID          int32
 	accountUsername    string
-	appID              int32
+	appVersion         int32
 	appClientID        string
 	appName            string
 	appConfirmationURI string
@@ -79,7 +109,6 @@ func (s *Services) sendUserConfirmationEmail(
 	ctx context.Context,
 	logger *slog.Logger,
 	userDTO *dtos.UserDTO,
-	profileDTO *dtos.AppProfileDTO,
 	opts sendUserConfirmationEmailOptions,
 ) *exceptions.ServiceError {
 	appKeyDTO, serviceErr := s.GetOrCreateAccountKey(ctx, GetOrCreateAccountKeyOptions{
@@ -92,19 +121,16 @@ func (s *Services) sendUserConfirmationEmail(
 		return serviceErr
 	}
 
-	token, err := s.jwt.CreateUserToken(tokens.UserTokenOptions{
-		CryptoSuite:     appKeyDTO.JWTCryptoSuite(),
-		Type:            tokens.TokenTypeConfirmation,
+	token, err := s.jwt.CreateUserPurposeToken(tokens.UserPurposeTokenOptions{
+		TokenType:       tokens.PurposeTokenTypeConfirmation,
 		PrivateKey:      appKeyDTO.PrivateKey(),
 		KID:             appKeyDTO.PublicKID(),
 		AccountUsername: opts.accountUsername,
-		UserID:          userDTO.ID,
+		UserPublicID:    userDTO.PublicID,
 		UserVersion:     userDTO.Version(),
-		UserEmail:       userDTO.Email,
-		ProfileRoles:    profileDTO.Roles,
-		Scopes:          []string{tokens.UserScopeConfirmation},
-		AppID:           opts.appID,
 		AppClientID:     opts.appClientID,
+		AppVersion:      opts.appVersion,
+		Path:            paths.AppsBase + paths.UsersBase + paths.AuthConfirmEmail,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create user token", "error", err)
@@ -129,7 +155,8 @@ type RegisterUserOptions struct {
 	RequestID       string
 	AccountID       int32
 	AccountUsername string
-	AppID           int32
+	AppClientID     string
+	AppVersion      int32
 	Email           string
 	Username        string
 	Password        string
@@ -142,14 +169,15 @@ func (s *Services) RegisterUser(
 ) (dtos.MessageDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "RegisterUser").With(
 		"accountId", opts.AccountID,
-		"appId", opts.AppID,
+		"appClientId", opts.AppClientID,
 	)
 	logger.InfoContext(ctx, "Registering user...")
 
-	appDTO, serviceErr := s.GetAppByID(ctx, GetAppByIDOptions{
+	appDTO, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{
 		RequestID: opts.RequestID,
+		ClientID:  opts.AppClientID,
+		Version:   opts.AppVersion,
 		AccountID: opts.AccountID,
-		AppID:     opts.AppID,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get app by ID", "error", serviceErr)
@@ -161,10 +189,10 @@ func (s *Services) RegisterUser(
 		return dtos.MessageDTO{}, exceptions.NewForbiddenError()
 	}
 
-	userDTO, profileDTO, serviceErr := s.CreateAppUser(ctx, CreateAppUserOptions{
+	userDTO, serviceErr := s.CreateAppUser(ctx, CreateAppUserOptions{
 		RequestID: opts.RequestID,
 		AccountID: opts.AccountID,
-		AppID:     opts.AppID,
+		AppID:     appDTO.ID(),
 		Email:     opts.Email,
 		Username:  opts.Username,
 		Password:  opts.Password,
@@ -176,11 +204,11 @@ func (s *Services) RegisterUser(
 		return dtos.MessageDTO{}, serviceErr
 	}
 
-	if serviceErr := s.sendUserConfirmationEmail(ctx, logger, &userDTO, &profileDTO, sendUserConfirmationEmailOptions{
+	if serviceErr := s.sendUserConfirmationEmail(ctx, logger, &userDTO, sendUserConfirmationEmailOptions{
 		requestID:          opts.RequestID,
 		accountID:          opts.AccountID,
 		accountUsername:    opts.AccountUsername,
-		appID:              opts.AppID,
+		appVersion:         appDTO.Version(),
 		appClientID:        appDTO.ClientID,
 		appName:            appDTO.Name,
 		appConfirmationURI: appDTO.ConfirmationURI,
@@ -192,7 +220,7 @@ func (s *Services) RegisterUser(
 	return dtos.NewMessageDTO("User registered successfully. Confirmation email hasd been sent"), nil
 }
 
-func (s *Services) GenerateFullUserAuthDTO(
+func (s *Services) generateFullUserAuthDTO(
 	ctx context.Context,
 	logger *slog.Logger,
 	requestID string,
@@ -200,6 +228,7 @@ func (s *Services) GenerateFullUserAuthDTO(
 	userDTO *dtos.UserDTO,
 	appDTO *dtos.AppDTO,
 	appProfileDTO *dtos.AppProfileDTO,
+	scopes []string,
 	accountUsername,
 	logSuccessMessage string,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
@@ -219,19 +248,19 @@ func (s *Services) GenerateFullUserAuthDTO(
 	}
 
 	accessTokenKey := keyDTOsMap[AppKeyNameAccess]
-	accessToken, err := s.jwt.CreateUserToken(tokens.UserTokenOptions{
+	accessToken, err := s.jwt.CreateUserAuthToken(tokens.UserAuthTokenOptions{
 		CryptoSuite:     accessTokenKey.JWTCryptoSuite(),
-		Type:            tokens.TokenTypeAccess,
+		TokenType:       tokens.AuthTokenTypeAccess,
 		PrivateKey:      accessTokenKey.PrivateKey(),
 		KID:             accessTokenKey.PublicKID(),
 		AccountUsername: accountUsername,
-		UserID:          userDTO.ID,
+		UserPublicID:    userDTO.PublicID,
 		UserVersion:     userDTO.Version(),
-		UserEmail:       userDTO.Email,
-		Scopes:          appDTO.DefaultScopes,
 		ProfileRoles:    appProfileDTO.Roles,
-		AppID:           appDTO.ID(),
+		Scopes:          scopes,
+		TokenSubject:    userDTO.PublicID.String(),
 		AppClientID:     appDTO.ClientID,
+		AppVersion:      appDTO.Version(),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create access token", "error", err)
@@ -239,19 +268,19 @@ func (s *Services) GenerateFullUserAuthDTO(
 	}
 
 	refreshTokenKey := keyDTOsMap[AppKeyNameRefresh]
-	refreshToken, err := s.jwt.CreateUserToken(tokens.UserTokenOptions{
+	refreshToken, err := s.jwt.CreateUserAuthToken(tokens.UserAuthTokenOptions{
 		CryptoSuite:     refreshTokenKey.JWTCryptoSuite(),
-		Type:            tokens.TokenTypeRefresh,
+		TokenType:       tokens.AuthTokenTypeRefresh,
 		PrivateKey:      refreshTokenKey.PrivateKey(),
 		KID:             refreshTokenKey.PublicKID(),
 		AccountUsername: accountUsername,
-		UserID:          userDTO.ID,
+		UserPublicID:    userDTO.PublicID,
 		UserVersion:     userDTO.Version(),
-		UserEmail:       userDTO.Email,
-		Scopes:          []string{tokens.UserScopeRefresh},
 		ProfileRoles:    appProfileDTO.Roles,
-		AppID:           appDTO.ID(),
+		Scopes:          scopes,
+		TokenSubject:    userDTO.PublicID.String(),
 		AppClientID:     appDTO.ClientID,
+		AppVersion:      appDTO.Version(),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create refresh token", "error", err)
@@ -266,7 +295,8 @@ type ConfirmAuthUserOptions struct {
 	RequestID         string
 	AccountID         int32
 	AccountUsername   string
-	AppID             int32
+	AppClientID       string
+	AppVersion        int32
 	ConfirmationToken string
 }
 
@@ -276,14 +306,15 @@ func (s *Services) ConfirmAuthUser(
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "ConfirmAuthUser").With(
 		"accountId", opts.AccountID,
-		"appId", opts.AppID,
+		"appClientId", opts.AppClientID,
 	)
 	logger.InfoContext(ctx, "Confirming user...")
 
-	appDTO, serviceErr := s.GetAppByID(ctx, GetAppByIDOptions{
+	appDTO, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{
 		RequestID: opts.RequestID,
+		ClientID:  opts.AppClientID,
+		Version:   opts.AppVersion,
 		AccountID: opts.AccountID,
-		AppID:     opts.AppID,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeNotFound {
@@ -300,7 +331,7 @@ func (s *Services) ConfirmAuthUser(
 		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 	}
 
-	userClaims, appClaims, _, _, _, err := s.jwt.VerifyUserToken(
+	userClaims, appClaims, _, err := s.jwt.VerifyUserPurposeToken(
 		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
 			RequestID: opts.RequestID,
 			Name:      AppKeyNameConfirm,
@@ -311,16 +342,16 @@ func (s *Services) ConfirmAuthUser(
 		logger.ErrorContext(ctx, "Failed to verify user token", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
-	if appClaims.AppID != opts.AppID {
-		logger.WarnContext(ctx, "Invalid app ID", "tokenAppId", appClaims.AppID, "appId", opts.AppID)
+	if appClaims.ClientID != opts.AppClientID {
+		logger.WarnContext(ctx, "Invalid app client ID", "tokenAppClientId", appClaims.ClientID, "appClientId", opts.AppClientID)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
 	userDTO, profileDTO, serviceErr := s.ConfirmAppUser(ctx, ConfirmAppUserOptions{
-		RequestID: opts.RequestID,
-		AccountID: opts.AccountID,
-		UserID:    userClaims.UserID,
-		Version:   userClaims.UserVersion,
+		RequestID:    opts.RequestID,
+		AccountID:    opts.AccountID,
+		UserPublicID: userClaims.UserID,
+		UserVersion:  userClaims.UserVersion,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeNotFound {
@@ -332,7 +363,7 @@ func (s *Services) ConfirmAuthUser(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	return s.GenerateFullUserAuthDTO(
+	return s.generateFullUserAuthDTO(
 		ctx,
 		logger,
 		opts.RequestID,
@@ -340,6 +371,7 @@ func (s *Services) ConfirmAuthUser(
 		&userDTO,
 		&appDTO,
 		&profileDTO,
+		appDTO.DefaultScopes,
 		opts.AccountUsername,
 		"User confirmed successfully",
 	)
@@ -409,7 +441,8 @@ type LoginUserOptions struct {
 	RequestID       string
 	AccountID       int32
 	AccountUsername string
-	AppID           int32
+	AppClientID     string
+	AppVersion      int32
 	UsernameOrEmail string
 	Password        string
 }
@@ -420,14 +453,15 @@ func (s *Services) LoginUser(
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "LoginUser").With(
 		"accountId", opts.AccountID,
-		"appId", opts.AppID,
+		"appClientId", opts.AppClientID,
 	)
 	logger.InfoContext(ctx, "Logging in user...")
 
-	appDTO, serviceErr := s.GetAppByID(ctx, GetAppByIDOptions{
+	appDTO, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{
 		RequestID: opts.RequestID,
+		ClientID:  opts.AppClientID,
+		Version:   opts.AppVersion,
 		AccountID: opts.AccountID,
-		AppID:     opts.AppID,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeNotFound {
@@ -464,7 +498,7 @@ func (s *Services) LoginUser(
 		RequestID: opts.RequestID,
 		AccountID: opts.AccountID,
 		AppID:     appDTO.ID(),
-		UserID:    userDTO.ID,
+		UserID:    userDTO.ID(),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get app profile", "error", serviceErr)
@@ -484,11 +518,11 @@ func (s *Services) LoginUser(
 	if !userDTO.EmailVerified() {
 		logger.InfoContext(ctx, "User is not confirmed, sending new confirmation email")
 
-		if serviceErr := s.sendUserConfirmationEmail(ctx, logger, &userDTO, &profileDTO, sendUserConfirmationEmailOptions{
+		if serviceErr := s.sendUserConfirmationEmail(ctx, logger, &userDTO, sendUserConfirmationEmailOptions{
 			requestID:          opts.RequestID,
 			accountID:          opts.AccountID,
 			accountUsername:    opts.AccountUsername,
-			appID:              appDTO.ID(),
+			appVersion:         appDTO.Version(),
 			appClientID:        appDTO.ClientID,
 			appName:            appDTO.Name,
 			appConfirmationURI: appDTO.ConfirmationURI,
@@ -509,18 +543,16 @@ func (s *Services) LoginUser(
 			logger.ErrorContext(ctx, "Failed to get or create app key", "error", serviceErr)
 			return dtos.AuthDTO{}, serviceErr
 		}
-		twoFAToken, err := s.jwt.CreateUserToken(tokens.UserTokenOptions{
-			CryptoSuite:     appKeyDTO.JWTCryptoSuite(),
-			Type:            tokens.TokenTypeTwoFA,
+		twoFAToken, err := s.jwt.CreateUserPurposeToken(tokens.UserPurposeTokenOptions{
+			TokenType:       tokens.PurposeTokenTypeTwoFA,
 			PrivateKey:      appKeyDTO.PrivateKey(),
 			KID:             appKeyDTO.PublicKID(),
 			AccountUsername: opts.AccountUsername,
-			UserID:          int32(userDTO.ID),
-			UserVersion:     int32(userDTO.Version()),
-			UserEmail:       userDTO.Email,
-			Scopes:          []string{tokens.UserScope2FA},
-			AppID:           int32(appDTO.ID()),
+			UserPublicID:    userDTO.PublicID,
+			UserVersion:     userDTO.Version(),
 			AppClientID:     appDTO.ClientID,
+			AppVersion:      appDTO.Version(),
+			Path:            paths.AppsBase + paths.UsersBase + paths.AuthLogin2FA,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create two-factor authentication token", "error", err)
@@ -531,7 +563,7 @@ func (s *Services) LoginUser(
 			code, err := s.cache.AddTwoFactorCode(ctx, cache.AddTwoFactorCodeOptions{
 				RequestID: opts.RequestID,
 				AccountID: opts.AccountID,
-				UserID:    userDTO.ID,
+				UserID:    userDTO.ID(),
 				TTL:       s.jwt.Get2FATTL(),
 			})
 			if err != nil {
@@ -557,7 +589,7 @@ func (s *Services) LoginUser(
 		), nil
 	}
 
-	return s.GenerateFullUserAuthDTO(
+	return s.generateFullUserAuthDTO(
 		ctx,
 		logger,
 		opts.RequestID,
@@ -565,6 +597,7 @@ func (s *Services) LoginUser(
 		&userDTO,
 		&appDTO,
 		&profileDTO,
+		appDTO.DefaultScopes,
 		opts.AccountUsername,
 		"User logged in successfully",
 	)
@@ -670,9 +703,10 @@ type TwoFactorLoginUserOptions struct {
 	RequestID       string
 	AccountID       int32
 	AccountUsername string
-	AppID           int32
-	UserID          int32
-	Version         int32
+	AppClientID     string
+	AppVersion      int32
+	UserPublicID    uuid.UUID
+	UserVersion     int32
 	Code            string
 }
 
@@ -682,32 +716,29 @@ func (s *Services) TwoFactorLoginUser(
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "TwoFactorLoginUser").With(
 		"accountId", opts.AccountID,
-		"appId", opts.AppID,
-		"userId", opts.UserID,
+		"appClientId", opts.AppClientID,
+		"userPublicId", opts.UserPublicID,
 	)
 	logger.InfoContext(ctx, "Two-factor login for user...")
 
-	appDTO, serviceErr := s.GetAppByID(ctx, GetAppByIDOptions{
+	appDTO, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{
 		RequestID: opts.RequestID,
+		ClientID:  opts.AppClientID,
+		Version:   opts.AppVersion,
 		AccountID: opts.AccountID,
-		AppID:     opts.AppID,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get app by ID", "error", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	userDTO, serviceErr := s.GetUserByID(ctx, GetUserByIDOptions{
+	userDTO, serviceErr := s.GetUserByPublicIDAndVersion(ctx, GetUserByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
 		AccountID: opts.AccountID,
-		UserID:    opts.UserID,
+		PublicID:  opts.UserPublicID,
+		Version:   opts.UserVersion,
 	})
 	if serviceErr != nil {
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "User not found")
-			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-		}
-
 		logger.ErrorContext(ctx, "Failed to get user by ID", "error", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
@@ -715,7 +746,7 @@ func (s *Services) TwoFactorLoginUser(
 	profileDTO, serviceErr := s.GetAppProfile(ctx, GetAppProfileOptions{
 		RequestID: opts.RequestID,
 		AppID:     appDTO.ID(),
-		UserID:    opts.UserID,
+		UserID:    userDTO.ID(),
 	})
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeNotFound {
@@ -733,7 +764,7 @@ func (s *Services) TwoFactorLoginUser(
 	case TwoFactorTotp:
 		verified, serviceErr = s.verifyUserTotp(ctx, verifyUserTotpOptions{
 			requestID: opts.RequestID,
-			userID:    opts.UserID,
+			userID:    userDTO.ID(),
 			code:      opts.Code,
 			dek:       userDTO.DEK(),
 		})
@@ -741,7 +772,7 @@ func (s *Services) TwoFactorLoginUser(
 		verified, serviceErr = s.verifyUserEmailCode(ctx, verifierUserEmailCodeOptions{
 			requestID: opts.RequestID,
 			accountID: opts.AccountID,
-			userID:    opts.UserID,
+			userID:    userDTO.ID(),
 			code:      opts.Code,
 		})
 	default:
@@ -757,7 +788,7 @@ func (s *Services) TwoFactorLoginUser(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	return s.GenerateFullUserAuthDTO(
+	return s.generateFullUserAuthDTO(
 		ctx,
 		logger,
 		opts.RequestID,
@@ -765,17 +796,20 @@ func (s *Services) TwoFactorLoginUser(
 		&userDTO,
 		&appDTO,
 		&profileDTO,
+		appDTO.DefaultScopes,
 		opts.AccountUsername,
 		"User two-factor login successful",
 	)
 }
 
 type LogoutUserOptions struct {
-	RequestID string
-	AccountID int32
-	AppID     int32
-	UserID    int32
-	Token     string
+	RequestID    string
+	AccountID    int32
+	AppClientID  string
+	AppVersion   int32
+	UserPublicID uuid.UUID
+	UserVersion  int32
+	Token        string
 }
 
 func (s *Services) LogoutUser(
@@ -784,12 +818,24 @@ func (s *Services) LogoutUser(
 ) *exceptions.ServiceError {
 	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "LogoutUser").With(
 		"accountId", opts.AccountID,
-		"appId", opts.AppID,
-		"userId", opts.UserID,
+		"appClientId", opts.AppClientID,
+		"userPublicId", opts.UserPublicID,
+		"userVersion", opts.UserVersion,
 	)
 	logger.InfoContext(ctx, "Logging out user...")
 
-	userClaims, appClaims, scope, tokenID, exp, err := s.jwt.VerifyUserToken(
+	appDTO, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{
+		RequestID: opts.RequestID,
+		ClientID:  opts.AppClientID,
+		Version:   opts.AppVersion,
+		AccountID: opts.AccountID,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get app by ID", "error", serviceErr)
+		return serviceErr
+	}
+
+	userClaims, appClaims, _, tokenID, exp, err := s.jwt.VerifyUserAuthToken(
 		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
 			RequestID: opts.RequestID,
 			Name:      AppKeyNameRefresh,
@@ -800,37 +846,23 @@ func (s *Services) LogoutUser(
 		logger.ErrorContext(ctx, "Failed to verify user token", "error", err)
 		return exceptions.NewUnauthorizedError()
 	}
-	if strings.Contains(scope, tokens.UserScopeRefresh) {
-		logger.WarnContext(ctx, "Invalid scope", "scope", scope)
+	if userClaims.UserID != opts.UserPublicID {
+		logger.WarnContext(ctx, "Invalid user ID", "tokenUserId", userClaims.UserID, "userPublicId", opts.UserPublicID)
 		return exceptions.NewUnauthorizedError()
 	}
-	if userClaims.UserID != opts.UserID {
-		logger.WarnContext(ctx, "Invalid user ID", "tokenUserId", userClaims.UserID, "userId", opts.UserID)
-		return exceptions.NewUnauthorizedError()
-	}
-	if appClaims.AppID != opts.AppID {
-		logger.WarnContext(ctx, "Invalid app ID", "tokenAppId", appClaims.AppID, "appId", opts.AppID)
+	if appClaims.ClientID != appDTO.ClientID {
+		logger.WarnContext(ctx, "Invalid app client ID", "tokenAppClientId", appClaims.ClientID, "appClientId", opts.AppClientID)
 		return exceptions.NewUnauthorizedError()
 	}
 
-	userDTO, serviceErr := s.GetUserByID(ctx, GetUserByIDOptions{
+	if _, serviceErr := s.GetUserByPublicIDAndVersion(ctx, GetUserByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
-		UserID:    opts.UserID,
 		AccountID: opts.AccountID,
-	})
-	if serviceErr != nil {
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "User not found")
-			return exceptions.NewUnauthorizedError()
-		}
-
+		PublicID:  opts.UserPublicID,
+		Version:   opts.UserVersion,
+	}); serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get user by ID", "error", serviceErr)
 		return serviceErr
-	}
-
-	if userDTO.Version() != userClaims.UserVersion {
-		logger.WarnContext(ctx, "User version mismatch", "tokenVersion", userClaims.UserVersion, "userVersion", userDTO.Version())
-		return exceptions.NewUnauthorizedError()
 	}
 
 	blt, err := s.database.GetBlacklistedToken(ctx, tokenID)
@@ -859,7 +891,8 @@ func (s *Services) LogoutUser(
 type RefreshUserAccessOptions struct {
 	RequestID       string
 	AccountID       int32
-	AppID           int32
+	AppClientID     string
+	AppVersion      int32
 	AccountUsername string
 	Token           string
 }
@@ -873,7 +906,7 @@ func (s *Services) RefreshUserAccess(
 	)
 	logger.InfoContext(ctx, "Refreshing user access token...")
 
-	userClaims, appClaims, _, tokenID, _, err := s.jwt.VerifyUserToken(
+	userClaims, appClaims, scopes, tokenID, _, err := s.jwt.VerifyUserAuthToken(
 		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
 			RequestID: opts.RequestID,
 			Name:      AppKeyNameRefresh,
@@ -884,8 +917,8 @@ func (s *Services) RefreshUserAccess(
 		logger.ErrorContext(ctx, "Failed to verify refresh token", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
-	if appClaims.AppID != opts.AppID {
-		logger.WarnContext(ctx, "Invalid app ID", "tokenAppId", appClaims.AppID, "appId", opts.AppID)
+	if appClaims.ClientID != opts.AppClientID {
+		logger.WarnContext(ctx, "Invalid app client ID", "tokenAppClientId", appClaims.ClientID, "appClientId", opts.AppClientID)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
@@ -899,16 +932,13 @@ func (s *Services) RefreshUserAccess(
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
-	userDTO, serviceErr := s.GetUserByID(ctx, GetUserByIDOptions{
+	userDTO, serviceErr := s.GetUserByPublicIDAndVersion(ctx, GetUserByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
 		AccountID: opts.AccountID,
-		UserID:    userClaims.UserID,
+		PublicID:  userClaims.UserID,
+		Version:   userClaims.UserVersion,
 	})
 	if serviceErr != nil {
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "User not found")
-			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-		}
 		logger.ErrorContext(ctx, "Failed to get user by ID", "error", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
@@ -919,10 +949,11 @@ func (s *Services) RefreshUserAccess(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	appDTO, serviceErr := s.GetAppByID(ctx, GetAppByIDOptions{
+	appDTO, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{
 		RequestID: opts.RequestID,
 		AccountID: opts.AccountID,
-		AppID:     appClaims.AppID,
+		ClientID:  appClaims.ClientID,
+		Version:   appClaims.Version,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeNotFound {
@@ -936,8 +967,8 @@ func (s *Services) RefreshUserAccess(
 
 	appProfileDTO, serviceErr := s.GetAppProfile(ctx, GetAppProfileOptions{
 		RequestID: opts.RequestID,
-		AppID:     appClaims.AppID,
-		UserID:    userClaims.UserID,
+		AppID:     appDTO.ID(),
+		UserID:    userDTO.ID(),
 	})
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeNotFound {
@@ -949,7 +980,7 @@ func (s *Services) RefreshUserAccess(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	return s.GenerateFullUserAuthDTO(
+	return s.generateFullUserAuthDTO(
 		ctx,
 		logger,
 		opts.RequestID,
@@ -957,6 +988,7 @@ func (s *Services) RefreshUserAccess(
 		&userDTO,
 		&appDTO,
 		&appProfileDTO,
+		scopes,
 		opts.AccountUsername,
 		"User access token refreshed successfully",
 	)
@@ -966,8 +998,8 @@ type ForgoutUserPasswordOptions struct {
 	RequestID       string
 	AccountID       int32
 	AccountUsername string
-	AppID           int32
 	AppClientID     string
+	AppVersion      int32
 	Email           string
 }
 
@@ -977,14 +1009,15 @@ func (s *Services) ForgoutUserPassword(
 ) (dtos.MessageDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "ForgoutUserPassword").With(
 		"accountId", opts.AccountID,
-		"appId", opts.AppID,
+		"appClientId", opts.AppClientID,
 	)
 	logger.InfoContext(ctx, "Forgout user password...")
 
-	appDTO, serviceErr := s.GetAppByID(ctx, GetAppByIDOptions{
+	appDTO, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{
 		RequestID: opts.RequestID,
 		AccountID: opts.AccountID,
-		AppID:     opts.AppID,
+		ClientID:  opts.AppClientID,
+		Version:   opts.AppVersion,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -1017,12 +1050,11 @@ func (s *Services) ForgoutUserPassword(
 		return dtos.MessageDTO{}, serviceErr
 	}
 
-	profileDTO, serviceErr := s.GetAppProfile(ctx, GetAppProfileOptions{
+	if _, serviceErr := s.GetAppProfile(ctx, GetAppProfileOptions{
 		RequestID: opts.RequestID,
-		AppID:     opts.AppID,
-		UserID:    userDTO.ID,
-	})
-	if serviceErr != nil {
+		AppID:     appDTO.ID(),
+		UserID:    userDTO.ID(),
+	}); serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
 			logger.WarnContext(ctx, "App profile not found")
 			return dtos.NewMessageDTO(forgotMessage), nil
@@ -1042,19 +1074,16 @@ func (s *Services) ForgoutUserPassword(
 		return dtos.MessageDTO{}, serviceErr
 	}
 
-	resetToken, err := s.jwt.CreateUserToken(tokens.UserTokenOptions{
-		CryptoSuite:     appKeyDTO.JWTCryptoSuite(),
-		Type:            tokens.TokenTypeConfirmation,
+	resetToken, err := s.jwt.CreateUserPurposeToken(tokens.UserPurposeTokenOptions{
+		TokenType:       tokens.PurposeTokenTypeReset,
 		PrivateKey:      appKeyDTO.PrivateKey(),
 		KID:             appKeyDTO.PublicKID(),
 		AccountUsername: opts.AccountUsername,
-		UserID:          userDTO.ID,
+		UserPublicID:    userDTO.PublicID,
 		UserVersion:     userDTO.Version(),
-		UserEmail:       userDTO.Email,
-		ProfileRoles:    profileDTO.Roles,
-		Scopes:          []string{tokens.UserScopeReset},
-		AppID:           opts.AppID,
-		AppClientID:     opts.AppClientID,
+		AppClientID:     appDTO.ClientID,
+		AppVersion:      appDTO.Version(),
+		Path:            paths.AppsBase + paths.UsersBase + paths.AuthResetPassword,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create reset token", "error", err)
@@ -1076,11 +1105,12 @@ func (s *Services) ForgoutUserPassword(
 }
 
 type ResetUserPasswordOptions struct {
-	RequestID  string
-	AccountID  int32
-	AppID      int32
-	Password   string
-	ResetToken string
+	RequestID   string
+	AccountID   int32
+	AppClientID string
+	AppVersion  int32
+	Password    string
+	ResetToken  string
 }
 
 func (s *Services) ResetUserPassword(
@@ -1089,11 +1119,11 @@ func (s *Services) ResetUserPassword(
 ) (dtos.MessageDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "ResetUserPassword").With(
 		"accountId", opts.AccountID,
-		"appId", opts.AppID,
+		"appClientId", opts.AppClientID,
 	)
 	logger.InfoContext(ctx, "Forgout user password...")
 
-	userClaims, appClaims, _, _, _, err := s.jwt.VerifyUserToken(
+	userClaims, appClaims, _, err := s.jwt.VerifyUserPurposeToken(
 		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
 			RequestID: opts.RequestID,
 			Name:      AppKeyNameReset,
@@ -1104,15 +1134,16 @@ func (s *Services) ResetUserPassword(
 		logger.ErrorContext(ctx, "Failed to verify refresh token", "error", err)
 		return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
 	}
-	if appClaims.AppID != opts.AppID {
-		logger.WarnContext(ctx, "Invalid app ID", "tokenAppId", appClaims.AppID, "appId", opts.AppID)
+	if appClaims.ClientID != opts.AppClientID {
+		logger.WarnContext(ctx, "Invalid app client ID", "tokenAppClientId", appClaims.ClientID, "appClientId", opts.AppClientID)
 		return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	appDTO, serviceErr := s.GetAppByID(ctx, GetAppByIDOptions{
+	appDTO, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{
 		RequestID: opts.RequestID,
 		AccountID: opts.AccountID,
-		AppID:     opts.AppID,
+		ClientID:  opts.AppClientID,
+		Version:   opts.AppVersion,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -1129,10 +1160,11 @@ func (s *Services) ResetUserPassword(
 		return dtos.MessageDTO{}, exceptions.NewForbiddenError()
 	}
 
-	userDTO, serviceErr := s.GetUserByID(ctx, GetUserByIDOptions{
+	userDTO, serviceErr := s.GetUserByPublicIDAndVersion(ctx, GetUserByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
-		UserID:    userClaims.UserID,
 		AccountID: opts.AccountID,
+		PublicID:  userClaims.UserID,
+		Version:   userClaims.UserVersion,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -1155,8 +1187,8 @@ func (s *Services) ResetUserPassword(
 
 	if _, serviceErr := s.GetAppProfile(ctx, GetAppProfileOptions{
 		RequestID: opts.RequestID,
-		AppID:     appClaims.AppID,
-		UserID:    userClaims.UserID,
+		AppID:     appDTO.ID(),
+		UserID:    userDTO.ID(),
 	}); serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
 			logger.WarnContext(ctx, "App profile not found", "serviceError", serviceErr)
@@ -1180,12 +1212,12 @@ func (s *Services) ResetUserPassword(
 	}
 
 	_, err = s.database.FindUserAuthProviderByUserIDAndProvider(ctx, database.FindUserAuthProviderByUserIDAndProviderParams{
-		UserID:   userClaims.UserID,
+		UserID:   userDTO.ID(),
 		Provider: AuthProviderUsernamePassword,
 	})
 	if err == nil {
 		if _, err := s.database.UpdateUserPassword(ctx, database.UpdateUserPasswordParams{
-			ID:       userDTO.ID,
+			ID:       userDTO.ID(),
 			Password: password,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to update user password", "error", err)
@@ -1211,7 +1243,7 @@ func (s *Services) ResetUserPassword(
 	}()
 
 	if _, err = qrs.UpdateUserPassword(ctx, database.UpdateUserPasswordParams{
-		ID:       userDTO.ID,
+		ID:       userDTO.ID(),
 		Password: password,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to update user password", "error", err)
@@ -1221,7 +1253,7 @@ func (s *Services) ResetUserPassword(
 
 	if err = qrs.CreateUserAuthProvider(ctx, database.CreateUserAuthProviderParams{
 		AccountID: opts.AccountID,
-		UserID:    userClaims.UserID,
+		UserID:    userDTO.ID(),
 		Provider:  AuthProviderUsernamePassword,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create username and password user auth provider", "error", err)

@@ -7,6 +7,7 @@
 -- name: CreateUserWithPassword :one
 INSERT INTO "users" (
     "account_id",
+    "public_id",
     "email",
     "username",
     "password",
@@ -18,7 +19,8 @@ INSERT INTO "users" (
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7
 ) RETURNING *;
 
 -- name: FindPaginatedUsersByAccountIDOrderedByID :many
@@ -94,6 +96,7 @@ WHERE "id" = $1;
 -- name: CreateUserWithoutPassword :one
 INSERT INTO "users" (
     "account_id",
+    "public_id",
     "email",
     "username",
     "user_data",
@@ -103,7 +106,8 @@ INSERT INTO "users" (
     $2,
     $3,
     $4,
-    $5
+    $5,
+    $6
 ) RETURNING *;
 
 -- name: CountUsersByUsernameAndAccountID :one
@@ -127,6 +131,10 @@ RETURNING *;
 -- name: FindUserByID :one
 SELECT * FROM "users"
 WHERE "id" = $1 LIMIT 1;
+
+-- name: FindUserByPublicIDAndVersion :one
+SELECT * FROM "users"
+WHERE "public_id" = $1 AND "version" = $2 LIMIT 1;
 
 -- name: FindUserByUsernameAndAccountID :one
 SELECT * FROM "users"

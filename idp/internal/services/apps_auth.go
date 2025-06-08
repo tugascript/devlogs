@@ -7,30 +7,24 @@
 package services
 
 import (
-	"strings"
-
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
-	"github.com/tugascript/devlogs/idp/internal/utils"
+	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 )
 
 // const appsAuthLocation string = "apps_auth"
 
 func (s *Services) ProcessAppAuthHeader(
 	authHeader string,
-) (int32, string, *exceptions.ServiceError) {
-	authHeaderSlice := strings.Split(authHeader, " ")
-
-	if len(authHeaderSlice) != 2 {
-		return 0, "", exceptions.NewUnauthorizedError()
-	}
-	if utils.Lowered(authHeaderSlice[0]) != "bearer" {
-		return 0, "", exceptions.NewUnauthorizedError()
+) (tokens.AppClaims, string, *exceptions.ServiceError) {
+	token, serviceErr := extractAuthHeaderToken(authHeader)
+	if serviceErr != nil {
+		return tokens.AppClaims{}, "", serviceErr
 	}
 
-	appId, appClientID, err := s.jwt.VerifyAppToken(authHeaderSlice[1])
+	appClaims, accountUsername, err := s.jwt.VerifyAppToken(token)
 	if err != nil {
-		return 0, "", exceptions.NewUnauthorizedError()
+		return tokens.AppClaims{}, "", exceptions.NewUnauthorizedError()
 	}
 
-	return appId, appClientID, nil
+	return appClaims, accountUsername, nil
 }

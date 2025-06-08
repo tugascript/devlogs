@@ -9,6 +9,8 @@ package services
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
@@ -18,23 +20,31 @@ import (
 const appsLocation string = "apps"
 
 type CreateAppOptions struct {
-	RequestID      string
-	AccountID      int32
-	Type           string
-	Name           string
-	UsernameColumn string
+	RequestID       string
+	AccountPublicID uuid.UUID
+	Type            string
+	Name            string
+	UsernameColumn  string
 }
 
 func (s *Services) CreateApp(ctx context.Context, opts CreateAppOptions) (dtos.AppDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "CreateApp").With(
-		"accountId", opts.AccountID,
+		"accountPublicID", opts.AccountPublicID,
 		"name", opts.Name,
 	)
 	logger.InfoContext(ctx, "Creating app...")
 
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.AccountPublicID,
+	})
+	if serviceErr != nil {
+		return dtos.AppDTO{}, serviceErr
+	}
+
 	name := utils.Capitalized(opts.Name)
 	count, err := s.database.CountAppsByNameAndAccountID(ctx, database.CountAppsByNameAndAccountIDParams{
-		AccountID: opts.AccountID,
+		AccountID: accountDTO.ID(),
 		Name:      name,
 	})
 	if err != nil {
@@ -65,7 +75,7 @@ func (s *Services) CreateApp(ctx context.Context, opts CreateAppOptions) (dtos.A
 	}
 
 	app, err := s.database.CreateApp(ctx, database.CreateAppParams{
-		AccountID:      opts.AccountID,
+		AccountID:      accountDTO.ID(),
 		Name:           name,
 		Type:           opts.Type,
 		UsernameColumn: opts.UsernameColumn,
@@ -82,9 +92,9 @@ func (s *Services) CreateApp(ctx context.Context, opts CreateAppOptions) (dtos.A
 }
 
 type GetAppByClientIDOptions struct {
-	RequestID string
-	AccountID int32
-	ClientID  string
+	RequestID       string
+	AccountPublicID uuid.UUID
+	ClientID        string
 }
 
 func (s *Services) GetAppByClientID(
@@ -92,7 +102,7 @@ func (s *Services) GetAppByClientID(
 	opts GetAppByClientIDOptions,
 ) (dtos.AppDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "GetAppByClientID").With(
-		"accountId", opts.AccountID,
+		"accountPublicID", opts.AccountPublicID,
 		"clientId", opts.ClientID,
 	)
 	logger.InfoContext(ctx, "Getting app by client id...")
@@ -108,7 +118,15 @@ func (s *Services) GetAppByClientID(
 		logger.ErrorContext(ctx, "Failed to get app by clientID", "error", err)
 		return dtos.AppDTO{}, serviceErr
 	}
-	if app.AccountID != opts.AccountID {
+
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.AccountPublicID,
+	})
+	if serviceErr != nil {
+		return dtos.AppDTO{}, serviceErr
+	}
+	if app.AccountID != accountDTO.ID() {
 		logger.WarnContext(ctx, "Current account id is not the app owner", "appAccountId", app.AccountID)
 		return dtos.AppDTO{}, exceptions.NewNotFoundError()
 	}
@@ -117,45 +135,50 @@ func (s *Services) GetAppByClientID(
 	return dtos.MapAppToDTO(&app)
 }
 
-type GetAppByIDOptions struct {
+type GetAppByClientIDVersionAndAccountIDOptions struct {
 	RequestID string
+	ClientID  string
+	Version   int32
 	AccountID int32
-	AppID     int32
 }
 
-func (s *Services) GetAppByID(
+func (s *Services) GetAppByClientIDVersionAndAccountID(
 	ctx context.Context,
-	opts GetAppByIDOptions,
+	opts GetAppByClientIDVersionAndAccountIDOptions,
 ) (dtos.AppDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, appsLocation, "GetAppByID").With(
+	logger := s.buildLogger(opts.RequestID, appsLocation, "GetAppByClientIDVersionAndAccountID").With(
+		"clientId", opts.ClientID,
+		"version", opts.Version,
 		"accountId", opts.AccountID,
-		"appId", opts.AppID,
 	)
-	logger.InfoContext(ctx, "Getting app by ID...")
+	logger.InfoContext(ctx, "Getting app by client id and account id...")
 
-	app, err := s.database.FindAppByID(ctx, opts.AppID)
+	app, err := s.database.FindAppByClientIDAndVersion(ctx, database.FindAppByClientIDAndVersionParams{
+		ClientID: opts.ClientID,
+		Version:  opts.Version,
+	})
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code == exceptions.CodeNotFound {
 			logger.InfoContext(ctx, "App not found", "error", err)
-			return dtos.AppDTO{}, serviceErr
+			return dtos.AppDTO{}, exceptions.NewUnauthorizedError()
 		}
 
-		logger.ErrorContext(ctx, "Failed to get app by ID", "error", err)
+		logger.ErrorContext(ctx, "Failed to get app by clientID", "error", err)
 		return dtos.AppDTO{}, serviceErr
 	}
 	if app.AccountID != opts.AccountID {
 		logger.WarnContext(ctx, "Current account id is not the app owner", "appAccountId", app.AccountID)
-		return dtos.AppDTO{}, exceptions.NewNotFoundError()
+		return dtos.AppDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	logger.InfoContext(ctx, "App by ID found successfully")
+	logger.InfoContext(ctx, "App by clientID found successfully")
 	return dtos.MapAppToDTO(&app)
 }
 
 type UpdateAppOptions struct {
 	RequestID       string
-	AccountID       int32
+	AccountPublicID uuid.UUID
 	ClientID        string
 	Name            string
 	ConfirmationURI string
@@ -169,15 +192,15 @@ type UpdateAppOptions struct {
 
 func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.AppDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "UpdateApp").With(
-		"accountId", opts.AccountID,
+		"accountPublicID", opts.AccountPublicID,
 		"clientId", opts.ClientID,
 	)
 	logger.InfoContext(ctx, "Updating app...")
 
 	app, serviceErr := s.GetAppByClientID(ctx, GetAppByClientIDOptions{
-		RequestID: opts.RequestID,
-		AccountID: opts.AccountID,
-		ClientID:  opts.ClientID,
+		RequestID:       opts.RequestID,
+		AccountPublicID: opts.AccountPublicID,
+		ClientID:        opts.ClientID,
 	})
 	if serviceErr != nil {
 		return dtos.AppDTO{}, serviceErr
@@ -198,7 +221,7 @@ func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.A
 	}
 
 	appModel, err := s.database.UpdateApp(ctx, database.UpdateAppParams{
-		ID:              int32(app.ID()),
+		ID:              app.ID(),
 		Name:            name,
 		ConfirmationUri: opts.ConfirmationURI,
 		ResetUri:        opts.ResetURI,
@@ -218,9 +241,9 @@ func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.A
 }
 
 type UpdateAppSecretOptions struct {
-	RequestID string
-	AccountID int32
-	ClientID  string
+	RequestID       string
+	AccountPublicID uuid.UUID
+	ClientID        string
 }
 
 func (s *Services) UpdateAppSecret(
@@ -228,7 +251,7 @@ func (s *Services) UpdateAppSecret(
 	opts UpdateAppSecretOptions,
 ) (dtos.AppDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "RefreshAppSecret").With(
-		"accountId", opts.AccountID,
+		"accountPublicID", opts.AccountPublicID,
 		"clientId", opts.ClientID,
 	)
 	logger.InfoContext(ctx, "Updating app secret...")
@@ -264,14 +287,14 @@ func (s *Services) UpdateAppSecret(
 }
 
 type DeleteAppOptions struct {
-	RequestID string
-	AccountID int32
-	ClientID  string
+	RequestID       string
+	AccountPublicID uuid.UUID
+	ClientID        string
 }
 
 func (s *Services) DeleteApp(ctx context.Context, opts DeleteAppOptions) *exceptions.ServiceError {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "DeleteApp").With(
-		"accountId", opts.AccountID,
+		"accountPublicID", opts.AccountPublicID,
 		"clientId", opts.ClientID,
 	)
 	logger.InfoContext(ctx, "Deleting app...")
@@ -291,11 +314,11 @@ func (s *Services) DeleteApp(ctx context.Context, opts DeleteAppOptions) *except
 }
 
 type ListAccountAppsOptions struct {
-	RequestID string
-	AccountID int32
-	Offset    int64
-	Limit     int64
-	Order     string
+	RequestID       string
+	AccountPublicID uuid.UUID
+	Offset          int64
+	Limit           int64
+	Order           string
 }
 
 func (s *Services) ListAccountApps(
@@ -303,11 +326,19 @@ func (s *Services) ListAccountApps(
 	opts ListAccountAppsOptions,
 ) ([]dtos.AppDTO, int64, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "GetAccountApps").With(
-		"accountId", opts.AccountID,
+		"accountPublicID", opts.AccountPublicID,
 		"offset", opts.Offset,
 		"limit", opts.Limit,
 	)
 	logger.InfoContext(ctx, "Getting account apps...")
+
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.AccountPublicID,
+	})
+	if serviceErr != nil {
+		return nil, 0, serviceErr
+	}
 
 	order := utils.Lowered(opts.Order)
 	var apps []database.App
@@ -317,7 +348,7 @@ func (s *Services) ListAccountApps(
 	case "date":
 		apps, err = s.database.FindPaginatedAppsByAccountIDOrderedByID(ctx,
 			database.FindPaginatedAppsByAccountIDOrderedByIDParams{
-				AccountID: opts.AccountID,
+				AccountID: accountDTO.ID(),
 				Offset:    int32(opts.Offset),
 				Limit:     int32(opts.Limit),
 			},
@@ -325,7 +356,7 @@ func (s *Services) ListAccountApps(
 	case "name":
 		apps, err = s.database.FindPaginatedAppsByAccountIDOrderedByName(ctx,
 			database.FindPaginatedAppsByAccountIDOrderedByNameParams{
-				AccountID: opts.AccountID,
+				AccountID: accountDTO.ID(),
 				Offset:    int32(opts.Offset),
 				Limit:     int32(opts.Limit),
 			},
@@ -339,7 +370,7 @@ func (s *Services) ListAccountApps(
 		return nil, 0, exceptions.FromDBError(err)
 	}
 
-	count, err := s.database.CountAppsByAccountID(ctx, opts.AccountID)
+	count, err := s.database.CountAppsByAccountID(ctx, accountDTO.ID())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count apps", "error", err)
 		return nil, 0, exceptions.FromDBError(err)
@@ -356,12 +387,12 @@ func (s *Services) ListAccountApps(
 }
 
 type FilterAccountAppsOptions struct {
-	RequestID string
-	AccountID int32
-	Offset    int64
-	Limit     int64
-	Order     string
-	Name      string
+	RequestID       string
+	AccountPublicID uuid.UUID
+	Offset          int64
+	Limit           int64
+	Order           string
+	Name            string
 }
 
 func (s *Services) FilterAccountApps(
@@ -369,13 +400,21 @@ func (s *Services) FilterAccountApps(
 	opts FilterAccountAppsOptions,
 ) ([]dtos.AppDTO, int64, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "FilterAccountApps").With(
-		"accountId", opts.AccountID,
+		"accountPublicID", opts.AccountPublicID,
 		"offset", opts.Offset,
 		"limit", opts.Limit,
 		"name", opts.Name,
 		"order", opts.Order,
 	)
 	logger.InfoContext(ctx, "Filtering account apps...")
+
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.AccountPublicID,
+	})
+	if serviceErr != nil {
+		return nil, 0, serviceErr
+	}
 
 	name := utils.DbSearch(opts.Name)
 	order := utils.Lowered(opts.Order)
@@ -386,7 +425,7 @@ func (s *Services) FilterAccountApps(
 	case "date":
 		apps, err = s.database.FilterAppsByNameAndByAccountIDOrderedByID(ctx,
 			database.FilterAppsByNameAndByAccountIDOrderedByIDParams{
-				AccountID: opts.AccountID,
+				AccountID: accountDTO.ID(),
 				Name:      name,
 				Offset:    int32(opts.Offset),
 				Limit:     int32(opts.Limit),
@@ -395,7 +434,7 @@ func (s *Services) FilterAccountApps(
 	case "name":
 		apps, err = s.database.FilterAppsByNameAndByAccountIDOrderedByName(ctx,
 			database.FilterAppsByNameAndByAccountIDOrderedByNameParams{
-				AccountID: opts.AccountID,
+				AccountID: accountDTO.ID(),
 				Name:      name,
 				Offset:    int32(opts.Offset),
 				Limit:     int32(opts.Limit),
@@ -412,7 +451,7 @@ func (s *Services) FilterAccountApps(
 
 	count, err := s.database.CountFilteredAppsByNameAndByAccountID(ctx,
 		database.CountFilteredAppsByNameAndByAccountIDParams{
-			AccountID: opts.AccountID,
+			AccountID: accountDTO.ID(),
 			Name:      name,
 		},
 	)

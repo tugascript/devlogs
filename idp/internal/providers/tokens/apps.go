@@ -1,16 +1,19 @@
 package tokens
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type AppClaims struct {
-	AppID    int32  `json:"app_id"`
 	ClientID string `json:"client_id"`
+	Version  int32  `json:"version"`
 }
 
 type appTokenClaims struct {
@@ -19,25 +22,25 @@ type appTokenClaims struct {
 }
 
 type AppTokenOptions struct {
-	ID       int32
-	ClientID string
-	Username string
+	ClientID        string
+	Version         int32
+	AccountUsername string
 }
 
 func (t *Tokens) CreateAppToken(opts AppTokenOptions) (string, error) {
 	now := time.Now()
 	iat := jwt.NewNumericDate(now)
 	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(t.appsData.ttlSec)))
-	aud := fmt.Sprintf("https://%s.%s", opts.Username, t.frontendDomain)
+	audAndIss := fmt.Sprintf("https://%s.%s", opts.AccountUsername, t.backendDomain)
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, appTokenClaims{
 		AppClaims: AppClaims{
-			AppID:    opts.ID,
 			ClientID: opts.ClientID,
+			Version:  opts.Version,
 		},
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    t.frontendDomain,
-			Audience:  jwt.ClaimStrings{aud},
-			Subject:   opts.Username,
+			Issuer:    audAndIss,
+			Audience:  jwt.ClaimStrings{audAndIss},
+			Subject:   opts.ClientID,
 			IssuedAt:  iat,
 			NotBefore: iat,
 			ExpiresAt: exp,
@@ -48,7 +51,7 @@ func (t *Tokens) CreateAppToken(opts AppTokenOptions) (string, error) {
 	return token.SignedString(t.appsData.curKeyPair.privateKey)
 }
 
-func (t *Tokens) VerifyAppToken(token string) (int32, string, error) {
+func (t *Tokens) VerifyAppToken(token string) (AppClaims, string, error) {
 	claims := new(appTokenClaims)
 
 	if _, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (any, error) {
@@ -66,8 +69,23 @@ func (t *Tokens) VerifyAppToken(token string) (int32, string, error) {
 
 		return nil, fmt.Errorf("no key found for kid %s", kid)
 	}); err != nil {
-		return 0, "", err
+		return AppClaims{}, "", err
 	}
 
-	return claims.AppID, claims.ClientID, nil
+	if len(claims.Audience) < 1 {
+		return AppClaims{}, "", errors.New("invalid audience")
+	}
+
+	aud := claims.Audience[0]
+	audSlice := strings.Split(aud, ".")
+	if len(audSlice) < 2 {
+		return AppClaims{}, "", errors.New("invalid audience")
+	}
+
+	accountUsername := strings.Replace(audSlice[0], "https://", "", 1)
+	if !utils.IsValidSubdomain(accountUsername) {
+		return AppClaims{}, "", errors.New("invalid account username")
+	}
+
+	return claims.AppClaims, accountUsername, nil
 }

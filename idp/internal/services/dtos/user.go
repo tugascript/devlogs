@@ -9,21 +9,28 @@ package dtos
 import (
 	"encoding/json"
 
+	"github.com/google/uuid"
+
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 )
 
 type UserDTO struct {
-	ID            int32  `json:"id"`
-	Email         string `json:"email"`
-	Username      string `json:"username"`
-	TwoFactorType string `json:"two_factor_type"`
+	PublicID      uuid.UUID `json:"id"`
+	Email         string    `json:"email"`
+	Username      string    `json:"username"`
+	TwoFactorType string    `json:"two_factor_type"`
 	DataDTO
 
+	id            int32
 	version       int32
 	emailVerified bool
 	password      string
 	dek           string
+}
+
+func (u *UserDTO) ID() int32 {
+	return u.id
 }
 
 func (u *UserDTO) Version() int32 {
@@ -49,7 +56,8 @@ func MapUserToDTO(user *database.User) (UserDTO, *exceptions.ServiceError) {
 	}
 
 	return UserDTO{
-		ID:            user.ID,
+		id:            user.ID,
+		PublicID:      user.PublicID,
 		Email:         user.Email,
 		Username:      user.Username,
 		TwoFactorType: user.TwoFactorType,

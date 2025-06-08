@@ -8,6 +8,7 @@ package database
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -17,7 +18,7 @@ UPDATE "accounts" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
+RETURNING id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
 `
 
 func (q *Queries) ConfirmAccount(ctx context.Context, id int32) (Account, error) {
@@ -25,6 +26,7 @@ func (q *Queries) ConfirmAccount(ctx context.Context, id int32) (Account, error)
 	var i Account
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Username,
@@ -57,6 +59,7 @@ func (q *Queries) CountAccountByUsername(ctx context.Context, username string) (
 const createAccountWithPassword = `-- name: CreateAccountWithPassword :one
 
 INSERT INTO "accounts" (
+    "public_id",
     "given_name",
     "family_name",
     "username",
@@ -64,16 +67,18 @@ INSERT INTO "accounts" (
     "password",
     "dek"
 ) VALUES (
-    $1, 
-    $2, 
+    $1,
+    $2,
     $3,
     $4,
     $5,
-    $6
-) RETURNING id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
+    $6,
+    $7
+) RETURNING id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
 `
 
 type CreateAccountWithPasswordParams struct {
+	PublicID   uuid.UUID
 	GivenName  string
 	FamilyName string
 	Username   string
@@ -89,6 +94,7 @@ type CreateAccountWithPasswordParams struct {
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateAccountWithPassword(ctx context.Context, arg CreateAccountWithPasswordParams) (Account, error) {
 	row := q.db.QueryRow(ctx, createAccountWithPassword,
+		arg.PublicID,
 		arg.GivenName,
 		arg.FamilyName,
 		arg.Username,
@@ -99,6 +105,7 @@ func (q *Queries) CreateAccountWithPassword(ctx context.Context, arg CreateAccou
 	var i Account
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Username,
@@ -118,6 +125,7 @@ func (q *Queries) CreateAccountWithPassword(ctx context.Context, arg CreateAccou
 
 const createAccountWithoutPassword = `-- name: CreateAccountWithoutPassword :one
 INSERT INTO "accounts" (
+    "public_id",
     "given_name",
     "family_name",
     "username",
@@ -131,12 +139,14 @@ INSERT INTO "accounts" (
     $3,
     $4,
     $5,
+    $6,
     2,
     true
-) RETURNING id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
+) RETURNING id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
 `
 
 type CreateAccountWithoutPasswordParams struct {
+	PublicID   uuid.UUID
 	GivenName  string
 	FamilyName string
 	Username   string
@@ -146,6 +156,7 @@ type CreateAccountWithoutPasswordParams struct {
 
 func (q *Queries) CreateAccountWithoutPassword(ctx context.Context, arg CreateAccountWithoutPasswordParams) (Account, error) {
 	row := q.db.QueryRow(ctx, createAccountWithoutPassword,
+		arg.PublicID,
 		arg.GivenName,
 		arg.FamilyName,
 		arg.Username,
@@ -155,6 +166,7 @@ func (q *Queries) CreateAccountWithoutPassword(ctx context.Context, arg CreateAc
 	var i Account
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Username,
@@ -192,7 +204,7 @@ func (q *Queries) DeleteAllAccounts(ctx context.Context) error {
 }
 
 const findAccountByEmail = `-- name: FindAccountByEmail :one
-SELECT id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at FROM "accounts"
+SELECT id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at FROM "accounts"
 WHERE "email" = $1 LIMIT 1
 `
 
@@ -201,6 +213,7 @@ func (q *Queries) FindAccountByEmail(ctx context.Context, email string) (Account
 	var i Account
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Username,
@@ -219,7 +232,7 @@ func (q *Queries) FindAccountByEmail(ctx context.Context, email string) (Account
 }
 
 const findAccountById = `-- name: FindAccountById :one
-SELECT id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at FROM "accounts"
+SELECT id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at FROM "accounts"
 WHERE "id" = $1 LIMIT 1
 `
 
@@ -228,6 +241,7 @@ func (q *Queries) FindAccountById(ctx context.Context, id int32) (Account, error
 	var i Account
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Username,
@@ -245,13 +259,58 @@ func (q *Queries) FindAccountById(ctx context.Context, id int32) (Account, error
 	return i, err
 }
 
-const getAccountIDByUsername = `-- name: GetAccountIDByUsername :one
+const findAccountByPublicID = `-- name: FindAccountByPublicID :one
+SELECT id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at FROM "accounts"
+WHERE "public_id" = $1 LIMIT 1
+`
+
+func (q *Queries) FindAccountByPublicID(ctx context.Context, publicID uuid.UUID) (Account, error) {
+	row := q.db.QueryRow(ctx, findAccountByPublicID, publicID)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.GivenName,
+		&i.FamilyName,
+		&i.Username,
+		&i.Email,
+		&i.Organization,
+		&i.Dek,
+		&i.Password,
+		&i.Version,
+		&i.EmailVerified,
+		&i.IsActive,
+		&i.TwoFactorType,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findAccountIDByPublicIDAndVersion = `-- name: FindAccountIDByPublicIDAndVersion :one
+SELECT "id" FROM "accounts"
+WHERE "public_id" = $1 AND "version" = $2 LIMIT 1
+`
+
+type FindAccountIDByPublicIDAndVersionParams struct {
+	PublicID uuid.UUID
+	Version  int32
+}
+
+func (q *Queries) FindAccountIDByPublicIDAndVersion(ctx context.Context, arg FindAccountIDByPublicIDAndVersionParams) (int32, error) {
+	row := q.db.QueryRow(ctx, findAccountIDByPublicIDAndVersion, arg.PublicID, arg.Version)
+	var id int32
+	err := row.Scan(&id)
+	return id, err
+}
+
+const findAccountIDByUsername = `-- name: FindAccountIDByUsername :one
 SELECT "id" FROM "accounts"
 WHERE "username" = $1 LIMIT 1
 `
 
-func (q *Queries) GetAccountIDByUsername(ctx context.Context, username string) (int32, error) {
-	row := q.db.QueryRow(ctx, getAccountIDByUsername, username)
+func (q *Queries) FindAccountIDByUsername(ctx context.Context, username string) (int32, error) {
+	row := q.db.QueryRow(ctx, findAccountIDByUsername, username)
 	var id int32
 	err := row.Scan(&id)
 	return id, err
@@ -264,7 +323,7 @@ UPDATE "accounts" SET
     "username" = $3,
     "updated_at" = now()
 WHERE "id" = $4
-RETURNING id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
+RETURNING id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
 `
 
 type UpdateAccountParams struct {
@@ -284,6 +343,7 @@ func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (A
 	var i Account
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Username,
@@ -324,7 +384,7 @@ UPDATE "accounts" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $2
-RETURNING id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
+RETURNING id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
 `
 
 type UpdateAccountEmailParams struct {
@@ -337,6 +397,7 @@ func (q *Queries) UpdateAccountEmail(ctx context.Context, arg UpdateAccountEmail
 	var i Account
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Username,
@@ -360,7 +421,7 @@ UPDATE "accounts" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $2
-RETURNING id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
+RETURNING id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
 `
 
 type UpdateAccountPasswordParams struct {
@@ -373,6 +434,7 @@ func (q *Queries) UpdateAccountPassword(ctx context.Context, arg UpdateAccountPa
 	var i Account
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Username,
@@ -396,7 +458,7 @@ UPDATE "accounts" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $2
-RETURNING id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
+RETURNING id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
 `
 
 type UpdateAccountTwoFactorTypeParams struct {
@@ -409,6 +471,7 @@ func (q *Queries) UpdateAccountTwoFactorType(ctx context.Context, arg UpdateAcco
 	var i Account
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Username,

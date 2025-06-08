@@ -7,123 +7,167 @@
 package tokens
 
 import (
+	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type AccountScope = string
 
 const (
-	AccountScopeAdmin             AccountScope = "admin"
-	AccountScopeClientCredentials AccountScope = "client_credentials"
-
-	AccountScope2FA          AccountScope = "2fa"
-	AccountScopeOAuth        AccountScope = "oauth"
-	AccountScopeConfirmation AccountScope = "confirmation"
-	AccountScopeRefresh      AccountScope = "refresh"
-	AccountScopeReset        AccountScope = "reset"
-
-	AccountScopeUsersRead  AccountScope = "users:read"
-	AccountScopeUsersWrite AccountScope = "users:write"
-
-	AccountScopeAppsRead  AccountScope = "apps:read"
-	AccountScopeAppsWrite AccountScope = "apps:write"
+	AccountScopeAdmin      AccountScope = "account:admin"
+	AccountScopeUsersRead  AccountScope = "account:users:read"
+	AccountScopeUsersWrite AccountScope = "account:users:write"
+	AccountScopeAppsRead   AccountScope = "account:apps:read"
+	AccountScopeAppsWrite  AccountScope = "account:apps:write"
 )
 
-type AccountTokenOptions struct {
-	ID       int32
-	Version  int32
-	Email    string
-	Audience string
-	Scopes   []AccountScope
-}
+var baseAuthScopes = []AccountScope{"email", "profile"}
+
+const baseAuthScope = "email profile"
 
 type AccountClaims struct {
-	ID      int32 `json:"id"`
-	Version int32 `json:"version"`
+	AccountID      uuid.UUID `json:"account_id"`
+	AccountVersion int32     `json:"account_version"`
 }
 
-type accountTokenClaims struct {
-	Account AccountClaims `json:"account"`
-	Scope   string        `json:"scope"`
+type accountAuthTokenClaims struct {
+	AccountClaims
+	Scope string `json:"scope"`
 	jwt.RegisteredClaims
 }
 
-type accountTokenOptions struct {
-	method         jwt.SigningMethod
-	privateKey     any
-	kid            string
-	ttlSec         int64
-	accountID      int32
-	accountVersion int32
-	accountEmail   string
-	audience       string
-	scopes         []AccountScope
+type accountPurposeTokenClaims struct {
+	AccountClaims
+	Purpose TokenPurpose `json:"purpose"`
+	jwt.RegisteredClaims
 }
 
-func processAccountScopes(scopes []AccountScope) (string, error) {
+type accountAuthTokenOptions struct {
+	method          jwt.SigningMethod
+	privateKey      any
+	kid             string
+	ttlSec          int64
+	accountPublicID uuid.UUID
+	accountVersion  int32
+	tokenSubject    string
+	scopes          []AccountScope
+	paths           []string
+}
+
+func processAccountScopes(scopes []AccountScope) string {
 	if scopes == nil {
-		return "", errors.New("missing scopes")
+		return baseAuthScope
+	}
+	if len(scopes) >= 2 && slices.ContainsFunc(scopes, func(scope AccountScope) bool {
+		return scope == "email" || scope == "profile"
+	}) {
+		return strings.Join(scopes, " ")
 	}
 
-	return strings.Join(scopes, " "), nil
+	return strings.Join(append(baseAuthScopes, scopes...), " ")
 }
 
-func splitAccountScopes(scopes string) ([]AccountScope, error) {
-	if scopes == "" {
+func splitAccountScopes(scope string) ([]AccountScope, error) {
+	if scope == "" {
 		return nil, errors.New("scopes are empty")
 	}
 
-	return strings.Split(scopes, " "), nil
+	return strings.Split(scope, " "), nil
 }
 
-func (t *Tokens) getDefaultAudience(aud string) jwt.ClaimStrings {
-	if aud == "" {
-		return jwt.ClaimStrings{fmt.Sprintf("https://%s", t.frontendDomain)}
-	}
-
-	return jwt.ClaimStrings{aud}
-}
-
-func (t *Tokens) createToken(opts accountTokenOptions) (string, error) {
+func (t *Tokens) createAuthToken(opts accountAuthTokenOptions) (string, error) {
 	now := time.Now()
 	iat := jwt.NewNumericDate(now)
 	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(opts.ttlSec)))
-	scopes, err := processAccountScopes(opts.scopes)
-	if err != nil {
-		return "", err
-	}
 
-	token := jwt.NewWithClaims(opts.method, accountTokenClaims{
-		Account: AccountClaims{
-			ID:      opts.accountID,
-			Version: opts.accountVersion,
+	token := jwt.NewWithClaims(opts.method, accountAuthTokenClaims{
+		AccountClaims: AccountClaims{
+			AccountID:      opts.accountPublicID,
+			AccountVersion: opts.accountVersion,
 		},
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    t.frontendDomain,
-			Audience:  t.getDefaultAudience(opts.audience),
-			Subject:   opts.accountEmail,
+			Issuer: fmt.Sprintf("https://%s", t.backendDomain),
+			Audience: jwt.ClaimStrings(utils.MapSlice(opts.paths, func(path *string) string {
+				return buildPathAudience(t.backendDomain, *path)
+			})),
+			Subject:   opts.tokenSubject,
 			IssuedAt:  iat,
 			NotBefore: iat,
 			ExpiresAt: exp,
 			ID:        uuid.NewString(),
 		},
-		Scope: scopes,
+		Scope: processAccountScopes(opts.scopes),
 	})
 	token.Header["kid"] = opts.kid
 	return token.SignedString(opts.privateKey)
 }
 
-func verifyToken(token string, pubKeyFn func(token *jwt.Token) (any, error)) (accountTokenClaims, error) {
-	claims := new(accountTokenClaims)
+func verifyAuthToken(token string, pubKeyFn func(token *jwt.Token) (any, error)) (accountAuthTokenClaims, error) {
+	claims := new(accountAuthTokenClaims)
 
 	if _, err := jwt.ParseWithClaims(token, claims, pubKeyFn); err != nil {
-		return accountTokenClaims{}, err
+		return accountAuthTokenClaims{}, err
+	}
+
+	return *claims, nil
+}
+
+type AccountPurposeTokenOptions struct {
+	PublicID uuid.UUID
+	Version  int32
+	Path     string
+	Subject  string
+	Purpose  TokenPurpose
+}
+
+type accountPurposeTokenOptions struct {
+	accountPublicID uuid.UUID
+	accountVersion  int32
+	path            string
+	purpose         TokenPurpose
+	ttlSec          int64
+	privateKey      ed25519.PrivateKey
+	kid             string
+}
+
+func (t *Tokens) createPurposeToken(opts accountPurposeTokenOptions) (string, error) {
+	now := time.Now()
+	iat := jwt.NewNumericDate(now)
+	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(opts.ttlSec)))
+
+	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, accountPurposeTokenClaims{
+		AccountClaims: AccountClaims{
+			AccountID:      opts.accountPublicID,
+			AccountVersion: opts.accountVersion,
+		},
+		RegisteredClaims: jwt.RegisteredClaims{
+			Audience:  jwt.ClaimStrings{buildPathAudience(t.backendDomain, opts.path)},
+			Issuer:    fmt.Sprintf("https://%s", t.backendDomain),
+			Subject:   opts.accountPublicID.String(),
+			IssuedAt:  iat,
+			NotBefore: iat,
+			ExpiresAt: exp,
+			ID:        uuid.NewString(),
+		},
+		Purpose: opts.purpose,
+	})
+	token.Header["kid"] = opts.kid
+	return token.SignedString(opts.privateKey)
+}
+
+func verifyPurposeToken(token string, pubKeyFn func(token *jwt.Token) (any, error)) (accountPurposeTokenClaims, error) {
+	claims := new(accountPurposeTokenClaims)
+
+	if _, err := jwt.ParseWithClaims(token, claims, pubKeyFn); err != nil {
+		return accountPurposeTokenClaims{}, err
 	}
 
 	return *claims, nil

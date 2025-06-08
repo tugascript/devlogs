@@ -9,7 +9,9 @@ package services
 import (
 	"encoding/json"
 	"log/slog"
+	"strings"
 
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -53,4 +55,20 @@ func mapSliceToJsonMap(scopes []string) ([]byte, error) {
 	}
 
 	return jsonMap, nil
+}
+
+func extractAuthHeaderToken(ah string) (string, *exceptions.ServiceError) {
+	if ah == "" {
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	ahSlice := strings.Split(strings.TrimSpace(ah), " ")
+	if len(ahSlice) != 2 {
+		return "", exceptions.NewUnauthorizedError()
+	}
+	if utils.Lowered(ahSlice[0]) != "bearer" {
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	return ahSlice[1], nil
 }

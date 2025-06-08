@@ -74,7 +74,7 @@ INSERT INTO "apps" (
   $4,
   $5,
   $6
-) RETURNING id, account_id, type, name, client_id, client_secret, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at
+) RETURNING id, account_id, type, name, client_id, client_secret, version, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at
 `
 
 type CreateAppParams struct {
@@ -108,6 +108,7 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		&i.Name,
 		&i.ClientID,
 		&i.ClientSecret,
+		&i.Version,
 		&i.ConfirmationUri,
 		&i.ResetUri,
 		&i.CallbackUris,
@@ -134,7 +135,7 @@ func (q *Queries) DeleteApp(ctx context.Context, id int32) error {
 }
 
 const filterAppsByNameAndByAccountIDOrderedByID = `-- name: FilterAppsByNameAndByAccountIDOrderedByID :many
-SELECT id, account_id, type, name, client_id, client_secret, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, client_secret, version, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
 WHERE "account_id" = $1 AND "name" ILIKE $2
 ORDER BY "id" DESC
 OFFSET $3 LIMIT $4
@@ -168,6 +169,7 @@ func (q *Queries) FilterAppsByNameAndByAccountIDOrderedByID(ctx context.Context,
 			&i.Name,
 			&i.ClientID,
 			&i.ClientSecret,
+			&i.Version,
 			&i.ConfirmationUri,
 			&i.ResetUri,
 			&i.CallbackUris,
@@ -191,7 +193,7 @@ func (q *Queries) FilterAppsByNameAndByAccountIDOrderedByID(ctx context.Context,
 }
 
 const filterAppsByNameAndByAccountIDOrderedByName = `-- name: FilterAppsByNameAndByAccountIDOrderedByName :many
-SELECT id, account_id, type, name, client_id, client_secret, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, client_secret, version, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
 WHERE "account_id" = $1 AND "name" ILIKE $2
 ORDER BY "name" ASC
 OFFSET $3 LIMIT $4
@@ -225,6 +227,7 @@ func (q *Queries) FilterAppsByNameAndByAccountIDOrderedByName(ctx context.Contex
 			&i.Name,
 			&i.ClientID,
 			&i.ClientSecret,
+			&i.Version,
 			&i.ConfirmationUri,
 			&i.ResetUri,
 			&i.CallbackUris,
@@ -248,7 +251,7 @@ func (q *Queries) FilterAppsByNameAndByAccountIDOrderedByName(ctx context.Contex
 }
 
 const findAppByClientID = `-- name: FindAppByClientID :one
-SELECT id, account_id, type, name, client_id, client_secret, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, client_secret, version, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
 WHERE "client_id" = $1 LIMIT 1
 `
 
@@ -262,6 +265,43 @@ func (q *Queries) FindAppByClientID(ctx context.Context, clientID string) (App, 
 		&i.Name,
 		&i.ClientID,
 		&i.ClientSecret,
+		&i.Version,
+		&i.ConfirmationUri,
+		&i.ResetUri,
+		&i.CallbackUris,
+		&i.LogoutUris,
+		&i.DefaultScopes,
+		&i.UserRoles,
+		&i.AuthProviders,
+		&i.UsernameColumn,
+		&i.IDTokenTtl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findAppByClientIDAndVersion = `-- name: FindAppByClientIDAndVersion :one
+SELECT id, account_id, type, name, client_id, client_secret, version, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
+WHERE "client_id" = $1 AND "version" = $2 LIMIT 1
+`
+
+type FindAppByClientIDAndVersionParams struct {
+	ClientID string
+	Version  int32
+}
+
+func (q *Queries) FindAppByClientIDAndVersion(ctx context.Context, arg FindAppByClientIDAndVersionParams) (App, error) {
+	row := q.db.QueryRow(ctx, findAppByClientIDAndVersion, arg.ClientID, arg.Version)
+	var i App
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Type,
+		&i.Name,
+		&i.ClientID,
+		&i.ClientSecret,
+		&i.Version,
 		&i.ConfirmationUri,
 		&i.ResetUri,
 		&i.CallbackUris,
@@ -278,7 +318,7 @@ func (q *Queries) FindAppByClientID(ctx context.Context, clientID string) (App, 
 }
 
 const findAppByID = `-- name: FindAppByID :one
-SELECT id, account_id, type, name, client_id, client_secret, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, client_secret, version, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
 WHERE "id" = $1 LIMIT 1
 `
 
@@ -292,6 +332,7 @@ func (q *Queries) FindAppByID(ctx context.Context, id int32) (App, error) {
 		&i.Name,
 		&i.ClientID,
 		&i.ClientSecret,
+		&i.Version,
 		&i.ConfirmationUri,
 		&i.ResetUri,
 		&i.CallbackUris,
@@ -308,7 +349,7 @@ func (q *Queries) FindAppByID(ctx context.Context, id int32) (App, error) {
 }
 
 const findPaginatedAppsByAccountIDOrderedByID = `-- name: FindPaginatedAppsByAccountIDOrderedByID :many
-SELECT id, account_id, type, name, client_id, client_secret, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, client_secret, version, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
 WHERE "account_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3
@@ -336,6 +377,7 @@ func (q *Queries) FindPaginatedAppsByAccountIDOrderedByID(ctx context.Context, a
 			&i.Name,
 			&i.ClientID,
 			&i.ClientSecret,
+			&i.Version,
 			&i.ConfirmationUri,
 			&i.ResetUri,
 			&i.CallbackUris,
@@ -359,7 +401,7 @@ func (q *Queries) FindPaginatedAppsByAccountIDOrderedByID(ctx context.Context, a
 }
 
 const findPaginatedAppsByAccountIDOrderedByName = `-- name: FindPaginatedAppsByAccountIDOrderedByName :many
-SELECT id, account_id, type, name, client_id, client_secret, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, client_secret, version, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at FROM "apps"
 WHERE "account_id" = $1
 ORDER BY "name" ASC
 OFFSET $2 LIMIT $3
@@ -387,6 +429,7 @@ func (q *Queries) FindPaginatedAppsByAccountIDOrderedByName(ctx context.Context,
 			&i.Name,
 			&i.ClientID,
 			&i.ClientSecret,
+			&i.Version,
 			&i.ConfirmationUri,
 			&i.ResetUri,
 			&i.CallbackUris,
@@ -422,7 +465,7 @@ SET "name" = $2,
     "id_token_ttl" = $10,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, type, name, client_id, client_secret, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at
+RETURNING id, account_id, type, name, client_id, client_secret, version, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at
 `
 
 type UpdateAppParams struct {
@@ -459,6 +502,7 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		&i.Name,
 		&i.ClientID,
 		&i.ClientSecret,
+		&i.Version,
 		&i.ConfirmationUri,
 		&i.ResetUri,
 		&i.CallbackUris,
@@ -477,9 +521,10 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 const updateAppClientSecret = `-- name: UpdateAppClientSecret :one
 UPDATE "apps" SET
     "client_secret" = $1,
+    "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $2
-RETURNING id, account_id, type, name, client_id, client_secret, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at
+RETURNING id, account_id, type, name, client_id, client_secret, version, confirmation_uri, reset_uri, callback_uris, logout_uris, default_scopes, user_roles, auth_providers, username_column, id_token_ttl, created_at, updated_at
 `
 
 type UpdateAppClientSecretParams struct {
@@ -497,6 +542,7 @@ func (q *Queries) UpdateAppClientSecret(ctx context.Context, arg UpdateAppClient
 		&i.Name,
 		&i.ClientID,
 		&i.ClientSecret,
+		&i.Version,
 		&i.ConfirmationUri,
 		&i.ResetUri,
 		&i.CallbackUris,

@@ -14,6 +14,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type UserScope = string
@@ -25,33 +26,33 @@ const (
 	UserScope2FA          UserScope = "2fa"
 )
 
-type UserClaims struct {
-	UserID      int32    `json:"user_id"`
-	UserVersion int32    `json:"user_version"`
-	Roles       []string `json:"roles,omitempty"`
+type UserAuthClaims struct {
+	UserID      uuid.UUID `json:"user_id"`
+	UserVersion int32     `json:"user_version"`
+	Roles       []string  `json:"user_roles"`
 }
 
-type userTokenClaims struct {
-	UserClaims
+type userAuthTokenClaims struct {
+	UserAuthClaims
 	AppClaims
 	Scope string `json:"scope"`
 	jwt.RegisteredClaims
 }
 
-type UserTokenOptions struct {
+type UserAuthTokenOptions struct {
 	CryptoSuite     SupportedCryptoSuite
-	Type            TokenType
+	TokenType       AuthTokenType
 	PrivateKey      any
 	KID             string
 	AccountUsername string
-	UserID          int32
+	UserPublicID    uuid.UUID
 	UserVersion     int32
-	UserEmail       string
 	ProfileRoles    []string
 	Scopes          []string
-	AppID           int32
+	TokenSubject    string
 	AppClientID     string
-	IDTTL           int64
+	AppVersion      int32
+	Paths           []string
 }
 
 func getUserSigningMethod(cryptoSuite SupportedCryptoSuite) (jwt.SigningMethod, error) {
@@ -65,29 +66,21 @@ func getUserSigningMethod(cryptoSuite SupportedCryptoSuite) (jwt.SigningMethod, 
 	}
 }
 
-func (t *Tokens) getUserTTL(tokenType TokenType, idTTL int64) (int64, error) {
+func (t *Tokens) getUserAuthTTL(tokenType AuthTokenType) (int64, error) {
 	switch tokenType {
-	case TokenTypeAccess:
+	case AuthTokenTypeAccess:
 		return t.accessData.ttlSec, nil
-	case TokenTypeRefresh:
+	case AuthTokenTypeRefresh:
 		return t.refreshData.ttlSec, nil
-	case TokenTypeConfirmation:
-		return t.confirmationData.ttlSec, nil
-	case TokenTypeReset:
-		return t.resetData.ttlSec, nil
-	case TokenTypeOAuth:
-		return t.oauthData.ttlSec, nil
-	case TokenTypeTwoFA:
-		return t.twoFAData.ttlSec, nil
-	case TokenTypeID:
-		return idTTL, nil
+	case AuthTokenTypeClientCredentials:
+		return t.accountCredentialsData.ttlSec, nil
 	default:
 		return 0, errors.New("unsupported token type")
 	}
 }
 
-func (t *Tokens) CreateUserToken(opts UserTokenOptions) (string, error) {
-	ttl, err := t.getUserTTL(opts.Type, opts.IDTTL)
+func (t *Tokens) CreateUserAuthToken(opts UserAuthTokenOptions) (string, error) {
+	ttl, err := t.getUserAuthTTL(opts.TokenType)
 	if err != nil {
 		return "", err
 	}
@@ -106,21 +99,23 @@ func (t *Tokens) CreateUserToken(opts UserTokenOptions) (string, error) {
 		return "", err
 	}
 
-	token := jwt.NewWithClaims(method, userTokenClaims{
-		UserClaims: UserClaims{
-			UserID:      opts.UserID,
+	token := jwt.NewWithClaims(method, userAuthTokenClaims{
+		UserAuthClaims: UserAuthClaims{
+			UserID:      opts.UserPublicID,
 			UserVersion: opts.UserVersion,
 			Roles:       opts.ProfileRoles,
 		},
 		AppClaims: AppClaims{
-			AppID:    opts.AppID,
 			ClientID: opts.AppClientID,
+			Version:  opts.AppVersion,
 		},
 		Scope: strings.Join(opts.Scopes, " "),
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    iss,
-			Audience:  jwt.ClaimStrings{iss},
-			Subject:   opts.UserEmail,
+			Issuer: iss,
+			Audience: jwt.ClaimStrings(utils.MapSlice(opts.Paths, func(path *string) string {
+				return buildPathAudience(iss, *path)
+			})),
+			Subject:   opts.TokenSubject,
 			IssuedAt:  iat,
 			NotBefore: iat,
 			ExpiresAt: exp,
@@ -131,11 +126,11 @@ func (t *Tokens) CreateUserToken(opts UserTokenOptions) (string, error) {
 	return token.SignedString(opts.PrivateKey)
 }
 
-func (t *Tokens) VerifyUserToken(
+func (t *Tokens) VerifyUserAuthToken(
 	keyFn func(kid string) (any, error),
 	token string,
-) (UserClaims, AppClaims, string, uuid.UUID, time.Time, error) {
-	claims := new(userTokenClaims)
+) (UserAuthClaims, AppClaims, []string, uuid.UUID, time.Time, error) {
+	claims := new(userAuthTokenClaims)
 
 	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (any, error) {
 		kid, err := extractTokenKID(token)
@@ -146,13 +141,114 @@ func (t *Tokens) VerifyUserToken(
 		return keyFn(kid)
 	})
 	if err != nil {
-		return UserClaims{}, AppClaims{}, "", uuid.Nil, time.Time{}, err
+		return UserAuthClaims{}, AppClaims{}, nil, uuid.Nil, time.Time{}, err
 	}
 
 	tokenID, err := uuid.Parse(claims.ID)
 	if err != nil {
-		return UserClaims{}, AppClaims{}, "", uuid.Nil, time.Time{}, err
+		return UserAuthClaims{}, AppClaims{}, nil, uuid.Nil, time.Time{}, err
 	}
 
-	return claims.UserClaims, claims.AppClaims, claims.Scope, tokenID, claims.ExpiresAt.Time, nil
+	return claims.UserAuthClaims, claims.AppClaims, strings.Split(claims.Scope, " "), tokenID, claims.ExpiresAt.Time, nil
+}
+
+type UserPurposeClaims struct {
+	UserID      uuid.UUID `json:"user_id"`
+	UserVersion int32     `json:"user_version"`
+}
+
+type userPurposeTokenClaims struct {
+	UserPurposeClaims
+	AppClaims
+	Purpose PurposeTokenType `json:"purpose"`
+	jwt.RegisteredClaims
+}
+
+type UserPurposeTokenOptions struct {
+	TokenType       PurposeTokenType
+	PrivateKey      any
+	KID             string
+	AccountUsername string
+	UserPublicID    uuid.UUID
+	UserVersion     int32
+	AppClientID     string
+	AppVersion      int32
+	Path            string
+}
+
+func (t *Tokens) getUserPurposeTTL(tokenType PurposeTokenType) (int64, error) {
+	switch tokenType {
+	case PurposeTokenTypeConfirmation:
+		return t.confirmationData.ttlSec, nil
+	case PurposeTokenTypeReset:
+		return t.resetData.ttlSec, nil
+	case PurposeTokenTypeOAuth:
+		return t.oauthData.ttlSec, nil
+	case PurposeTokenTypeTwoFA:
+		return t.twoFAData.ttlSec, nil
+	default:
+		return 0, errors.New("unsupported token type")
+	}
+}
+
+func (t *Tokens) CreateUserPurposeToken(opts UserPurposeTokenOptions) (string, error) {
+	ttl, err := t.getUserPurposeTTL(opts.TokenType)
+	if err != nil {
+		return "", err
+	}
+
+	now := time.Now()
+	iat := jwt.NewNumericDate(now)
+	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(ttl)))
+	iss := fmt.Sprintf(
+		"https://%s.%s",
+		opts.AccountUsername,
+		t.backendDomain,
+	)
+
+	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, userPurposeTokenClaims{
+		UserPurposeClaims: UserPurposeClaims{
+			UserID:      opts.UserPublicID,
+			UserVersion: opts.UserVersion,
+		},
+		AppClaims: AppClaims{
+			ClientID: opts.AppClientID,
+			Version:  opts.AppVersion,
+		},
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer: iss,
+			Audience: jwt.ClaimStrings{
+				buildPathAudience(iss, opts.Path),
+			},
+			Subject:   opts.UserPublicID.String(),
+			IssuedAt:  iat,
+			NotBefore: iat,
+			ExpiresAt: exp,
+			ID:        uuid.NewString(),
+		},
+		Purpose: opts.TokenType,
+	})
+	token.Header["kid"] = opts.KID
+	return token.SignedString(opts.PrivateKey)
+}
+
+func (t *Tokens) VerifyUserPurposeToken(
+	keyFn func(kid string) (any, error),
+	token string,
+) (UserPurposeClaims, AppClaims, PurposeTokenType, error) {
+	claims := new(userPurposeTokenClaims)
+
+	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (any, error) {
+		kid, err := extractTokenKID(token)
+		if err != nil {
+			return nil, err
+		}
+
+		return keyFn(kid)
+	})
+	if err != nil {
+		return UserPurposeClaims{}, AppClaims{}, "", err
+	}
+
+	return claims.UserPurposeClaims, claims.AppClaims, claims.Purpose, nil
 }

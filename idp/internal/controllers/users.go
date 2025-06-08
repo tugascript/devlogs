@@ -45,11 +45,23 @@ func (c *Controllers) CreateUser(ctx *fiber.Ctx) error {
 		)
 	}
 
+	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
+		ctx.UserContext(),
+		services.GetAccountIDByPublicIDAndVersionOptions{
+			RequestID: requestID,
+			PublicID:  accountClaims.AccountID,
+			Version:   accountClaims.AccountVersion,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
 	schemaType, serviceErr := c.services.GetOIDCConfigUserStruct(
 		ctx.UserContext(),
-		services.GetOrCreateOIDCConfigOptions{
+		services.GetOIDCConfigUserStructOptions{
 			RequestID: requestID,
-			AccountID: accountClaims.ID,
+			AccountID: accountID,
 		},
 	)
 	if serviceErr != nil {
@@ -70,7 +82,7 @@ func (c *Controllers) CreateUser(ctx *fiber.Ctx) error {
 
 	userDTO, serviceErr := c.services.CreateUser(ctx.UserContext(), services.CreateUserOptions{
 		RequestID: requestID,
-		AccountID: accountClaims.ID,
+		AccountID: accountID,
 		Email:     body.Email,
 		Username:  body.Username,
 		Password:  body.Password,
@@ -104,13 +116,22 @@ func (c *Controllers) ListUsers(ctx *fiber.Ctx) error {
 		return validateQueryParamsErrorResponse(logger, ctx, err)
 	}
 
+	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(ctx.UserContext(), services.GetAccountIDByPublicIDAndVersionOptions{
+		RequestID: requestID,
+		PublicID:  accountClaims.AccountID,
+		Version:   accountClaims.AccountVersion,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
 	var users []dtos.UserDTO
 	var count int64
 
 	if queryParams.Search != "" {
 		users, count, serviceErr = c.services.FilterUsers(ctx.UserContext(), services.FilterUsersOptions{
 			RequestID: requestID,
-			AccountID: int32(accountClaims.ID),
+			AccountID: accountID,
 			Offset:    int32(queryParams.Offset),
 			Limit:     int32(queryParams.Limit),
 			Order:     queryParams.Order,
@@ -119,7 +140,7 @@ func (c *Controllers) ListUsers(ctx *fiber.Ctx) error {
 	} else {
 		users, count, serviceErr = c.services.ListUsers(ctx.UserContext(), services.ListUsersOptions{
 			RequestID: requestID,
-			AccountID: int32(accountClaims.ID),
+			AccountID: accountID,
 			Offset:    int32(queryParams.Offset),
 			Limit:     int32(queryParams.Limit),
 			Order:     queryParams.Order,
@@ -160,12 +181,24 @@ func (c *Controllers) GetUser(ctx *fiber.Ctx) error {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
+	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
+		ctx.UserContext(),
+		services.GetAccountIDByPublicIDAndVersionOptions{
+			RequestID: requestID,
+			PublicID:  accountClaims.AccountID,
+			Version:   accountClaims.AccountVersion,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
 	userID, err := strconv.ParseInt(urlParams.UserIDOrUsername, 10, 32)
 	if err == nil {
 		userDTO, serviceErr := c.services.GetUserByID(ctx.UserContext(), services.GetUserByIDOptions{
 			RequestID: requestID,
 			UserID:    int32(userID),
-			AccountID: accountClaims.ID,
+			AccountID: accountID,
 		})
 		if serviceErr != nil {
 			return serviceErrorResponse(logger, ctx, serviceErr)
@@ -175,11 +208,14 @@ func (c *Controllers) GetUser(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusOK).JSON(&userDTO)
 	}
 
-	userDTO, serviceErr := c.services.GetUserByUsername(ctx.UserContext(), services.GetUserByUsernameOptions{
-		RequestID: requestID,
-		AccountID: accountClaims.ID,
-		Username:  urlParams.UserIDOrUsername,
-	})
+	userDTO, serviceErr := c.services.GetUserByUsername(
+		ctx.UserContext(),
+		services.GetUserByUsernameOptions{
+			RequestID: requestID,
+			AccountID: accountID,
+			Username:  urlParams.UserIDOrUsername,
+		},
+	)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
@@ -226,11 +262,23 @@ func (c *Controllers) UpdateUser(ctx *fiber.Ctx) error {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
+	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
+		ctx.UserContext(),
+		services.GetAccountIDByPublicIDAndVersionOptions{
+			RequestID: requestID,
+			PublicID:  accountClaims.AccountID,
+			Version:   accountClaims.AccountVersion,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
 	schemaType, serviceErr := c.services.GetOIDCConfigUserStruct(
 		ctx.UserContext(),
-		services.GetOrCreateOIDCConfigOptions{
+		services.GetOIDCConfigUserStructOptions{
 			RequestID: requestID,
-			AccountID: accountClaims.ID,
+			AccountID: accountID,
 		},
 	)
 	if serviceErr != nil {
@@ -251,7 +299,7 @@ func (c *Controllers) UpdateUser(ctx *fiber.Ctx) error {
 
 	userDTO, serviceErr := c.services.UpdateUser(ctx.UserContext(), services.UpdateUserOptions{
 		RequestID: requestID,
-		AccountID: accountClaims.ID,
+		AccountID: accountID,
 		UserID:    int32(urlParams.UserID),
 		Email:     body.Email,
 		Username:  body.Username,
@@ -304,9 +352,21 @@ func (c *Controllers) UpdateUserPassword(ctx *fiber.Ctx) error {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
+	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
+		ctx.UserContext(),
+		services.GetAccountIDByPublicIDAndVersionOptions{
+			RequestID: requestID,
+			PublicID:  accountClaims.AccountID,
+			Version:   accountClaims.AccountVersion,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
 	userDTO, serviceErr := c.services.UpdateUserPassword(ctx.UserContext(), services.UpdateUserPasswordOptions{
 		RequestID: requestID,
-		AccountID: accountClaims.ID,
+		AccountID: accountID,
 		UserID:    int32(urlParams.UserID),
 		Password:  body.Password,
 	})
@@ -348,9 +408,21 @@ func (c *Controllers) DeleteUser(ctx *fiber.Ctx) error {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
+	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
+		ctx.UserContext(),
+		services.GetAccountIDByPublicIDAndVersionOptions{
+			RequestID: requestID,
+			PublicID:  accountClaims.AccountID,
+			Version:   accountClaims.AccountVersion,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
 	if serviceErr := c.services.DeleteUser(ctx.UserContext(), services.DeleteUserOptions{
 		RequestID: requestID,
-		AccountID: accountClaims.ID,
+		AccountID: accountID,
 		UserID:    int32(urlParams.UserID),
 	}); serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
