@@ -89,3 +89,7 @@ func (t *Tokens) VerifyAppToken(token string) (AppClaims, string, error) {
 
 	return claims.AppClaims, accountUsername, nil
 }
+
+func (t *Tokens) GetAppTTL() int64 {
+	return t.appsData.ttlSec
+}

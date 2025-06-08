@@ -91,17 +91,17 @@ func (s *Services) CreateApp(ctx context.Context, opts CreateAppOptions) (dtos.A
 	return dtos.MapAppToDTOWithSecret(&app, clientSecret)
 }
 
-type GetAppByClientIDOptions struct {
+type GetAppByClientIDAndAccountPublicIDOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
 	ClientID        string
 }
 
-func (s *Services) GetAppByClientID(
+func (s *Services) GetAppByClientIDAndAccountPublicID(
 	ctx context.Context,
-	opts GetAppByClientIDOptions,
+	opts GetAppByClientIDAndAccountPublicIDOptions,
 ) (dtos.AppDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, appsLocation, "GetAppByClientID").With(
+	logger := s.buildLogger(opts.RequestID, appsLocation, "GetAppByClientIDAndAccountPublicID").With(
 		"accountPublicID", opts.AccountPublicID,
 		"clientId", opts.ClientID,
 	)
@@ -127,6 +127,43 @@ func (s *Services) GetAppByClientID(
 		return dtos.AppDTO{}, serviceErr
 	}
 	if app.AccountID != accountDTO.ID() {
+		logger.WarnContext(ctx, "Current account id is not the app owner", "appAccountId", app.AccountID)
+		return dtos.AppDTO{}, exceptions.NewNotFoundError()
+	}
+
+	logger.InfoContext(ctx, "App by clientID found successfully")
+	return dtos.MapAppToDTO(&app)
+}
+
+type GetAppByClientIDAndAccountIDOptions struct {
+	RequestID string
+	ClientID  string
+	AccountID int32
+}
+
+func (s *Services) GetAppByClientIDAndAccountID(
+	ctx context.Context,
+	opts GetAppByClientIDAndAccountIDOptions,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "GetAppByClientIDAndAccountID").With(
+		"accountID", opts.AccountID,
+		"clientId", opts.ClientID,
+	)
+	logger.InfoContext(ctx, "Getting app by client id...")
+
+	app, err := s.database.FindAppByClientID(ctx, opts.ClientID)
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.InfoContext(ctx, "App not found", "error", err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		logger.ErrorContext(ctx, "Failed to get app by clientID", "error", err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	if app.AccountID != opts.AccountID {
 		logger.WarnContext(ctx, "Current account id is not the app owner", "appAccountId", app.AccountID)
 		return dtos.AppDTO{}, exceptions.NewNotFoundError()
 	}
@@ -197,7 +234,7 @@ func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.A
 	)
 	logger.InfoContext(ctx, "Updating app...")
 
-	app, serviceErr := s.GetAppByClientID(ctx, GetAppByClientIDOptions{
+	app, serviceErr := s.GetAppByClientIDAndAccountPublicID(ctx, GetAppByClientIDAndAccountPublicIDOptions{
 		RequestID:       opts.RequestID,
 		AccountPublicID: opts.AccountPublicID,
 		ClientID:        opts.ClientID,
@@ -256,7 +293,7 @@ func (s *Services) UpdateAppSecret(
 	)
 	logger.InfoContext(ctx, "Updating app secret...")
 
-	app, serviceErr := s.GetAppByClientID(ctx, GetAppByClientIDOptions(opts))
+	app, serviceErr := s.GetAppByClientIDAndAccountPublicID(ctx, GetAppByClientIDAndAccountPublicIDOptions(opts))
 	if serviceErr != nil {
 		return dtos.AppDTO{}, serviceErr
 	}
@@ -299,7 +336,7 @@ func (s *Services) DeleteApp(ctx context.Context, opts DeleteAppOptions) *except
 	)
 	logger.InfoContext(ctx, "Deleting app...")
 
-	app, serviceErr := s.GetAppByClientID(ctx, GetAppByClientIDOptions(opts))
+	app, serviceErr := s.GetAppByClientIDAndAccountPublicID(ctx, GetAppByClientIDAndAccountPublicIDOptions(opts))
 	if serviceErr != nil {
 		return serviceErr
 	}

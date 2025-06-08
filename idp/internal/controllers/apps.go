@@ -33,11 +33,14 @@ func (c *Controllers) GetApp(ctx *fiber.Ctx) error {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	appDTO, serviceErr := c.services.GetAppByClientID(ctx.UserContext(), services.GetAppByClientIDOptions{
-		RequestID:       requestID,
-		AccountPublicID: accountClaims.AccountID,
-		ClientID:        urlParams.ClientID,
-	})
+	appDTO, serviceErr := c.services.GetAppByClientIDAndAccountPublicID(
+		ctx.UserContext(),
+		services.GetAppByClientIDAndAccountPublicIDOptions{
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			ClientID:        urlParams.ClientID,
+		},
+	)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
