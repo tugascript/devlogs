@@ -7,16 +7,18 @@ package database
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
-const countAccountCredentialsByAccountID = `-- name: CountAccountCredentialsByAccountID :one
+const countAccountCredentialsByAccountPublicID = `-- name: CountAccountCredentialsByAccountPublicID :one
 SELECT COUNT("id") FROM "account_credentials"
-WHERE "account_id" = $1
+WHERE "account_public_id" = $1
 LIMIT 1
 `
 
-func (q *Queries) CountAccountCredentialsByAccountID(ctx context.Context, accountID int32) (int64, error) {
-	row := q.db.QueryRow(ctx, countAccountCredentialsByAccountID, accountID)
+func (q *Queries) CountAccountCredentialsByAccountPublicID(ctx context.Context, accountPublicID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccountCredentialsByAccountPublicID, accountPublicID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -42,43 +44,48 @@ func (q *Queries) CountAccountCredentialsByAliasAndAccountID(ctx context.Context
 const createAccountCredentials = `-- name: CreateAccountCredentials :one
 INSERT INTO "account_credentials" (
     "client_id",
-    "client_secret",
     "account_id",
+    "account_public_id",
     "alias",
-    "scopes"
+    "scopes",
+    "auth_methods"
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
-    $5
-) RETURNING id, account_id, scopes, alias, client_id, client_secret, created_at, updated_at
+    $5,
+    $6
+) RETURNING id, account_id, account_public_id, scopes, auth_methods, alias, client_id, created_at, updated_at
 `
 
 type CreateAccountCredentialsParams struct {
-	ClientID     string
-	ClientSecret string
-	AccountID    int32
-	Alias        string
-	Scopes       []byte
+	ClientID        string
+	AccountID       int32
+	AccountPublicID uuid.UUID
+	Alias           string
+	Scopes          []AccountCredentialsScope
+	AuthMethods     []AuthMethod
 }
 
 func (q *Queries) CreateAccountCredentials(ctx context.Context, arg CreateAccountCredentialsParams) (AccountCredential, error) {
 	row := q.db.QueryRow(ctx, createAccountCredentials,
 		arg.ClientID,
-		arg.ClientSecret,
 		arg.AccountID,
+		arg.AccountPublicID,
 		arg.Alias,
 		arg.Scopes,
+		arg.AuthMethods,
 	)
 	var i AccountCredential
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
+		&i.AccountPublicID,
 		&i.Scopes,
+		&i.AuthMethods,
 		&i.Alias,
 		&i.ClientID,
-		&i.ClientSecret,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -95,9 +102,37 @@ func (q *Queries) DeleteAccountCredentials(ctx context.Context, clientID string)
 	return err
 }
 
+const findAccountCredentialsByAccountPublicIDAndClientID = `-- name: FindAccountCredentialsByAccountPublicIDAndClientID :one
+SELECT id, account_id, account_public_id, scopes, auth_methods, alias, client_id, created_at, updated_at FROM "account_credentials"
+WHERE "account_public_id" = $1 AND "client_id" = $2
+LIMIT 1
+`
+
+type FindAccountCredentialsByAccountPublicIDAndClientIDParams struct {
+	AccountPublicID uuid.UUID
+	ClientID        string
+}
+
+func (q *Queries) FindAccountCredentialsByAccountPublicIDAndClientID(ctx context.Context, arg FindAccountCredentialsByAccountPublicIDAndClientIDParams) (AccountCredential, error) {
+	row := q.db.QueryRow(ctx, findAccountCredentialsByAccountPublicIDAndClientID, arg.AccountPublicID, arg.ClientID)
+	var i AccountCredential
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.AccountPublicID,
+		&i.Scopes,
+		&i.AuthMethods,
+		&i.Alias,
+		&i.ClientID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const findAccountCredentialsByClientID = `-- name: FindAccountCredentialsByClientID :one
 
-SELECT id, account_id, scopes, alias, client_id, client_secret, created_at, updated_at FROM "account_credentials"
+SELECT id, account_id, account_public_id, scopes, auth_methods, alias, client_id, created_at, updated_at FROM "account_credentials"
 WHERE "client_id" = $1
 LIMIT 1
 `
@@ -113,31 +148,32 @@ func (q *Queries) FindAccountCredentialsByClientID(ctx context.Context, clientID
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
+		&i.AccountPublicID,
 		&i.Scopes,
+		&i.AuthMethods,
 		&i.Alias,
 		&i.ClientID,
-		&i.ClientSecret,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const findPaginatedAccountCredentialsByAccountID = `-- name: FindPaginatedAccountCredentialsByAccountID :many
-SELECT id, account_id, scopes, alias, client_id, client_secret, created_at, updated_at FROM "account_credentials"
-WHERE "account_id" = $1
+const findPaginatedAccountCredentialsByAccountPublicID = `-- name: FindPaginatedAccountCredentialsByAccountPublicID :many
+SELECT id, account_id, account_public_id, scopes, auth_methods, alias, client_id, created_at, updated_at FROM "account_credentials"
+WHERE "account_public_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3
 `
 
-type FindPaginatedAccountCredentialsByAccountIDParams struct {
-	AccountID int32
-	Offset    int32
-	Limit     int32
+type FindPaginatedAccountCredentialsByAccountPublicIDParams struct {
+	AccountPublicID uuid.UUID
+	Offset          int32
+	Limit           int32
 }
 
-func (q *Queries) FindPaginatedAccountCredentialsByAccountID(ctx context.Context, arg FindPaginatedAccountCredentialsByAccountIDParams) ([]AccountCredential, error) {
-	rows, err := q.db.Query(ctx, findPaginatedAccountCredentialsByAccountID, arg.AccountID, arg.Offset, arg.Limit)
+func (q *Queries) FindPaginatedAccountCredentialsByAccountPublicID(ctx context.Context, arg FindPaginatedAccountCredentialsByAccountPublicIDParams) ([]AccountCredential, error) {
+	rows, err := q.db.Query(ctx, findPaginatedAccountCredentialsByAccountPublicID, arg.AccountPublicID, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -148,10 +184,11 @@ func (q *Queries) FindPaginatedAccountCredentialsByAccountID(ctx context.Context
 		if err := rows.Scan(
 			&i.ID,
 			&i.AccountID,
+			&i.AccountPublicID,
 			&i.Scopes,
+			&i.AuthMethods,
 			&i.Alias,
 			&i.ClientID,
-			&i.ClientSecret,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -171,11 +208,11 @@ UPDATE "account_credentials" SET
     "alias" = $2,
     "updated_at" = now()
 WHERE "id" = $3
-RETURNING id, account_id, scopes, alias, client_id, client_secret, created_at, updated_at
+RETURNING id, account_id, account_public_id, scopes, auth_methods, alias, client_id, created_at, updated_at
 `
 
 type UpdateAccountCredentialsParams struct {
-	Scopes []byte
+	Scopes []AccountCredentialsScope
 	Alias  string
 	ID     int32
 }
@@ -186,39 +223,11 @@ func (q *Queries) UpdateAccountCredentials(ctx context.Context, arg UpdateAccoun
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
+		&i.AccountPublicID,
 		&i.Scopes,
+		&i.AuthMethods,
 		&i.Alias,
 		&i.ClientID,
-		&i.ClientSecret,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const updateAccountCredentialsClientSecret = `-- name: UpdateAccountCredentialsClientSecret :one
-UPDATE "account_credentials" SET
-    "client_secret" = $1,
-    "updated_at" = now()
-WHERE "client_id" = $2
-RETURNING id, account_id, scopes, alias, client_id, client_secret, created_at, updated_at
-`
-
-type UpdateAccountCredentialsClientSecretParams struct {
-	ClientSecret string
-	ClientID     string
-}
-
-func (q *Queries) UpdateAccountCredentialsClientSecret(ctx context.Context, arg UpdateAccountCredentialsClientSecretParams) (AccountCredential, error) {
-	row := q.db.QueryRow(ctx, updateAccountCredentialsClientSecret, arg.ClientSecret, arg.ClientID)
-	var i AccountCredential
-	err := row.Scan(
-		&i.ID,
-		&i.AccountID,
-		&i.Scopes,
-		&i.Alias,
-		&i.ClientID,
-		&i.ClientSecret,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

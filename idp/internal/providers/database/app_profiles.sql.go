@@ -9,7 +9,7 @@ import (
 	"context"
 )
 
-const createAppProfile = `-- name: CreateAppProfile :one
+const createAppProfile = `-- name: CreateAppProfile :exec
 INSERT INTO "app_profiles" (
     "account_id",
     "user_id",
@@ -18,7 +18,7 @@ INSERT INTO "app_profiles" (
     $1,
     $2,
     $3
-) RETURNING id, account_id, user_id, app_id, user_roles, created_at, updated_at
+)
 `
 
 type CreateAppProfileParams struct {
@@ -27,64 +27,13 @@ type CreateAppProfileParams struct {
 	AppID     int32
 }
 
-func (q *Queries) CreateAppProfile(ctx context.Context, arg CreateAppProfileParams) (AppProfile, error) {
-	row := q.db.QueryRow(ctx, createAppProfile, arg.AccountID, arg.UserID, arg.AppID)
-	var i AppProfile
-	err := row.Scan(
-		&i.ID,
-		&i.AccountID,
-		&i.UserID,
-		&i.AppID,
-		&i.UserRoles,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const createAppProfileWithRoles = `-- name: CreateAppProfileWithRoles :one
-INSERT INTO "app_profiles" (
-    "account_id",
-    "user_id",
-    "app_id",
-    "user_roles"
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4
-) RETURNING id, account_id, user_id, app_id, user_roles, created_at, updated_at
-`
-
-type CreateAppProfileWithRolesParams struct {
-	AccountID int32
-	UserID    int32
-	AppID     int32
-	UserRoles []byte
-}
-
-func (q *Queries) CreateAppProfileWithRoles(ctx context.Context, arg CreateAppProfileWithRolesParams) (AppProfile, error) {
-	row := q.db.QueryRow(ctx, createAppProfileWithRoles,
-		arg.AccountID,
-		arg.UserID,
-		arg.AppID,
-		arg.UserRoles,
-	)
-	var i AppProfile
-	err := row.Scan(
-		&i.ID,
-		&i.AccountID,
-		&i.UserID,
-		&i.AppID,
-		&i.UserRoles,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) CreateAppProfile(ctx context.Context, arg CreateAppProfileParams) error {
+	_, err := q.db.Exec(ctx, createAppProfile, arg.AccountID, arg.UserID, arg.AppID)
+	return err
 }
 
 const findAppProfileByAppIDAndUserID = `-- name: FindAppProfileByAppIDAndUserID :one
-SELECT id, account_id, user_id, app_id, user_roles, created_at, updated_at FROM "app_profiles"
+SELECT id, account_id, user_id, app_id, created_at, updated_at FROM "app_profiles"
 WHERE "app_id" = $1 AND "user_id" = $2 LIMIT 1
 `
 
@@ -101,7 +50,6 @@ func (q *Queries) FindAppProfileByAppIDAndUserID(ctx context.Context, arg FindAp
 		&i.AccountID,
 		&i.UserID,
 		&i.AppID,
-		&i.UserRoles,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

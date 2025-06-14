@@ -7,25 +7,25 @@
 package dtos
 
 import (
-	"encoding/json"
+	"fmt"
+	"time"
 
-	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type AccountCredentialsDTO struct {
-	ClientID     string   `json:"id"`
-	ClientSecret string   `json:"secret,omitempty"`
-	Alias        string   `json:"alias"`
-	Scopes       []string `json:"scopes"`
+	ClientID        string                             `json:"client_id"`
+	Alias           string                             `json:"alias"`
+	Scopes          []database.AccountCredentialsScope `json:"scopes"`
+	AuthMethods     []database.AuthMethod              `json:"auth_methods"`
+	ClientSecretID  string                             `json:"client_secret_id,omitempty"`
+	ClientSecret    string                             `json:"client_secret,omitempty"`
+	ClientSecretJWK utils.JWK                          `json:"client_secret_jwk,omitempty"`
+	ClientSecretExp int64                              `json:"client_secret_exp,omitempty"`
 
-	id           int32
-	accountId    int32
-	hashedSecret string
-}
-
-func (ak *AccountCredentialsDTO) HashedSecret() string {
-	return ak.hashedSecret
+	id        int32
+	accountId int32
 }
 
 func (ak *AccountCredentialsDTO) AccountID() int32 {
@@ -36,54 +36,45 @@ func (ak *AccountCredentialsDTO) ID() int32 {
 	return ak.id
 }
 
-func mapAccountCredentialsScopes(jsonScopes []byte) ([]string, *exceptions.ServiceError) {
-	scopesMap := make(map[string]bool)
-	if err := json.Unmarshal(jsonScopes, &scopesMap); err != nil {
-		return nil, exceptions.NewServerError()
-	}
-
-	scopes := make([]string, 0, len(scopesMap))
-	for k, v := range scopesMap {
-		if v {
-			scopes = append(scopes, k)
-		}
-	}
-
-	return scopes, nil
-}
-
 func MapAccountCredentialsToDTO(
 	accountKeys *database.AccountCredential,
-) (AccountCredentialsDTO, *exceptions.ServiceError) {
-	scopes, serviceErr := mapAccountCredentialsScopes(accountKeys.Scopes)
-	if serviceErr != nil {
-		return AccountCredentialsDTO{}, serviceErr
-	}
-
+) AccountCredentialsDTO {
 	return AccountCredentialsDTO{
-		id:           accountKeys.ID,
-		ClientID:     accountKeys.ClientID,
-		Scopes:       scopes,
-		hashedSecret: accountKeys.ClientSecret,
-		accountId:    accountKeys.AccountID,
-	}, nil
+		id:          accountKeys.ID,
+		ClientID:    accountKeys.ClientID,
+		Scopes:      accountKeys.Scopes,
+		AuthMethods: accountKeys.AuthMethods,
+		accountId:   accountKeys.AccountID,
+	}
+}
+
+func MapAccountCredentialsToDTOWithJWK(
+	accountKeys *database.AccountCredential,
+	jwk utils.JWK,
+	exp time.Time,
+) AccountCredentialsDTO {
+	return AccountCredentialsDTO{
+		id:              accountKeys.ID,
+		ClientID:        accountKeys.ClientID,
+		ClientSecretID:  jwk.GetKeyID(),
+		ClientSecretJWK: jwk,
+		ClientSecretExp: exp.Unix(),
+		accountId:       accountKeys.AccountID,
+	}
 }
 
 func MapAccountCredentialsToDTOWithSecret(
 	accountKeys *database.AccountCredential,
+	secretID,
 	secret string,
-) (AccountCredentialsDTO, *exceptions.ServiceError) {
-	scopes, serviceErr := mapAccountCredentialsScopes(accountKeys.Scopes)
-	if serviceErr != nil {
-		return AccountCredentialsDTO{}, serviceErr
-	}
-
+	exp time.Time,
+) AccountCredentialsDTO {
 	return AccountCredentialsDTO{
-		id:           accountKeys.ID,
-		ClientID:     accountKeys.ClientID,
-		ClientSecret: secret,
-		Scopes:       scopes,
-		hashedSecret: accountKeys.ClientSecret,
-		accountId:    accountKeys.AccountID,
-	}, nil
+		id:              accountKeys.ID,
+		ClientID:        accountKeys.ClientID,
+		ClientSecretID:  secretID,
+		ClientSecret:    fmt.Sprintf("%s.%s", secretID, secret),
+		ClientSecretExp: exp.Unix(),
+		accountId:       accountKeys.AccountID,
+	}
 }

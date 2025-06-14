@@ -16,22 +16,27 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type AccountScope = string
 
 const (
-	AccountScopeAdmin      AccountScope = "account:admin"
-	AccountScopeUsersRead  AccountScope = "account:users:read"
-	AccountScopeUsersWrite AccountScope = "account:users:write"
-	AccountScopeAppsRead   AccountScope = "account:apps:read"
-	AccountScopeAppsWrite  AccountScope = "account:apps:write"
+	AccountScopeEmail            AccountScope = "email"
+	AccountScopeProfile          AccountScope = "profile"
+	AccountScopeAdmin            AccountScope = "account:admin"
+	AccountScopeUsersRead        AccountScope = "account:users:read"
+	AccountScopeUsersWrite       AccountScope = "account:users:write"
+	AccountScopeAppsRead         AccountScope = "account:apps:read"
+	AccountScopeAppsWrite        AccountScope = "account:apps:write"
+	AccountScopeCredentialsRead  AccountScope = "account:credentials:read"
+	AccountScopeCredentialsWrite AccountScope = "account:credentials:write"
 )
 
-var baseAuthScopes = []AccountScope{"email", "profile"}
+var baseAuthScopes = []AccountScope{AccountScopeEmail, AccountScopeProfile}
 
-const baseAuthScope = "email profile"
+const baseAuthScope = AccountScopeEmail + " " + AccountScopeProfile
 
 type AccountClaims struct {
 	AccountID      uuid.UUID `json:"account_id"`

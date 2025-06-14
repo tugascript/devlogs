@@ -7,7 +7,6 @@
 package controllers
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -20,7 +19,6 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const (
@@ -230,30 +228,6 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func parseAHClientCredentials(ctx *fiber.Ctx) (string, string, *exceptions.ServiceError) {
-	authHeader := ctx.Get("Authorization")
-	if authHeader == "" {
-		return "", "", exceptions.NewUnauthorizedError()
-	}
-
-	authHeaderSlice := strings.Split(authHeader, " ")
-	if len(authHeaderSlice) != 2 || utils.Lowered(authHeaderSlice[0]) != "basic" {
-		return "", "", exceptions.NewUnauthorizedError()
-	}
-
-	decoded, err := base64.StdEncoding.DecodeString(authHeaderSlice[1])
-	if err != nil {
-		return "", "", exceptions.NewUnauthorizedError()
-	}
-
-	decodedSlice := strings.Split(string(decoded), ":")
-	if len(authHeaderSlice) != 2 {
-		return "", "", exceptions.NewUnauthorizedError()
-	}
-
-	return decodedSlice[0], decodedSlice[1], nil
-}
-
 var accountClientCredentialsScopes = map[tokens.AccountScope]bool{
 	tokens.AccountScopeUsersWrite: true,
 	tokens.AccountScopeUsersRead:  true,
@@ -287,7 +261,7 @@ func processAccountClientCredentialScopes(scopes string) ([]tokens.AccountScope,
 func (c *Controllers) accountClientCredentialsToken(ctx *fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, oauthLocation, "accountClientCredentialsToken")
 
-	clientID, clientSecret, serviceErr := parseAHClientCredentials(ctx)
+	clientID, clientSecret, serviceErr := parseBasicAuthHeader(ctx)
 	if serviceErr != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
 	}

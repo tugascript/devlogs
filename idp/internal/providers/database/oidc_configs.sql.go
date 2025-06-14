@@ -34,7 +34,7 @@ INSERT INTO "oidc_configs" (
 ) VALUES (
     $1,
     $2
-) RETURNING id, account_id, dek, claims, scopes, created_at, updated_at
+) RETURNING id, account_id, dek, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at
 `
 
 type CreateDefaultOIDCConfigParams struct {
@@ -49,8 +49,9 @@ func (q *Queries) CreateDefaultOIDCConfig(ctx context.Context, arg CreateDefault
 		&i.ID,
 		&i.AccountID,
 		&i.Dek,
-		&i.Claims,
-		&i.Scopes,
+		&i.ClaimsSupported,
+		&i.ScopesSupported,
+		&i.UserRolesSupported,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -60,29 +61,29 @@ func (q *Queries) CreateDefaultOIDCConfig(ctx context.Context, arg CreateDefault
 const createOIDCConfig = `-- name: CreateOIDCConfig :one
 INSERT INTO "oidc_configs" (
     "account_id",
-    "claims",
-    "scopes",
+    "claims_supported",
+    "scopes_supported",
     "dek"
 ) VALUES (
     $1,
     $2,
     $3,
     $4
-) RETURNING id, account_id, dek, claims, scopes, created_at, updated_at
+) RETURNING id, account_id, dek, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at
 `
 
 type CreateOIDCConfigParams struct {
-	AccountID int32
-	Claims    []byte
-	Scopes    []byte
-	Dek       string
+	AccountID       int32
+	ClaimsSupported []Claims
+	ScopesSupported []Scopes
+	Dek             string
 }
 
 func (q *Queries) CreateOIDCConfig(ctx context.Context, arg CreateOIDCConfigParams) (OidcConfig, error) {
 	row := q.db.QueryRow(ctx, createOIDCConfig,
 		arg.AccountID,
-		arg.Claims,
-		arg.Scopes,
+		arg.ClaimsSupported,
+		arg.ScopesSupported,
 		arg.Dek,
 	)
 	var i OidcConfig
@@ -90,8 +91,9 @@ func (q *Queries) CreateOIDCConfig(ctx context.Context, arg CreateOIDCConfigPara
 		&i.ID,
 		&i.AccountID,
 		&i.Dek,
-		&i.Claims,
-		&i.Scopes,
+		&i.ClaimsSupported,
+		&i.ScopesSupported,
+		&i.UserRolesSupported,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -99,7 +101,7 @@ func (q *Queries) CreateOIDCConfig(ctx context.Context, arg CreateOIDCConfigPara
 }
 
 const findOIDCConfigByAccountID = `-- name: FindOIDCConfigByAccountID :one
-SELECT id, account_id, dek, claims, scopes, created_at, updated_at FROM "oidc_configs"
+SELECT id, account_id, dek, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at FROM "oidc_configs"
 WHERE "account_id" = $1
 LIMIT 1
 `
@@ -111,8 +113,9 @@ func (q *Queries) FindOIDCConfigByAccountID(ctx context.Context, accountID int32
 		&i.ID,
 		&i.AccountID,
 		&i.Dek,
-		&i.Claims,
-		&i.Scopes,
+		&i.ClaimsSupported,
+		&i.ScopesSupported,
+		&i.UserRolesSupported,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -121,28 +124,36 @@ func (q *Queries) FindOIDCConfigByAccountID(ctx context.Context, accountID int32
 
 const updateOIDCConfig = `-- name: UpdateOIDCConfig :one
 UPDATE "oidc_configs" SET
-    "claims" = $1,
-    "scopes" = $2,
+    "claims_supported" = $2,
+    "scopes_supported" = $3,
+    "user_roles_supported" = $4,
     "updated_at" = now()
-WHERE "id" = $3
-RETURNING id, account_id, dek, claims, scopes, created_at, updated_at
+WHERE "id" = $1
+RETURNING id, account_id, dek, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at
 `
 
 type UpdateOIDCConfigParams struct {
-	Claims []byte
-	Scopes []byte
-	ID     int32
+	ID                 int32
+	ClaimsSupported    []Claims
+	ScopesSupported    []Scopes
+	UserRolesSupported []string
 }
 
 func (q *Queries) UpdateOIDCConfig(ctx context.Context, arg UpdateOIDCConfigParams) (OidcConfig, error) {
-	row := q.db.QueryRow(ctx, updateOIDCConfig, arg.Claims, arg.Scopes, arg.ID)
+	row := q.db.QueryRow(ctx, updateOIDCConfig,
+		arg.ID,
+		arg.ClaimsSupported,
+		arg.ScopesSupported,
+		arg.UserRolesSupported,
+	)
 	var i OidcConfig
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
 		&i.Dek,
-		&i.Claims,
-		&i.Scopes,
+		&i.ClaimsSupported,
+		&i.ScopesSupported,
+		&i.UserRolesSupported,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

@@ -129,18 +129,19 @@ const (
 	fieldErrTagRequired string = "required"
 	fieldErrTagEq       string = "eq"
 
-	strFieldErrTagMin      string = "min"
-	strFieldErrTagMax      string = "max"
-	strFieldErrTagEmail    string = "email"
-	strFieldErrTagJWT      string = "jwt"
-	strFieldErrTagUrl      string = "url"
-	strFieldNumber         string = "number"
-	strFieldUUID           string = "uuid"
-	strFieldPassword       string = "password"
-	strFieldSlug           string = "slug"
-	strFieldNumeric        string = "numeric"
-	strFieldScopes         string = "scopes"
-	strFieldErrTagAlphanum string = "alphanum"
+	strFieldErrTagMin         string = "min"
+	strFieldErrTagMax         string = "max"
+	strFieldErrTagEmail       string = "email"
+	strFieldErrTagJWT         string = "jwt"
+	strFieldErrTagUrl         string = "url"
+	strFieldNumber            string = "number"
+	strFieldUUID              string = "uuid"
+	strFieldPassword          string = "password"
+	strFieldSlug              string = "slug"
+	strFieldNumeric           string = "numeric"
+	strFieldScopes            string = "scopes"
+	strFieldErrTagAlphanum    string = "alphanum"
+	strFieldErrTagSecretOrKey string = "secret_or_key"
 
 	intFieldErrTagGte string = "gte"
 	intFieldErrTagLte string = "lte"
@@ -150,18 +151,19 @@ const (
 	FieldErrMessageEqField  string = "does not match equivalent field"
 	FieldErrMessageEq       string = "does not match expected value"
 
-	StrFieldErrMessageEmail    string = "must be a valid email"
-	StrFieldErrMessageMin      string = "must be longer"
-	StrFieldErrMessageMax      string = "must be shorter"
-	StrFieldErrMessageJWT      string = "must be a valid JWT token"
-	StrFieldErrMessageUrl      string = "must be a valid URL"
-	StrFieldErrMessageNumber   string = "must be a number"
-	StrFieldErrMessageUUID     string = "must be a valid UUID"
-	StrFieldErrMessagePassword string = "must contain at least one lowercase letter, one uppercase letter, one number, and one symbol"
-	StrFieldErrMessageSlug     string = "must be a valid slug"
-	StrFieldErrMessageNumeric  string = "must be a numeric value"
-	StrFieldErrMessageScopes   string = "must be a valid space-separated list of scopes"
-	StrFieldErrMessageAlphanum string = "must be alphanumeric"
+	StrFieldErrMessageEmail       string = "must be a valid email"
+	StrFieldErrMessageMin         string = "must be longer"
+	StrFieldErrMessageMax         string = "must be shorter"
+	StrFieldErrMessageJWT         string = "must be a valid JWT token"
+	StrFieldErrMessageUrl         string = "must be a valid URL"
+	StrFieldErrMessageNumber      string = "must be a number"
+	StrFieldErrMessageUUID        string = "must be a valid UUID"
+	StrFieldErrMessagePassword    string = "must contain at least one lowercase letter, one uppercase letter, one number, and one symbol"
+	StrFieldErrMessageSlug        string = "must be a valid slug"
+	StrFieldErrMessageNumeric     string = "must be a numeric value"
+	StrFieldErrMessageScopes      string = "must be a valid space-separated list of scopes"
+	StrFieldErrMessageAlphanum    string = "must be alphanumeric"
+	StrFieldErrMessageSecretOrKey string = "must be a valid secret id"
 
 	IntFieldErrMessageLte string = "must be less"
 	IntFieldErrMessageGte string = "must be greater"
@@ -199,6 +201,8 @@ func selectStrErrMessage(tag string) string {
 		return StrFieldErrMessageScopes
 	case strFieldErrTagAlphanum:
 		return StrFieldErrMessageAlphanum
+	case strFieldErrTagSecretOrKey:
+		return StrFieldErrMessageSecretOrKey
 	default:
 		return FieldErrMessageInvalid
 	}

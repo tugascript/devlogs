@@ -59,15 +59,15 @@ func (ak *AccountKeyDTO) PublicKID() string {
 	return ak.publicKID
 }
 
-func DecodePublicKeyJSON(jwtCryptoSuite string, publicKey []byte) (utils.JWK, error) {
+func DecodePublicKeyJSON(jwtCryptoSuite database.TokenCryptoSuite, publicKey []byte) (utils.JWK, error) {
 	switch jwtCryptoSuite {
-	case string(tokens.SupportedCryptoSuiteES256):
+	case database.TokenCryptoSuiteES256:
 		jwk := new(utils.ES256JWK)
 		if err := json.Unmarshal(publicKey, jwk); err != nil {
 			return nil, err
 		}
 		return jwk, nil
-	case string(tokens.SupportedCryptoSuiteEd25519):
+	case database.TokenCryptoSuiteEdDSA:
 		jwk := new(utils.Ed25519JWK)
 		if err := json.Unmarshal(publicKey, jwk); err != nil {
 			return nil, err

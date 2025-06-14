@@ -11,7 +11,6 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/hex"
-	"math/big"
 )
 
 func generateRandomBytes(byteLen int) ([]byte, error) {
@@ -40,16 +39,6 @@ func DecodeBase64Secret(secret string) ([]byte, error) {
 	}
 
 	return decoded, nil
-}
-
-func GenerateBase62Secret(byteLen int) (string, error) {
-	randomBytes, err := generateRandomBytes(byteLen)
-	if err != nil {
-		return "", err
-	}
-
-	randomInt := new(big.Int).SetBytes(randomBytes)
-	return randomInt.Text(62), nil
 }
 
 func GenerateBase32Secret(byteLen int) (string, error) {

@@ -11,14 +11,20 @@ INSERT INTO "apps" (
   "name",
   "username_column",
   "client_id",
-  "client_secret"
+  "auth_methods",
+  "grant_types",
+  "response_types",
+  "id_token_ttl"
 ) VALUES (
   $1,
   $2,
   $3,
   $4,
   $5,
-  $6
+  $6,
+  $7,
+  $8,
+  $9
 ) RETURNING *;
 
 
@@ -42,15 +48,14 @@ WHERE "id" = $1 LIMIT 1;
 -- name: UpdateApp :one
 UPDATE "apps"
 SET "name" = $2,
-    "confirmation_uri" = $3,
-    "reset_uri" = $4,
-    "callback_uris" = $5,
-    "logout_uris" = $6,
-    "user_roles" = $7,
-    "default_scopes" = $8,
-    "auth_providers" = $9,
-    "id_token_ttl" = $10,
-    "updated_at" = now()
+    "username_column" = $3,
+    "client_uri" = $4,
+    "logo_uri" = $5,
+    "tos_uri" = $6,
+    "policy_uri" = $7,
+    "software_id" = $8,
+    "software_version" = $9,
+    "auth_methods" = $10
 WHERE "id" = $1
 RETURNING *;
 
@@ -92,10 +97,9 @@ SELECT COUNT("id") FROM "apps"
 WHERE "account_id" = $1 AND "name" ILIKE $2
 LIMIT 1;
 
--- name: UpdateAppClientSecret :one
+-- name: UpdateAppVersion :one
 UPDATE "apps" SET
-    "client_secret" = $1,
     "version" = "version" + 1,
     "updated_at" = now()
-WHERE "id" = $2
+WHERE "id" = $1
 RETURNING *;

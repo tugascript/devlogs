@@ -11,7 +11,5 @@ import (
 )
 
 func Base62Encode(bytes []byte) string {
-	var codeBig big.Int
-	codeBig.SetBytes(bytes)
-	return codeBig.Text(62)
+	return new(big.Int).SetBytes(bytes).Text(62)
 }

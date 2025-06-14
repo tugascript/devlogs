@@ -683,7 +683,7 @@ type GetDistributedJWKsOptions struct {
 func (s *Services) GetDistributedJWKs(
 	ctx context.Context,
 	opts GetDistributedJWKsOptions,
-) ([]utils.ES256JWK, *exceptions.ServiceError) {
+) ([]utils.JWK, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appKeysLocation, "GetDistributedJWKs").With(
 		"accountID", opts.AccountID,
 	)
@@ -701,21 +701,18 @@ func (s *Services) GetDistributedJWKs(
 		return nil, nil
 	}
 
-	jwks := make([]utils.ES256JWK, 0, len(accountKeys))
-	for _, ak := range accountKeys {
-		publicKey, err := dtos.DecodePublicKeyJSON(ak.JwtCryptoSuite, ak.PublicKey)
+	jwks, serviceErr := utils.MapSliceWithErr(accountKeys, func(ak *database.AccountKey) (utils.JWK, *exceptions.ServiceError) {
+		jwk, err := dtos.DecodePublicKeyJSON(ak.JwtCryptoSuite, ak.PublicKey)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to decode public key", "error", err)
 			return nil, exceptions.NewServerError()
 		}
 
-		jwk, ok := publicKey.(*utils.ES256JWK)
-		if !ok {
-			logger.ErrorContext(ctx, "Failed to convert public key to ES256JWK", "error", err)
-			return nil, exceptions.NewServerError()
-		}
-
-		jwks = append(jwks, *jwk)
+		return jwk, nil
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map account keys to JWKs", "serviceErr", serviceErr)
+		return nil, serviceErr
 	}
 
 	logger.InfoContext(ctx, "Distributed JWKs retrieved successfully")

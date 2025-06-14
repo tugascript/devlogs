@@ -120,3 +120,12 @@ func AppendZeroToDecades(n int64) string {
 
 	return strconv.Itoa(int(n))
 }
+
+func ProcessURL(url string) string {
+	lastLoc := len(url) - 1
+	if url[lastLoc] == '/' {
+		return url[:lastLoc]
+	}
+
+	return url
+}

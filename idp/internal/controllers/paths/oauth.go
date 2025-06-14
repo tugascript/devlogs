@@ -14,7 +14,8 @@ const (
 	OAuthUserInfo   string = "/userinfo"
 	OAuthToken      string = "/token"
 	OAuthRevoke     string = "/revoke"
-	OAuthDeviceAuth string = "/device/auth"
+	OAuthIntrospect string = "/introspect"
+	OAuthDeviceAuth string = "/auth/device"
 
 	OAuthAppleCallback string = "/apple/callback"
 	OAuthURL           string = "/:provider"

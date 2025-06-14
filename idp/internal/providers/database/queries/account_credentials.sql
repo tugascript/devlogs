@@ -9,27 +9,27 @@ SELECT * FROM "account_credentials"
 WHERE "client_id" = $1
 LIMIT 1;
 
+-- name: FindAccountCredentialsByAccountPublicIDAndClientID :one
+SELECT * FROM "account_credentials"
+WHERE "account_public_id" = $1 AND "client_id" = $2
+LIMIT 1;
+
 -- name: CreateAccountCredentials :one
 INSERT INTO "account_credentials" (
     "client_id",
-    "client_secret",
     "account_id",
+    "account_public_id",
     "alias",
-    "scopes"
+    "scopes",
+    "auth_methods"
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
-    $5
+    $5,
+    $6
 ) RETURNING *;
-
--- name: UpdateAccountCredentialsClientSecret :one
-UPDATE "account_credentials" SET
-    "client_secret" = $1,
-    "updated_at" = now()
-WHERE "client_id" = $2
-RETURNING *;
 
 -- name: UpdateAccountCredentials :one
 UPDATE "account_credentials" SET
@@ -47,13 +47,13 @@ WHERE "account_id" = $1 AND "alias" = $2;
 DELETE FROM "account_credentials"
 WHERE "client_id" = $1;
 
--- name: FindPaginatedAccountCredentialsByAccountID :many
+-- name: FindPaginatedAccountCredentialsByAccountPublicID :many
 SELECT * FROM "account_credentials"
-WHERE "account_id" = $1
+WHERE "account_public_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3;
 
--- name: CountAccountCredentialsByAccountID :one
+-- name: CountAccountCredentialsByAccountPublicID :one
 SELECT COUNT("id") FROM "account_credentials"
-WHERE "account_id" = $1
+WHERE "account_public_id" = $1
 LIMIT 1;

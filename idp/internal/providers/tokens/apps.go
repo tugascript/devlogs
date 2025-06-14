@@ -11,6 +11,10 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
+type AppScope = string
+
+const AppScopeAccountUserAuth AppScope = "account:users:authenticate"
+
 type AppClaims struct {
 	ClientID string `json:"client_id"`
 	Version  int32  `json:"version"`
@@ -19,6 +23,7 @@ type AppClaims struct {
 type appTokenClaims struct {
 	AppClaims
 	jwt.RegisteredClaims
+	Scope string `json:"scope"`
 }
 
 type AppTokenOptions struct {
@@ -46,6 +51,7 @@ func (t *Tokens) CreateAppToken(opts AppTokenOptions) (string, error) {
 			ExpiresAt: exp,
 			ID:        uuid.NewString(),
 		},
+		Scope: AppScopeAccountUserAuth,
 	})
 	token.Header["kid"] = t.appsData.curKeyPair.kid
 	return token.SignedString(t.appsData.curKeyPair.privateKey)

@@ -9,6 +9,8 @@ package paths
 const (
 	AccountsBase string = "/accounts"
 
+	AccountsSingle string = "/:accountPublicID"
+
 	AccountMe        string = "/me"
 	AccountMeConfirm string = "/me/confirm"
 

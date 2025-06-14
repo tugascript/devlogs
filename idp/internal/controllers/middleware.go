@@ -8,7 +8,6 @@ package controllers
 
 import (
 	"errors"
-	"slices"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -108,10 +107,9 @@ func (c *Controllers) ScopeMiddleware(scope tokens.AccountScope) func(*fiber.Ctx
 			return serviceErrorResponse(logger, ctx, serviceErr)
 		}
 
-		for _, s := range scopes {
-			if s == scope || s == tokens.AccountScopeAdmin {
-				return ctx.Next()
-			}
+		scopesHashset := utils.MapSliceToHashSet(scopes)
+		if scopesHashset.Contains(scope) || scopesHashset.Contains(tokens.AccountScopeAdmin) {
+			return ctx.Next()
 		}
 
 		return serviceErrorResponse(logger, ctx, exceptions.NewForbiddenError())
@@ -126,7 +124,8 @@ func (c *Controllers) AdminScopeMiddleware(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	if !slices.Contains(scopes, tokens.AccountScopeAdmin) {
+	scopesHashset := utils.MapSliceToHashSet(scopes)
+	if !scopesHashset.Contains(tokens.AccountScopeAdmin) {
 		return serviceErrorResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
 

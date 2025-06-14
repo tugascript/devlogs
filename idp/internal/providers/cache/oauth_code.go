@@ -34,7 +34,7 @@ func (c *Cache) GenerateOAuthCode(ctx context.Context, opts GenerateOAuthOptions
 	})
 	logger.DebugContext(ctx, "Generating OAuth code...")
 
-	code, err := utils.GenerateBase62Secret(16)
+	code, err := utils.Base62UUID()
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate code", "error", err)
 		return "", err

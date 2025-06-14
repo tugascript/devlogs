@@ -31,6 +31,7 @@ NONE
 
 #### IDP Todo
 
+- Fix all outstanding errors
 - Accounts fix standard authentication
 - Accounts m2m authentication:
   - client_credentials

@@ -4,19 +4,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-package utils
+package params
 
-import (
-	"fmt"
-
-	"github.com/google/uuid"
-)
-
-func Base62UUID() (string, error) {
-	id, err := uuid.NewRandom()
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%022s", Base62Encode(id[:])), nil
+type AccountURLParams struct {
+	AccountPublicID string `validate:"required,uuid"`
 }

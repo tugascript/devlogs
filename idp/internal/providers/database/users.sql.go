@@ -18,7 +18,7 @@ UPDATE "users" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
+RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at
 `
 
 func (q *Queries) ConfirmUser(ctx context.Context, id int32) (User, error) {
@@ -34,6 +34,7 @@ func (q *Queries) ConfirmUser(ctx context.Context, id int32) (User, error) {
 		&i.Dek,
 		&i.Version,
 		&i.EmailVerified,
+		&i.UserRoles,
 		&i.IsActive,
 		&i.TwoFactorType,
 		&i.UserData,
@@ -129,7 +130,7 @@ INSERT INTO "users" (
     $5,
     $6,
     $7
-) RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
+) RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at
 `
 
 type CreateUserWithPasswordParams struct {
@@ -168,6 +169,7 @@ func (q *Queries) CreateUserWithPassword(ctx context.Context, arg CreateUserWith
 		&i.Dek,
 		&i.Version,
 		&i.EmailVerified,
+		&i.UserRoles,
 		&i.IsActive,
 		&i.TwoFactorType,
 		&i.UserData,
@@ -192,7 +194,7 @@ INSERT INTO "users" (
     $4,
     $5,
     $6
-) RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
+) RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at
 `
 
 type CreateUserWithoutPasswordParams struct {
@@ -224,6 +226,7 @@ func (q *Queries) CreateUserWithoutPassword(ctx context.Context, arg CreateUserW
 		&i.Dek,
 		&i.Version,
 		&i.EmailVerified,
+		&i.UserRoles,
 		&i.IsActive,
 		&i.TwoFactorType,
 		&i.UserData,
@@ -244,7 +247,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
 }
 
 const filterUsersByEmailOrUsernameAndByAccountIDOrderedByEmail = `-- name: FilterUsersByEmailOrUsernameAndByAccountIDOrderedByEmail :many
-SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "account_id" = $1 AND ("email" ILIKE $2 OR "username" ILIKE $3)
 ORDER BY "email" ASC
 OFFSET $4 LIMIT $5
@@ -283,6 +286,7 @@ func (q *Queries) FilterUsersByEmailOrUsernameAndByAccountIDOrderedByEmail(ctx c
 			&i.Dek,
 			&i.Version,
 			&i.EmailVerified,
+			&i.UserRoles,
 			&i.IsActive,
 			&i.TwoFactorType,
 			&i.UserData,
@@ -300,7 +304,7 @@ func (q *Queries) FilterUsersByEmailOrUsernameAndByAccountIDOrderedByEmail(ctx c
 }
 
 const filterUsersByEmailOrUsernameAndByAccountIDOrderedByID = `-- name: FilterUsersByEmailOrUsernameAndByAccountIDOrderedByID :many
-SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "account_id" = $1 AND ("email" ILIKE $2 OR "username" ILIKE $3)
 ORDER BY "id" DESC
 OFFSET $4 LIMIT $5
@@ -339,6 +343,7 @@ func (q *Queries) FilterUsersByEmailOrUsernameAndByAccountIDOrderedByID(ctx cont
 			&i.Dek,
 			&i.Version,
 			&i.EmailVerified,
+			&i.UserRoles,
 			&i.IsActive,
 			&i.TwoFactorType,
 			&i.UserData,
@@ -356,7 +361,7 @@ func (q *Queries) FilterUsersByEmailOrUsernameAndByAccountIDOrderedByID(ctx cont
 }
 
 const filterUsersByEmailOrUsernameAndByAccountIDOrderedByUsername = `-- name: FilterUsersByEmailOrUsernameAndByAccountIDOrderedByUsername :many
-SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "account_id" = $1 AND ("email" ILIKE $2 OR "username" ILIKE $3)
 ORDER BY "username" ASC
 OFFSET $4 LIMIT $5
@@ -395,6 +400,7 @@ func (q *Queries) FilterUsersByEmailOrUsernameAndByAccountIDOrderedByUsername(ct
 			&i.Dek,
 			&i.Version,
 			&i.EmailVerified,
+			&i.UserRoles,
 			&i.IsActive,
 			&i.TwoFactorType,
 			&i.UserData,
@@ -412,7 +418,7 @@ func (q *Queries) FilterUsersByEmailOrUsernameAndByAccountIDOrderedByUsername(ct
 }
 
 const findPaginatedUsersByAccountIDOrderedByEmail = `-- name: FindPaginatedUsersByAccountIDOrderedByEmail :many
-SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "account_id" = $1
 ORDER BY "email" ASC
 OFFSET $2 LIMIT $3
@@ -443,6 +449,7 @@ func (q *Queries) FindPaginatedUsersByAccountIDOrderedByEmail(ctx context.Contex
 			&i.Dek,
 			&i.Version,
 			&i.EmailVerified,
+			&i.UserRoles,
 			&i.IsActive,
 			&i.TwoFactorType,
 			&i.UserData,
@@ -460,7 +467,7 @@ func (q *Queries) FindPaginatedUsersByAccountIDOrderedByEmail(ctx context.Contex
 }
 
 const findPaginatedUsersByAccountIDOrderedByID = `-- name: FindPaginatedUsersByAccountIDOrderedByID :many
-SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "account_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3
@@ -491,6 +498,7 @@ func (q *Queries) FindPaginatedUsersByAccountIDOrderedByID(ctx context.Context, 
 			&i.Dek,
 			&i.Version,
 			&i.EmailVerified,
+			&i.UserRoles,
 			&i.IsActive,
 			&i.TwoFactorType,
 			&i.UserData,
@@ -508,7 +516,7 @@ func (q *Queries) FindPaginatedUsersByAccountIDOrderedByID(ctx context.Context, 
 }
 
 const findPaginatedUsersByAccountIDOrderedByUsername = `-- name: FindPaginatedUsersByAccountIDOrderedByUsername :many
-SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "account_id" = $1
 ORDER BY "username" ASC
 OFFSET $2 LIMIT $3
@@ -539,6 +547,7 @@ func (q *Queries) FindPaginatedUsersByAccountIDOrderedByUsername(ctx context.Con
 			&i.Dek,
 			&i.Version,
 			&i.EmailVerified,
+			&i.UserRoles,
 			&i.IsActive,
 			&i.TwoFactorType,
 			&i.UserData,
@@ -556,7 +565,7 @@ func (q *Queries) FindPaginatedUsersByAccountIDOrderedByUsername(ctx context.Con
 }
 
 const findUserByEmailAndAccountID = `-- name: FindUserByEmailAndAccountID :one
-SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "email" = $1 AND "account_id" = $2
 LIMIT 1
 `
@@ -579,6 +588,7 @@ func (q *Queries) FindUserByEmailAndAccountID(ctx context.Context, arg FindUserB
 		&i.Dek,
 		&i.Version,
 		&i.EmailVerified,
+		&i.UserRoles,
 		&i.IsActive,
 		&i.TwoFactorType,
 		&i.UserData,
@@ -589,7 +599,7 @@ func (q *Queries) FindUserByEmailAndAccountID(ctx context.Context, arg FindUserB
 }
 
 const findUserByID = `-- name: FindUserByID :one
-SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "id" = $1 LIMIT 1
 `
 
@@ -606,6 +616,7 @@ func (q *Queries) FindUserByID(ctx context.Context, id int32) (User, error) {
 		&i.Dek,
 		&i.Version,
 		&i.EmailVerified,
+		&i.UserRoles,
 		&i.IsActive,
 		&i.TwoFactorType,
 		&i.UserData,
@@ -616,7 +627,7 @@ func (q *Queries) FindUserByID(ctx context.Context, id int32) (User, error) {
 }
 
 const findUserByPublicIDAndVersion = `-- name: FindUserByPublicIDAndVersion :one
-SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "public_id" = $1 AND "version" = $2 LIMIT 1
 `
 
@@ -638,6 +649,7 @@ func (q *Queries) FindUserByPublicIDAndVersion(ctx context.Context, arg FindUser
 		&i.Dek,
 		&i.Version,
 		&i.EmailVerified,
+		&i.UserRoles,
 		&i.IsActive,
 		&i.TwoFactorType,
 		&i.UserData,
@@ -648,7 +660,7 @@ func (q *Queries) FindUserByPublicIDAndVersion(ctx context.Context, arg FindUser
 }
 
 const findUserByUsernameAndAccountID = `-- name: FindUserByUsernameAndAccountID :one
-SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
+SELECT id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at FROM "users"
 WHERE "username" = $1 AND "account_id" = $2
 LIMIT 1
 `
@@ -671,6 +683,7 @@ func (q *Queries) FindUserByUsernameAndAccountID(ctx context.Context, arg FindUs
 		&i.Dek,
 		&i.Version,
 		&i.EmailVerified,
+		&i.UserRoles,
 		&i.IsActive,
 		&i.TwoFactorType,
 		&i.UserData,
@@ -690,7 +703,7 @@ UPDATE "users" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $6
-RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
+RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at
 `
 
 type UpdateUserParams struct {
@@ -722,6 +735,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Dek,
 		&i.Version,
 		&i.EmailVerified,
+		&i.UserRoles,
 		&i.IsActive,
 		&i.TwoFactorType,
 		&i.UserData,
@@ -754,7 +768,7 @@ UPDATE "users" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $2
-RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, is_active, two_factor_type, user_data, created_at, updated_at
+RETURNING id, public_id, account_id, email, username, password, dek, version, email_verified, user_roles, is_active, two_factor_type, user_data, created_at, updated_at
 `
 
 type UpdateUserPasswordParams struct {
@@ -775,6 +789,7 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 		&i.Dek,
 		&i.Version,
 		&i.EmailVerified,
+		&i.UserRoles,
 		&i.IsActive,
 		&i.TwoFactorType,
 		&i.UserData,

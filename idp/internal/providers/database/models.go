@@ -5,11 +5,477 @@
 package database
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type AccountCredentialsScope string
+
+const (
+	AccountCredentialsScopeAccountAdmin            AccountCredentialsScope = "account:admin"
+	AccountCredentialsScopeAccountUsersRead        AccountCredentialsScope = "account:users:read"
+	AccountCredentialsScopeAccountUsersWrite       AccountCredentialsScope = "account:users:write"
+	AccountCredentialsScopeAccountAppsRead         AccountCredentialsScope = "account:apps:read"
+	AccountCredentialsScopeAccountAppsWrite        AccountCredentialsScope = "account:apps:write"
+	AccountCredentialsScopeAccountCredentialsRead  AccountCredentialsScope = "account:credentials:read"
+	AccountCredentialsScopeAccountCredentialsWrite AccountCredentialsScope = "account:credentials:write"
+)
+
+func (e *AccountCredentialsScope) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AccountCredentialsScope(s)
+	case string:
+		*e = AccountCredentialsScope(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AccountCredentialsScope: %T", src)
+	}
+	return nil
+}
+
+type NullAccountCredentialsScope struct {
+	AccountCredentialsScope AccountCredentialsScope
+	Valid                   bool // Valid is true if AccountCredentialsScope is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAccountCredentialsScope) Scan(value interface{}) error {
+	if value == nil {
+		ns.AccountCredentialsScope, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AccountCredentialsScope.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAccountCredentialsScope) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AccountCredentialsScope), nil
+}
+
+type AppType string
+
+const (
+	AppTypeWeb     AppType = "web"
+	AppTypeNative  AppType = "native"
+	AppTypeSpa     AppType = "spa"
+	AppTypeBackend AppType = "backend"
+	AppTypeDevice  AppType = "device"
+	AppTypeService AppType = "service"
+)
+
+func (e *AppType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AppType(s)
+	case string:
+		*e = AppType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AppType: %T", src)
+	}
+	return nil
+}
+
+type NullAppType struct {
+	AppType AppType
+	Valid   bool // Valid is true if AppType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAppType) Scan(value interface{}) error {
+	if value == nil {
+		ns.AppType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AppType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAppType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AppType), nil
+}
+
+type AppUsernameColumn string
+
+const (
+	AppUsernameColumnEmail    AppUsernameColumn = "email"
+	AppUsernameColumnUsername AppUsernameColumn = "username"
+	AppUsernameColumnBoth     AppUsernameColumn = "both"
+)
+
+func (e *AppUsernameColumn) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AppUsernameColumn(s)
+	case string:
+		*e = AppUsernameColumn(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AppUsernameColumn: %T", src)
+	}
+	return nil
+}
+
+type NullAppUsernameColumn struct {
+	AppUsernameColumn AppUsernameColumn
+	Valid             bool // Valid is true if AppUsernameColumn is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAppUsernameColumn) Scan(value interface{}) error {
+	if value == nil {
+		ns.AppUsernameColumn, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AppUsernameColumn.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAppUsernameColumn) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AppUsernameColumn), nil
+}
+
+type AuthMethod string
+
+const (
+	AuthMethodNone              AuthMethod = "none"
+	AuthMethodClientSecretBasic AuthMethod = "client_secret_basic"
+	AuthMethodClientSecretPost  AuthMethod = "client_secret_post"
+	AuthMethodPrivateKeyJwt     AuthMethod = "private_key_jwt"
+)
+
+func (e *AuthMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AuthMethod(s)
+	case string:
+		*e = AuthMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AuthMethod: %T", src)
+	}
+	return nil
+}
+
+type NullAuthMethod struct {
+	AuthMethod AuthMethod
+	Valid      bool // Valid is true if AuthMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAuthMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.AuthMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AuthMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAuthMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AuthMethod), nil
+}
+
+type AuthProvider string
+
+const (
+	AuthProviderUsernamePassword AuthProvider = "username_password"
+	AuthProviderApple            AuthProvider = "apple"
+	AuthProviderGithub           AuthProvider = "github"
+	AuthProviderGoogle           AuthProvider = "google"
+	AuthProviderMicrosoft        AuthProvider = "microsoft"
+)
+
+func (e *AuthProvider) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AuthProvider(s)
+	case string:
+		*e = AuthProvider(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AuthProvider: %T", src)
+	}
+	return nil
+}
+
+type NullAuthProvider struct {
+	AuthProvider AuthProvider
+	Valid        bool // Valid is true if AuthProvider is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAuthProvider) Scan(value interface{}) error {
+	if value == nil {
+		ns.AuthProvider, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AuthProvider.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAuthProvider) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AuthProvider), nil
+}
+
+type Claims string
+
+const (
+	ClaimsSub                 Claims = "sub"
+	ClaimsName                Claims = "name"
+	ClaimsGivenName           Claims = "given_name"
+	ClaimsFamilyName          Claims = "family_name"
+	ClaimsMiddleName          Claims = "middle_name"
+	ClaimsNickname            Claims = "nickname"
+	ClaimsPreferredUsername   Claims = "preferred_username"
+	ClaimsProfile             Claims = "profile"
+	ClaimsPicture             Claims = "picture"
+	ClaimsWebsite             Claims = "website"
+	ClaimsEmail               Claims = "email"
+	ClaimsEmailVerified       Claims = "email_verified"
+	ClaimsGender              Claims = "gender"
+	ClaimsBirthdate           Claims = "birthdate"
+	ClaimsZoneinfo            Claims = "zoneinfo"
+	ClaimsLocale              Claims = "locale"
+	ClaimsPhoneNumber         Claims = "phone_number"
+	ClaimsPhoneNumberVerified Claims = "phone_number_verified"
+	ClaimsAddress             Claims = "address"
+	ClaimsUpdatedAt           Claims = "updated_at"
+	ClaimsUserRoles           Claims = "user_roles"
+)
+
+func (e *Claims) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = Claims(s)
+	case string:
+		*e = Claims(s)
+	default:
+		return fmt.Errorf("unsupported scan type for Claims: %T", src)
+	}
+	return nil
+}
+
+type NullClaims struct {
+	Claims Claims
+	Valid  bool // Valid is true if Claims is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullClaims) Scan(value interface{}) error {
+	if value == nil {
+		ns.Claims, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.Claims.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullClaims) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.Claims), nil
+}
+
+type GrantType string
+
+const (
+	GrantTypeAuthorizationCode                     GrantType = "authorization_code"
+	GrantTypeRefreshToken                          GrantType = "refresh_token"
+	GrantTypeClientCredentials                     GrantType = "client_credentials"
+	GrantTypeUrnIetfParamsOauthGrantTypeDeviceCode GrantType = "urn:ietf:params:oauth:grant-type:device_code"
+	GrantTypeUrnIetfParamsOauthGrantTypeJwtBearer  GrantType = "urn:ietf:params:oauth:grant-type:jwt-bearer"
+)
+
+func (e *GrantType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = GrantType(s)
+	case string:
+		*e = GrantType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for GrantType: %T", src)
+	}
+	return nil
+}
+
+type NullGrantType struct {
+	GrantType GrantType
+	Valid     bool // Valid is true if GrantType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullGrantType) Scan(value interface{}) error {
+	if value == nil {
+		ns.GrantType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.GrantType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullGrantType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.GrantType), nil
+}
+
+type ResponseType string
+
+const (
+	ResponseTypeCode         ResponseType = "code"
+	ResponseTypeToken        ResponseType = "token"
+	ResponseTypeIDToken      ResponseType = "id_token"
+	ResponseTypeTokenidToken ResponseType = "token id_token"
+	ResponseTypeCodeidToken  ResponseType = "code id_token"
+)
+
+func (e *ResponseType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ResponseType(s)
+	case string:
+		*e = ResponseType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ResponseType: %T", src)
+	}
+	return nil
+}
+
+type NullResponseType struct {
+	ResponseType ResponseType
+	Valid        bool // Valid is true if ResponseType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullResponseType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ResponseType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ResponseType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullResponseType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ResponseType), nil
+}
+
+type Scopes string
+
+const (
+	ScopesOpenid    Scopes = "openid"
+	ScopesEmail     Scopes = "email"
+	ScopesProfile   Scopes = "profile"
+	ScopesAddress   Scopes = "address"
+	ScopesPhone     Scopes = "phone"
+	ScopesUserRoles Scopes = "user_roles"
+)
+
+func (e *Scopes) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = Scopes(s)
+	case string:
+		*e = Scopes(s)
+	default:
+		return fmt.Errorf("unsupported scan type for Scopes: %T", src)
+	}
+	return nil
+}
+
+type NullScopes struct {
+	Scopes Scopes
+	Valid  bool // Valid is true if Scopes is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullScopes) Scan(value interface{}) error {
+	if value == nil {
+		ns.Scopes, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.Scopes.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullScopes) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.Scopes), nil
+}
+
+type TokenCryptoSuite string
+
+const (
+	TokenCryptoSuiteES256 TokenCryptoSuite = "ES256"
+	TokenCryptoSuiteEdDSA TokenCryptoSuite = "EdDSA"
+)
+
+func (e *TokenCryptoSuite) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TokenCryptoSuite(s)
+	case string:
+		*e = TokenCryptoSuite(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TokenCryptoSuite: %T", src)
+	}
+	return nil
+}
+
+type NullTokenCryptoSuite struct {
+	TokenCryptoSuite TokenCryptoSuite
+	Valid            bool // Valid is true if TokenCryptoSuite is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTokenCryptoSuite) Scan(value interface{}) error {
+	if value == nil {
+		ns.TokenCryptoSuite, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TokenCryptoSuite.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTokenCryptoSuite) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TokenCryptoSuite), nil
+}
 
 type Account struct {
 	ID            int32
@@ -29,15 +495,40 @@ type Account struct {
 	UpdatedAt     time.Time
 }
 
+type AccountAuthProvider struct {
+	ID        int32
+	Email     string
+	Provider  AuthProvider
+	ExpiresAt time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type AccountCredential struct {
-	ID           int32
-	AccountID    int32
-	Scopes       []byte
-	Alias        string
-	ClientID     string
-	ClientSecret string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID              int32
+	AccountID       int32
+	AccountPublicID uuid.UUID
+	Scopes          []AccountCredentialsScope
+	AuthMethods     []AuthMethod
+	Alias           string
+	ClientID        string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type AccountCredentialsKey struct {
+	AccountCredentialsID int32
+	CredentialsKeyID     int32
+	AccountID            int32
+	AccountPublicID      uuid.UUID
+	CreatedAt            time.Time
+}
+
+type AccountCredentialsSecret struct {
+	AccountCredentialsID int32
+	CredentialsSecretID  int32
+	AccountID            int32
+	CreatedAt            time.Time
 }
 
 type AccountKey struct {
@@ -45,14 +536,13 @@ type AccountKey struct {
 	AccountID      int32
 	OidcConfigID   int32
 	Name           string
-	JwtCryptoSuite string
+	JwtCryptoSuite TokenCryptoSuite
 	PublicKid      string
 	PublicKey      []byte
 	PrivateKey     string
 	IsDistributed  bool
 	ExpiresAt      time.Time
 	CreatedAt      time.Time
-	UpdatedAt      time.Time
 }
 
 type AccountTotp struct {
@@ -68,20 +558,25 @@ type AccountTotp struct {
 type App struct {
 	ID              int32
 	AccountID       int32
-	Type            string
+	Type            AppType
 	Name            string
 	ClientID        string
-	ClientSecret    string
 	Version         int32
-	ConfirmationUri string
-	ResetUri        string
-	CallbackUris    []string
-	LogoutUris      []string
-	DefaultScopes   []byte
-	UserRoles       []byte
-	AuthProviders   []byte
-	UsernameColumn  string
+	ClientUri       pgtype.Text
+	LogoUri         pgtype.Text
+	TosUri          pgtype.Text
+	PolicyUri       pgtype.Text
+	SoftwareID      pgtype.Text
+	SoftwareVersion pgtype.Text
+	AuthMethods     []AuthMethod
+	GrantTypes      []GrantType
+	ResponseTypes   []ResponseType
+	DefaultScopes   []Scopes
+	AuthProviders   []string
+	UsernameColumn  AppUsernameColumn
 	IDTokenTtl      int32
+	TokenTtl        int32
+	RefreshTokenTtl int32
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -98,10 +593,16 @@ type AppDesign struct {
 	BackgroundDarkColor  string
 	TextLightColor       string
 	TextDarkColor        string
-	FaviconUrl           string
-	LogoUrl              string
+	FaviconUrl           pgtype.Text
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+}
+
+type AppKey struct {
+	AppID            int32
+	CredentialsKeyID int32
+	AccountID        int32
+	CreatedAt        time.Time
 }
 
 type AppProfile struct {
@@ -109,52 +610,76 @@ type AppProfile struct {
 	AccountID int32
 	UserID    int32
 	AppID     int32
-	UserRoles []byte
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-type AuthProvider struct {
-	ID        int32
-	Email     string
-	Provider  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+type AppSecret struct {
+	AppID               int32
+	CredentialsSecretID int32
+	AccountID           int32
+	CreatedAt           time.Time
 }
 
-type BlacklistedToken struct {
-	ID        uuid.UUID
-	ExpiresAt time.Time
-	CreatedAt time.Time
+type AppServerUrl struct {
+	ID              int32
+	AccountID       int32
+	AppID           int32
+	ConfirmationUrl string
+	ResetUrl        string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
-type ExternalAuthProvider struct {
+type AppUri struct {
 	ID           int32
-	Name         string
-	Provider     string
-	Icon         string
 	AccountID    int32
-	ClientID     string
+	AppID        int32
+	CallbackUris []string
+	LogoutUris   []string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type CredentialsKey struct {
+	ID             int32
+	AccountID      int32
+	PublicKid      string
+	PublicKey      []byte
+	JwtCryptoSuite TokenCryptoSuite
+	IsRevoked      bool
+	ExpiresAt      time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type CredentialsSecret struct {
+	ID           int32
+	AccountID    int32
+	SecretID     string
 	ClientSecret string
-	Scopes       []string
-	AuthUrl      string
-	TokenUrl     string
-	UserInfoUrl  string
-	EmailKey     string
-	UserSchema   []byte
-	UserMapping  []byte
+	IsRevoked    bool
+	ExpiresAt    time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
 
 type OidcConfig struct {
+	ID                 int32
+	AccountID          int32
+	Dek                string
+	ClaimsSupported    []Claims
+	ScopesSupported    []Scopes
+	UserRolesSupported []string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type RevokedToken struct {
 	ID        int32
-	AccountID int32
-	Dek       string
-	Claims    []byte
-	Scopes    []byte
+	TokenID   uuid.UUID
+	ExpiresAt time.Time
 	CreatedAt time.Time
-	UpdatedAt time.Time
 }
 
 type User struct {
@@ -167,6 +692,7 @@ type User struct {
 	Dek           string
 	Version       int32
 	EmailVerified bool
+	UserRoles     []string
 	IsActive      bool
 	TwoFactorType string
 	UserData      []byte
@@ -178,19 +704,42 @@ type UserAuthProvider struct {
 	ID        int32
 	UserID    int32
 	AccountID int32
-	Provider  string
+	Provider  AuthProvider
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
 type UserCredential struct {
-	ID           int32
-	UserID       int32
-	ClientID     string
-	ClientSecret string
-	AccountID    int32
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID          int32
+	UserID      int32
+	AccountID   int32
+	ClientID    string
+	AuthMethods []AuthMethod
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type UserCredentialsKey struct {
+	ID               int32
+	AccountID        int32
+	UserID           int32
+	UserCredentialID int32
+	PublicKid        string
+	PublicKey        []byte
+	JwtCryptoSuite   TokenCryptoSuite
+	ExpiresAt        time.Time
+	CreatedAt        time.Time
+}
+
+type UserCredentialsSecret struct {
+	ID               int32
+	UserID           int32
+	UserCredentialID int32
+	AccountID        int32
+	SecretID         string
+	ClientSecret     string
+	ExpiresAt        time.Time
+	CreatedAt        time.Time
 }
 
 type UserTotp struct {

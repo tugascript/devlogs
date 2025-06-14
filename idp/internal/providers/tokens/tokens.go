@@ -363,10 +363,5 @@ func GetSupportedCryptoSuite(cryptoSuite string) (SupportedCryptoSuite, *excepti
 }
 
 func buildPathAudience(backendDomain, path string) string {
-	lastLoc := len(backendDomain) - 1
-	if backendDomain[lastLoc] == '/' {
-		return fmt.Sprintf("https://%s%s", backendDomain[:lastLoc], path)
-	}
-
-	return fmt.Sprintf("https://%s%s", backendDomain, path)
+	return fmt.Sprintf("https://%s%s", utils.ProcessURL(backendDomain), path)
 }

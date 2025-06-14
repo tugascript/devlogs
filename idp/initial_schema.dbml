@@ -1,3 +1,9 @@
+// Copyright (c) 2025 Afonso Barracha
+// 
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 Table accounts as A {
     id serial [pk]
     public_id uuid [not null]
@@ -26,6 +32,58 @@ Table accounts as A {
     }
 }
 
+Table credentials_secrets as CS {
+    id serial [pk]
+
+    account_id integer [not null]
+
+    secret_id varchar(26) [not null]
+    client_secret text [not null]
+    is_revoked boolean [not null, default: false]
+
+    expires_at timestamptz [not null]
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'credential_secrets_account_id_idx']
+        (secret_id) [unique, name: 'credential_secrets_secret_id_uidx']
+        (expires_at) [name: 'credential_secrets_expires_at_idx']
+        (is_revoked, expires_at) [name: 'credential_secrets_is_revoked_expires_at_idx']
+        (account_id, secret_id) [name: 'credential_secrets_account_id_secret_id_idx']
+    }
+}
+Ref: CS.account_id > A.id [delete: cascade]
+
+Enum token_crypto_suite {
+    "ES256"
+    "EdDSA"
+}
+
+Table credentials_keys as CK {
+    id serial [pk]
+
+    account_id integer [not null]
+
+    public_kid varchar(22) [not null]
+    public_key jsonb [not null]
+    jwt_crypto_suite token_crypto_suite [not null, default: 'ES256']
+    is_revoked boolean [not null, default: false]
+
+    expires_at timestamptz [not null]
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'credential_keys_account_id_idx']
+        (public_kid) [unique, name: 'credential_keys_public_kid_uidx']
+        (expires_at) [name: 'credential_keys_expires_at_idx']
+        (is_revoked, expires_at) [name: 'credential_keys_is_revoked_expires_at_idx']
+        (account_id, public_kid) [name: 'credential_keys_account_id_public_kid_idx']
+    }
+}
+Ref: CK.account_id > A.id [delete: cascade]
+
 Table account_totps as AT {
     id serial [pk]
     
@@ -43,16 +101,34 @@ Table account_totps as AT {
 }
 Ref: AT.account_id > A.id [delete: cascade]
 
-Table account_credentials as ACK {
+Enum auth_method {
+    "none"
+    "client_secret_basic"
+    "client_secret_post"
+    "private_key_jwt"
+}
+
+Enum account_credentials_scope {
+    "account:admin"
+    "account:users:read"
+    "account:users:write"
+    "account:apps:read"
+    "account:apps:write"
+    "account:credentials:read"
+    "account:credentials:write"
+}
+
+Table account_credentials as AC {
     id serial [pk]
 
     account_id integer [not null]
+    account_public_id uuid [not null]
 
-    scopes jsonb [not null]
+    scopes "account_credentials_scope[]" [not null]
+    auth_methods "auth_method[]" [not null]
 
     alias varchar(50) [not null]
     client_id varchar(22) [not null]
-    client_secret text [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -60,17 +136,68 @@ Table account_credentials as ACK {
     Indexes {
         (client_id) [unique, name: 'account_credentials_client_id_uidx']
         (account_id) [name: 'account_credentials_account_id_idx']
+        (account_public_id) [name: 'account_credentials_account_public_id_idx']
+        (account_public_id, client_id) [name: 'account_credentials_account_public_id_client_id_idx']
         (alias, account_id) [unique, name: 'account_credentials_alias_account_id_uidx']
     }
 }
-Ref: ACK.account_id > A.id [delete: cascade]
+Ref: AC.account_id > A.id [delete: cascade]
 
-Table auth_providers as AP {
+Table account_credentials_secrets as ACS {
+    account_credentials_id integer [not null]
+    credentials_secret_id integer [not null]
+
+    account_id integer [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_credentials_id, credentials_secret_id) [pk]
+        (account_credentials_id) [name: 'account_credentials_secrets_account_credentials_id_idx']
+        (credentials_secret_id) [unique, name: 'account_credentials_secrets_credentials_secret_id_uidx']
+        (account_id) [name: 'account_credentials_secrets_account_id_idx']
+    }
+}
+Ref: ACS.account_id > A.id [delete: cascade]
+Ref: ACS.account_credentials_id > AC.id [delete: cascade]
+Ref: ACS.credentials_secret_id > CS.id [delete: cascade]
+
+Table account_credentials_keys as ACK {
+    account_credentials_id integer [not null]
+    credentials_key_id integer [not null]
+
+    account_id integer [not null]
+    account_public_id uuid [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_credentials_id, credentials_key_id) [pk]
+        (account_credentials_id) [name: 'account_credentials_keys_account_credentials_id_idx']
+        (credentials_key_id) [unique, name: 'account_credentials_keys_credentials_key_id_uidx']
+        (account_id) [name: 'account_credentials_keys_account_id_idx']
+        (account_public_id) [name: 'account_credentials_keys_account_public_id_idx']
+    }
+}
+Ref: ACK.account_id > A.id [delete: cascade]
+Ref: ACK.account_credentials_id > AC.id [delete: cascade]
+Ref: ACK.credentials_key_id > CK.id [delete: cascade]
+
+Enum auth_provider {
+    "username_password"
+    "apple"
+    "github"
+    "google"
+    "microsoft"
+}
+
+Table account_auth_providers as AP {
     id serial [pk]
     
     email varchar(250) [not null]
-    provider varchar(10) [not null]
+    provider auth_provider [not null]
 
+    expires_at timestamptz [not null]
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
 
@@ -81,34 +208,38 @@ Table auth_providers as AP {
 }
 Ref: AP.email > A.email [delete: cascade, update: cascade]
 
-Table external_auth_providers as SAP {
-    id serial [pk]
-
-    name varchar(50) [not null]
-    provider varchar(50) [not null]
-    icon text [not null]
-    account_id integer [not null]
-
-    client_id text [not null]
-    client_secret text [not null]
-    scopes "varchar(250)[]" [not null]
-    auth_url text [not null]
-    token_url text [not null]
-    user_info_url text [not null]
-    email_key varchar(50) [not null]
-    user_schema jsonb [not null]
-    user_mapping jsonb [not null]
-
-    created_at timestamptz [not null, default: `now()`]
-    updated_at timestamptz [not null, default: `now()`]
-
-    Indexes {
-        (account_id, provider) [unique, name: 'external_auth_providers_account_id_provider_uidx']
-        (name) [name: 'external_auth_providers_name_idx']
-        (account_id) [name: 'external_auth_providers_account_id_idx']
-    }
+Enum claims {
+    "sub"
+    "name"
+    "given_name"
+    "family_name"
+    "middle_name"
+    "nickname"
+    "preferred_username"
+    "profile"
+    "picture"
+    "website"
+    "email"
+    "email_verified"
+    "gender"
+    "birthdate"
+    "zoneinfo"
+    "locale"
+    "phone_number"
+    "phone_number_verified"
+    "address"
+    "updated_at"
+    "user_roles"
 }
-Ref: SAP.account_id > A.id [delete: cascade]
+
+Enum scopes {
+    "openid"
+    "email"
+    "profile"
+    "address"
+    "phone"
+    "user_roles"
+}
 
 Table oidc_configs as OIDC {
     id serial [pk]
@@ -117,8 +248,9 @@ Table oidc_configs as OIDC {
 
     dek text [not null]
 
-    claims jsonb [not null, default: '{ "given_name": true, "family_name": true }']
-    scopes jsonb [not null, default: '{ "email": true, "profile": true }']
+    claims_supported "claims[]" [not null, default: '{ "sub", "email", "email_verified", "given_name", "family_name" }']
+    scopes_supported "scopes[]" [not null, default: '{ "email", "profile" }']
+    user_roles_supported "varchar(50)[]" [not null, default: '{ "user", "staff", "admin" }']
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -136,9 +268,9 @@ Table account_keys as AK {
     oidc_config_id integer [not null]
 
     name varchar(10) [not null]
-    jwt_crypto_suite varchar(5) [not null]
+    jwt_crypto_suite token_crypto_suite [not null]
 
-    public_kid varchar(20) [not null]
+    public_kid varchar(22) [not null]
     public_key jsonb [not null]
     private_key text [not null]
 
@@ -146,12 +278,12 @@ Table account_keys as AK {
     expires_at timestamptz [not null]
 
     created_at timestamptz [not null, default: `now()`]
-    updated_at timestamptz [not null, default: `now()`]
 
     Indexes {
         (account_id) [name: 'account_keys_account_id_idx']
         (oidc_config_id) [name: 'account_keys_oidc_config_id_idx']
         (public_kid) [unique, name: 'account_keys_public_kid_uidx']
+        (account_id, public_kid) [name: 'account_keys_account_id_public_kid_idx']
         (name, account_id, expires_at, id) [name: 'account_keys_name_account_id_expires_at_id_idx']
         (account_id, is_distributed, expires_at) [name: 'account_keys_account_id_is_distributed_expires_at_idx']
     }
@@ -171,6 +303,7 @@ Table users as U {
     dek text [not null]
     version integer [not null, default: 1]
     email_verified boolean [not null, default: false]
+    user_roles "varchar(50)[]" [not null, default: '{ "user" }']
 
     is_active boolean [not null, default: true]
     two_factor_type varchar(5) [not null, default: 'none']
@@ -216,7 +349,7 @@ Table user_auth_providers as UAP {
     user_id integer [not null]
     account_id integer [not null]
 
-    provider varchar(50) [not null]
+    provider auth_provider [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -234,11 +367,10 @@ Table user_credentials as UC {
     id serial [pk]
 
     user_id integer [not null]
+    account_id integer [not null]
 
     client_id varchar(22) [not null]
-    client_secret text [not null]
-
-    account_id integer [not null]
+    auth_methods "auth_method[]" [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -252,43 +384,213 @@ Table user_credentials as UC {
 Ref: UC.user_id > U.id [delete: cascade]
 Ref: UC.account_id > A.id [delete: cascade]
 
-Table apps as APP {
+Table user_credentials_secrets as UCS {
+    id serial [pk]
+
+    user_id integer [not null]
+    user_credential_id integer [not null]
+    account_id integer [not null]
+
+    secret_id varchar(26) [not null]
+    client_secret text [not null]
+
+    expires_at timestamptz [not null]
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (user_id) [name: 'user_credentials_secrets_user_id_idx']
+        (user_credential_id) [name: 'user_credentials_secrets_user_credential_id_idx']
+        (secret_id) [unique, name: 'user_credentials_secrets_secret_id_uidx']
+        (user_credential_id, secret_id) [name: 'user_credentials_secrets_user_credential_id_secret_id_idx']
+        (account_id) [name: 'user_credentials_secrets_account_id_idx']
+    }
+}
+Ref: UCS.user_id > U.id [delete: cascade]
+Ref: UCS.user_credential_id > UC.id [delete: cascade]
+Ref: UCS.account_id > A.id [delete: cascade]
+
+Table user_credentials_keys as UCK {
     id serial [pk]
 
     account_id integer [not null]
+    user_id integer [not null]
+    user_credential_id integer [not null]
 
-    type varchar(10) [not null]
+    public_kid varchar(22) [not null]
+    public_key jsonb [not null]
+    jwt_crypto_suite token_crypto_suite [not null, default: 'ES256']
+
+    expires_at timestamptz [not null]
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'user_credentials_keys_account_id_idx']
+        (user_id) [name: 'user_credentials_keys_user_id_idx']
+        (user_credential_id) [name: 'user_credentials_keys_user_credential_id_idx']
+        (public_kid) [unique, name: 'user_credentials_keys_public_kid_uidx']
+        (user_credential_id, public_kid) [name: 'user_credentials_keys_user_credential_id_public_kid_idx']
+    }
+}
+Ref: UCK.user_id > U.id [delete: cascade]
+Ref: UCK.user_credential_id > UC.id [delete: cascade]
+Ref: UCK.account_id > A.id [delete: cascade]
+
+Enum app_type {
+    "web" // Web apps with server-side logic
+    "native" // Native apps with client-side logic
+    "spa" // Single-page apps
+    "backend" // Backend apps
+    "device" // Device apps
+    "service" // Service apps
+}
+
+Enum app_username_column {
+    "email"
+    "username"
+    "both"
+}
+
+Enum grant_type {
+    "authorization_code"
+    "refresh_token"
+    "client_credentials"
+    "urn:ietf:params:oauth:grant-type:device_code"
+    "urn:ietf:params:oauth:grant-type:jwt-bearer"
+}
+
+Enum response_type {
+    "code"
+    "token"
+    "id_token"
+    "token id_token"
+    "code id_token"
+}
+
+Table apps as APP {
+    id serial [pk]
+    account_id integer [not null]
+
+    type app_type [not null]
     name varchar(50) [not null]
 
     client_id varchar(22) [not null]
-    client_secret text [not null]
     version integer [not null, default: 1]
 
-    confirmation_uri varchar(250) [not null]
-    reset_uri varchar(250) [not null]
-    callback_uris "varchar(250)[]" [not null, default: '{}']
-    logout_uris "varchar(250)[]" [not null, default: '{}']
+    // Common asthetic
+    client_uri varchar(250) [null]
+    logo_uri varchar(250) [null]
+    tos_uri varchar(250) [null]
+    policy_uri varchar(250) [null]
+    software_id varchar(250) [null]
+    software_version varchar(250) [null]
 
-    default_scopes jsonb [not null, default: '{ "email": true, "openid": true }']
-    user_roles jsonb [not null, default: '{ "user": true, "staff": true, "admin": true }']
-    auth_providers jsonb [not null, default: '{ "username_password": true }']
-    username_column varchar(8) [not null, default: 'email']
 
-    id_token_ttl integer [not null, default: 3600]
+    // Common on all OAuth2 apps
+    auth_methods "auth_method[]" [not null]
+    grant_types "grant_type[]" [not null]
+    response_types "response_type[]" [not null]
+    default_scopes "scopes[]" [not null, default: '{ "openid", "email" }']
+    auth_providers "varchar(50)[]" [not null, default: '{ "username_password" }']
+    username_column app_username_column [not null, default: 'email']
+
+    // Tokens TTLs
+    id_token_ttl integer [not null, default: 3600] // 1 hour
+    token_ttl integer [not null, default: 900] // 15 minutes
+    refresh_token_ttl integer [not null, default: 259200] // 3 days
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
 
     Indexes {
         (account_id) [name: 'apps_account_id_idx']
+        (type) [name: 'apps_type_idx']
         (client_id) [unique, name: 'apps_client_id_uidx']
         (client_id, version) [name: 'apps_client_id_version_idx']
         (name) [name: 'apps_name_idx']
-        (username_column) [name: 'apps_username_column_idx']
         (account_id, name) [unique, name: 'apps_account_id_name_uidx']
+        (account_id, type) [name: 'apps_account_id_type_idx']
     }
 }
 Ref: APP.account_id > A.id [delete: cascade]
+
+
+Table app_secrets as APS {
+    app_id integer [not null]
+    credentials_secret_id integer [not null]
+
+    account_id integer [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (app_id, credentials_secret_id) [pk]
+        (app_id) [name: 'app_secrets_app_id_idx']
+        (credentials_secret_id) [unique, name: 'app_secrets_credentials_secret_id_uidx']
+        (account_id) [name: 'app_secrets_account_id_idx']
+    }
+}
+Ref: APS.account_id > A.id [delete: cascade]
+Ref: APS.app_id > APP.id [delete: cascade]
+Ref: APS.credentials_secret_id > CS.id [delete: cascade]
+
+Table app_keys as APK {
+    app_id integer [not null]
+    credentials_key_id integer [not null]
+
+    account_id integer [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (app_id, credentials_key_id) [pk]
+        (app_id) [name: 'app_keys_app_id_idx']
+        (credentials_key_id) [unique, name: 'app_keys_credentials_key_id_uidx']
+        (account_id) [name: 'app_keys_account_id_idx']
+    }
+}
+Ref: APK.account_id > A.id [delete: cascade]
+Ref: APK.app_id > APP.id [delete: cascade]
+Ref: APK.credentials_key_id > CK.id [delete: cascade]
+
+Table app_uris as AUR {
+    id serial [pk]
+
+    account_id integer [not null]
+    app_id integer [not null]
+
+    callback_uris "varchar(250)[]" [not null]
+    logout_uris "varchar(250)[]" [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'app_uris_account_id_idx']
+        (app_id) [unique, name: 'app_uris_app_id_uidx']
+    }
+}
+Ref: AUR.account_id > A.id [delete: cascade]
+Ref: AUR.app_id > APP.id [delete: cascade]
+
+Table app_server_urls as AURL {
+    id serial [pk]
+
+    account_id integer [not null]
+    app_id integer [not null]
+
+    confirmation_url varchar(250) [not null]
+    reset_url varchar(250) [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'app_server_urls_account_id_idx']
+        (app_id) [unique, name: 'app_server_urls_app_id_uidx']
+    }
+}
+Ref: AURL.account_id > A.id [delete: cascade]
+Ref: AURL.app_id > APP.id [delete: cascade]
 
 Table app_designs as AD {
     id serial [pk]
@@ -305,8 +607,7 @@ Table app_designs as AD {
     text_light_color varchar(6) [not null]
     text_dark_color varchar(6) [not null]
 
-    favicon_url varchar(250) [not null]
-    logo_url varchar(250) [not null]
+    favicon_url varchar(250) [null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -325,7 +626,6 @@ Table app_profiles as AUP {
     account_id integer [not null]
     user_id integer [not null]
     app_id integer [not null]
-    user_roles jsonb [not null, default: '{ "user": true }']
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -341,10 +641,15 @@ Ref: AUP.account_id > A.id [delete: cascade]
 Ref: AUP.user_id > U.id [delete: cascade]
 Ref: AUP.app_id > APP.id [delete: cascade]
 
-Table blacklisted_tokens as BT {
-    id uuid [pk]
+Table revoked_tokens as RT {
+    id serial [pk]
+    token_id uuid [not null]
 
     expires_at timestamptz [not null]
 
     created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (token_id) [unique, name: 'revoked_tokens_token_id_uidx']
+    }
 }

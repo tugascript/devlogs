@@ -31,14 +31,14 @@ INSERT INTO "account_keys" (
     $7,
     $8,
     $9
-) RETURNING id, account_id, oidc_config_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at, updated_at
+) RETURNING id, account_id, oidc_config_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at
 `
 
 type CreateAccountKeyParams struct {
 	OidcConfigID   int32
 	AccountID      int32
 	Name           string
-	JwtCryptoSuite string
+	JwtCryptoSuite TokenCryptoSuite
 	PublicKid      string
 	PublicKey      []byte
 	PrivateKey     string
@@ -71,7 +71,6 @@ func (q *Queries) CreateAccountKey(ctx context.Context, arg CreateAccountKeyPara
 		&i.IsDistributed,
 		&i.ExpiresAt,
 		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -93,7 +92,7 @@ func (q *Queries) DeleteDistributedAccountKeysByAccountID(ctx context.Context, a
 }
 
 const findAccountKeyByAccountIDAndName = `-- name: FindAccountKeyByAccountIDAndName :one
-SELECT id, account_id, oidc_config_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at, updated_at FROM "account_keys"
+SELECT id, account_id, oidc_config_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at FROM "account_keys"
 WHERE
     "account_id" = $1 AND
     "name" = $2 AND
@@ -122,13 +121,12 @@ func (q *Queries) FindAccountKeyByAccountIDAndName(ctx context.Context, arg Find
 		&i.IsDistributed,
 		&i.ExpiresAt,
 		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const findAccountKeyByAccountIDAndNames = `-- name: FindAccountKeyByAccountIDAndNames :many
-SELECT id, account_id, oidc_config_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at, updated_at FROM "account_keys"
+SELECT id, account_id, oidc_config_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at FROM "account_keys"
 WHERE
     "account_id" = $1 AND
     "name" = ANY($3) AND
@@ -163,7 +161,6 @@ func (q *Queries) FindAccountKeyByAccountIDAndNames(ctx context.Context, arg Fin
 			&i.IsDistributed,
 			&i.ExpiresAt,
 			&i.CreatedAt,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -176,7 +173,7 @@ func (q *Queries) FindAccountKeyByAccountIDAndNames(ctx context.Context, arg Fin
 }
 
 const findAccountKeyByPublicKID = `-- name: FindAccountKeyByPublicKID :one
-SELECT id, account_id, oidc_config_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at, updated_at FROM "account_keys"
+SELECT id, account_id, oidc_config_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at FROM "account_keys"
 WHERE "public_kid" = $1
 LIMIT 1
 `
@@ -196,13 +193,12 @@ func (q *Queries) FindAccountKeyByPublicKID(ctx context.Context, publicKid strin
 		&i.IsDistributed,
 		&i.ExpiresAt,
 		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const findDistributedAccountKeysByAccountID = `-- name: FindDistributedAccountKeysByAccountID :many
-SELECT id, account_id, oidc_config_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at, updated_at FROM "account_keys"
+SELECT id, account_id, oidc_config_id, name, jwt_crypto_suite, public_kid, public_key, private_key, is_distributed, expires_at, created_at FROM "account_keys"
 WHERE
     "account_id" = $1 AND
     "is_distributed" = true AND
@@ -231,7 +227,6 @@ func (q *Queries) FindDistributedAccountKeysByAccountID(ctx context.Context, acc
 			&i.IsDistributed,
 			&i.ExpiresAt,
 			&i.CreatedAt,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

@@ -9,3 +9,8 @@ package params
 type CredentialsURLParams struct {
 	ClientID string `validate:"required,min=22,max=22,alphanum"`
 }
+
+type CredentialsSecretOrKeyURLParams struct {
+	ClientID string `validate:"required,min=22,max=22,alphanum"`
+	SecretID string `validate:"omitempty,min=22,max=26,secret_or_key"`
+}

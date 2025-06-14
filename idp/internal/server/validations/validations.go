@@ -30,5 +30,9 @@ func NewValidator(logger *slog.Logger) *validator.Validate {
 		logger.Error("Failed to register timezone validator", "error", err)
 		panic(err)
 	}
+	if err := validate.RegisterValidation(secretOrKeyValidatorTag, secretOrKeyValidator); err != nil {
+		logger.Error("Failed to register secret or key validator", "error", err)
+		panic(err)
+	}
 	return validate
 }

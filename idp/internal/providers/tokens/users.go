@@ -17,15 +17,6 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-type UserScope = string
-
-const (
-	UserScopeConfirmation UserScope = "confirmation"
-	UserScopeRefresh      UserScope = "refresh"
-	UserScopeReset        UserScope = "reset"
-	UserScope2FA          UserScope = "2fa"
-)
-
 type UserAuthClaims struct {
 	UserID      uuid.UUID `json:"user_id"`
 	UserVersion int32     `json:"user_version"`

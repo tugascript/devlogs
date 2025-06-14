@@ -25,7 +25,7 @@ INSERT INTO "user_auth_providers" (
 type CreateUserAuthProviderParams struct {
 	AccountID int32
 	UserID    int32
-	Provider  string
+	Provider  AuthProvider
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -48,7 +48,7 @@ LIMIT 1
 
 type FindUserAuthProviderByUserIDAndProviderParams struct {
 	UserID   int32
-	Provider string
+	Provider AuthProvider
 }
 
 func (q *Queries) FindUserAuthProviderByUserIDAndProvider(ctx context.Context, arg FindUserAuthProviderByUserIDAndProviderParams) (UserAuthProvider, error) {

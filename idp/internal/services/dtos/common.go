@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -31,12 +32,12 @@ func NewMessageDTO(msg string) MessageDTO {
 }
 
 type JWKsDTO struct {
-	Keys []utils.ES256JWK `json:"keys"`
+	Keys []utils.JWK `json:"keys"`
 }
 
-func NewJWKsDTO(jwks []utils.ES256JWK) JWKsDTO {
+func NewJWKsDTO(jwks []utils.JWK) JWKsDTO {
 	if len(jwks) == 0 {
-		return JWKsDTO{Keys: make([]utils.ES256JWK, 0)}
+		return JWKsDTO{Keys: make([]utils.JWK, 0)}
 	}
 
 	return JWKsDTO{Keys: jwks}
@@ -125,11 +126,11 @@ func jsonHashMapToSlice(jsonMap []byte) ([]string, *exceptions.ServiceError) {
 	return strSlice, nil
 }
 
-func GetJwtCryptoSuite(cryptoSuite string) (tokens.SupportedCryptoSuite, *exceptions.ServiceError) {
+func GetJwtCryptoSuite(cryptoSuite database.TokenCryptoSuite) (tokens.SupportedCryptoSuite, *exceptions.ServiceError) {
 	switch cryptoSuite {
-	case "EdDSA":
+	case database.TokenCryptoSuiteEdDSA:
 		return tokens.SupportedCryptoSuiteEd25519, nil
-	case "ES256":
+	case database.TokenCryptoSuiteES256:
 		return tokens.SupportedCryptoSuiteES256, nil
 	default:
 		return "", exceptions.NewServerError()

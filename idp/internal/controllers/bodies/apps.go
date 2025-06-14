@@ -6,10 +6,46 @@
 
 package bodies
 
-type CreateAppBody struct {
+type CreateAppBodyBase struct {
+	Type string `json:"type" validate:"required,oneof=web native spa backend device service"`
+}
+
+type CreateAppBodyWeb struct {
+	Name           string   `json:"name" validate:"required,max=50,min=3,alphanum"`
+	Type           string   `json:"type" validate:"required,oneof=web"`
+	UsernameColumn string   `json:"username_column,omitempty" validate:"optional,oneof=email username both"`
+	AuthMethods    string   `json:"auth_methods" validate:"required,oneof=client_secret_basic client_secret_post both_client_secrets private_key_jwt"`
+	ClientURI      string   `json:"client_uri" validate:"required,url"`
+	CallbackURIs   []string `json:"callback_uris" validate:"required,url"`
+	LogoutURIs     []string `json:"logout_uris" validate:"required,url"`
+}
+
+type CreateAppBodyNativeOrSpa struct {
+	Name           string   `json:"name" validate:"required,max=50,min=3,alphanum"`
+	Type           string   `json:"type" validate:"required,oneof=native spa"`
+	UsernameColumn string   `json:"username_column,omitempty" validate:"optional,oneof=email username both"`
+	CallbackURIs   []string `json:"callback_uris" validate:"required,url"`
+	LogoutURIs     []string `json:"logout_uris" validate:"required,url"`
+}
+
+type CreateAppBodyBackend struct {
+	Name            string `json:"name" validate:"required,max=50,min=3,alphanum"`
+	Type            string `json:"type" validate:"required,oneof=backend"`
+	UsernameColumn  string `json:"username_column,omitempty" validate:"optional,oneof=email username both"`
+	AuthMethods     string `json:"auth_methods" validate:"required,oneof=client_secret_basic private_key_jwt"`
+	ConfirmationURL string `json:"confirmation_url" validate:"required,url"`
+	ResetURL        string `json:"reset_url" validate:"required,url"`
+}
+
+type CreateAppBodyDevice struct {
 	Name           string `json:"name" validate:"required,max=50,min=3,alphanum"`
-	Type           string `json:"type" validate:"required,oneof=web mobile spa desktop all"`
-	UsernameColumn string `json:"username_column" validate:"required,oneof=email username both"`
+	Type           string `json:"type" validate:"required,oneof=device"`
+	UsernameColumn string `json:"username_column,omitempty" validate:"optional,oneof=email username both"`
+}
+
+type CreateAppBodyService struct {
+	Name string `json:"name" validate:"required,max=50,min=3,alphanum"`
+	Type string `json:"type" validate:"required,oneof=service"`
 }
 
 type UpdateAppBody struct {

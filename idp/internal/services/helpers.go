@@ -12,10 +12,17 @@ import (
 	"strings"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const (
+	AuthMethodBothClientSecrets string = "both_client_secrets"
+	AuthMethodPrivateKeyJwt     string = "private_key_jwt"
+	AuthMethodClientSecretBasic string = "client_secret_basic"
+	AuthMethodClientSecretPost  string = "client_secret_post"
+	AuthMethodNone              string = "none"
+
 	AuthProviderEmail            string = "email"
 	AuthProviderGoogle           string = "google"
 	AuthProviderGitHub           string = "github"
@@ -71,4 +78,22 @@ func extractAuthHeaderToken(ah string) (string, *exceptions.ServiceError) {
 	}
 
 	return ahSlice[1], nil
+}
+
+func mapAuthMethod(authMethod string) ([]database.AuthMethod, *exceptions.ServiceError) {
+	if authMethod == AuthMethodBothClientSecrets {
+		return []database.AuthMethod{
+			database.AuthMethodClientSecretBasic,
+			database.AuthMethodClientSecretPost,
+		}, nil
+	}
+
+	am := database.AuthMethod(authMethod)
+	switch am {
+	case database.AuthMethodClientSecretBasic, database.AuthMethodClientSecretPost,
+		database.AuthMethodPrivateKeyJwt, database.AuthMethodNone:
+		return []database.AuthMethod{am}, nil
+	default:
+		return nil, exceptions.NewValidationError("invalid auth method")
+	}
 }
