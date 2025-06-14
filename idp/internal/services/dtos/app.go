@@ -7,29 +7,35 @@
 package dtos
 
 import (
-	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 )
 
 type AppDTO struct {
-	id           int32
-	accountID    int32
-	version      int32
-	hashedSecret string
+	id        int32
+	accountID int32
+	version   int32
 
-	Type            string   `json:"type"`
-	Name            string   `json:"name"`
-	ClientID        string   `json:"client_id"`
-	ClientSecret    string   `json:"client_secret,omitempty"`
-	CallbackURIs    []string `json:"callback_uris"`
-	LogoutURIs      []string `json:"logout_uris"`
-	ConfirmationURI string   `json:"confirmation_uri"`
-	ResetURI        string   `json:"reset_uri"`
-	DefaultScopes   []string `json:"default_scopes"`
-	UserRoles       []string `json:"user_roles"`
-	UsernameColumn  string   `json:"username_column"`
-	Providers       []string `json:"providers"`
-	IDTokenTTL      int32    `json:"id_token_ttl"`
+	Type     database.AppType `json:"type"`
+	Name     string           `json:"name"`
+	ClientID string           `json:"client_id"`
+
+	ClientURI       string `json:"client_uri,omitempty"`
+	LogoURI         string `json:"logo_uri,omitempty"`
+	TosURI          string `json:"tos_uri,omitempty"`
+	PolicyURI       string `json:"policy_uri,omitempty"`
+	SoftwareID      string `json:"software_id,omitempty"`
+	SoftwareVersion string `json:"software_version,omitempty"`
+
+	AuthMethods    []database.AuthMethod      `json:"auth_methods"`
+	GrantTypes     []database.GrantType       `json:"grant_types"`
+	ResponseTypes  []database.ResponseType    `json:"response_types"`
+	DefaultScopes  []database.Scopes          `json:"default_scopes"`
+	UsernameColumn database.AppUsernameColumn `json:"username_column"`
+	AuthProviders  []database.AuthProvider    `json:"auth_providers"`
+
+	IDTokenTTL      int32 `json:"id_token_ttl"`
+	TokenTTL        int32 `json:"token_ttl"`
+	RefreshTokenTTL int32 `json:"refresh_token_ttl"`
 }
 
 func (a *AppDTO) ID() int32 {
@@ -44,79 +50,28 @@ func (a *AppDTO) Version() int32 {
 	return a.version
 }
 
-func (a *AppDTO) HashedSecret() string {
-	return a.hashedSecret
-}
-
-func MapAppToDTO(app *database.App) (AppDTO, *exceptions.ServiceError) {
-	defaultScopes, serviceErr := jsonHashMapToSlice(app.DefaultScopes)
-	if serviceErr != nil {
-		return AppDTO{}, serviceErr
-	}
-
-	authProviders, serviceErr := jsonHashMapToSlice(app.AuthProviders)
-	if serviceErr != nil {
-		return AppDTO{}, serviceErr
-	}
-
-	userRoles, serviceErr := jsonHashMapToSlice(app.UserRoles)
-	if serviceErr != nil {
-		return AppDTO{}, serviceErr
-	}
-
+func MapAppToDTO(app *database.App) AppDTO {
 	return AppDTO{
 		id:              app.ID,
 		accountID:       app.AccountID,
 		version:         app.Version,
-		hashedSecret:    app.ClientSecret,
 		Type:            app.Type,
 		ClientID:        app.ClientID,
 		Name:            app.Name,
-		CallbackURIs:    app.CallbackUris,
-		LogoutURIs:      app.LogoutUris,
-		DefaultScopes:   defaultScopes,
-		UserRoles:       userRoles,
-		ConfirmationURI: app.ConfirmationUri,
-		ResetURI:        app.ResetUri,
+		ClientURI:       app.ClientUri.String,
+		LogoURI:         app.LogoUri.String,
+		TosURI:          app.TosUri.String,
+		PolicyURI:       app.PolicyUri.String,
+		SoftwareID:      app.SoftwareID.String,
+		SoftwareVersion: app.SoftwareVersion.String,
+		AuthMethods:     app.AuthMethods,
+		GrantTypes:      app.GrantTypes,
+		ResponseTypes:   app.ResponseTypes,
+		DefaultScopes:   app.DefaultScopes,
 		UsernameColumn:  app.UsernameColumn,
-		Providers:       authProviders,
+		AuthProviders:   app.AuthProviders,
 		IDTokenTTL:      app.IDTokenTtl,
-	}, nil
-}
-
-func MapAppToDTOWithSecret(app *database.App, secret string) (AppDTO, *exceptions.ServiceError) {
-	defaultScopes, serviceErr := jsonHashMapToSlice(app.DefaultScopes)
-	if serviceErr != nil {
-		return AppDTO{}, serviceErr
+		TokenTTL:        app.TokenTtl,
+		RefreshTokenTTL: app.RefreshTokenTtl,
 	}
-
-	authProviders, serviceErr := jsonHashMapToSlice(app.AuthProviders)
-	if serviceErr != nil {
-		return AppDTO{}, serviceErr
-	}
-
-	userRoles, serviceErr := jsonHashMapToSlice(app.UserRoles)
-	if serviceErr != nil {
-		return AppDTO{}, serviceErr
-	}
-
-	return AppDTO{
-		id:              app.ID,
-		accountID:       app.AccountID,
-		version:         app.Version,
-		hashedSecret:    app.ClientSecret,
-		ClientID:        app.ClientID,
-		Type:            app.Type,
-		ClientSecret:    secret,
-		Name:            app.Name,
-		CallbackURIs:    app.CallbackUris,
-		LogoutURIs:      app.LogoutUris,
-		ConfirmationURI: app.ConfirmationUri,
-		DefaultScopes:   defaultScopes,
-		UserRoles:       userRoles,
-		ResetURI:        app.ResetUri,
-		UsernameColumn:  app.UsernameColumn,
-		Providers:       authProviders,
-		IDTokenTTL:      app.IDTokenTtl,
-	}, nil
 }

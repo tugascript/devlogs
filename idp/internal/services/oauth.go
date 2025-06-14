@@ -570,5 +570,7 @@ func (s *Services) GetAccountPublicJWKs(ctx context.Context, requestID string) d
 	jwks := s.jwt.JWKs()
 
 	logger.InfoContext(ctx, "Got account public JWKs successfully")
-	return dtos.NewJWKsDTO(jwks)
+	return dtos.NewJWKsDTO(utils.MapSlice(jwks, func(jwk *utils.ES256JWK) utils.JWK {
+		return jwk
+	}))
 }

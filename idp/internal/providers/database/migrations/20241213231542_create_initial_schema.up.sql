@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-06-14T04:59:53.129Z
+-- Generated at: 2025-06-14T06:18:32.986Z
 
 CREATE TYPE "token_crypto_suite" AS ENUM (
   'ES256',
@@ -300,7 +300,7 @@ CREATE TABLE "apps" (
   "grant_types" grant_type[] NOT NULL,
   "response_types" response_type[] NOT NULL,
   "default_scopes" scopes[] NOT NULL DEFAULT '{ "openid", "email" }',
-  "auth_providers" varchar(50)[] NOT NULL DEFAULT '{ "username_password" }',
+  "auth_providers" auth_provider[] NOT NULL DEFAULT '{ "username_password" }',
   "username_column" app_username_column NOT NULL DEFAULT 'email',
   "id_token_ttl" integer NOT NULL DEFAULT 3600,
   "token_ttl" integer NOT NULL DEFAULT 900,

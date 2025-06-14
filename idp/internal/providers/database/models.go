@@ -574,7 +574,7 @@ type App struct {
 	GrantTypes      []GrantType
 	ResponseTypes   []ResponseType
 	DefaultScopes   []Scopes
-	AuthProviders   []string
+	AuthProviders   []AuthProvider
 	UsernameColumn  AppUsernameColumn
 	IDTokenTtl      int32
 	TokenTtl        int32

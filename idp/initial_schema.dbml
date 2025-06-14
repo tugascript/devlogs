@@ -492,7 +492,7 @@ Table apps as APP {
     grant_types "grant_type[]" [not null]
     response_types "response_type[]" [not null]
     default_scopes "scopes[]" [not null, default: '{ "openid", "email" }']
-    auth_providers "varchar(50)[]" [not null, default: '{ "username_password" }']
+    auth_providers "auth_provider[]" [not null, default: '{ "username_password" }']
     username_column app_username_column [not null, default: 'email']
 
     // Tokens TTLs

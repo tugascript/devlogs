@@ -19,78 +19,6 @@ import (
 
 const appsLocation string = "apps"
 
-type CreateAppOptions struct {
-	RequestID       string
-	AccountPublicID uuid.UUID
-	Type            string
-	Name            string
-	UsernameColumn  string
-}
-
-func (s *Services) CreateApp(ctx context.Context, opts CreateAppOptions) (dtos.AppDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, appsLocation, "CreateApp").With(
-		"accountPublicID", opts.AccountPublicID,
-		"name", opts.Name,
-	)
-	logger.InfoContext(ctx, "Creating app...")
-
-	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
-		RequestID: opts.RequestID,
-		PublicID:  opts.AccountPublicID,
-	})
-	if serviceErr != nil {
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	name := utils.Capitalized(opts.Name)
-	count, err := s.database.CountAppsByNameAndAccountID(ctx, database.CountAppsByNameAndAccountIDParams{
-		AccountID: accountDTO.ID(),
-		Name:      name,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to count the apps", "error", err)
-		return dtos.AppDTO{}, exceptions.FromDBError(err)
-	}
-	if count > 0 {
-		logger.InfoContext(ctx, "App name already in use for given account")
-		return dtos.AppDTO{}, exceptions.NewConflictError("App name already in use")
-	}
-
-	clientId, err := utils.Base62UUID()
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate client ID", "error", err)
-		return dtos.AppDTO{}, exceptions.NewServerError()
-	}
-
-	clientSecret, err := utils.GenerateBase64Secret(32)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate client secret", "error", err)
-		return dtos.AppDTO{}, exceptions.NewServerError()
-	}
-
-	hashedSecret, err := utils.HashString(clientSecret)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to encrypt client secret", "error", err)
-		return dtos.AppDTO{}, exceptions.NewServerError()
-	}
-
-	app, err := s.database.CreateApp(ctx, database.CreateAppParams{
-		AccountID:      accountDTO.ID(),
-		Name:           name,
-		Type:           opts.Type,
-		UsernameColumn: opts.UsernameColumn,
-		ClientID:       clientId,
-		ClientSecret:   hashedSecret,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create app", "error", err)
-		return dtos.AppDTO{}, exceptions.FromDBError(err)
-	}
-
-	logger.InfoContext(ctx, "App created successfully")
-	return dtos.MapAppToDTOWithSecret(&app, clientSecret)
-}
-
 type GetAppByClientIDAndAccountPublicIDOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
@@ -132,7 +60,7 @@ func (s *Services) GetAppByClientIDAndAccountPublicID(
 	}
 
 	logger.InfoContext(ctx, "App by clientID found successfully")
-	return dtos.MapAppToDTO(&app)
+	return dtos.MapAppToDTO(&app), nil
 }
 
 type GetAppByClientIDAndAccountIDOptions struct {
@@ -169,7 +97,7 @@ func (s *Services) GetAppByClientIDAndAccountID(
 	}
 
 	logger.InfoContext(ctx, "App by clientID found successfully")
-	return dtos.MapAppToDTO(&app)
+	return dtos.MapAppToDTO(&app), nil
 }
 
 type GetAppByClientIDVersionAndAccountIDOptions struct {
@@ -210,117 +138,7 @@ func (s *Services) GetAppByClientIDVersionAndAccountID(
 	}
 
 	logger.InfoContext(ctx, "App by clientID found successfully")
-	return dtos.MapAppToDTO(&app)
-}
-
-type UpdateAppOptions struct {
-	RequestID       string
-	AccountPublicID uuid.UUID
-	ClientID        string
-	Name            string
-	ConfirmationURI string
-	ResetURI        string
-	CallbackUris    []string
-	LogoutUris      []string
-	DefaultScopes   []string
-	AuthProviders   []string
-	IDTokenTtl      int32
-}
-
-func (s *Services) UpdateApp(ctx context.Context, opts UpdateAppOptions) (dtos.AppDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, appsLocation, "UpdateApp").With(
-		"accountPublicID", opts.AccountPublicID,
-		"clientId", opts.ClientID,
-	)
-	logger.InfoContext(ctx, "Updating app...")
-
-	app, serviceErr := s.GetAppByClientIDAndAccountPublicID(ctx, GetAppByClientIDAndAccountPublicIDOptions{
-		RequestID:       opts.RequestID,
-		AccountPublicID: opts.AccountPublicID,
-		ClientID:        opts.ClientID,
-	})
-	if serviceErr != nil {
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	name := utils.Capitalized(opts.Name)
-
-	defaultScopesMap, err := mapSliceToJsonMap(opts.DefaultScopes)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to encode user scopes to json map", "error", err)
-		return dtos.AppDTO{}, exceptions.NewServerError()
-	}
-
-	authProvidersMap, err := mapSliceToJsonMap(opts.AuthProviders)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to encode app providers to json map", "error", err)
-		return dtos.AppDTO{}, exceptions.NewServerError()
-	}
-
-	appModel, err := s.database.UpdateApp(ctx, database.UpdateAppParams{
-		ID:              app.ID(),
-		Name:            name,
-		ConfirmationUri: opts.ConfirmationURI,
-		ResetUri:        opts.ResetURI,
-		CallbackUris:    opts.CallbackUris,
-		LogoutUris:      opts.LogoutUris,
-		DefaultScopes:   defaultScopesMap,
-		AuthProviders:   authProvidersMap,
-		IDTokenTtl:      opts.IDTokenTtl,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to update app", "error", err)
-		return dtos.AppDTO{}, exceptions.FromDBError(err)
-	}
-
-	logger.InfoContext(ctx, "App updated successfully")
-	return dtos.MapAppToDTO(&appModel)
-}
-
-type UpdateAppSecretOptions struct {
-	RequestID       string
-	AccountPublicID uuid.UUID
-	ClientID        string
-}
-
-func (s *Services) UpdateAppSecret(
-	ctx context.Context,
-	opts UpdateAppSecretOptions,
-) (dtos.AppDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, appsLocation, "RefreshAppSecret").With(
-		"accountPublicID", opts.AccountPublicID,
-		"clientId", opts.ClientID,
-	)
-	logger.InfoContext(ctx, "Updating app secret...")
-
-	app, serviceErr := s.GetAppByClientIDAndAccountPublicID(ctx, GetAppByClientIDAndAccountPublicIDOptions(opts))
-	if serviceErr != nil {
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	clientSecret, err := utils.GenerateBase64Secret(32)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate client secret", "error", err)
-		return dtos.AppDTO{}, exceptions.NewServerError()
-	}
-
-	hashedSecret, err := utils.HashString(clientSecret)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to hash client secret", "error", err)
-		return dtos.AppDTO{}, exceptions.NewServerError()
-	}
-
-	updatedApp, err := s.database.UpdateAppClientSecret(ctx, database.UpdateAppClientSecretParams{
-		ID:           int32(app.ID()),
-		ClientSecret: hashedSecret,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to update app secret", "error", err)
-		return dtos.AppDTO{}, exceptions.FromDBError(err)
-	}
-
-	logger.InfoContext(ctx, "App secret updated successfully")
-	return dtos.MapAppToDTOWithSecret(&updatedApp, clientSecret)
+	return dtos.MapAppToDTO(&app), nil
 }
 
 type DeleteAppOptions struct {
@@ -413,14 +231,8 @@ func (s *Services) ListAccountApps(
 		return nil, 0, exceptions.FromDBError(err)
 	}
 
-	appDTOs, serviceErr := utils.MapSliceWithErr(apps, dtos.MapAppToDTO)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map account keys to DTOs", "error", serviceErr)
-		return nil, 0, exceptions.NewServerError()
-	}
-
 	logger.InfoContext(ctx, "Account apps retrieved successfully")
-	return appDTOs, count, nil
+	return utils.MapSlice(apps, dtos.MapAppToDTO), count, nil
 }
 
 type FilterAccountAppsOptions struct {
@@ -497,12 +309,6 @@ func (s *Services) FilterAccountApps(
 		return nil, 0, exceptions.FromDBError(err)
 	}
 
-	appDTOs, serviceErr := utils.MapSliceWithErr(apps, dtos.MapAppToDTO)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map account apps to DTOs", "error", serviceErr)
-		return nil, 0, exceptions.NewServerError()
-	}
-
 	logger.InfoContext(ctx, "Account apps filtered successfully")
-	return appDTOs, count, nil
+	return utils.MapSlice(apps, dtos.MapAppToDTO), count, nil
 }
