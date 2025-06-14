@@ -7,6 +7,7 @@
 package utils
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -43,4 +44,9 @@ func PrefixedID(prefix string) (string, error) {
 	}
 
 	return fmt.Sprintf("%s_%s", prefix, id), nil
+}
+
+func extractKeyID(keyBytes []byte) string {
+	hash := sha256.Sum256(keyBytes)
+	return base64.RawURLEncoding.EncodeToString(hash[:16])
 }

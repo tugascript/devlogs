@@ -12,8 +12,10 @@ import (
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/x509"
 	"encoding/base64"
+	"fmt"
+	"math/big"
+	"strings"
 
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -41,6 +43,10 @@ type GetPrivateKeyOptions struct {
 	KID       string
 }
 
+func encodeEd25519PrivateKeyBytes(privKey ed25519.PrivateKey) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(privKey))
+}
+
 func (e *Encryption) GenerateEd25519KeyPair(
 	ctx context.Context,
 	opts GenerateKeyPairOptions,
@@ -65,14 +71,8 @@ func (e *Encryption) GenerateEd25519KeyPair(
 		return KeyPair{}, nil, "", err
 	}
 
-	privKey, err := x509.MarshalPKCS8PrivateKey(priv)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to parse private key", "error", err)
-		return KeyPair{}, nil, "", err
-	}
-
-	kid := utils.ExtractKeyID(pub)
-	encryptedKey, err := utils.Encrypt(base64.StdEncoding.EncodeToString(privKey), dek)
+	kid := utils.ExtractEd25519KeyID(pub)
+	encryptedKey, err := utils.Encrypt(encodeEd25519PrivateKeyBytes(priv), dek)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to encrypt private key", "error", err)
 		return KeyPair{}, nil, "", err
@@ -105,6 +105,15 @@ type DecryptPrivateKeyOptions struct {
 	StoredDEK    string
 }
 
+func decodeEd25519PrivateKeyBytes(bytes string) (ed25519.PrivateKey, error) {
+	decodedBytes, err := base64.RawURLEncoding.DecodeString(bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return ed25519.PrivateKey(decodedBytes), nil
+}
+
 func (e *Encryption) DecryptEd25519PrivateKey(
 	ctx context.Context,
 	opts DecryptPrivateKeyOptions,
@@ -129,7 +138,7 @@ func (e *Encryption) DecryptEd25519PrivateKey(
 		return nil, "", err
 	}
 
-	key, err := base64.StdEncoding.DecodeString(base64Key)
+	privKey, err := decodeEd25519PrivateKeyBytes(base64Key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decode key", "error", err)
 		return nil, "", err
@@ -147,7 +156,16 @@ func (e *Encryption) DecryptEd25519PrivateKey(
 		return nil, "", err
 	}
 
-	return key, doubleNewDEK, nil
+	return privKey, doubleNewDEK, nil
+}
+
+func encodeES256PrivateKeyBytes(privKey *ecdsa.PrivateKey) string {
+	pubKey := privKey.Public().(*ecdsa.PublicKey)
+	return fmt.Sprintf("%s.%s.%s",
+		base64.RawURLEncoding.EncodeToString(privKey.D.Bytes()),
+		base64.RawURLEncoding.EncodeToString(pubKey.X.Bytes()),
+		base64.RawURLEncoding.EncodeToString(pubKey.Y.Bytes()),
+	)
 }
 
 func (e *Encryption) GenerateES256KeyPair(
@@ -174,20 +192,8 @@ func (e *Encryption) GenerateES256KeyPair(
 		return KeyPair{}, nil, "", err
 	}
 
-	privKey, err := x509.MarshalPKCS8PrivateKey(priv)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to encode ES256 private key", "error", err)
-		return KeyPair{}, nil, "", err
-	}
-
-	publicKeyValue, err := x509.MarshalPKIXPublicKey(&priv.PublicKey)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to parse ES256 public key", "error", err)
-		return KeyPair{}, nil, "", err
-	}
-
-	kid := utils.ExtractKeyID(publicKeyValue)
-	encryptedPrivateKey, err := utils.Encrypt(base64.StdEncoding.EncodeToString(privKey), dek)
+	kid := utils.ExtractECDSAKeyID(&priv.PublicKey)
+	encryptedPrivateKey, err := utils.Encrypt(encodeES256PrivateKeyBytes(priv), dek)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to encrypt private key", "error", err)
 		return KeyPair{}, nil, "", err
@@ -211,6 +217,37 @@ func (e *Encryption) GenerateES256KeyPair(
 		PublicKey:           &publicJwk,
 		encryptedPrivateKey: encryptedPrivateKey,
 	}, priv, doubleNewDEK, nil
+}
+
+func decodeES256PrivateKeyBytes(bytes string) (ecdsa.PrivateKey, error) {
+	parts := strings.Split(bytes, ".")
+	if len(parts) != 3 {
+		return ecdsa.PrivateKey{}, fmt.Errorf("invalid key format")
+	}
+
+	d, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return ecdsa.PrivateKey{}, err
+	}
+
+	x, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ecdsa.PrivateKey{}, err
+	}
+
+	y, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		return ecdsa.PrivateKey{}, err
+	}
+
+	return ecdsa.PrivateKey{
+		D: new(big.Int).SetBytes(d),
+		PublicKey: ecdsa.PublicKey{
+			Curve: elliptic.P256(),
+			X:     new(big.Int).SetBytes(x),
+			Y:     new(big.Int).SetBytes(y),
+		},
+	}, nil
 }
 
 func (e *Encryption) DecryptES256PrivateKey(
@@ -237,21 +274,9 @@ func (e *Encryption) DecryptES256PrivateKey(
 		return nil, "", err
 	}
 
-	key, err := base64.StdEncoding.DecodeString(base64Key)
+	privKey, err := decodeES256PrivateKeyBytes(base64Key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decode key", "error", err)
-		return nil, "", err
-	}
-
-	privateKey, err := x509.ParsePKCS8PrivateKey(key)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to parse ES256 private key", "error", err)
-		return nil, "", err
-	}
-
-	ecdsaPrivateKey, ok := privateKey.(*ecdsa.PrivateKey)
-	if !ok {
-		logger.ErrorContext(ctx, "Failed to convert to ES256 private key", "error", "invalid key type")
 		return nil, "", err
 	}
 
@@ -267,5 +292,5 @@ func (e *Encryption) DecryptES256PrivateKey(
 		return nil, "", err
 	}
 
-	return ecdsaPrivateKey, doubleNewDEK, nil
+	return &privKey, doubleNewDEK, nil
 }

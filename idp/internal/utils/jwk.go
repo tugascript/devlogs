@@ -11,7 +11,6 @@ import (
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rsa"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -103,11 +102,6 @@ const (
 	sign   string = "sign"
 )
 
-func extractKeyID(keyBytes []byte) string {
-	hash := sha256.Sum256(keyBytes)
-	return base64.RawURLEncoding.EncodeToString(hash[:16])
-}
-
 func bigIntToPaddedBytes(n *big.Int, length int) []byte {
 	bytes := n.Bytes()
 	if len(bytes) >= length {
@@ -149,7 +143,8 @@ func EncodeEd25519Jwk(publicKey ed25519.PublicKey, kid string) Ed25519JWK {
 func EncodeEd25519JwkPrivate(
 	privateKey ed25519.PrivateKey,
 	publicKey ed25519.PublicKey,
-	kid string) Ed25519JWK {
+	kid string,
+) Ed25519JWK {
 	return Ed25519JWK{
 		Kty:    okpKty,
 		Crv:    ed25519Crv,

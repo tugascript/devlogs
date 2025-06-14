@@ -37,7 +37,7 @@ func decodeSecret(secret string) Secret {
 	}
 
 	return Secret{
-		kid: utils.ExtractKeyID(decodedKey),
+		kid: utils.ExtractSecretID(decodedKey),
 		key: decodedKey,
 	}
 }

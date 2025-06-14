@@ -58,3 +58,7 @@ func GenerateHexSecret(byteLen int) (string, error) {
 
 	return hex.EncodeToString(randomBytes), nil
 }
+
+func ExtractSecretID(secret []byte) string {
+	return extractKeyID(secret)
+}
