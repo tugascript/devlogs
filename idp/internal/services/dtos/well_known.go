@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -45,9 +46,9 @@ type WellKnownOIDCConfigurationDTO struct {
 	IDTokenSigningAlgValuesSupported []tokens.SupportedCryptoSuite `json:"id_token_signing_alg_values_supported"`
 
 	// Recommended
-	ScopesSupported []string `json:"scopes_supported,omitempty"`
+	ScopesSupported []database.Scopes `json:"scopes_supported,omitempty"`
 	// Optional
-	ClaimsSupported []string `json:"claims_supported,omitempty"`
+	ClaimsSupported []database.Claims `json:"claims_supported,omitempty"`
 	// Optional
 	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported,omitempty"`
 	// Optional
@@ -65,7 +66,7 @@ var GrantTypesSupported = []string{
 	"urn:ietf:params:oauth:grant-type:device_code",
 	"urn:ietf:params:oauth:grant-type:jwt-bearer",
 }
-var DefaultScopes = []string{"openid", tokens.AppScopeAccountUserAuth}
+var DefaultScopes = []database.Scopes{database.ScopesOpenid, database.ScopesAccountUsersAuthenticate}
 
 func MapOIDCConfigDTOToWellKnownOIDCConfigurationDTO(configDTO *OIDCConfigDTO, backendDomain, username string) WellKnownOIDCConfigurationDTO {
 	baseURL := fmt.Sprintf("https://%s.%s", username, utils.ProcessURL(backendDomain))
@@ -83,8 +84,8 @@ func MapOIDCConfigDTOToWellKnownOIDCConfigurationDTO(configDTO *OIDCConfigDTO, b
 		ResponseTypesSupported:            ResponseTypesSupported,
 		SubjectTypesSupported:             SubjectTypesSupported,
 		IDTokenSigningAlgValuesSupported:  []tokens.SupportedCryptoSuite{tokens.SupportedCryptoSuiteES256},
-		ScopesSupported:                   append(DefaultScopes, configDTO.Scopes...),
-		ClaimsSupported:                   configDTO.Claims,
+		ScopesSupported:                   append(DefaultScopes, configDTO.ScopesSupported...),
+		ClaimsSupported:                   configDTO.ClaimsSupported,
 		CodeChallengeMethodsSupported:     CodeChallengeMethodsSupported,
 		GrantTypesSupported:               GrantTypesSupported,
 	}

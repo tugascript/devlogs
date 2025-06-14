@@ -244,6 +244,41 @@ func (s *Services) GetAccountByPublicID(
 	return dtos.MapAccountToDTO(&account), nil
 }
 
+type GetAccountByPublicIDAndVersionOptions struct {
+	RequestID string
+	PublicID  uuid.UUID
+	Version   int32
+}
+
+func (s *Services) GetAccountByPublicIDAndVersion(
+	ctx context.Context,
+	opts GetAccountByPublicIDAndVersionOptions,
+) (dtos.AccountDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountsLocation, "GetAccountByPublicIDAndVersion").With(
+		"publicID", opts.PublicID,
+		"version", opts.Version,
+	)
+	logger.InfoContext(ctx, "Getting account by PublicID and Version...")
+
+	account, err := s.database.FindAccountByPublicIDAndVersion(ctx, database.FindAccountByPublicIDAndVersionParams{
+		PublicID: opts.PublicID,
+		Version:  opts.Version,
+	})
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account not found", "error", err)
+			return dtos.AccountDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get account", "error", err)
+		return dtos.AccountDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Got account by PublicID and Version successfully")
+	return dtos.MapAccountToDTO(&account), nil
+}
+
 func (s *Services) updateAccountEmailInDB(
 	ctx context.Context,
 	logger *slog.Logger,

@@ -287,6 +287,39 @@ func (q *Queries) FindAccountByPublicID(ctx context.Context, publicID uuid.UUID)
 	return i, err
 }
 
+const findAccountByPublicIDAndVersion = `-- name: FindAccountByPublicIDAndVersion :one
+SELECT id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at FROM "accounts"
+WHERE "public_id" = $1 AND "version" = $2 LIMIT 1
+`
+
+type FindAccountByPublicIDAndVersionParams struct {
+	PublicID uuid.UUID
+	Version  int32
+}
+
+func (q *Queries) FindAccountByPublicIDAndVersion(ctx context.Context, arg FindAccountByPublicIDAndVersionParams) (Account, error) {
+	row := q.db.QueryRow(ctx, findAccountByPublicIDAndVersion, arg.PublicID, arg.Version)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.GivenName,
+		&i.FamilyName,
+		&i.Username,
+		&i.Email,
+		&i.Organization,
+		&i.Dek,
+		&i.Password,
+		&i.Version,
+		&i.EmailVerified,
+		&i.IsActive,
+		&i.TwoFactorType,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const findAccountIDByPublicIDAndVersion = `-- name: FindAccountIDByPublicIDAndVersion :one
 SELECT "id" FROM "accounts"
 WHERE "public_id" = $1 AND "version" = $2 LIMIT 1

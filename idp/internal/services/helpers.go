@@ -115,3 +115,18 @@ func mapAuthProvider(provider string) (database.AuthProvider, *exceptions.Servic
 		return "", exceptions.NewValidationError("invalid provider")
 	}
 }
+
+func mapScope(scope string) (database.Scopes, *exceptions.ServiceError) {
+	if len(scope) < 4 {
+		return "", exceptions.NewValidationError("invalid scope")
+	}
+
+	dbScope := database.Scopes(scope)
+	switch dbScope {
+	case database.ScopesOpenid, database.ScopesEmail, database.ScopesProfile,
+		database.ScopesAddress, database.ScopesPhone, database.ScopesUserRoles:
+		return dbScope, nil
+	default:
+		return "", exceptions.NewValidationError("invalid scope")
+	}
+}

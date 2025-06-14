@@ -240,6 +240,7 @@ Enum scopes {
     "address"
     "phone"
     "user_roles"
+    "account:users:authenticate"
 }
 
 Table oidc_configs as OIDC {

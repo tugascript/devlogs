@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-06-14T03:25:20.961Z
+-- Generated at: 2025-06-14T04:59:53.129Z
 
 CREATE TYPE "token_crypto_suite" AS ENUM (
   'ES256',
@@ -63,7 +63,8 @@ CREATE TYPE "scopes" AS ENUM (
   'profile',
   'address',
   'phone',
-  'user_roles'
+  'user_roles',
+  'account:users:authenticate'
 );
 
 CREATE TYPE "app_type" AS ENUM (

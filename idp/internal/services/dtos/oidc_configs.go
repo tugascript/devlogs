@@ -6,8 +6,9 @@ import (
 )
 
 type OIDCConfigDTO struct {
-	Claims []string `json:"claims"`
-	Scopes []string `json:"scopes"`
+	ClaimsSupported    []database.Claims `json:"claims_supported"`
+	ScopesSupported    []database.Scopes `json:"scopes_supported"`
+	UserRolesSupported []string          `json:"user_roles_supported"`
 
 	id  int32
 	dek string
@@ -22,21 +23,11 @@ func (u *OIDCConfigDTO) DEK() string {
 }
 
 func MapOIDCConfigToDTO(oidcConfig *database.OidcConfig) (OIDCConfigDTO, *exceptions.ServiceError) {
-	claims := []string{"email", "email_verified"}
-	claimSlice, serviceErr := jsonHashMapToSlice(oidcConfig.Claims)
-	if serviceErr != nil {
-		return OIDCConfigDTO{}, serviceErr
-	}
-
-	scopes, serviceErr := jsonHashMapToSlice(oidcConfig.Scopes)
-	if serviceErr != nil {
-		return OIDCConfigDTO{}, serviceErr
-	}
-
 	return OIDCConfigDTO{
-		Claims: append(claims, claimSlice...),
-		Scopes: scopes,
-		id:     oidcConfig.ID,
-		dek:    oidcConfig.Dek,
+		ClaimsSupported:    oidcConfig.ClaimsSupported,
+		ScopesSupported:    oidcConfig.ScopesSupported,
+		UserRolesSupported: oidcConfig.UserRolesSupported,
+		id:                 oidcConfig.ID,
+		dek:                oidcConfig.Dek,
 	}, nil
 }

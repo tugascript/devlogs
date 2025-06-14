@@ -11,6 +11,7 @@ import (
 	"reflect"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
 )
 
 const (
@@ -36,80 +37,80 @@ type schemaField struct {
 	tag       reflect.StructTag
 }
 
-var schemaMapping = map[string]schemaField{
-	"name": {
+var schemaMapping = map[database.Claims]schemaField{
+	database.ClaimsName: {
 		name:      "Name",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"name" validate:"omitempty,min=1,max=150"`),
 	},
-	"given_name": {
+	database.ClaimsGivenName: {
 		name:      "GivenName",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"given_name" validate:"omitempty,min=1,max=50"`),
 	},
-	"family_name": {
+	database.ClaimsFamilyName: {
 		name:      "FamilyName",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"family_name" validate:"omitempty,min=1,max=50"`),
 	},
-	"middle_name": {
+	database.ClaimsMiddleName: {
 		name:      "MiddleName",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"middle_name" validate:"omitempty,min=1,max=50"`),
 	},
-	"nickname": {
+	database.ClaimsNickname: {
 		name:      "Nickname",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"nickname" validate:"omitempty,min=1,max=150"`),
 	},
-	"profile": {
+	database.ClaimsProfile: {
 		name:      "Profile",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"profile" validate:"omitempty,url"`),
 	},
-	"picture": {
+	database.ClaimsPicture: {
 		name:      "Picture",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"picture" validate:"omitempty,url"`),
 	},
-	"website": {
+	database.ClaimsWebsite: {
 		name:      "Website",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"website" validate:"omitempty,url"`),
 	},
-	"gender": {
+	database.ClaimsGender: {
 		name:      "Gender",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"gender" validate:"omitempty,oneof=male female other unknown"`),
 	},
-	"birthdate": {
+	database.ClaimsBirthdate: {
 		name:      "Birthdate",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"birthdate" validate:"omitempty,datetime=2006-01-02"`),
 	},
-	"zoneinfo": {
+	database.ClaimsZoneinfo: {
 		name:      "Zoneinfo",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"zoneinfo" validate:"omitempty,tzdata"`),
 	},
-	"locale": {
+	database.ClaimsLocale: {
 		name:      "Locale",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"locale" validate:"omitempty,bcp47_language_tag"`),
 	},
-	"phone_number": {
+	database.ClaimsPhoneNumber: {
 		name:      "PhoneNumber",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"phone_number" validate:"omitempty,e164"`),
 	},
-	"address": {
+	database.ClaimsAddress: {
 		name:      "Address",
 		fieldType: reflect.TypeOf(AddressClaim{}),
 		tag:       reflect.StructTag(`json:"address" validate:"omitempty"`),
 	},
 }
 
-func BuildClaimSchema(claims []string) reflect.Type {
+func BuildClaimSchema(claims []database.Claims) reflect.Type {
 
 	fields := make([]reflect.StructField, 0, len(claims))
 
@@ -134,7 +135,7 @@ func BuildClaimSchema(claims []string) reflect.Type {
 type UnmarshalSchemaBodyOptions struct {
 	RequestID  string
 	SchemaType reflect.Type
-	Data       map[string]any
+	Data       map[database.Claims]any
 }
 
 func (s *Services) UnmarshalSchemaBody(
@@ -151,7 +152,7 @@ func (s *Services) UnmarshalSchemaBody(
 		if !ok {
 			logger.WarnContext(ctx, "Field not found in schema", "fieldName", fieldName)
 			fieldErrors = append(fieldErrors, exceptions.FieldError{
-				Param:   fieldName,
+				Param:   string(fieldName),
 				Message: unkwonFieldMsg,
 				Value:   fieldValue,
 			})
@@ -162,7 +163,7 @@ func (s *Services) UnmarshalSchemaBody(
 		if !(field.IsValid() && field.CanSet()) {
 			logger.WarnContext(ctx, "Invalid field name", "fieldName", fieldName)
 			fieldErrors = append(fieldErrors, exceptions.FieldError{
-				Param:   fieldName,
+				Param:   string(fieldName),
 				Message: invalidFieldMsg,
 				Value:   fieldValue,
 			})

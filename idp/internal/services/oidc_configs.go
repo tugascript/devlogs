@@ -14,6 +14,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const oidcConfigLocation string = "oidc_configs"
@@ -35,17 +36,28 @@ func (s *Services) CreateOIDCConfig(
 	)
 	logger.Info("Creating OIDC config...")
 
-	accountDTO, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
 		PublicID:  opts.AccountPublicID,
 		Version:   opts.AccountVersion,
 	})
 	if serviceErr != nil {
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "Account not found", "serviceErr", serviceErr)
-			return dtos.OIDCConfigDTO{}, exceptions.NewUnauthorizedError()
-		}
+		return dtos.OIDCConfigDTO{}, serviceErr
+	}
 
+	claimsSupported, serviceErr := utils.MapSliceWithErr(opts.Claims, func(claim *string) (database.Claims, *exceptions.ServiceError) {
+		return mapClaim(*claim)
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map claims", "serviceError", serviceErr)
+		return dtos.OIDCConfigDTO{}, serviceErr
+	}
+
+	scopesSupported, serviceErr := utils.MapSliceWithErr(opts.Scopes, func(scope *string) (database.Scopes, *exceptions.ServiceError) {
+		return mapScope(*scope)
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map scopes", "serviceError", serviceErr)
 		return dtos.OIDCConfigDTO{}, serviceErr
 	}
 
@@ -67,10 +79,10 @@ func (s *Services) CreateOIDCConfig(
 
 	if newAccountDEK == "" {
 		config, err := s.database.CreateOIDCConfig(ctx, database.CreateOIDCConfigParams{
-			AccountID: accountDTO.ID(),
-			Claims:    claimsData,
-			Scopes:    scopesData,
-			Dek:       encryptedDek,
+			AccountID:       accountDTO.ID(),
+			ClaimsSupported: claimsSupported,
+			ScopesSupported: scopesSupported,
+			Dek:             encryptedDek,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create OIDC config", "error", err)
@@ -92,10 +104,10 @@ func (s *Services) CreateOIDCConfig(
 	}()
 
 	config, err := qrs.CreateOIDCConfig(ctx, database.CreateOIDCConfigParams{
-		AccountID: accountDTO.ID(),
-		Claims:    claimsData,
-		Scopes:    scopesData,
-		Dek:       encryptedDek,
+		AccountID:       accountDTO.ID(),
+		ClaimsSupported: claimsSupported,
+		ScopesSupported: scopesSupported,
+		Dek:             encryptedDek,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create OIDC config", "error", err)
@@ -286,6 +298,7 @@ type UpdateOIDCConfigOptions struct {
 	AccountPublicID uuid.UUID
 	Claims          []string
 	Scopes          []string
+	UserRoles       []string
 }
 
 func (s *Services) UpdateOIDCConfig(
@@ -318,22 +331,27 @@ func (s *Services) UpdateOIDCConfig(
 		return dtos.OIDCConfigDTO{}, serviceErr
 	}
 
-	claimsData, err := mapSliceToJsonMap(opts.Claims)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to marshal claims", "error", err)
-		return dtos.OIDCConfigDTO{}, exceptions.NewServerError()
+	claimsSupported, serviceErr := utils.MapSliceWithErr(opts.Claims, func(claim *string) (database.Claims, *exceptions.ServiceError) {
+		return mapClaim(*claim)
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map claims", "serviceError", serviceErr)
+		return dtos.OIDCConfigDTO{}, serviceErr
 	}
 
-	scopesData, err := mapSliceToJsonMap(opts.Scopes)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to marshal scopes", "error", err)
-		return dtos.OIDCConfigDTO{}, exceptions.NewServerError()
+	scopesSupported, serviceErr := utils.MapSliceWithErr(opts.Scopes, func(scope *string) (database.Scopes, *exceptions.ServiceError) {
+		return mapScope(*scope)
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map scopes", "serviceError", serviceErr)
+		return dtos.OIDCConfigDTO{}, serviceErr
 	}
 
 	config, err := s.database.UpdateOIDCConfig(ctx, database.UpdateOIDCConfigParams{
-		ID:     configDTO.ID(),
-		Claims: claimsData,
-		Scopes: scopesData,
+		ID:                 configDTO.ID(),
+		ClaimsSupported:    claimsSupported,
+		ScopesSupported:    scopesSupported,
+		UserRolesSupported: opts.UserRoles,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update OIDC config", "error", err)
@@ -365,5 +383,5 @@ func (s *Services) GetOIDCConfigUserStruct(
 	}
 
 	logger.InfoContext(ctx, "User schema struct retrieved successfully")
-	return BuildClaimSchema(oidcConfigDTO.Claims), nil
+	return BuildClaimSchema(oidcConfigDTO.ClaimsSupported), nil
 }

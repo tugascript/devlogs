@@ -121,3 +121,7 @@ WHERE "username" = $1 LIMIT 1;
 -- name: FindAccountIDByPublicIDAndVersion :one
 SELECT "id" FROM "accounts"
 WHERE "public_id" = $1 AND "version" = $2 LIMIT 1;
+
+-- name: FindAccountByPublicIDAndVersion :one
+SELECT * FROM "accounts"
+WHERE "public_id" = $1 AND "version" = $2 LIMIT 1;

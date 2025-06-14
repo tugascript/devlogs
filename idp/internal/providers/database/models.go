@@ -393,12 +393,13 @@ func (ns NullResponseType) Value() (driver.Value, error) {
 type Scopes string
 
 const (
-	ScopesOpenid    Scopes = "openid"
-	ScopesEmail     Scopes = "email"
-	ScopesProfile   Scopes = "profile"
-	ScopesAddress   Scopes = "address"
-	ScopesPhone     Scopes = "phone"
-	ScopesUserRoles Scopes = "user_roles"
+	ScopesOpenid                   Scopes = "openid"
+	ScopesEmail                    Scopes = "email"
+	ScopesProfile                  Scopes = "profile"
+	ScopesAddress                  Scopes = "address"
+	ScopesPhone                    Scopes = "phone"
+	ScopesUserRoles                Scopes = "user_roles"
+	ScopesAccountUsersAuthenticate Scopes = "account:users:authenticate"
 )
 
 func (e *Scopes) Scan(src interface{}) error {
