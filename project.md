@@ -16,6 +16,7 @@ NONE
 
 - Add tests to basic queue
 - Rewrite multi core logic
+- Add tests to multi core logic
 
 ## IDP
 
@@ -24,16 +25,22 @@ NONE
 #### IDP Done
 
 - Account standard authentication
+- Multiple secrets Account Keys
+- Fix all outstanding errors
 
 #### IDP On-Going
 
-- Multiple secrets Account Keys
+- Accounts fix standard authentication
 
 #### IDP Todo
 
-- Fix all outstanding errors
-- Accounts fix standard authentication
-- Accounts m2m authentication:
+- Test account standard authentication
+- Test multiple secrets account keys
+- Account KEK openbao integration
+- Accounts m2m auth:
+  - client_credentials
+  - jwt
+- Test accounts m2m auth:
   - client_credentials
   - jwt
 - Multiple app types creation
@@ -43,15 +50,24 @@ NONE
   - backend
   - device
   - service
-- Account KEK openbao integration
-- Account Key Generation
-- Dynamic OIDC Configs
+- Test multiple app types creation
+  - web
+  - native
+  - spa
+  - backend
+  - device
+  - service
+- Account key generation
+- Test account key generation
+- Dynamic OIDC configs
+- Test dynamic OIDC configs
 - User authentication for each app type:
   - web
   - native & spa
   - backend
   - device
   - service
+- Add custom external auth providers
 
 ### IDP Testing
 
@@ -65,5 +81,4 @@ NONE
 
 ### IDP Future
 
-- Add custom external auth providers
 - Add mTLS
