@@ -258,46 +258,6 @@ func processAccountClientCredentialScopes(scopes string) ([]tokens.AccountScope,
 	return accountScopes, true
 }
 
-func (c *Controllers) accountClientCredentialsToken(ctx *fiber.Ctx, requestID string) error {
-	logger := c.buildLogger(requestID, oauthLocation, "accountClientCredentialsToken")
-
-	clientID, clientSecret, serviceErr := parseBasicAuthHeader(ctx)
-	if serviceErr != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
-	}
-
-	body := bodies.ClientCredentialsBody{
-		GrantType: ctx.FormValue("grant_type"),
-		Audience:  ctx.FormValue("audience"),
-		Scope:     ctx.FormValue("scope"),
-	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
-	}
-
-	scopes, ok := processAccountClientCredentialScopes(body.Scope)
-	if !ok {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidScope)
-	}
-
-	authDTO, serviceErr := c.services.ClientCredentialsLoginAccount(
-		ctx.UserContext(),
-		services.ClientCredentialsLoginAccountOptions{
-			RequestID:    requestID,
-			Audience:     body.Audience,
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Scopes:       scopes,
-		},
-	)
-	if serviceErr != nil {
-		return oauthErrorResponseMapper(logger, ctx, serviceErr)
-	}
-
-	logResponse(logger, ctx, fiber.StatusOK)
-	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
-}
-
 func (c *Controllers) accountRefreshToken(ctx *fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, oauthLocation, "accountRefreshToken")
 
@@ -346,7 +306,8 @@ func (c *Controllers) AccountOAuthToken(ctx *fiber.Ctx) error {
 	case grantTypeAuthorization:
 		return c.accountAuthorizationCodeToken(ctx, requestID)
 	case grantTypeClientCredentials:
-		return c.accountClientCredentialsToken(ctx, requestID)
+		// TODO: Implement client credentials login
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnsupportedGrantType)
 	default:
 		logger.WarnContext(ctx.UserContext(), "Unsupported grant_type", "grantType", grantType)
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnsupportedGrantType)

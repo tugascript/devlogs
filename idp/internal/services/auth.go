@@ -136,7 +136,7 @@ func (s *Services) RegisterAccount(
 		FamilyName: opts.LastName,
 		Email:      opts.Email,
 		Password:   opts.Password,
-		Provider:   AuthProviderEmail,
+		Provider:   AuthProviderUsernamePassword,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to create account", "error", serviceErr)
@@ -496,22 +496,22 @@ func (s *Services) LogoutAccount(
 		return exceptions.NewUnauthorizedError()
 	}
 
-	blt, err := s.database.GetBlacklistedToken(ctx, tokenID)
+	blt, err := s.database.GetRevokedToken(ctx, tokenID)
 	if err != nil {
 		if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to fetch blacklisted token", "error", err)
+			logger.ErrorContext(ctx, "Failed to fetch revoked token", "error", err)
 			return exceptions.NewServerError()
 		}
 	} else {
-		logger.WarnContext(ctx, "Token is blacklisted", "blacklistedAt", blt.CreatedAt)
+		logger.WarnContext(ctx, "Token is revoked", "revokedAt", blt.CreatedAt)
 		return exceptions.NewUnauthorizedError()
 	}
 
-	if err := s.database.BlacklistToken(ctx, database.BlacklistTokenParams{
-		ID:        tokenID,
+	if err := s.database.RevokeToken(ctx, database.RevokeTokenParams{
+		TokenID:   tokenID,
 		ExpiresAt: exp,
 	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to blacklist the token", "error", err)
+		logger.ErrorContext(ctx, "Failed to revoke the token", "error", err)
 		return exceptions.NewServerError()
 	}
 
@@ -537,14 +537,14 @@ func (s *Services) RefreshTokenAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	blt, err := s.database.GetBlacklistedToken(ctx, id)
+	blt, err := s.database.GetRevokedToken(ctx, id)
 	if err != nil {
 		if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
 			logger.ErrorContext(ctx, "Failed to get blacklisted token", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewServerError()
 		}
 	} else {
-		logger.WarnContext(ctx, "Token is blacklisted", "blacklistedAt", blt.CreatedAt)
+		logger.WarnContext(ctx, "Token is revoked", "revokedAt", blt.CreatedAt)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
@@ -571,8 +571,8 @@ func (s *Services) RefreshTokenAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	if err := s.database.BlacklistToken(ctx, database.BlacklistTokenParams{
-		ID:        id,
+	if err := s.database.RevokeToken(ctx, database.RevokeTokenParams{
+		TokenID:   id,
 		ExpiresAt: exp,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to blacklist previous refresh token", "error", err)
@@ -946,11 +946,11 @@ func (s *Services) UpdateAccount2FA(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if _, err := s.database.FindAuthProviderByEmailAndProvider(
+	if _, err := s.database.FindAccountAuthProviderByEmailAndProvider(
 		ctx,
-		database.FindAuthProviderByEmailAndProviderParams{
+		database.FindAccountAuthProviderByEmailAndProviderParams{
 			Email:    accountDTO.Email,
-			Provider: AuthProviderEmail,
+			Provider: database.AuthProviderUsernamePassword,
 		},
 	); err != nil {
 		serviceErr := exceptions.FromDBError(err)

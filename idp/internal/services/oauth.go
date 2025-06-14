@@ -220,18 +220,24 @@ func (s *Services) saveExtAccount(
 		return accountDto, nil
 	}
 
+	authProvider, serviceErr := mapAuthProvider(opts.provider)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map auth provider", "serviceError", serviceErr)
+		return dtos.AccountDTO{}, serviceErr
+	}
+
 	prvdrOpts := database.FindAccountAuthProviderByEmailAndProviderParams{
 		Email:    accountDto.Email,
-		Provider: opts.provider,
+		Provider: authProvider,
 	}
-	if _, err := s.database.FindAuthProviderByEmailAndProvider(ctx, prvdrOpts); err != nil {
+	if _, err := s.database.FindAccountAuthProviderByEmailAndProvider(ctx, prvdrOpts); err != nil {
 		serviceErr = exceptions.FromDBError(err)
 		if serviceErr.Code != exceptions.CodeNotFound {
 			logger.ErrorContext(ctx, "Failed to find auth Provider", "error", err)
 			return dtos.AccountDTO{}, serviceErr
 		}
 
-		if err := s.database.CreateAuthProvider(ctx, database.CreateAuthProviderParams(prvdrOpts)); err != nil {
+		if err := s.database.CreateAccountAuthProvider(ctx, database.CreateAccountAuthProviderParams(prvdrOpts)); err != nil {
 			logger.ErrorContext(ctx, "Failed to create auth Provider", "error", err)
 			return dtos.AccountDTO{}, exceptions.FromDBError(err)
 		}
@@ -489,78 +495,6 @@ func processAccountClientCredentialsScopes(ccScopes []string, scopes []string) (
 	}
 
 	return scopes, nil
-}
-
-type ClientCredentialsLoginAccountOptions struct {
-	RequestID    string
-	Audience     string
-	Scopes       []string
-	ClientID     string
-	ClientSecret string
-}
-
-func (s *Services) ClientCredentialsLoginAccount(
-	ctx context.Context,
-	opts ClientCredentialsLoginAccountOptions,
-) (dtos.AuthDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, oauthLocation, "ClientCredentialsLoginAccount").With(
-		"clientId", opts.ClientID,
-	)
-	logger.InfoContext(ctx, "Client credentials logging in account...")
-
-	accountClientCredentialsDTO, serviceErr := s.GetAccountCredentialsByClientID(ctx,
-		GetAccountCredentialsByClientIDOptions{
-			RequestID: opts.RequestID,
-			ClientID:  opts.ClientID,
-		},
-	)
-	if serviceErr != nil {
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "Account keys not found", "error", serviceErr)
-			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-		}
-
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	ok, err := utils.CompareHash(opts.ClientSecret, accountClientCredentialsDTO.HashedSecret())
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to compare client secret hashes", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
-	}
-	if !ok {
-		logger.WarnContext(ctx, "Client secret verification failed")
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-	}
-
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
-		RequestID: opts.RequestID,
-		ID:        accountClientCredentialsDTO.AccountID(),
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get account", "error", serviceErr)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
-	}
-
-	scopes, serviceErr := processAccountClientCredentialsScopes(accountClientCredentialsDTO.Scopes, opts.Scopes)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to process client credentials scopes", "error", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	accessToken, err := s.jwt.CreateAccessToken(tokens.AccountAccessTokenOptions{
-		PublicID:     accountDTO.PublicID,
-		Version:      accountDTO.Version(),
-		Scopes:       scopes,
-		TokenSubject: accountClientCredentialsDTO.ClientID,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate access token", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
-	}
-
-	logger.InfoContext(ctx, "Client credential logged in successfully")
-	return dtos.NewAuthDTO(accessToken, s.jwt.GetAccountCredentialsTTL()), nil
 }
 
 func (s *Services) GetAccountPublicJWKs(ctx context.Context, requestID string) dtos.JWKsDTO {
