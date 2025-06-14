@@ -135,7 +135,7 @@ func BuildClaimSchema(claims []database.Claims) reflect.Type {
 type UnmarshalSchemaBodyOptions struct {
 	RequestID  string
 	SchemaType reflect.Type
-	Data       map[database.Claims]any
+	Data       map[string]any
 }
 
 func (s *Services) UnmarshalSchemaBody(
@@ -148,7 +148,7 @@ func (s *Services) UnmarshalSchemaBody(
 	fieldErrors := make([]exceptions.FieldError, 0)
 	value := reflect.New(opts.SchemaType).Elem()
 	for fieldName, fieldValue := range opts.Data {
-		schemaMap, ok := schemaMapping[fieldName]
+		schemaMap, ok := schemaMapping[database.Claims(fieldName)]
 		if !ok {
 			logger.WarnContext(ctx, "Field not found in schema", "fieldName", fieldName)
 			fieldErrors = append(fieldErrors, exceptions.FieldError{

@@ -14,7 +14,6 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
-	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -40,16 +39,16 @@ func isDistributedKey(name AppKeyName) bool {
 	return name == AppKeyNameAccess || name == AppKeyNameClient || name == AppKeyNameID || name == AppKeyNameOAuth
 }
 
-func getCryptoSuite(isDistributed bool) tokens.SupportedCryptoSuite {
+func getCryptoSuite(isDistributed bool) database.TokenCryptoSuite {
 	if isDistributed {
-		return tokens.SupportedCryptoSuiteES256
+		return database.TokenCryptoSuiteES256
 	}
-	return tokens.SupportedCryptoSuiteEd25519
+	return database.TokenCryptoSuiteEdDSA
 }
 
 type generateAccountKeyKeyPairOptions struct {
 	requestID   string
-	cryptoSuite tokens.SupportedCryptoSuite
+	cryptoSuite database.TokenCryptoSuite
 	accountDEK  string
 	dek         string
 }
@@ -69,7 +68,7 @@ func (s *Services) generateAccountKeyKeyPair(
 		StoredDEK:  opts.dek,
 	}
 	switch opts.cryptoSuite {
-	case tokens.SupportedCryptoSuiteES256:
+	case database.TokenCryptoSuiteES256:
 		logger.DebugContext(ctx, "Generating ES256 key pair...")
 		keyPair, privateKey, newDek, err := s.encrypt.GenerateES256KeyPair(ctx, keyOpts)
 		if err != nil {
@@ -78,7 +77,7 @@ func (s *Services) generateAccountKeyKeyPair(
 		}
 
 		return keyPair, privateKey, newDek, nil
-	case tokens.SupportedCryptoSuiteEd25519:
+	case database.TokenCryptoSuiteEdDSA:
 		logger.DebugContext(ctx, "Generating Ed25519 key pair...")
 		keyPair, privateKey, newDek, err := s.encrypt.GenerateEd25519KeyPair(ctx, keyOpts)
 		if err != nil {
@@ -145,7 +144,7 @@ func (s *Services) createAccountKey(
 			OidcConfigID:   oidcConfig.ID(),
 			AccountID:      opts.accountID,
 			Name:           string(opts.name),
-			JwtCryptoSuite: string(cryptoSuite),
+			JwtCryptoSuite: cryptoSuite,
 			PublicKid:      keyPair.KID,
 			PublicKey:      publicKeyJSON,
 			PrivateKey:     keyPair.EncryptedPrivateKey(),
@@ -175,7 +174,7 @@ func (s *Services) createAccountKey(
 		OidcConfigID:   oidcConfig.ID(),
 		AccountID:      opts.accountID,
 		Name:           string(opts.name),
-		JwtCryptoSuite: string(cryptoSuite),
+		JwtCryptoSuite: cryptoSuite,
 		PublicKid:      keyPair.KID,
 		PublicKey:      publicKeyJSON,
 		PrivateKey:     keyPair.EncryptedPrivateKey(),
@@ -229,9 +228,9 @@ func (s *Services) decryptAccountKeyPrivateKey(
 	var newDEK string
 	var err error
 	switch accountKey.JwtCryptoSuite {
-	case string(tokens.SupportedCryptoSuiteES256):
+	case database.TokenCryptoSuiteES256:
 		privateKey, newDEK, err = s.encrypt.DecryptES256PrivateKey(ctx, opts)
-	case string(tokens.SupportedCryptoSuiteEd25519):
+	case database.TokenCryptoSuiteEdDSA:
 		privateKey, newDEK, err = s.encrypt.DecryptEd25519PrivateKey(ctx, opts)
 	default:
 		logger.WarnContext(ctx, "Unsupported crypto suite", "cryptoSuite", accountKey.JwtCryptoSuite)
@@ -364,9 +363,9 @@ func (s *Services) getMultipleAccountKeys(
 		var privateKey any
 		var err error
 		switch accountKey.JwtCryptoSuite {
-		case string(tokens.SupportedCryptoSuiteES256):
+		case database.TokenCryptoSuiteES256:
 			privateKey, newDEK, err = s.encrypt.DecryptES256PrivateKey(ctx, opts)
-		case string(tokens.SupportedCryptoSuiteEd25519):
+		case database.TokenCryptoSuiteEdDSA:
 			privateKey, newDEK, err = s.encrypt.DecryptEd25519PrivateKey(ctx, opts)
 		default:
 			logger.WarnContext(ctx, "Unsupported crypto suite", "cryptoSuite", accountKey.JwtCryptoSuite)
@@ -452,7 +451,7 @@ func (s *Services) createMultipleAccountKeys(
 			OidcConfigID:   opts.oidcConfigID,
 			AccountID:      opts.accountID,
 			Name:           string(name),
-			JwtCryptoSuite: string(cryptoSuite),
+			JwtCryptoSuite: cryptoSuite,
 			PublicKid:      keyPair.KID,
 			PublicKey:      publicKeyJSON,
 			PrivateKey:     keyPair.EncryptedPrivateKey(),

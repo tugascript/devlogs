@@ -21,30 +21,28 @@ import (
 
 const middlewareLocation string = "middleware"
 
-func (c *Controllers) UserClaimsMiddleware(name services.AppKeyName) func(ctx *fiber.Ctx) error {
-	return func(ctx *fiber.Ctx) error {
-		requestID := getRequestID(ctx)
-		logger := c.buildLogger(requestID, middlewareLocation, "ProcessUserClaimsMiddleware")
+func (c *Controllers) UserAccessClaimsMiddleware(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, middlewareLocation, "UserAccessClaimsMiddleware")
 
-		authHeader := ctx.Get("Authorization")
-		if authHeader == "" {
-			return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
-		}
-
-		userClaims, appClaims, userScopes, serviceErr := c.services.ProcessUserAccessHeader(ctx.UserContext(), services.ProcessUserAuthHeaderOptions{
-			RequestID:  requestID,
-			AuthHeader: authHeader,
-			Name:       name,
-		})
-		if serviceErr != nil {
-			return serviceErrorResponse(logger, ctx, serviceErr)
-		}
-
-		ctx.Locals("user", userClaims)
-		ctx.Locals("app", appClaims)
-		ctx.Locals("userScopes", userScopes)
-		return ctx.Next()
+	authHeader := ctx.Get("Authorization")
+	if authHeader == "" {
+		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 	}
+
+	userClaims, appClaims, userScopes, serviceErr := c.services.ProcessUserAccessHeader(ctx.UserContext(), services.ProcessUserAuthHeaderOptions{
+		RequestID:  requestID,
+		AuthHeader: authHeader,
+		Name:       services.AppKeyNameAccess,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	ctx.Locals("user", userClaims)
+	ctx.Locals("app", appClaims)
+	ctx.Locals("userScopes", userScopes)
+	return ctx.Next()
 }
 
 func (c *Controllers) AccountAccessClaimsMiddleware(ctx *fiber.Ctx) error {
