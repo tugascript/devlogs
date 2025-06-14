@@ -194,7 +194,7 @@ func (c *Controllers) TwoFactorLoginUser(ctx *fiber.Ctx) error {
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
-	if !slices.Contains(userScopes, tokens.UserScope2FA) {
+	if !slices.Contains(userScopes, tokens.UserScopeTwoFactor) {
 		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 	}
 

@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-06-14T00:18:53.113Z
+-- Generated at: 2025-06-14T03:25:20.961Z
 
 CREATE TYPE "token_crypto_suite" AS ENUM (
   'ES256',
@@ -29,7 +29,8 @@ CREATE TYPE "auth_provider" AS ENUM (
   'apple',
   'github',
   'google',
-  'microsoft'
+  'microsoft',
+  'custom'
 );
 
 CREATE TYPE "claims" AS ENUM (

@@ -14,11 +14,11 @@ import (
 
 const getRevokedToken = `-- name: GetRevokedToken :one
 SELECT id, token_id, expires_at, created_at FROM "revoked_tokens"
-WHERE "id" = $1 LIMIT 1
+WHERE "token_id" = $1 LIMIT 1
 `
 
-func (q *Queries) GetRevokedToken(ctx context.Context, id int32) (RevokedToken, error) {
-	row := q.db.QueryRow(ctx, getRevokedToken, id)
+func (q *Queries) GetRevokedToken(ctx context.Context, tokenID uuid.UUID) (RevokedToken, error) {
+	row := q.db.QueryRow(ctx, getRevokedToken, tokenID)
 	var i RevokedToken
 	err := row.Scan(
 		&i.ID,

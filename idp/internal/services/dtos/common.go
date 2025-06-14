@@ -7,7 +7,6 @@
 package dtos
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 
@@ -110,20 +109,6 @@ func NewPaginationDTO[T any](
 		Previous: newPaginationPreviousURL(backendDomain, route, limit, offset, extraParamsStr),
 		Items:    items,
 	}
-}
-
-func jsonHashMapToSlice(jsonMap []byte) ([]string, *exceptions.ServiceError) {
-	hashMap := make(map[string]bool)
-	if err := json.Unmarshal(jsonMap, &hashMap); err != nil {
-		return nil, exceptions.NewServerError()
-	}
-
-	strSlice := make([]string, 0)
-	for k := range hashMap {
-		strSlice = append(strSlice, k)
-	}
-
-	return strSlice, nil
 }
 
 func GetJwtCryptoSuite(cryptoSuite database.TokenCryptoSuite) (tokens.SupportedCryptoSuite, *exceptions.ServiceError) {

@@ -865,22 +865,22 @@ func (s *Services) LogoutUser(
 		return serviceErr
 	}
 
-	blt, err := s.database.GetBlacklistedToken(ctx, tokenID)
+	blt, err := s.database.GetRevokedToken(ctx, tokenID)
 	if err != nil {
 		if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to fetch blacklisted token", "error", err)
+			logger.ErrorContext(ctx, "Failed to fetch revoked token", "error", err)
 			return exceptions.NewServerError()
 		}
 	} else {
-		logger.WarnContext(ctx, "Token is blacklisted", "blacklistedAt", blt.CreatedAt)
+		logger.WarnContext(ctx, "Token is revoked", "revokedAt", blt.CreatedAt)
 		return exceptions.NewUnauthorizedError()
 	}
 
-	if err := s.database.BlacklistToken(ctx, database.BlacklistTokenParams{
-		ID:        tokenID,
+	if err := s.database.RevokeToken(ctx, database.RevokeTokenParams{
+		TokenID:   tokenID,
 		ExpiresAt: exp,
 	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to blacklist token", "error", err)
+		logger.ErrorContext(ctx, "Failed to revoke token", "error", err)
 		return exceptions.NewServerError()
 	}
 
@@ -923,9 +923,9 @@ func (s *Services) RefreshUserAccess(
 	}
 
 	// Check if token is blacklisted
-	blt, err := s.database.GetBlacklistedToken(ctx, tokenID)
+	blt, err := s.database.GetRevokedToken(ctx, tokenID)
 	if err == nil {
-		logger.WarnContext(ctx, "Token is blacklisted", "blacklistedAt", blt.CreatedAt)
+		logger.WarnContext(ctx, "Token is revoked", "revokedAt", blt.CreatedAt)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	} else if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
 		logger.ErrorContext(ctx, "Failed to check blacklisted token", "error", err)
@@ -1213,7 +1213,7 @@ func (s *Services) ResetUserPassword(
 
 	_, err = s.database.FindUserAuthProviderByUserIDAndProvider(ctx, database.FindUserAuthProviderByUserIDAndProviderParams{
 		UserID:   userDTO.ID(),
-		Provider: AuthProviderUsernamePassword,
+		Provider: database.AuthProviderUsernamePassword,
 	})
 	if err == nil {
 		if _, err := s.database.UpdateUserPassword(ctx, database.UpdateUserPasswordParams{
@@ -1254,7 +1254,7 @@ func (s *Services) ResetUserPassword(
 	if err = qrs.CreateUserAuthProvider(ctx, database.CreateUserAuthProviderParams{
 		AccountID: opts.AccountID,
 		UserID:    userDTO.ID(),
-		Provider:  AuthProviderUsernamePassword,
+		Provider:  database.AuthProviderUsernamePassword,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create username and password user auth provider", "error", err)
 		serviceErr = exceptions.FromDBError(err)

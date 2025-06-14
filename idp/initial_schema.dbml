@@ -189,6 +189,7 @@ Enum auth_provider {
     "github"
     "google"
     "microsoft"
+    "custom"
 }
 
 Table account_auth_providers as AP {

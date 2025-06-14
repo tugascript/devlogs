@@ -201,6 +201,7 @@ const (
 	AuthProviderGithub           AuthProvider = "github"
 	AuthProviderGoogle           AuthProvider = "google"
 	AuthProviderMicrosoft        AuthProvider = "microsoft"
+	AuthProviderCustom           AuthProvider = "custom"
 )
 
 func (e *AuthProvider) Scan(src interface{}) error {

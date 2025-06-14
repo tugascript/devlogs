@@ -146,7 +146,7 @@ func (s *Services) CreateUser(
 	if err := qrs.CreateUserAuthProvider(ctx, database.CreateUserAuthProviderParams{
 		AccountID: opts.AccountID,
 		UserID:    user.ID,
-		Provider:  AuthProviderEmail,
+		Provider:  database.AuthProviderUsernamePassword,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create user auth Provider", "error", err)
 		serviceErr = exceptions.FromDBError(err)

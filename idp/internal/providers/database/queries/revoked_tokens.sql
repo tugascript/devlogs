@@ -15,4 +15,4 @@ INSERT INTO "revoked_tokens" (
 
 -- name: GetRevokedToken :one
 SELECT * FROM "revoked_tokens"
-WHERE "id" = $1 LIMIT 1;
+WHERE "token_id" = $1 LIMIT 1;

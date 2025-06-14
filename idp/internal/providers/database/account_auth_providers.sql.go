@@ -35,20 +35,15 @@ func (q *Queries) CreateAccountAuthProvider(ctx context.Context, arg CreateAccou
 	return err
 }
 
-const deleteAccountAuthProviders = `-- name: DeleteAccountAuthProviders :exec
+const deleteExternalAccountAuthProviders = `-- name: DeleteExternalAccountAuthProviders :exec
 DELETE FROM "account_auth_providers"
 WHERE 
   "email" = $1 AND 
-  "provider" != $2
+  "provider" != "username_password"
 `
 
-type DeleteAccountAuthProvidersParams struct {
-	Email    string
-	Provider AuthProvider
-}
-
-func (q *Queries) DeleteAccountAuthProviders(ctx context.Context, arg DeleteAccountAuthProvidersParams) error {
-	_, err := q.db.Exec(ctx, deleteAccountAuthProviders, arg.Email, arg.Provider)
+func (q *Queries) DeleteExternalAccountAuthProviders(ctx context.Context, email string) error {
+	_, err := q.db.Exec(ctx, deleteExternalAccountAuthProviders, email)
 	return err
 }
 

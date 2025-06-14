@@ -20,8 +20,8 @@ WHERE
   "provider" = $2
 LIMIT 1;
 
--- name: DeleteAccountAuthProviders :exec
+-- name: DeleteExternalAccountAuthProviders :exec
 DELETE FROM "account_auth_providers"
 WHERE 
   "email" = $1 AND 
-  "provider" != $2;
+  "provider" != "username_password";

@@ -220,7 +220,7 @@ func (s *Services) saveExtAccount(
 		return accountDto, nil
 	}
 
-	prvdrOpts := database.FindAuthProviderByEmailAndProviderParams{
+	prvdrOpts := database.FindAccountAuthProviderByEmailAndProviderParams{
 		Email:    accountDto.Email,
 		Provider: opts.provider,
 	}

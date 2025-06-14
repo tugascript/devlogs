@@ -21,6 +21,7 @@ const oidcConfigLocation string = "oidc_configs"
 type CreateOIDCConfigOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
+	AccountVersion  int32
 	Claims          []string
 	Scopes          []string
 }
@@ -34,9 +35,10 @@ func (s *Services) CreateOIDCConfig(
 	)
 	logger.Info("Creating OIDC config...")
 
-	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
+	accountDTO, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
 		PublicID:  opts.AccountPublicID,
+		Version:   opts.AccountVersion,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeNotFound {
@@ -60,18 +62,6 @@ func (s *Services) CreateOIDCConfig(
 	encryptedDek, newAccountDEK, err := s.encrypt.GenerateOIDCDEK(ctx, opts.RequestID, accountDTO.DEK())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate OIDC StoredDEK", "error", err)
-		return dtos.OIDCConfigDTO{}, exceptions.NewServerError()
-	}
-
-	claimsData, err := mapSliceToJsonMap(opts.Claims)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to marshal claims", "error", err)
-		return dtos.OIDCConfigDTO{}, exceptions.NewServerError()
-	}
-
-	scopesData, err := mapSliceToJsonMap(opts.Scopes)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to marshal scopes", "error", err)
 		return dtos.OIDCConfigDTO{}, exceptions.NewServerError()
 	}
 

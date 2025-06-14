@@ -7,7 +7,6 @@
 package services
 
 import (
-	"encoding/json"
 	"log/slog"
 	"strings"
 
@@ -23,7 +22,6 @@ const (
 	AuthMethodClientSecretPost  string = "client_secret_post"
 	AuthMethodNone              string = "none"
 
-	AuthProviderEmail            string = "email"
 	AuthProviderGoogle           string = "google"
 	AuthProviderGitHub           string = "github"
 	AuthProviderApple            string = "apple"
@@ -47,21 +45,6 @@ func (s *Services) buildLogger(requestID, location, function string) *slog.Logge
 		Method:    function,
 		RequestID: requestID,
 	})
-}
-
-func mapSliceToJsonMap(scopes []string) ([]byte, error) {
-	scopeMap := make(map[string]bool)
-
-	for _, scope := range scopes {
-		scopeMap[scope] = true
-	}
-
-	jsonMap, err := json.Marshal(scopeMap)
-	if err != nil {
-		return nil, err
-	}
-
-	return jsonMap, nil
 }
 
 func extractAuthHeaderToken(ah string) (string, *exceptions.ServiceError) {
@@ -95,5 +78,40 @@ func mapAuthMethod(authMethod string) ([]database.AuthMethod, *exceptions.Servic
 		return []database.AuthMethod{am}, nil
 	default:
 		return nil, exceptions.NewValidationError("invalid auth method")
+	}
+}
+
+func mapClaim(claim string) (database.Claims, *exceptions.ServiceError) {
+	if len(claim) < 3 {
+		return "", exceptions.NewValidationError("invalid claim")
+	}
+
+	dbClaim := database.Claims(claim)
+	switch dbClaim {
+	case database.ClaimsSub, database.ClaimsName, database.ClaimsGivenName,
+		database.ClaimsFamilyName, database.ClaimsMiddleName, database.ClaimsNickname,
+		database.ClaimsPreferredUsername, database.ClaimsProfile, database.ClaimsPicture,
+		database.ClaimsWebsite, database.ClaimsEmail, database.ClaimsEmailVerified,
+		database.ClaimsGender, database.ClaimsBirthdate, database.ClaimsZoneinfo,
+		database.ClaimsLocale, database.ClaimsPhoneNumber, database.ClaimsPhoneNumberVerified,
+		database.ClaimsAddress, database.ClaimsUpdatedAt, database.ClaimsUserRoles:
+		return dbClaim, nil
+	default:
+		return "", exceptions.NewValidationError("invalid claim")
+	}
+}
+
+func mapAuthProvider(provider string) (database.AuthProvider, *exceptions.ServiceError) {
+	if len(provider) < 5 {
+		return "", exceptions.NewValidationError("invalid provider")
+	}
+
+	authProvider := database.AuthProvider(provider)
+	switch authProvider {
+	case database.AuthProviderUsernamePassword, database.AuthProviderApple, database.AuthProviderGithub,
+		database.AuthProviderGoogle, database.AuthProviderMicrosoft, database.AuthProviderCustom:
+		return authProvider, nil
+	default:
+		return "", exceptions.NewValidationError("invalid provider")
 	}
 }
