@@ -283,7 +283,7 @@ func NewTokens(
 	if accountKeysData.prevPubKey != nil {
 		jwks = append(jwks, utils.EncodeP256Jwk(
 			accountKeysData.prevPubKey.publicKey,
-			accessData.prevPubKey.kid,
+			accountKeysData.prevPubKey.kid,
 		))
 	}
 	if accessData.prevPubKey != nil {
