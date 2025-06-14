@@ -9,14 +9,9 @@ package paths
 const (
 	AccountsBase string = "/accounts"
 
-	AccountsSingle string = "/:accountPublicID"
-
-	AccountMe        string = "/me"
-	AccountMeConfirm string = "/me/confirm"
-
-	AccountPassword        string = "/password"
-	AccountPasswordConfirm string = "/password/confirm"
-
-	AccountEmail        string = "/email"
-	AccountEmailConfirm string = "/email/confirm"
+	AccountsSingle  string = "/:accountPublicID"
+	AccountMe       string = "/me"
+	AccountPassword string = "/password"
+	AccountEmail    string = "/email"
+	AccountUsername string = "/username"
 )

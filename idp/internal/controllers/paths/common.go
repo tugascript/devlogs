@@ -6,4 +6,9 @@
 
 package paths
 
-const Base string = "/"
+const (
+	Base    string = "/"
+	Keys    string = "/keys"
+	Confirm string = "/confirm"
+	TwoFA   string = "/2fa"
+)

@@ -13,11 +13,11 @@ import (
 )
 
 type AccountDTO struct {
-	PublicID      uuid.UUID `json:"id"`
-	GivenName     string    `json:"given_name"`
-	FamilyName    string    `json:"family_name"`
-	Email         string    `json:"email"`
-	TwoFactorType string    `json:"two_factor_type"`
+	PublicID      uuid.UUID              `json:"id"`
+	GivenName     string                 `json:"given_name"`
+	FamilyName    string                 `json:"family_name"`
+	Email         string                 `json:"email"`
+	TwoFactorType database.TwoFactorType `json:"two_factor_type"`
 
 	id            int32
 	version       int32

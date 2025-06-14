@@ -60,6 +60,14 @@ UPDATE "accounts" SET
 WHERE "id" = $2
 RETURNING *;
 
+-- name: UpdateAccountUsername :one
+UPDATE "accounts" SET
+    "username" = $1,
+    "version" = "version" + 1,
+    "updated_at" = now()
+WHERE "id" = $2
+RETURNING *;
+
 -- name: FindAccountByEmail :one
 SELECT * FROM "accounts"
 WHERE "email" = $1 LIMIT 1;
@@ -103,9 +111,8 @@ WHERE "id" = $1;
 UPDATE "accounts" SET
     "given_name" = $1,
     "family_name" = $2,
-    "username" = $3,
     "updated_at" = now()
-WHERE "id" = $4
+WHERE "id" = $3
 RETURNING *;
 
 -- name: UpdateAccountDEK :exec

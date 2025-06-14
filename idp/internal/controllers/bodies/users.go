@@ -20,3 +20,8 @@ type UpdateUserPasswordBody struct {
 	Password  string `json:"password" validate:"required,min=8,max=100,password"`
 	Password2 string `json:"password2" validate:"required,eqfield=Password"`
 }
+
+type UpdateAccountUsernameBody struct {
+	Username string `json:"username" validate:"required,min=1,max=63,slug"`
+	Password string `json:"password,omitempty" validate:"optional,min=1"`
+}

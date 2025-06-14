@@ -69,5 +69,5 @@ func (r *Routes) AccountCredentialsSecretsRoutes(app *fiber.App) {
 func (r *Routes) AccountKeysRoutes(app *fiber.App) {
 	router := v1PathRouter(app).Group(paths.AccountsBase)
 
-	router.Get(paths.AccountsSingle+paths.CredentialsKeysBase, r.controllers.ListAccountCredentialsKeys)
+	router.Get(paths.AccountsSingle+paths.Keys, r.controllers.ListAccountCredentialsKeys)
 }

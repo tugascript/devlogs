@@ -96,7 +96,6 @@ func initTestServicesAndApp(t *testing.T) {
 		tokensCfg.OAuth(),
 		tokensCfg.TwoFA(),
 		tokensCfg.Apps(),
-		_testConfig.FrontendDomain(),
 		_testConfig.BackendDomain(),
 	)
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")
@@ -398,20 +397,19 @@ func CreateTestAccount(t *testing.T, userData services.CreateAccountOptions) dto
 func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (string, string) {
 	tks := GetTestTokens(t)
 	accessToken, err := tks.CreateAccessToken(tokens.AccountAccessTokenOptions{
-		PublicID: account.ID,
-		Version:  account.Version(),
-		Email:    account.Email,
-		Scopes:   []tokens.AccountScope{tokens.AccountScopeAdmin},
+		PublicID:     account.PublicID,
+		Version:      account.Version(),
+		TokenSubject: account.PublicID.String(),
+		Scopes:       []tokens.AccountScope{tokens.AccountScopeAdmin},
 	})
 	if err != nil {
 		t.Fatal("Failed to create access token", err)
 	}
 
-	refreshToken, err := tks.CreateRefreshToken(tokens.AccountAccessTokenOptions{
-		PublicID: account.ID,
+	refreshToken, err := tks.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
+		PublicID: account.PublicID,
 		Version:  account.Version(),
-		Email:    account.Email,
-		Scopes:   []tokens.AccountScope{tokens.AccountScopeRefresh},
+		Scopes:   []tokens.AccountScope{tokens.AccountScopeAdmin},
 	})
 	if err != nil {
 		t.Fatal("Failed to create refresh token", err)

@@ -353,26 +353,19 @@ const updateAccount = `-- name: UpdateAccount :one
 UPDATE "accounts" SET
     "given_name" = $1,
     "family_name" = $2,
-    "username" = $3,
     "updated_at" = now()
-WHERE "id" = $4
+WHERE "id" = $3
 RETURNING id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
 `
 
 type UpdateAccountParams struct {
 	GivenName  string
 	FamilyName string
-	Username   string
 	ID         int32
 }
 
 func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error) {
-	row := q.db.QueryRow(ctx, updateAccount,
-		arg.GivenName,
-		arg.FamilyName,
-		arg.Username,
-		arg.ID,
-	)
+	row := q.db.QueryRow(ctx, updateAccount, arg.GivenName, arg.FamilyName, arg.ID)
 	var i Account
 	err := row.Scan(
 		&i.ID,
@@ -495,12 +488,49 @@ RETURNING id, public_id, given_name, family_name, username, email, organization,
 `
 
 type UpdateAccountTwoFactorTypeParams struct {
-	TwoFactorType string
+	TwoFactorType TwoFactorType
 	ID            int32
 }
 
 func (q *Queries) UpdateAccountTwoFactorType(ctx context.Context, arg UpdateAccountTwoFactorTypeParams) (Account, error) {
 	row := q.db.QueryRow(ctx, updateAccountTwoFactorType, arg.TwoFactorType, arg.ID)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.GivenName,
+		&i.FamilyName,
+		&i.Username,
+		&i.Email,
+		&i.Organization,
+		&i.Dek,
+		&i.Password,
+		&i.Version,
+		&i.EmailVerified,
+		&i.IsActive,
+		&i.TwoFactorType,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAccountUsername = `-- name: UpdateAccountUsername :one
+UPDATE "accounts" SET
+    "username" = $1,
+    "version" = "version" + 1,
+    "updated_at" = now()
+WHERE "id" = $2
+RETURNING id, public_id, given_name, family_name, username, email, organization, dek, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
+`
+
+type UpdateAccountUsernameParams struct {
+	Username string
+	ID       int32
+}
+
+func (q *Queries) UpdateAccountUsername(ctx context.Context, arg UpdateAccountUsernameParams) (Account, error) {
+	row := q.db.QueryRow(ctx, updateAccountUsername, arg.Username, arg.ID)
 	var i Account
 	err := row.Scan(
 		&i.ID,

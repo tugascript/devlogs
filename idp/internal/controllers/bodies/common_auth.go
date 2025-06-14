@@ -80,3 +80,8 @@ type UpdatePasswordBody struct {
 type DeleteWithPasswordBody struct {
 	Password string `json:"password,omitempty" validate:"optional,min=1"`
 }
+
+type UpdateTwoFactorBody struct {
+	TwoFactorType string `json:"two_factor_type" validate:"required,two_factor_type"`
+	Password      string `json:"password,omitempty" validate:"optional,min=1"`
+}

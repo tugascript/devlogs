@@ -16,6 +16,4 @@ const (
 	CredentialsSecretsSingle string = "/:clientID/secrets/:secretID"
 
 	CredentialsSecretsRevoke string = "/:clientID/secrets/:secretID/revoke"
-
-	CredentialsKeysBase string = "/keys"
 )

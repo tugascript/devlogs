@@ -11,7 +11,6 @@ import (
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/services"
-	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 )
 
 const accountsLocation string = "accounts"
@@ -26,9 +25,10 @@ func (c *Controllers) GetCurrentAccount(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	accountDTO, serviceErr := c.services.GetAccountByPublicID(ctx.UserContext(), services.GetAccountByPublicIDOptions{
+	accountDTO, serviceErr := c.services.GetAccountByPublicIDAndVersion(ctx.UserContext(), services.GetAccountByPublicIDAndVersionOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
+		Version:   accountClaims.AccountVersion,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -59,6 +59,7 @@ func (c *Controllers) UpdateAccountPassword(ctx *fiber.Ctx) error {
 	authDTO, serviceErr := c.services.UpdateAccountPassword(ctx.UserContext(), services.UpdateAccountPasswordOptions{
 		RequestID:   requestID,
 		PublicID:    accountClaims.AccountID,
+		Version:     accountClaims.AccountVersion,
 		Password:    body.OldPassword,
 		NewPassword: body.Password,
 	})
@@ -66,13 +67,11 @@ func (c *Controllers) UpdateAccountPassword(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	if authDTO.AccessToken != "" {
-		logResponse(logger, ctx, fiber.StatusOK)
-		return ctx.Status(fiber.StatusOK).JSON(dtos.NewMessageDTO("Password update innitiated. Please 2FA login."))
+	if authDTO.RefreshToken != "" {
+		c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
-	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
@@ -97,6 +96,7 @@ func (c *Controllers) ConfirmUpdateAccountPassword(ctx *fiber.Ctx) error {
 	authDTO, serviceErr := c.services.ConfirmUpdateAccountPassword(ctx.UserContext(), services.ConfirmUpdateAccountPasswordOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
+		Version:   accountClaims.AccountVersion,
 		Code:      body.Code,
 	})
 	if serviceErr != nil {
@@ -136,13 +136,11 @@ func (c *Controllers) UpdateAccountEmail(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	if authDTO.AccessToken != "" {
-		logResponse(logger, ctx, fiber.StatusOK)
-		return ctx.Status(fiber.StatusOK).JSON(dtos.NewMessageDTO("Email update innitiated. Please 2FA login."))
+	if authDTO.RefreshToken != "" {
+		c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
-	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
@@ -167,6 +165,7 @@ func (c *Controllers) ConfirmUpdateAccountEmail(ctx *fiber.Ctx) error {
 	authDTO, serviceErr := c.services.ConfirmUpdateAccountEmail(ctx.UserContext(), services.ConfirmUpdateAccountEmailOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
+		Version:   accountClaims.AccountVersion,
 		Code:      body.Code,
 	})
 	if serviceErr != nil {
@@ -199,9 +198,9 @@ func (c *Controllers) UpdateAccount(ctx *fiber.Ctx) error {
 	accountDTO, serviceErr := c.services.UpdateAccount(ctx.UserContext(), services.UpdateAccountOptions{
 		RequestID:  requestID,
 		PublicID:   accountClaims.AccountID,
+		Version:    accountClaims.AccountVersion,
 		GivenName:  body.GivenName,
 		FamilyName: body.FamilyName,
-		Username:   body.Username,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -229,23 +228,24 @@ func (c *Controllers) DeleteAccount(ctx *fiber.Ctx) error {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	deleted, serviceErr := c.services.DeleteAccount(ctx.UserContext(), services.DeleteAccountOptions{
+	deleted, authDTO, serviceErr := c.services.DeleteAccount(ctx.UserContext(), services.DeleteAccountOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
+		Version:   accountClaims.AccountVersion,
 		Password:  body.Password,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	if !deleted {
+	if !deleted && authDTO.AccessToken != "" {
 		logResponse(logger, ctx, fiber.StatusOK)
-		return ctx.Status(fiber.StatusOK).JSON(dtos.NewMessageDTO("Account deletion initiated. Please 2FA login."))
+		return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 	}
 
-	logResponse(logger, ctx, fiber.StatusOK)
+	logResponse(logger, ctx, fiber.StatusNoContent)
 	c.clearAccountRefreshCookie(ctx)
-	return ctx.Status(fiber.StatusOK).JSON(dtos.NewMessageDTO("Account deleted successfully"))
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
 func (c *Controllers) ConfirmDeleteAccount(ctx *fiber.Ctx) error {
@@ -269,6 +269,7 @@ func (c *Controllers) ConfirmDeleteAccount(ctx *fiber.Ctx) error {
 	serviceErr = c.services.ConfirmDeleteAccount(ctx.UserContext(), services.ConfirmDeleteAccountOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
+		Version:   accountClaims.AccountVersion,
 		Code:      body.Code,
 	})
 	if serviceErr != nil {
@@ -278,4 +279,147 @@ func (c *Controllers) ConfirmDeleteAccount(ctx *fiber.Ctx) error {
 	logResponse(logger, ctx, fiber.StatusOK)
 	c.clearAccountRefreshCookie(ctx)
 	return ctx.SendStatus(fiber.StatusNoContent)
+}
+
+func (c *Controllers) UpdateAccount2FA(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, accountsLocation, "UpdateAccount2FA")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.UpdateTwoFactorBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	authDTO, serviceErr := c.services.UpdateAccount2FA(ctx.UserContext(), services.UpdateAccount2FAOptions{
+		RequestID:     requestID,
+		PublicID:      accountClaims.AccountID,
+		Version:       accountClaims.AccountVersion,
+		TwoFactorType: body.TwoFactorType,
+		Password:      body.Password,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	if authDTO.RefreshToken != "" {
+		c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
+}
+
+func (c *Controllers) ConfirmUpdateAccount2FA(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, accountsLocation, "ConfirmUpdateAccount2FA")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.TwoFactorLoginBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	authDTO, serviceErr := c.services.ConfirmUpdateAccount2FA(ctx.UserContext(), services.ConfirmUpdateAccount2FAOptions{
+		RequestID: requestID,
+		PublicID:  accountClaims.AccountID,
+		Version:   accountClaims.AccountVersion,
+		Code:      body.Code,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
+	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
+}
+
+func (c *Controllers) UpdateAccountUsername(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, accountsLocation, "UpdateAccountUsername")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.UpdateAccountUsernameBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	authDTO, serviceErr := c.services.UpdateAccountUsername(ctx.UserContext(), services.UpdateAccountUsernameOptions{
+		RequestID: requestID,
+		PublicID:  accountClaims.AccountID,
+		Version:   accountClaims.AccountVersion,
+		Username:  body.Username,
+		Password:  body.Password,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	if authDTO.RefreshToken != "" {
+		c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
+}
+
+func (c *Controllers) ConfirmUpdateAccountUsername(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, accountsLocation, "ConfirmUpdateAccountUsername")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.TwoFactorLoginBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	authDTO, serviceErr := c.services.ConfirmUpdateAccountUsername(
+		ctx.UserContext(),
+		services.ConfirmUpdateAccountUsernameOptions{
+			RequestID: requestID,
+			PublicID:  accountClaims.AccountID,
+			Version:   accountClaims.AccountVersion,
+			Code:      body.Code,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
+	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }

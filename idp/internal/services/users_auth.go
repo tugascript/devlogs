@@ -539,7 +539,7 @@ func (s *Services) LoginUser(
 	}
 
 	switch userDTO.TwoFactorType {
-	case TwoFactorEmail, TwoFactorTotp:
+	case database.TwoFactorTypeEmail, database.TwoFactorTypeTotp:
 		logger.WarnContext(ctx, "User has two-factor authentication enabled")
 		appKeyDTO, serviceErr := s.GetOrCreateAccountKey(ctx, GetOrCreateAccountKeyOptions{
 			RequestID: opts.RequestID,
@@ -559,14 +559,14 @@ func (s *Services) LoginUser(
 			UserVersion:     userDTO.Version(),
 			AppClientID:     appDTO.ClientID,
 			AppVersion:      appDTO.Version(),
-			Path:            paths.AppsBase + paths.UsersBase + paths.AuthLogin2FA,
+			Path:            paths.AppsBase + paths.UsersBase + paths.AuthLogin + paths.TwoFA,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create two-factor authentication token", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewServerError()
 		}
 
-		if userDTO.TwoFactorType == TwoFactorEmail {
+		if userDTO.TwoFactorType == database.TwoFactorTypeEmail {
 			code, err := s.cache.AddTwoFactorCode(ctx, cache.AddTwoFactorCodeOptions{
 				RequestID: opts.RequestID,
 				AccountID: opts.AccountID,
@@ -766,14 +766,14 @@ func (s *Services) TwoFactorLoginUser(
 	// Verify the two-factor Code based on the user's two-factor type
 	var verified bool
 	switch userDTO.TwoFactorType {
-	case TwoFactorTotp:
+	case database.TwoFactorTypeTotp:
 		verified, serviceErr = s.verifyUserTotp(ctx, verifyUserTotpOptions{
 			requestID: opts.RequestID,
 			userID:    userDTO.ID(),
 			code:      opts.Code,
 			dek:       userDTO.DEK(),
 		})
-	case TwoFactorEmail:
+	case database.TwoFactorTypeEmail:
 		verified, serviceErr = s.verifyUserEmailCode(ctx, verifierUserEmailCodeOptions{
 			requestID: opts.RequestID,
 			accountID: opts.AccountID,

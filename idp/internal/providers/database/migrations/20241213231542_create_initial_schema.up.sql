@@ -1,6 +1,12 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-06-14T06:18:32.986Z
+-- Generated at: 2025-06-14T12:14:30.638Z
+
+CREATE TYPE "two_factor_type" AS ENUM (
+  'none',
+  'totp',
+  'email'
+);
 
 CREATE TYPE "token_crypto_suite" AS ENUM (
   'ES256',
@@ -111,7 +117,7 @@ CREATE TABLE "accounts" (
   "version" integer NOT NULL DEFAULT 1,
   "email_verified" boolean NOT NULL DEFAULT false,
   "is_active" boolean NOT NULL DEFAULT true,
-  "two_factor_type" varchar(5) NOT NULL DEFAULT 'none',
+  "two_factor_type" two_factor_type NOT NULL DEFAULT 'none',
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -217,14 +223,14 @@ CREATE TABLE "users" (
   "public_id" uuid NOT NULL,
   "account_id" integer NOT NULL,
   "email" varchar(250) NOT NULL,
-  "username" varchar(100) NOT NULL,
+  "username" varchar(250) NOT NULL,
   "password" text,
   "dek" text NOT NULL,
   "version" integer NOT NULL DEFAULT 1,
   "email_verified" boolean NOT NULL DEFAULT false,
   "user_roles" varchar(50)[] NOT NULL DEFAULT '{ "user" }',
   "is_active" boolean NOT NULL DEFAULT true,
-  "two_factor_type" varchar(5) NOT NULL DEFAULT 'none',
+  "two_factor_type" two_factor_type NOT NULL DEFAULT 'none',
   "user_data" jsonb NOT NULL DEFAULT '{}',
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())

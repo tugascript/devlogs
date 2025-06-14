@@ -479,6 +479,49 @@ func (ns NullTokenCryptoSuite) Value() (driver.Value, error) {
 	return string(ns.TokenCryptoSuite), nil
 }
 
+type TwoFactorType string
+
+const (
+	TwoFactorTypeNone  TwoFactorType = "none"
+	TwoFactorTypeTotp  TwoFactorType = "totp"
+	TwoFactorTypeEmail TwoFactorType = "email"
+)
+
+func (e *TwoFactorType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TwoFactorType(s)
+	case string:
+		*e = TwoFactorType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TwoFactorType: %T", src)
+	}
+	return nil
+}
+
+type NullTwoFactorType struct {
+	TwoFactorType TwoFactorType
+	Valid         bool // Valid is true if TwoFactorType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTwoFactorType) Scan(value interface{}) error {
+	if value == nil {
+		ns.TwoFactorType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TwoFactorType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTwoFactorType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TwoFactorType), nil
+}
+
 type Account struct {
 	ID            int32
 	PublicID      uuid.UUID
@@ -492,7 +535,7 @@ type Account struct {
 	Version       int32
 	EmailVerified bool
 	IsActive      bool
-	TwoFactorType string
+	TwoFactorType TwoFactorType
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
@@ -696,7 +739,7 @@ type User struct {
 	EmailVerified bool
 	UserRoles     []string
 	IsActive      bool
-	TwoFactorType string
+	TwoFactorType TwoFactorType
 	UserData      []byte
 	CreatedAt     time.Time
 	UpdatedAt     time.Time

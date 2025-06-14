@@ -131,6 +131,20 @@ func mapScope(scope string) (database.Scopes, *exceptions.ServiceError) {
 	}
 }
 
+func mapTwoFactorType(twoFactorType string) (database.TwoFactorType, *exceptions.ServiceError) {
+	if len(twoFactorType) < 4 {
+		return "", exceptions.NewValidationError("invalid two factor type")
+	}
+
+	dbTwoFactorType := database.TwoFactorType(twoFactorType)
+	switch dbTwoFactorType {
+	case database.TwoFactorTypeNone, database.TwoFactorTypeEmail, database.TwoFactorTypeTotp:
+		return dbTwoFactorType, nil
+	default:
+		return "", exceptions.NewValidationError("invalid two factor type")
+	}
+}
+
 // func mapTokenCryptoSuite[T string](cryptoSuite T) (database.TokenCryptoSuite, *exceptions.ServiceError) {
 // 	if len(cryptoSuite) != 5 {
 // 		return "", exceptions.NewValidationError("invalid crypto suite")

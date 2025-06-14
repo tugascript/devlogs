@@ -203,10 +203,9 @@ func TestConfirm(t *testing.T) {
 
 	generateConfirmationToken := func(t *testing.T, accountDTO dtos.AccountDTO) bodies.ConfirmationTokenBody {
 		testTokens := GetTestTokens(t)
-		token, err := testTokens.CreateConfirmationToken(tokens.AccountAccessTokenOptions{
-			PublicID: accountDTO.ID,
+		token, err := testTokens.CreateConfirmationToken(tokens.AccountConfirmationTokenOptions{
+			PublicID: accountDTO.PublicID,
 			Version:  accountDTO.Version(),
-			Email:    accountDTO.Email,
 		})
 		if err != nil {
 			t.Fatal("Failed to create confirmation token", err)
@@ -221,7 +220,7 @@ func TestConfirm(t *testing.T) {
 			ReqFn: func(t *testing.T) (bodies.ConfirmationTokenBody, string) {
 				return generateConfirmationToken(
 					t,
-					CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail)),
+					CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)),
 				), ""
 			},
 			ExpStatus: http.StatusOK,
@@ -263,9 +262,9 @@ func TestConfirm(t *testing.T) {
 		{
 			Name: "Should return 401 UNAUTHORIZED if user version mismatch",
 			ReqFn: func(t *testing.T) (bodies.ConfirmationTokenBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderEmail))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				return generateConfirmationToken(t, dtos.AccountDTO{
-					ID:         account.ID,
+					PublicID:   account.PublicID,
 					GivenName:  account.GivenName,
 					FamilyName: account.FamilyName,
 					Email:      account.Email,
@@ -292,7 +291,7 @@ func TestLogin(t *testing.T) {
 		{
 			Name: "Should return 200 OK with access and refresh tokens",
 			ReqFn: func(t *testing.T) (bodies.LoginBody, string) {
-				data := GenerateFakeAccountData(t, services.AuthProviderEmail)
+				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
 				account := CreateTestAccount(t, data)
 				return bodies.LoginBody{
 					Email:    account.Email,
@@ -305,7 +304,7 @@ func TestLogin(t *testing.T) {
 		{
 			Name: "Should return 200 OK with temporary access token if user has 2FA enabled",
 			ReqFn: func(t *testing.T) (bodies.LoginBody, string) {
-				data := GenerateFakeAccountData(t, services.AuthProviderEmail)
+				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
 				account := CreateTestAccount(t, data)
 				testS := GetTestServices(t)
 
@@ -329,7 +328,7 @@ func TestLogin(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if request validation fails",
 			ReqFn: func(t *testing.T) (bodies.LoginBody, string) {
-				data := GenerateFakeAccountData(t, services.AuthProviderEmail)
+				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
 				return bodies.LoginBody{
 					Email:    "not-an-email",
 					Password: data.Password,
@@ -347,7 +346,7 @@ func TestLogin(t *testing.T) {
 		{
 			Name: "Should return 401 UNAUTHORIZED if user is not found",
 			ReqFn: func(t *testing.T) (bodies.LoginBody, string) {
-				data := GenerateFakeAccountData(t, services.AuthProviderEmail)
+				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
 				return bodies.LoginBody{
 					Email:    data.Email,
 					Password: data.Password,
@@ -371,14 +370,15 @@ func TestTwoFactorLogin(t *testing.T) {
 	const login2FAPath = "/v1/auth/login/2fa"
 
 	genTwoFactorAccount := func(t *testing.T, twoFactorType string) (dtos.AccountDTO, string) {
-		data := GenerateFakeAccountData(t, services.AuthProviderEmail)
+		data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
 		account := CreateTestAccount(t, data)
 		testS := GetTestServices(t)
 		requestID := uuid.NewString()
 
 		token, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
 			RequestID:     requestID,
-			ID:            int32(account.ID),
+			PublicID:      account.PublicID,
+			Version:       account.Version(),
 			TwoFactorType: twoFactorType,
 			Password:      data.Password,
 		})

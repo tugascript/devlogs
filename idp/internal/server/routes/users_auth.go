@@ -19,7 +19,7 @@ func (r *Routes) UsersAuthRoutes(app *fiber.App) {
 	router.Post(paths.AuthConfirmEmail, r.controllers.AppAccessClaimsMiddleware, r.controllers.ConfirmUser)
 	router.Post(paths.AuthLogin, r.controllers.AppAccessClaimsMiddleware, r.controllers.LoginUser)
 	router.Post(
-		paths.AuthLogin2FA,
+		paths.AuthLogin+paths.TwoFA,
 		r.controllers.User2FAClaimsMiddleware,
 		r.controllers.TwoFactorLoginUser,
 	)

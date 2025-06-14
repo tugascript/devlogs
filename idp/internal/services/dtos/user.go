@@ -16,11 +16,11 @@ import (
 )
 
 type UserDTO struct {
-	PublicID      uuid.UUID `json:"id"`
-	Email         string    `json:"email"`
-	Username      string    `json:"username"`
-	UserRoles     []string  `json:"user_roles"`
-	TwoFactorType string    `json:"two_factor_type"`
+	PublicID      uuid.UUID              `json:"id"`
+	Email         string                 `json:"email"`
+	Username      string                 `json:"username"`
+	UserRoles     []string               `json:"user_roles"`
+	TwoFactorType database.TwoFactorType `json:"two_factor_type"`
 	DataDTO
 
 	id            int32

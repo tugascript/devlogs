@@ -20,7 +20,7 @@ type AccountConfirmationTokenOptions struct {
 	Version  int32
 }
 
-func (t *Tokens) CreateConfirmationToken(opts AccountAccessTokenOptions) (string, error) {
+func (t *Tokens) CreateConfirmationToken(opts AccountConfirmationTokenOptions) (string, error) {
 	return t.createPurposeToken(accountPurposeTokenOptions{
 		accountPublicID: opts.PublicID,
 		accountVersion:  opts.Version,
