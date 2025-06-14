@@ -90,7 +90,7 @@ func extractEd25519PublicKey(publicKey string) (ed25519.PublicKey, string) {
 		panic("Invalid public key")
 	}
 
-	return publicKeyValue, utils.ExtractKeyID(publicKeyValue)
+	return publicKeyValue, utils.ExtractEd25519KeyID(publicKeyValue)
 }
 
 func extractEd25519PrivateKey(privateKey string) ed25519.PrivateKey {
@@ -157,15 +157,11 @@ func extractEs256KeyPair(privateKey string) Es256TokenKeyPair {
 		panic("Invalid private key")
 	}
 
-	publicKeyValue, err := x509.MarshalPKIXPublicKey(&privateKeyValue.PublicKey)
-	if err != nil {
-		panic(err)
-	}
-
+	publicKey := privateKeyValue.Public().(*ecdsa.PublicKey)
 	return Es256TokenKeyPair{
 		privateKey: privateKeyValue,
-		publicKey:  &privateKeyValue.PublicKey,
-		kid:        utils.ExtractKeyID(publicKeyValue),
+		publicKey:  publicKey,
+		kid:        utils.ExtractECDSAKeyID(publicKey),
 	}
 }
 
@@ -185,12 +181,7 @@ func extractEs256PublicKey(publicKey string) (*ecdsa.PublicKey, string) {
 		panic("Invalid public key")
 	}
 
-	publicKeyValue, err := x509.MarshalPKIXPublicKey(pubKey)
-	if err != nil {
-		panic(err)
-	}
-
-	return pubKey, utils.ExtractKeyID(publicKeyValue)
+	return pubKey, utils.ExtractECDSAKeyID(pubKey)
 }
 
 func newTokenSecretData(
