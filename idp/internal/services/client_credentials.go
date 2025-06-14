@@ -50,7 +50,7 @@ func (s *Services) clientCredentialsSecret(
 		return database.CreateCredentialsSecretParams{}, "", exceptions.NewServerError()
 	}
 
-	hashedSecret, err := utils.HashString(secret)
+	hashedSecret, err := utils.Argon2HashString(secret)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash secret", "error", err)
 		return database.CreateCredentialsSecretParams{}, "", exceptions.NewServerError()

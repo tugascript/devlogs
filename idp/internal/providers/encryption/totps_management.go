@@ -22,11 +22,16 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
+type TotpType string
+
 const (
 	totpsManagementLocation string = "totps_management"
 
-	TotpTypeAccount string = "account"
-	TotpTypeUser    string = "user"
+	TotpTypeAccount TotpType = "account"
+	TotpTypeUser    TotpType = "user"
+
+	recoveryCodeBytesLength int = 10
+	recoveryCodeLength      int = 16
 )
 
 func generateBaseTotpKey(backendDomain, subDomain, email string) (*otp.Key, error) {
@@ -56,9 +61,17 @@ func base64EncodeKeyQRCode(key *otp.Key) (string, error) {
 	return fmt.Sprintf("data:image/jpeg;base64,%s", base64Img), nil
 }
 
-func formatRecoveryCode(code string) string {
+func formatRecoveryCode(code string, length int) string {
+	codeLen := len(code)
+	if length < codeLen {
+		code = code[:length]
+	} else if length > codeLen {
+		padding := length - codeLen
+		code = strings.Repeat("A", padding) + code
+	}
+
 	var parts []string
-	for i := 0; i < len(code); i += 4 {
+	for i := 0; i < length; i += 4 {
 		end := i + 4
 		if end > len(code) {
 			end = len(code)
@@ -70,21 +83,21 @@ func formatRecoveryCode(code string) string {
 
 func generateRecoveryCodes() (string, []byte, error) {
 	codes := make([]string, 8)
-	hashedCodes := make(map[string]bool)
+	hashedCodes := make(map[string]bool, 8)
 
 	for i := range codes {
-		code, err := utils.GenerateBase32Secret(7)
+		code, err := utils.GenerateBase32Secret(recoveryCodeBytesLength)
 		if err != nil {
 			return "", nil, err
 		}
 
-		code = fmt.Sprintf("%012s", code)
-		hashedCode, err := utils.BcryptHashString(code)
+		code = formatRecoveryCode(code, recoveryCodeLength)
+		hashedCode, err := utils.Argon2HashString(code)
 		if err != nil {
 			return "", nil, err
 		}
 
-		codes[i] = formatRecoveryCode(code)
+		codes[i] = code
 		hashedCodes[hashedCode] = false
 	}
 
@@ -135,7 +148,7 @@ type generateTotpKeyOptions struct {
 	backendDomain string
 	subDomain     string
 	dek           string
-	totpType      string
+	totpType      TotpType
 }
 
 func (e *Encryption) generateTotpKey(
@@ -236,7 +249,7 @@ type GenerateAccountTotpKeyOptions struct {
 	RequestID string
 	Email     string
 	StoredDEK string
-	TotpType  string
+	TotpType  TotpType
 }
 
 func (e *Encryption) GenerateAccountTotpKey(
@@ -262,8 +275,8 @@ func (e *Encryption) GenerateAccountTotpKey(
 func (e *Encryption) processTotpDEK(
 	ctx context.Context,
 	logger *slog.Logger,
-	requestID,
-	totpType,
+	requestID string,
+	totpType TotpType,
 	storedDEK string,
 ) ([]byte, string, error) {
 	switch totpType {
@@ -302,7 +315,7 @@ type VerifyAccountTotpCodeOptions struct {
 	EncryptedSecret string
 	StoredDEK       string
 	Code            string
-	TotpType        string
+	TotpType        TotpType
 }
 
 func (e *Encryption) VerifyTotpCode(

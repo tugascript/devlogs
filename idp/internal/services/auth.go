@@ -304,7 +304,7 @@ func (s *Services) LoginAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	passwordVerified, err := utils.CompareHash(opts.Password, accountDTO.Password())
+	passwordVerified, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify password", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
@@ -638,7 +638,7 @@ func (s *Services) ForgoutAccountPassword(
 	ctx context.Context,
 	opts ForgoutAccountPasswordOptions,
 ) (dtos.MessageDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, authLocation, "ForgoutAccountPassword")
+	logger := s.buildLogger(opts.RequestID, authLocation, "ForgotAccountPassword")
 	logger.InfoContext(ctx, "Forgout account password...")
 
 	accountDTO, serviceErr := s.GetAccountByEmail(ctx, GetAccountByEmailOptions(opts))
@@ -722,7 +722,7 @@ func (s *Services) ResetAccountPassword(
 	}
 
 	var password pgtype.Text
-	hashedPassword, err := utils.HashString(opts.Password)
+	hashedPassword, err := utils.Argon2HashString(opts.Password)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash password", "error", err)
 		return dtos.MessageDTO{}, exceptions.NewServerError()

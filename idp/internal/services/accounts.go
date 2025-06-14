@@ -61,7 +61,7 @@ func (s *Services) CreateAccount(
 			return dtos.AccountDTO{}, exceptions.NewValidationError("password is required")
 		}
 
-		hashedPassword, err := utils.HashString(opts.Password)
+		hashedPassword, err := utils.Argon2HashString(opts.Password)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to hash password", "error", err)
 			return dtos.AccountDTO{}, exceptions.NewServerError()
@@ -73,7 +73,7 @@ func (s *Services) CreateAccount(
 		}
 
 		email = utils.Lowered(opts.Email)
-	case database.AuthProviderApple, database.AuthProviderGithub,
+	case database.AuthProviderApple, database.AuthProviderFacebook, database.AuthProviderGithub,
 		database.AuthProviderGoogle, database.AuthProviderMicrosoft:
 		email = utils.Lowered(opts.Email)
 	case database.AuthProviderCustom:
@@ -359,7 +359,7 @@ func (s *Services) UpdateAccountEmail(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	ok, err := utils.CompareHash(opts.Password, accountDTO.Password())
+	ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare password hash", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
@@ -571,7 +571,7 @@ func (s *Services) UpdateAccountPassword(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	ok, err := utils.CompareHash(opts.Password, accountDTO.Password())
+	ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare password hash", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
@@ -611,7 +611,7 @@ func (s *Services) UpdateAccountPassword(
 		return authDTO, serviceErr
 	}
 
-	hashedPassword, err := utils.HashString(opts.NewPassword)
+	hashedPassword, err := utils.Argon2HashString(opts.NewPassword)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash new password", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
@@ -785,7 +785,7 @@ func (s *Services) UpdateAccountUsername(
 			return dtos.AuthDTO{}, exceptions.NewValidationError("password is required")
 		}
 
-		ok, err := utils.CompareHash(opts.Password, accountDTO.Password())
+		ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to compare password hash", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewServerError()
@@ -977,7 +977,7 @@ func (s *Services) DeleteAccount(
 			return false, dtos.AuthDTO{}, exceptions.NewValidationError("password is required")
 		}
 
-		ok, err := utils.CompareHash(opts.Password, accountDTO.Password())
+		ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to compare password hash", "error", err)
 			return false, dtos.AuthDTO{}, exceptions.NewServerError()
@@ -1214,6 +1214,7 @@ func (s *Services) GetAccountIDByPublicIDAndVersion(
 type updateAccount2FAOptions struct {
 	requestID   string
 	id          int32
+	dek         string
 	email       string
 	prev2FAType database.TwoFactorType
 }
@@ -1230,6 +1231,8 @@ func (s *Services) updateAccountTOTP2FA(
 	totpKey, err := s.encrypt.GenerateAccountTotpKey(ctx, encryption.GenerateAccountTotpKeyOptions{
 		RequestID: opts.requestID,
 		Email:     opts.email,
+		TotpType:  encryption.TotpTypeAccount,
+		StoredDEK: opts.dek,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate TOTP", "error", err)
@@ -1249,7 +1252,7 @@ func (s *Services) updateAccountTOTP2FA(
 
 	account, err := qrs.UpdateAccountTwoFactorType(ctx, database.UpdateAccountTwoFactorTypeParams{
 		TwoFactorType: database.TwoFactorTypeTotp,
-		ID:            int32(opts.id),
+		ID:            opts.id,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account 2FA", "error", err)
@@ -1472,7 +1475,7 @@ func (s *Services) UpdateAccount2FA(
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
-	ok, err := utils.CompareHash(opts.Password, accountDTO.Password())
+	ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare password hashes", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
@@ -1509,6 +1512,7 @@ func (s *Services) UpdateAccount2FA(
 		id:          accountDTO.ID(),
 		email:       accountDTO.Email,
 		prev2FAType: accountDTO.TwoFactorType,
+		dek:         accountDTO.DEK(),
 	}
 	if accountDTO.TwoFactorType == database.TwoFactorTypeNone {
 		switch twoFactorType {
@@ -1603,6 +1607,7 @@ func (s *Services) ConfirmUpdateAccount2FA(
 		id:          accountDTO.ID(),
 		email:       accountDTO.Email,
 		prev2FAType: accountDTO.TwoFactorType,
+		dek:         accountDTO.DEK(),
 	}
 	switch twoFactorType {
 	case database.TwoFactorTypeTotp:

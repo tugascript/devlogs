@@ -55,6 +55,7 @@ func (c *Controllers) AccountOAuthURL(ctx *fiber.Ctx) error {
 }
 
 func (c *Controllers) acceptCallback(logger *slog.Logger, ctx *fiber.Ctx, oauthParams string) error {
+	ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)
 	logResponse(logger, ctx, fiber.StatusFound)
 	return ctx.Redirect(
 		fmt.Sprintf("https://%s/auth/callback?%s", c.frontendDomain, oauthParams),
@@ -63,6 +64,7 @@ func (c *Controllers) acceptCallback(logger *slog.Logger, ctx *fiber.Ctx, oauthP
 }
 
 func (c *Controllers) errorCallback(logger *slog.Logger, ctx *fiber.Ctx, errStr string) error {
+	ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)
 	logResponse(logger, ctx, fiber.StatusFound)
 	return ctx.Redirect(
 		fmt.Sprintf("https://%s/auth/callback?error=%s", c.frontendDomain, errStr),

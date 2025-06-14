@@ -72,7 +72,7 @@ func (c *Cache) AddTwoFactorCode(ctx context.Context, opts AddTwoFactorCodeOptio
 		return "", err
 	}
 
-	hashedCode, err := utils.HashString(code)
+	hashedCode, err := utils.Argon2HashString(code)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error hashing two factor code", "error", err)
 		return "", err
@@ -119,7 +119,7 @@ func (c *Cache) VerifyTwoFactorCode(ctx context.Context, opts VerifyTwoFactorCod
 		return false, nil
 	}
 
-	ok, err := utils.CompareHash(opts.Code, string(valByte))
+	ok, err := utils.Argon2CompareHash(opts.Code, string(valByte))
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare code and its hash")
 		return false, err

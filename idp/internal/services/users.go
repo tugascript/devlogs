@@ -102,7 +102,7 @@ func (s *Services) CreateUser(
 	}
 
 	var password pgtype.Text
-	hashedPassword, err := utils.HashString(opts.Password)
+	hashedPassword, err := utils.Argon2HashString(opts.Password)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash password", "error", err)
 		return dtos.UserDTO{}, exceptions.NewServerError()
@@ -556,7 +556,7 @@ func (s *Services) UpdateUserPassword(
 	}
 
 	var password pgtype.Text
-	hashedPassword, err := utils.HashString(opts.Password)
+	hashedPassword, err := utils.Argon2HashString(opts.Password)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash password", "error", err)
 		return dtos.UserDTO{}, exceptions.NewServerError()

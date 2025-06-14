@@ -512,7 +512,7 @@ func (s *Services) LoginUser(
 		}
 	}
 
-	passwordVerified, err := utils.CompareHash(opts.Password, userDTO.Password())
+	passwordVerified, err := utils.Argon2CompareHash(opts.Password, userDTO.Password())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify password", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
@@ -1202,7 +1202,7 @@ func (s *Services) ResetUserPassword(
 	}
 
 	var password pgtype.Text
-	hashedPassword, err := utils.HashString(opts.Password)
+	hashedPassword, err := utils.Argon2HashString(opts.Password)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash password", "error", err)
 		return dtos.MessageDTO{}, exceptions.NewServerError()

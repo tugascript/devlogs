@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-06-14T12:14:30.638Z
+-- Generated at: 2025-06-14T23:32:04.570Z
 
 CREATE TYPE "two_factor_type" AS ENUM (
   'none',
@@ -33,6 +33,7 @@ CREATE TYPE "account_credentials_scope" AS ENUM (
 CREATE TYPE "auth_provider" AS ENUM (
   'username_password',
   'apple',
+  'facebook',
   'github',
   'google',
   'microsoft',
@@ -188,7 +189,6 @@ CREATE TABLE "account_auth_providers" (
   "id" serial PRIMARY KEY,
   "email" varchar(250) NOT NULL,
   "provider" auth_provider NOT NULL,
-  "expires_at" timestamptz NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -331,7 +331,7 @@ CREATE TABLE "app_keys" (
   PRIMARY KEY ("app_id", "credentials_key_id")
 );
 
-CREATE TABLE "app_uris" (
+CREATE TABLE "app_callback_uris" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "app_id" integer NOT NULL,
@@ -528,9 +528,9 @@ CREATE UNIQUE INDEX "app_keys_credentials_key_id_uidx" ON "app_keys" ("credentia
 
 CREATE INDEX "app_keys_account_id_idx" ON "app_keys" ("account_id");
 
-CREATE INDEX "app_uris_account_id_idx" ON "app_uris" ("account_id");
+CREATE INDEX "app_uris_account_id_idx" ON "app_callback_uris" ("account_id");
 
-CREATE UNIQUE INDEX "app_uris_app_id_uidx" ON "app_uris" ("app_id");
+CREATE UNIQUE INDEX "app_uris_app_id_uidx" ON "app_callback_uris" ("app_id");
 
 CREATE INDEX "app_server_urls_account_id_idx" ON "app_server_urls" ("account_id");
 
@@ -618,9 +618,9 @@ ALTER TABLE "app_keys" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DE
 
 ALTER TABLE "app_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "app_uris" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_callback_uris" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "app_uris" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_callback_uris" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_server_urls" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

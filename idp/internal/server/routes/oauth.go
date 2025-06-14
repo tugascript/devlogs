@@ -13,7 +13,7 @@ import (
 )
 
 func (r *Routes) OAuthRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.OAuthBase)
+	router := v1PathRouter(app).Group(paths.AuthBase + paths.OAuthBase)
 
 	// Known auth paths (oauth2)
 	router.Post(paths.OAuthKeys, r.controllers.AccountOAuthPublicJWKs)

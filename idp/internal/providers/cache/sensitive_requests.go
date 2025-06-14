@@ -115,7 +115,7 @@ func (c *Cache) SaveUpdatePasswordRequest(ctx context.Context, opts SaveUpdatePa
 	)
 	logger.DebugContext(ctx, "Saving update password request...")
 
-	hashedPassword, err := utils.HashString(opts.NewPassword)
+	hashedPassword, err := utils.Argon2HashString(opts.NewPassword)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash new password", "error", err)
 		return err

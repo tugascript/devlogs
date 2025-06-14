@@ -40,7 +40,7 @@ func (c *Cache) GenerateOAuthCode(ctx context.Context, opts GenerateOAuthOptions
 		return "", err
 	}
 
-	hashedCode, err := utils.HashString(code)
+	hashedCode, err := utils.Argon2HashString(code)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash code", "error", err)
 		return "", err
@@ -83,7 +83,7 @@ func (c *Cache) VerifyOAuthCode(ctx context.Context, opts VerifyOAuthCodeOptions
 		return false, nil
 	}
 
-	ok, err := utils.CompareHash(opts.Code, string(valByte))
+	ok, err := utils.Argon2CompareHash(opts.Code, string(valByte))
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare code and its hash")
 		return false, err

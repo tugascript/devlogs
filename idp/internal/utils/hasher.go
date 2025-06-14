@@ -16,7 +16,6 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/argon2"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // $argon2id$v=19$m={memory},t={iterations},p={parallelism}${salt}${hash}
@@ -36,7 +35,7 @@ func generateSalt(size uint32) ([]byte, error) {
 	return salt, nil
 }
 
-func HashString(str string) (string, error) {
+func Argon2HashString(str string) (string, error) {
 	salt, err := generateSalt(saltSize)
 	if err != nil {
 		return "", err
@@ -50,7 +49,7 @@ func HashString(str string) (string, error) {
 	return fullHash, nil
 }
 
-func CompareHash(str, hash string) (bool, error) {
+func Argon2CompareHash(str, hash string) (bool, error) {
 	parts := strings.Split(hash, "$")
 	if len(parts) != 6 {
 		return false, fmt.Errorf("invalid hash format: expected 6 parts, got %d", len(parts))
@@ -86,23 +85,6 @@ func CompareHash(str, hash string) (bool, error) {
 
 	comparisonHash := argon2.IDKey([]byte(str), salt, iter, mem, parallel, uint32(len(decodedHash)))
 	return bytes.Equal(decodedHash, comparisonHash), nil
-}
-
-func BcryptHashString(str string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(str), bcrypt.DefaultCost)
-	if err != nil {
-		return "", err
-	}
-
-	return string(hash), nil
-}
-
-func BcryptCompareHash(str, hash string) bool {
-	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(str)); err != nil {
-		return false
-	}
-
-	return true
 }
 
 func Sha256HashHex(bytes []byte) string {

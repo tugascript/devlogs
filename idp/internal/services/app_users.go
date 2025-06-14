@@ -62,7 +62,7 @@ func (s *Services) CreateAppUser(
 			return dtos.UserDTO{}, exceptions.NewValidationError("Password is required")
 		}
 
-		hashedPassword, err := utils.HashString(opts.Password)
+		hashedPassword, err := utils.Argon2HashString(opts.Password)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to hash password", "error", err)
 			return dtos.UserDTO{}, exceptions.NewServerError()

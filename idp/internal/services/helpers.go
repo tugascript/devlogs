@@ -28,6 +28,7 @@ const (
 	AuthProviderMicrosoft        string = "microsoft"
 	AuthProviderFacebook         string = "facebook"
 	AuthProviderUsernamePassword string = "username_password"
+	AuthProviderCustom           string = "custom"
 
 	TwoFactorNone  string = "none"
 	TwoFactorEmail string = "email"
@@ -108,7 +109,8 @@ func mapAuthProvider(provider string) (database.AuthProvider, *exceptions.Servic
 
 	authProvider := database.AuthProvider(provider)
 	switch authProvider {
-	case database.AuthProviderUsernamePassword, database.AuthProviderApple, database.AuthProviderGithub,
+	case database.AuthProviderUsernamePassword,
+		database.AuthProviderApple, database.AuthProviderFacebook, database.AuthProviderGithub,
 		database.AuthProviderGoogle, database.AuthProviderMicrosoft, database.AuthProviderCustom:
 		return authProvider, nil
 	default:

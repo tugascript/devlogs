@@ -215,9 +215,9 @@ func (c *Controllers) RefreshAccount(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) ForgoutAccountPassword(ctx *fiber.Ctx) error {
+func (c *Controllers) ForgotAccountPassword(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, authLocation, "ForgoutAccountPassword")
+	logger := c.buildLogger(requestID, authLocation, "ForgotAccountPassword")
 	logRequest(logger, ctx)
 
 	body := new(bodies.ForgoutPasswordBody)
