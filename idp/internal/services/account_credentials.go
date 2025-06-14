@@ -934,11 +934,7 @@ func (s *Services) revokeAccountCredentialsSecret(
 	)
 	logger.InfoContext(ctx, "Revoking account credentials secret...")
 
-	secretDTO, serviceErr := s.getAccountCredentialsSecretByID(ctx, getAccountCredentialsSecretByIDOptions{
-		requestID:            opts.requestID,
-		accountCredentialsID: opts.accountCredentialsID,
-		secretID:             opts.secretID,
-	})
+	secretDTO, serviceErr := s.getAccountCredentialsSecretByID(ctx, getAccountCredentialsSecretByIDOptions(opts))
 	if serviceErr != nil {
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
@@ -967,11 +963,7 @@ func (s *Services) revokeAccountCredentialsKey(
 		"publicKID", opts.publicKID,
 	)
 
-	secretDTO, serviceErr := s.getAccountCredentialsKeyByID(ctx, getAccountCredentialsKeyByIDOptions{
-		requestID:            opts.requestID,
-		accountCredentialsID: opts.accountCredentialsID,
-		publicKID:            opts.publicKID,
-	})
+	secretDTO, serviceErr := s.getAccountCredentialsKeyByID(ctx, getAccountCredentialsKeyByIDOptions(opts))
 	if serviceErr != nil {
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}

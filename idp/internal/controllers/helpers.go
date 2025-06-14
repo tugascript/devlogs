@@ -7,11 +7,9 @@
 package controllers
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -113,26 +111,26 @@ func parseRequestErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err error) e
 		JSON(exceptions.NewEmptyValidationErrorResponse(exceptions.ValidationResponseLocationBody))
 }
 
-func parseBasicAuthHeader(ctx *fiber.Ctx) (string, string, *exceptions.ServiceError) {
-	ah := ctx.Get("Authorization")
-	if ah == "" {
-		return "", "", exceptions.NewUnauthorizedError()
-	}
+// func parseBasicAuthHeader(ctx *fiber.Ctx) (string, string, *exceptions.ServiceError) {
+// 	ah := ctx.Get("Authorization")
+// 	if ah == "" {
+// 		return "", "", exceptions.NewUnauthorizedError()
+// 	}
 
-	ahSlice := strings.Split(strings.TrimSpace(ah), " ")
-	if len(ahSlice) != 2 || utils.Lowered(ahSlice[0]) != "basic" {
-		return "", "", exceptions.NewUnauthorizedError()
-	}
+// 	ahSlice := strings.Split(strings.TrimSpace(ah), " ")
+// 	if len(ahSlice) != 2 || utils.Lowered(ahSlice[0]) != "basic" {
+// 		return "", "", exceptions.NewUnauthorizedError()
+// 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(ahSlice[1])
-	if err != nil {
-		return "", "", exceptions.NewUnauthorizedError()
-	}
+// 	decoded, err := base64.StdEncoding.DecodeString(ahSlice[1])
+// 	if err != nil {
+// 		return "", "", exceptions.NewUnauthorizedError()
+// 	}
 
-	decodedSlice := strings.Split(string(decoded), ":")
-	if len(ahSlice) != 2 {
-		return "", "", exceptions.NewUnauthorizedError()
-	}
+// 	decodedSlice := strings.Split(string(decoded), ":")
+// 	if len(ahSlice) != 2 {
+// 		return "", "", exceptions.NewUnauthorizedError()
+// 	}
 
-	return decodedSlice[0], decodedSlice[1], nil
-}
+// 	return decodedSlice[0], decodedSlice[1], nil
+// }

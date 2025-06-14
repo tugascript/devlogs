@@ -14,13 +14,14 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type UserAuthClaims struct {
 	UserID      uuid.UUID `json:"user_id"`
 	UserVersion int32     `json:"user_version"`
-	Roles       []string  `json:"user_roles"`
+	UserRoles   []string  `json:"user_roles"`
 }
 
 type userAuthTokenClaims struct {
@@ -38,8 +39,8 @@ type UserAuthTokenOptions struct {
 	AccountUsername string
 	UserPublicID    uuid.UUID
 	UserVersion     int32
-	ProfileRoles    []string
-	Scopes          []string
+	UserRoles       []string
+	Scopes          []database.Scopes
 	TokenSubject    string
 	AppClientID     string
 	AppVersion      int32
@@ -94,13 +95,15 @@ func (t *Tokens) CreateUserAuthToken(opts UserAuthTokenOptions) (string, error) 
 		UserAuthClaims: UserAuthClaims{
 			UserID:      opts.UserPublicID,
 			UserVersion: opts.UserVersion,
-			Roles:       opts.ProfileRoles,
+			UserRoles:   opts.UserRoles,
 		},
 		AppClaims: AppClaims{
 			ClientID: opts.AppClientID,
 			Version:  opts.AppVersion,
 		},
-		Scope: strings.Join(opts.Scopes, " "),
+		Scope: strings.Join(utils.MapSlice(opts.Scopes, func(scope *database.Scopes) string {
+			return string(*scope)
+		}), " "),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: iss,
 			Audience: jwt.ClaimStrings(utils.MapSlice(opts.Paths, func(path *string) string {
@@ -120,7 +123,7 @@ func (t *Tokens) CreateUserAuthToken(opts UserAuthTokenOptions) (string, error) 
 func (t *Tokens) VerifyUserAuthToken(
 	keyFn func(kid string) (any, error),
 	token string,
-) (UserAuthClaims, AppClaims, []string, uuid.UUID, time.Time, error) {
+) (UserAuthClaims, AppClaims, []database.Scopes, uuid.UUID, time.Time, error) {
 	claims := new(userAuthTokenClaims)
 
 	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (any, error) {
@@ -140,7 +143,9 @@ func (t *Tokens) VerifyUserAuthToken(
 		return UserAuthClaims{}, AppClaims{}, nil, uuid.Nil, time.Time{}, err
 	}
 
-	return claims.UserAuthClaims, claims.AppClaims, strings.Split(claims.Scope, " "), tokenID, claims.ExpiresAt.Time, nil
+	return claims.UserAuthClaims, claims.AppClaims, utils.MapSlice(strings.Split(claims.Scope, " "), func(scope *string) database.Scopes {
+		return database.Scopes(*scope)
+	}), tokenID, claims.ExpiresAt.Time, nil
 }
 
 type UserPurposeClaims struct {

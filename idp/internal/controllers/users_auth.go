@@ -7,13 +7,10 @@
 package controllers
 
 import (
-	"slices"
-
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
-	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
 )
 
@@ -190,12 +187,9 @@ func (c *Controllers) TwoFactorLoginUser(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	userClaims, appClaims, userScopes, serviceErr := getUserClaims(ctx)
+	userClaims, appClaims, serviceErr := getUserPurposeClaims(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-	if !slices.Contains(userScopes, tokens.UserScopeTwoFactor) {
-		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 	}
 
 	body := new(bodies.TwoFactorLoginBody)
@@ -229,7 +223,7 @@ func (c *Controllers) LogoutUser(ctx *fiber.Ctx) error {
 	logger := c.buildLogger(requestID, usersAuthLocation, "LogoutUser")
 	logRequest(logger, ctx)
 
-	userClaims, appClaims, _, serviceErr := getUserClaims(ctx)
+	userClaims, appClaims, _, serviceErr := getUserAccessClaims(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}

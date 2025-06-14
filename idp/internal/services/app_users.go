@@ -49,8 +49,14 @@ func (s *Services) CreateAppUser(
 		return dtos.UserDTO{}, exceptions.NewServerError()
 	}
 
+	authProvider, serviceErr := mapAuthProvider(opts.Provider)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map auth provider", "serviceError", serviceErr)
+		return dtos.UserDTO{}, serviceErr
+	}
+
 	var password pgtype.Text
-	if opts.Provider == AuthProviderUsernamePassword {
+	if authProvider == database.AuthProviderUsernamePassword {
 		if opts.Password == "" {
 			logger.WarnContext(ctx, "Password is required")
 			return dtos.UserDTO{}, exceptions.NewValidationError("Password is required")
@@ -110,7 +116,7 @@ func (s *Services) CreateAppUser(
 	}()
 
 	var user database.User
-	if opts.Provider == AuthProviderUsernamePassword {
+	if authProvider == database.AuthProviderUsernamePassword {
 		user, err = qrs.CreateUserWithPassword(ctx, database.CreateUserWithPasswordParams{
 			PublicID:  publicID,
 			AccountID: opts.AccountID,
@@ -139,14 +145,14 @@ func (s *Services) CreateAppUser(
 	if err := qrs.CreateUserAuthProvider(ctx, database.CreateUserAuthProviderParams{
 		AccountID: opts.AccountID,
 		UserID:    user.ID,
-		Provider:  opts.Provider,
+		Provider:  authProvider,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create user auth Provider", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.UserDTO{}, serviceErr
 	}
 
-	if _, err := qrs.CreateAppProfile(ctx, database.CreateAppProfileParams{
+	if err := qrs.CreateAppProfile(ctx, database.CreateAppProfileParams{
 		AccountID: opts.AccountID,
 		UserID:    user.ID,
 		AppID:     opts.AppID,
@@ -177,7 +183,7 @@ type ConfirmAppUserOptions struct {
 func (s *Services) ConfirmAppUser(
 	ctx context.Context,
 	opts ConfirmAppUserOptions,
-) (dtos.UserDTO, dtos.AppProfileDTO, *exceptions.ServiceError) {
+) (dtos.UserDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appUsersLocation, "ConfirmAppUser").With(
 		"userPublicID", opts.UserPublicID,
 		"accountId", opts.AccountID,
@@ -194,35 +200,28 @@ func (s *Services) ConfirmAppUser(
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get user by ID", "error", serviceErr)
-		return dtos.UserDTO{}, dtos.AppProfileDTO{}, serviceErr
+		return dtos.UserDTO{}, serviceErr
 	}
 
 	user, err := s.database.ConfirmUser(ctx, userDTO.ID())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to confirm user", "error", err)
-		return dtos.UserDTO{}, dtos.AppProfileDTO{}, exceptions.FromDBError(err)
+		return dtos.UserDTO{}, exceptions.FromDBError(err)
 	}
 
-	appProfile, err := s.database.FindAppProfileByAppIDAndUserID(ctx, database.FindAppProfileByAppIDAndUserIDParams{
+	if _, err := s.database.FindAppProfileIDByAppIDAndUserID(ctx, database.FindAppProfileIDByAppIDAndUserIDParams{
 		AppID:  opts.AppID,
 		UserID: userDTO.ID(),
-	})
-	if err != nil {
+	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to find app profile by app ID and user ID", "error", err)
-		return dtos.UserDTO{}, dtos.AppProfileDTO{}, exceptions.FromDBError(err)
+		return dtos.UserDTO{}, exceptions.FromDBError(err)
 	}
 
 	userDTO, serviceErr = dtos.MapUserToDTO(&user)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map user to DTO", "error", serviceErr)
-		return dtos.UserDTO{}, dtos.AppProfileDTO{}, serviceErr
+		return dtos.UserDTO{}, serviceErr
 	}
 
-	appProfileDTO, serviceErr := dtos.MapAppProfileToDTO(&appProfile)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map app profile to DTO", "error", serviceErr)
-		return dtos.UserDTO{}, dtos.AppProfileDTO{}, serviceErr
-	}
-
-	return userDTO, appProfileDTO, nil
+	return userDTO, nil
 }

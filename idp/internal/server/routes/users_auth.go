@@ -10,7 +10,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
-	"github.com/tugascript/devlogs/idp/internal/services"
 )
 
 func (r *Routes) UsersAuthRoutes(app *fiber.App) {
@@ -21,7 +20,7 @@ func (r *Routes) UsersAuthRoutes(app *fiber.App) {
 	router.Post(paths.AuthLogin, r.controllers.AppAccessClaimsMiddleware, r.controllers.LoginUser)
 	router.Post(
 		paths.AuthLogin2FA,
-		r.controllers.UserClaimsMiddleware(services.AppKeyName2FA),
+		r.controllers.User2FAClaimsMiddleware,
 		r.controllers.TwoFactorLoginUser,
 	)
 	router.Post(paths.AuthRefresh, r.controllers.AppAccessClaimsMiddleware, r.controllers.RefreshUser)

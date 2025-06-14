@@ -10,14 +10,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
-	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
 )
 
@@ -228,35 +226,39 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-var accountClientCredentialsScopes = map[tokens.AccountScope]bool{
-	tokens.AccountScopeUsersWrite: true,
-	tokens.AccountScopeUsersRead:  true,
-	tokens.AccountScopeAppsWrite:  true,
-	tokens.AccountScopeAppsRead:   true,
-	tokens.AccountScopeAdmin:      true,
-}
+// var accountClientCredentialsScopes = map[tokens.AccountScope]bool{
+// 	tokens.AccountScopeUsersWrite:       true,
+// 	tokens.AccountScopeUsersRead:        true,
+// 	tokens.AccountScopeAppsWrite:        true,
+// 	tokens.AccountScopeAppsRead:         true,
+// 	tokens.AccountScopeAdmin:            true,
+// 	tokens.AccountScopeEmail:            true,
+// 	tokens.AccountScopeProfile:          true,
+// 	tokens.AccountScopeCredentialsRead:  true,
+// 	tokens.AccountScopeCredentialsWrite: true,
+// }
 
-func processAccountClientCredentialScopes(scopes string) ([]tokens.AccountScope, bool) {
-	if scopes == "" {
-		return nil, true
-	}
+// func processAccountClientCredentialScopes(scopes string) ([]tokens.AccountScope, bool) {
+// 	if scopes == "" {
+// 		return nil, true
+// 	}
 
-	scopesSlice := strings.Split(scopes, " ")
-	if len(scopesSlice) == 0 {
-		return nil, false
-	}
+// 	scopesSlice := strings.Split(scopes, " ")
+// 	if len(scopesSlice) == 0 {
+// 		return nil, false
+// 	}
 
-	accountScopes := make([]tokens.AccountScope, len(scopesSlice))
-	for i, scope := range scopesSlice {
-		if !accountClientCredentialsScopes[scope] {
-			return nil, false
-		}
+// 	accountScopes := make([]tokens.AccountScope, len(scopesSlice))
+// 	for i, scope := range scopesSlice {
+// 		if !accountClientCredentialsScopes[scope] {
+// 			return nil, false
+// 		}
 
-		accountScopes[i] = scope
-	}
+// 		accountScopes[i] = scope
+// 	}
 
-	return accountScopes, true
-}
+// 	return accountScopes, true
+// }
 
 func (c *Controllers) accountRefreshToken(ctx *fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, oauthLocation, "accountRefreshToken")

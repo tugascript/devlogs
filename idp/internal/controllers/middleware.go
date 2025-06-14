@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/utils"
@@ -42,6 +43,32 @@ func (c *Controllers) UserAccessClaimsMiddleware(ctx *fiber.Ctx) error {
 	ctx.Locals("user", userClaims)
 	ctx.Locals("app", appClaims)
 	ctx.Locals("userScopes", userScopes)
+	return ctx.Next()
+}
+
+func (c *Controllers) User2FAClaimsMiddleware(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, middlewareLocation, "User2FAClaimsMiddleware")
+
+	authHeader := ctx.Get("Authorization")
+	if authHeader == "" {
+		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
+	}
+
+	userClaims, appClaims, serviceErr := c.services.ProcessUserPurposeHeader(
+		ctx.UserContext(),
+		services.ProcessUserPurposeHeaderOptions{
+			RequestID:  requestID,
+			AuthHeader: authHeader,
+			Name:       services.AppKeyNameAccess,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	ctx.Locals("user", userClaims)
+	ctx.Locals("app", appClaims)
 	return ctx.Next()
 }
 
@@ -211,7 +238,7 @@ func getAppClaims(ctx *fiber.Ctx) (tokens.AppClaims, string, *exceptions.Service
 	return app, accountUsername, nil
 }
 
-func getUserClaims(ctx *fiber.Ctx) (tokens.UserAuthClaims, tokens.AppClaims, []string, *exceptions.ServiceError) {
+func getUserAccessClaims(ctx *fiber.Ctx) (tokens.UserAuthClaims, tokens.AppClaims, []database.Scopes, *exceptions.ServiceError) {
 	user, ok := ctx.Locals("user").(tokens.UserAuthClaims)
 	if !ok || user.UserID == uuid.Nil {
 		return tokens.UserAuthClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
@@ -222,12 +249,26 @@ func getUserClaims(ctx *fiber.Ctx) (tokens.UserAuthClaims, tokens.AppClaims, []s
 		return tokens.UserAuthClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
 	}
 
-	scopes, ok := ctx.Locals("user_scopes").([]string)
+	scopes, ok := ctx.Locals("user_scopes").([]database.Scopes)
 	if !ok || scopes == nil {
 		return tokens.UserAuthClaims{}, tokens.AppClaims{}, nil, exceptions.NewForbiddenError()
 	}
 
 	return user, app, scopes, nil
+}
+
+func getUserPurposeClaims(ctx *fiber.Ctx) (tokens.UserPurposeClaims, tokens.AppClaims, *exceptions.ServiceError) {
+	user, ok := ctx.Locals("user").(tokens.UserPurposeClaims)
+	if !ok || user.UserID == uuid.Nil {
+		return tokens.UserPurposeClaims{}, tokens.AppClaims{}, exceptions.NewUnauthorizedError()
+	}
+
+	app, ok := ctx.Locals("app").(tokens.AppClaims)
+	if !ok || app.ClientID == "" {
+		return tokens.UserPurposeClaims{}, tokens.AppClaims{}, exceptions.NewUnauthorizedError()
+	}
+
+	return user, app, nil
 }
 
 func getHostAccount(ctx *fiber.Ctx) (string, int32, *exceptions.ServiceError) {

@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
-	"slices"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -481,20 +480,6 @@ func (s *Services) OAuthLoginAccount(
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
 		"OAuth logged in successfully",
 	)
-}
-
-func processAccountClientCredentialsScopes(ccScopes []string, scopes []string) ([]string, *exceptions.ServiceError) {
-	if len(scopes) == 0 {
-		return ccScopes, nil
-	}
-
-	for _, scope := range scopes {
-		if !slices.Contains(ccScopes, scope) {
-			return nil, exceptions.NewUnauthorizedError()
-		}
-	}
-
-	return scopes, nil
 }
 
 func (s *Services) GetAccountPublicJWKs(ctx context.Context, requestID string) dtos.JWKsDTO {
