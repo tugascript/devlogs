@@ -373,8 +373,7 @@ func TestTwoFactorLogin(t *testing.T) {
 	}
 
 	genEmailCode := func(t *testing.T, account dtos.AccountDTO) string {
-		testCache := GetTestCache(t)
-		code, err := testCache.AddTwoFactorCode(context.Background(), cache.AddTwoFactorCodeOptions{
+		code, err := GetTestCache(t).AddTwoFactorCode(context.Background(), cache.AddTwoFactorCodeOptions{
 			RequestID: uuid.NewString(),
 			AccountID: account.ID(),
 			TTL:       GetTestTokens(t).Get2FATTL(),

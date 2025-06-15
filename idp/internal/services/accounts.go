@@ -700,6 +700,98 @@ func (s *Services) ConfirmUpdateAccountPassword(
 	)
 }
 
+type CreateAccountPasswordOptions struct {
+	RequestID string
+	PublicID  uuid.UUID
+	Version   int32
+	Password  string
+}
+
+func (s *Services) CreateAccountPassword(
+	ctx context.Context,
+	opts CreateAccountPasswordOptions,
+) (dtos.AuthDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountsLocation, "CreateAccountPassword").With(
+		"publicID", opts.PublicID,
+	)
+	logger.InfoContext(ctx, "Creating account password...")
+
+	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.PublicID,
+		Version:   opts.Version,
+	})
+	if serviceErr != nil {
+		logger.InfoContext(ctx, "Failed to get account", "error", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	// Check if password auth provider already exists
+	_, err := s.database.FindAccountAuthProviderByEmailAndProvider(ctx, database.FindAccountAuthProviderByEmailAndProviderParams{
+		Email:    accountDTO.Email,
+		Provider: database.AuthProviderUsernamePassword,
+	})
+	if err == nil {
+		logger.WarnContext(ctx, "Password already set for this account")
+		return dtos.AuthDTO{}, exceptions.NewConflictError("Password already set for this account")
+	}
+	if serviceErr := exceptions.FromDBError(err); serviceErr.Code != exceptions.CodeNotFound {
+		logger.ErrorContext(ctx, "Failed to check password provider", "error", err)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	hashedPassword, err := utils.Argon2HashString(opts.Password)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to hash password", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewServerError()
+	}
+
+	var password pgtype.Text
+	if err := password.Scan(hashedPassword); err != nil {
+		logger.ErrorContext(ctx, "Failed to scan password to text", "error", err)
+		return dtos.AuthDTO{}, exceptions.FromDBError(err)
+	}
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return dtos.AuthDTO{}, exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	account, err := qrs.UpdateAccountPassword(ctx, database.UpdateAccountPasswordParams{
+		ID:       accountDTO.ID(),
+		Password: password,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update account password", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	if err = s.database.CreateAccountAuthProvider(ctx, database.CreateAccountAuthProviderParams{
+		Email:    accountDTO.Email,
+		Provider: database.AuthProviderUsernamePassword,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to create password auth provider", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	accountDTO = dtos.MapAccountToDTO(&account)
+	logger.InfoContext(ctx, "Account password created successfully")
+	return s.GenerateFullAuthDTO(
+		ctx,
+		logger,
+		&accountDTO,
+		[]tokens.AccountScope{tokens.AccountScopeAdmin},
+		"Password created successfully",
+	)
+}
+
 type UpdateAccountOptions struct {
 	RequestID  string
 	PublicID   uuid.UUID

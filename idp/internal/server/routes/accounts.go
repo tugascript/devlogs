@@ -13,46 +13,74 @@ import (
 )
 
 func (r *Routes) AccountsRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.AccountsBase, r.controllers.AccountAccessClaimsMiddleware)
+	router := v1PathRouter(app).Group(paths.AccountsBase)
 
-	router.Get(paths.AccountMe, r.controllers.GetCurrentAccount)
-	router.Put(paths.AccountMe, r.controllers.AdminScopeMiddleware, r.controllers.UpdateAccount)
-	router.Delete(paths.AccountMe, r.controllers.AdminScopeMiddleware, r.controllers.DeleteAccount)
-	router.Delete(paths.AccountMe+paths.Confirm, r.controllers.AdminScopeMiddleware, r.controllers.ConfirmDeleteAccount)
-	router.Patch(paths.AccountPassword, r.controllers.AdminScopeMiddleware, r.controllers.UpdateAccountPassword)
-	router.Patch(
-		paths.AccountPassword+paths.Confirm,
+	router.Get(paths.AccountMe, r.controllers.AccountAccessClaimsMiddleware, r.controllers.GetCurrentAccount)
+	router.Put(
+		paths.AccountMe,
+		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
+		r.controllers.UpdateAccount,
+	)
+	router.Delete(
+		paths.AccountMe,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.AdminScopeMiddleware,
+		r.controllers.DeleteAccount,
+	)
+	router.Post(
+		paths.AccountMe+paths.Confirm,
+		r.controllers.TwoFAAccessClaimsMiddleware,
+		r.controllers.ConfirmDeleteAccount,
+	)
+	router.Post(
+		paths.AccountPassword,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.AdminScopeMiddleware,
+		r.controllers.CreateAccountPassword,
+	)
+	router.Patch(
+		paths.AccountPassword,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.AdminScopeMiddleware,
+		r.controllers.UpdateAccountPassword,
+	)
+	router.Post(
+		paths.AccountPassword+paths.Confirm,
+		r.controllers.TwoFAAccessClaimsMiddleware,
 		r.controllers.ConfirmUpdateAccountPassword,
 	)
 	router.Patch(
 		paths.AccountEmail,
+		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
 		r.controllers.UpdateAccountEmail,
 	)
-	router.Patch(
+	router.Post(
 		paths.AccountEmail+paths.Confirm,
-		r.controllers.AdminScopeMiddleware,
+		r.controllers.TwoFAAccessClaimsMiddleware,
 		r.controllers.ConfirmUpdateAccountEmail,
 	)
 	router.Patch(
 		paths.TwoFA,
+		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
 		r.controllers.UpdateAccount2FA,
 	)
-	router.Patch(
+	router.Post(
 		paths.TwoFA+paths.Confirm,
-		r.controllers.AdminScopeMiddleware,
+		r.controllers.TwoFAAccessClaimsMiddleware,
 		r.controllers.ConfirmUpdateAccount2FA,
 	)
 	router.Patch(
 		paths.AccountUsername,
+		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
 		r.controllers.UpdateAccountUsername,
 	)
-	router.Patch(
+	router.Post(
 		paths.AccountUsername+paths.Confirm,
-		r.controllers.AdminScopeMiddleware,
+		r.controllers.TwoFAAccessClaimsMiddleware,
 		r.controllers.ConfirmUpdateAccountUsername,
 	)
 }
