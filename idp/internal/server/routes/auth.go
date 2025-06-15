@@ -19,7 +19,16 @@ func (r *Routes) AuthRoutes(app *fiber.App) {
 	router.Post(paths.AuthRegister, r.controllers.RegisterAccount)
 	router.Post(paths.AuthConfirmEmail, r.controllers.ConfirmAccount)
 	router.Post(paths.AuthLogin, r.controllers.LoginAccount)
-	router.Post(paths.AuthLogin+paths.TwoFA, r.controllers.TwoFAAccessClaimsMiddleware, r.controllers.TwoFactorLoginAccount)
+	router.Post(
+		paths.AuthLogin+paths.TwoFA,
+		r.controllers.TwoFAAccessClaimsMiddleware,
+		r.controllers.TwoFactorLoginAccount,
+	)
+	router.Post(
+		paths.AuthLogin+paths.TwoFA+paths.Recover,
+		r.controllers.TwoFAAccessClaimsMiddleware,
+		r.controllers.RecoverAccount,
+	)
 	router.Post(paths.AuthRefresh, r.controllers.RefreshAccount)
 	router.Post(paths.AuthLogout, r.controllers.AccountAccessClaimsMiddleware, r.controllers.LogoutAccount)
 	router.Post(paths.AuthForgotPassword, r.controllers.ForgotAccountPassword)

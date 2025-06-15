@@ -31,12 +31,14 @@ const (
 	TotpTypeUser    TotpType = "user"
 
 	recoveryCodeBytesLength int = 10
-	recoveryCodeLength      int = 16
+	recoveryCodesCount      int = 8
+	chunkSize               int = 4
+	reLoopCountMax          int = 4
 )
 
-func generateBaseTotpKey(backendDomain, subDomain, email string) (*otp.Key, error) {
+func generateBaseTotpKey(issuer, email string) (*otp.Key, error) {
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      fmt.Sprintf("%s%s", subDomain, backendDomain),
+		Issuer:      issuer,
 		AccountName: email,
 	})
 	if err != nil {
@@ -61,44 +63,68 @@ func base64EncodeKeyQRCode(key *otp.Key) (string, error) {
 	return fmt.Sprintf("data:image/jpeg;base64,%s", base64Img), nil
 }
 
-func formatRecoveryCode(code string, length int) string {
-	codeLen := len(code)
-	if length < codeLen {
-		code = code[:length]
-	} else if length > codeLen {
-		padding := length - codeLen
-		code = strings.Repeat("A", padding) + code
-	}
+type recoveryCode struct {
+	HashedCode string `json:"hashed_code"`
+	Used       bool   `json:"used"`
+}
 
-	var parts []string
-	for i := 0; i < length; i += 4 {
-		end := i + 4
-		if end > len(code) {
-			end = len(code)
-		}
+func formatRecoveryCode(code string) string {
+	codeLen := len(code)
+
+	parts := make([]string, 0, codeLen/chunkSize)
+	for i := 0; i < codeLen; i += chunkSize {
+		end := min(i+chunkSize, codeLen)
 		parts = append(parts, code[i:end])
 	}
+
 	return strings.Join(parts, "-")
 }
 
-func generateRecoveryCodes() (string, []byte, error) {
-	codes := make([]string, 8)
-	hashedCodes := make(map[string]bool, 8)
+func generateRecoveryCode() (string, error) {
+	code, err := utils.GenerateBase32Secret(recoveryCodeBytesLength)
+	if err != nil {
+		return "", err
+	}
 
-	for i := range codes {
-		code, err := utils.GenerateBase32Secret(recoveryCodeBytesLength)
+	return formatRecoveryCode(code), nil
+}
+
+func getRecoveryCodeID(code string) string {
+	return utils.ExtractSecretID([]byte(code[:chunkSize]))
+}
+
+func generateRecoveryCodes() (string, []byte, error) {
+	codes := make([]string, recoveryCodesCount)
+	hashedCodes := make(map[string]recoveryCode, recoveryCodesCount)
+	reLoopCount := 0
+
+	for i := 0; i < recoveryCodesCount; i++ {
+		code, err := generateRecoveryCode()
 		if err != nil {
 			return "", nil, err
 		}
 
-		code = formatRecoveryCode(code, recoveryCodeLength)
+		codeID := getRecoveryCodeID(code)
+		if _, ok := hashedCodes[codeID]; ok {
+			if reLoopCount == reLoopCountMax {
+				return "", nil, fmt.Errorf("re-looping count reached max of %d", reLoopCountMax)
+			}
+
+			i--
+			reLoopCount++
+			continue
+		}
+
 		hashedCode, err := utils.Argon2HashString(code)
 		if err != nil {
 			return "", nil, err
 		}
 
+		hashedCodes[codeID] = recoveryCode{
+			HashedCode: hashedCode,
+			Used:       false,
+		}
 		codes[i] = code
-		hashedCodes[hashedCode] = false
 	}
 
 	codesJson, err := json.Marshal(hashedCodes)
@@ -107,6 +133,20 @@ func generateRecoveryCodes() (string, []byte, error) {
 	}
 
 	return strings.Join(codes, "\n"), codesJson, nil
+}
+
+func isHashCodesFullyUsed(
+	hashedCodes map[string]recoveryCode,
+) bool {
+	count := 0
+
+	for _, code := range hashedCodes {
+		if code.Used {
+			count++
+		}
+	}
+
+	return count == len(hashedCodes)
 }
 
 type TotpKey struct {
@@ -143,12 +183,12 @@ func (t *TotpKey) NewDEK() string {
 }
 
 type generateTotpKeyOptions struct {
-	requestID     string
-	email         string
-	backendDomain string
-	subDomain     string
-	dek           string
-	totpType      TotpType
+	requestID   string
+	email       string
+	issuer      string
+	dek         string
+	totpType    TotpType
+	hashedCodes map[string]recoveryCode
 }
 
 func (e *Encryption) generateTotpKey(
@@ -156,7 +196,7 @@ func (e *Encryption) generateTotpKey(
 	ctx context.Context,
 	opts generateTotpKeyOptions,
 ) (TotpKey, error) {
-	key, err := generateBaseTotpKey(opts.backendDomain, opts.subDomain, opts.email)
+	key, err := generateBaseTotpKey(opts.issuer, opts.email)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate TOP key", "error", err)
 		return TotpKey{}, err
@@ -165,12 +205,6 @@ func (e *Encryption) generateTotpKey(
 	img64, err := base64EncodeKeyQRCode(key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to encode key QR code", "error", err)
-		return TotpKey{}, err
-	}
-
-	codes, hashedCodes, err := generateRecoveryCodes()
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate recovery codes", "error", err)
 		return TotpKey{}, err
 	}
 
@@ -215,6 +249,30 @@ func (e *Encryption) generateTotpKey(
 		return TotpKey{}, err
 	}
 
+	if opts.hashedCodes != nil && !isHashCodesFullyUsed(opts.hashedCodes) {
+		logger.DebugContext(ctx, "Using provided hashed codes")
+		hashedCodes, err := json.Marshal(opts.hashedCodes)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to marshal hashed codes", "error", err)
+			return TotpKey{}, err
+		}
+
+		return TotpKey{
+			url:             key.URL(),
+			img:             img64,
+			hashedCodes:     hashedCodes,
+			newDEK:          newDEK,
+			encryptedSecret: secret,
+		}, nil
+
+	}
+
+	codes, hashedCodes, err := generateRecoveryCodes()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate recovery codes", "error", err)
+		return TotpKey{}, err
+	}
+
 	return TotpKey{
 		url:             key.URL(),
 		img:             img64,
@@ -245,30 +303,36 @@ func verifyTotpCode(
 	return totp.Validate(opts.code, secret), nil
 }
 
-type GenerateAccountTotpKeyOptions struct {
+type GenerateTotpKeyOptions struct {
 	RequestID string
 	Email     string
+	Issuer    string
 	StoredDEK string
 	TotpType  TotpType
 }
 
-func (e *Encryption) GenerateAccountTotpKey(
+func (e *Encryption) GenerateTotpKey(
 	ctx context.Context,
-	opts GenerateAccountTotpKeyOptions,
+	opts GenerateTotpKeyOptions,
 ) (TotpKey, error) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Layer:     logLayer,
 		Location:  totpsManagementLocation,
-		Method:    "GenerateAccountTotpKey",
+		Method:    "GenerateTotpKey",
 		RequestID: opts.RequestID,
 	})
-	logger.DebugContext(ctx, "Generate account TOTP key...")
+	logger.DebugContext(ctx, "Generate TOTP key...")
+
+	issuer := opts.Issuer
+	if issuer == "" {
+		issuer = e.serviceName
+	}
+
 	return e.generateTotpKey(logger, ctx, generateTotpKeyOptions{
-		email:         opts.Email,
-		backendDomain: e.backendDomain,
-		subDomain:     "",
-		dek:           opts.StoredDEK,
-		totpType:      opts.TotpType,
+		email:    opts.Email,
+		issuer:   issuer,
+		dek:      opts.StoredDEK,
+		totpType: opts.TotpType,
 	})
 }
 
@@ -362,4 +426,75 @@ func (e *Encryption) VerifyTotpCode(
 	}
 
 	return verified, newDEK, nil
+}
+
+type VerifyTotpRecoveryCodeOptions struct {
+	RequestID   string
+	RecoverCode string
+	HashedCodes []byte
+	StoredDEK   string
+	Issuer      string
+	Email       string
+	TotpType    TotpType
+}
+
+func (e *Encryption) VerifyTotpRecoveryCode(
+	ctx context.Context,
+	opts VerifyTotpRecoveryCodeOptions,
+) (bool, TotpKey, error) {
+	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  totpsManagementLocation,
+		Method:    "VerifyTotpRecoveryCode",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Verifying user TOTP recovery code...")
+
+	hashedCodes := make(map[string]recoveryCode, recoveryCodesCount)
+	if err := json.Unmarshal(opts.HashedCodes, &hashedCodes); err != nil {
+		logger.ErrorContext(ctx, "Failed to unmarshal hashed codes", "error", err)
+		return false, TotpKey{}, err
+	}
+
+	codeID := getRecoveryCodeID(opts.RecoverCode)
+	hashedCode, ok := hashedCodes[codeID]
+	if !ok {
+		logger.DebugContext(ctx, "Recovery code not found", "code_id", codeID)
+		return false, TotpKey{}, nil
+	}
+
+	ok, err := utils.Argon2CompareHash(opts.RecoverCode, hashedCode.HashedCode)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to compare hash", "error", err)
+		return false, TotpKey{}, err
+	}
+	if !ok {
+		logger.DebugContext(ctx, "Recovery code does not match")
+		return false, TotpKey{}, nil
+	}
+	if hashedCode.Used {
+		logger.DebugContext(ctx, "Recovery code already used")
+		return false, TotpKey{}, nil
+	}
+
+	hashedCode.Used = true
+	hashedCodes[codeID] = hashedCode
+
+	issuer := opts.Issuer
+	if issuer == "" {
+		issuer = e.serviceName
+	}
+
+	totpKey, err := e.generateTotpKey(logger, ctx, generateTotpKeyOptions{
+		email:    opts.Email,
+		issuer:   issuer,
+		dek:      opts.StoredDEK,
+		totpType: opts.TotpType,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate TOTP key", "error", err)
+		return false, TotpKey{}, err
+	}
+
+	return true, totpKey, nil
 }

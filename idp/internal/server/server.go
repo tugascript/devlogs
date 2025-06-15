@@ -89,7 +89,7 @@ func New(
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")
 
 	logger.InfoContext(ctx, "Building encryption...")
-	encryp := encryption.NewEncryption(logger, cfg.EncryptionConfig(), cfg.BackendDomain())
+	encryp := encryption.NewEncryption(logger, cfg.EncryptionConfig(), cfg.ServiceName())
 	logger.InfoContext(ctx, "Finished encryption")
 
 	logger.InfoContext(ctx, "Building OAuth provider...")

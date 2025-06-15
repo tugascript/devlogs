@@ -156,6 +156,38 @@ func (c *Controllers) TwoFactorLoginAccount(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
+func (c *Controllers) RecoverAccount(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, authLocation, "RecoverAccount")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.RecoverBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	authDTO, serviceErr := c.services.RecoverAccount(ctx.UserContext(), services.RecoverAccountOptions{
+		RequestID:    requestID,
+		PublicID:     accountClaims.AccountID,
+		Version:      accountClaims.AccountVersion,
+		RecoveryCode: body.RecoveryCode,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
+}
+
 func (c *Controllers) LogoutAccount(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "LogoutAccount")
@@ -228,7 +260,7 @@ func (c *Controllers) ForgotAccountPassword(ctx *fiber.Ctx) error {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	messageDTO, serviceErr := c.services.ForgoutAccountPassword(ctx.UserContext(), services.ForgoutAccountPasswordOptions{
+	messageDTO, serviceErr := c.services.ForgotAccountPassword(ctx.UserContext(), services.ForgotAccountPasswordOptions{
 		RequestID: requestID,
 		Email:     body.Email,
 	})

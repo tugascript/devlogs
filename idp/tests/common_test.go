@@ -102,7 +102,7 @@ func initTestServicesAndApp(t *testing.T) {
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")
 
 	logger.InfoContext(ctx, "Building encryption...")
-	_testEncryption = encryption.NewEncryption(logger, cfg.EncryptionConfig(), cfg.BackendDomain())
+	_testEncryption = encryption.NewEncryption(logger, cfg.EncryptionConfig(), cfg.ServiceName())
 	logger.InfoContext(ctx, "Finished building encryption")
 
 	logger.InfoContext(ctx, "Building OAuth provider...")

@@ -268,7 +268,7 @@ func (s *Services) generateOAuthQueryParams(
 	}
 
 	queryParams := make(url.Values)
-	queryParams.Add("Code", code)
+	queryParams.Add("code", code)
 
 	fragmentParams := make(url.Values)
 	fragmentParams.Add("token_type", "Bearer")
@@ -437,26 +437,13 @@ func (s *Services) OAuthLoginAccount(
 	logger := s.buildLogger(opts.RequestID, oauthLocation, "OAuthLoginAccount").With("accountPublicId", opts.PublicID)
 	logger.InfoContext(ctx, "OAuth account logging in...")
 
-	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
 		PublicID:  opts.PublicID,
+		Version:   opts.Version,
 	})
 	if serviceErr != nil {
-		if serviceErr.Code != exceptions.CodeNotFound {
-			return dtos.AuthDTO{}, serviceErr
-		}
-
-		logger.WarnContext(ctx, "Account was not found", "error", serviceErr)
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-	}
-
-	accountVersion := accountDTO.Version()
-	if accountVersion != opts.Version {
-		logger.WarnContext(ctx, "Account versions do not match",
-			"accessTokenVersion", opts.Version,
-			"accountVersion", accountVersion,
-		)
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+		return dtos.AuthDTO{}, serviceErr
 	}
 
 	ok, err := s.cache.VerifyOAuthCode(ctx, cache.VerifyOAuthCodeOptions{
@@ -471,6 +458,21 @@ func (s *Services) OAuthLoginAccount(
 	if !ok {
 		logger.WarnContext(ctx, "OAuth Code verification failed")
 		return dtos.AuthDTO{}, exceptions.NewValidationError("OAuth Code verification failed")
+	}
+
+	if accountDTO.TwoFactorType != database.TwoFactorTypeNone {
+		authDTO, serviceErr := s.generate2FAAuth(
+			ctx,
+			logger,
+			opts.RequestID,
+			&accountDTO,
+			"Please provide two factor code",
+		)
+		if serviceErr != nil {
+			return dtos.AuthDTO{}, serviceErr
+		}
+
+		return authDTO, nil
 	}
 
 	return s.GenerateFullAuthDTO(

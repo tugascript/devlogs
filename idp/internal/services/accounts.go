@@ -1228,7 +1228,7 @@ func (s *Services) updateAccountTOTP2FA(
 	)
 	logger.InfoContext(ctx, "Update account TOTP 2FA...")
 
-	totpKey, err := s.encrypt.GenerateAccountTotpKey(ctx, encryption.GenerateAccountTotpKeyOptions{
+	totpKey, err := s.encrypt.GenerateTotpKey(ctx, encryption.GenerateTotpKeyOptions{
 		RequestID: opts.requestID,
 		Email:     opts.email,
 		TotpType:  encryption.TotpTypeAccount,
@@ -1322,10 +1322,9 @@ func (s *Services) updateAccountEmail2FA(
 			s.database.FinalizeTx(ctx, txn, err, serviceErr)
 		}()
 
-		accountID := int32(opts.id)
 		account, err = qrs.UpdateAccountTwoFactorType(ctx, database.UpdateAccountTwoFactorTypeParams{
 			TwoFactorType: database.TwoFactorTypeEmail,
-			ID:            accountID,
+			ID:            opts.id,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to enable 2FA email", "error", err)
@@ -1333,7 +1332,7 @@ func (s *Services) updateAccountEmail2FA(
 			return dtos.AuthDTO{}, serviceErr
 		}
 
-		if err := qrs.DeleteAccountRecoveryKeys(ctx, accountID); err != nil {
+		if err := qrs.DeleteAccountRecoveryKeys(ctx, opts.id); err != nil {
 			logger.ErrorContext(ctx, "Failed to delete recovery keys", "error", err)
 			serviceErr = exceptions.FromDBError(err)
 			return dtos.AuthDTO{}, serviceErr
@@ -1341,7 +1340,7 @@ func (s *Services) updateAccountEmail2FA(
 	} else {
 		account, err = s.database.UpdateAccountTwoFactorType(ctx, database.UpdateAccountTwoFactorTypeParams{
 			TwoFactorType: database.TwoFactorTypeEmail,
-			ID:            int32(opts.id),
+			ID:            opts.id,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to enable 2FA email", "error", err)
@@ -1393,10 +1392,9 @@ func (s *Services) disableAccount2FA(
 			s.database.FinalizeTx(ctx, txn, err, serviceErr)
 		}()
 
-		accountID := int32(opts.id)
 		account, err = qrs.UpdateAccountTwoFactorType(ctx, database.UpdateAccountTwoFactorTypeParams{
 			TwoFactorType: database.TwoFactorTypeNone,
-			ID:            accountID,
+			ID:            opts.id,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to disable 2FA", "error", err)
@@ -1404,7 +1402,7 @@ func (s *Services) disableAccount2FA(
 			return dtos.AuthDTO{}, serviceErr
 		}
 
-		if err := qrs.DeleteAccountRecoveryKeys(ctx, accountID); err != nil {
+		if err := qrs.DeleteAccountRecoveryKeys(ctx, opts.id); err != nil {
 			logger.ErrorContext(ctx, "Failed to delete recovery keys", "error", err)
 			serviceErr = exceptions.FromDBError(err)
 			return dtos.AuthDTO{}, serviceErr
@@ -1413,7 +1411,7 @@ func (s *Services) disableAccount2FA(
 		var err error
 		account, err = s.database.UpdateAccountTwoFactorType(ctx, database.UpdateAccountTwoFactorTypeParams{
 			TwoFactorType: database.TwoFactorTypeNone,
-			ID:            int32(opts.id),
+			ID:            opts.id,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to disable 2FA", "error", err)
@@ -1473,16 +1471,21 @@ func (s *Services) UpdateAccount2FA(
 
 		logger.ErrorContext(ctx, "Failed to get auth Provider", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewServerError()
-	}
+	} else {
+		if opts.Password == "" {
+			logger.WarnContext(ctx, "Password is required for email auth Provider")
+			return dtos.AuthDTO{}, exceptions.NewValidationError("password is required")
+		}
 
-	ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to compare password hashes", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
-	}
-	if !ok {
-		logger.WarnContext(ctx, "Passwords do not match")
-		return dtos.AuthDTO{}, exceptions.NewValidationError("Passwords do not match")
+		ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to compare password hashes", "error", err)
+			return dtos.AuthDTO{}, exceptions.NewServerError()
+		}
+		if !ok {
+			logger.WarnContext(ctx, "Passwords do not match")
+			return dtos.AuthDTO{}, exceptions.NewValidationError("Passwords do not match")
+		}
 	}
 
 	twoFactorType, serviceErr := mapTwoFactorType(opts.TwoFactorType)
