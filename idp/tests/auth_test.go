@@ -11,20 +11,24 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-faker/faker/v4"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/encryptcookie"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pquerna/otp/totp"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
+	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type fakeRegisterData struct {
@@ -345,7 +349,6 @@ func TestLogin(t *testing.T) {
 	t.Cleanup(accountsCleanUp(t))
 }
 
-// TODO: add TOPT tests
 func TestTwoFactorLogin(t *testing.T) {
 	const login2FAPath = "/v1/auth/login/2fa"
 
@@ -384,12 +387,47 @@ func TestTwoFactorLogin(t *testing.T) {
 
 	testCases := []TestRequestCase[bodies.TwoFactorLoginBody]{
 		{
-			Name: "Should return 200 OK with access and refresh tokens",
+			Name: "Should return 200 OK with access and refresh tokens for TOTP 2FA",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				account, token := genTwoFactorAccount(t, services.TwoFactorTotp)
+				accountTOTP, err := GetTestDatabase(t).FindAccountTotpByAccountID(context.Background(), account.ID())
+				if err != nil {
+					t.Fatal("Failed to find account TOTP", err)
+				}
+
+				dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
+					encryption.ProcessTotpDEKOptions{
+						RequestID: uuid.NewString(),
+						TotpType:  encryption.TotpTypeAccount,
+						StoredDEK: account.DEK(),
+					},
+				)
+				if err != nil {
+					t.Fatal("Failed to decrypt account DEK", err)
+				}
+
+				secret, err := utils.Decrypt(accountTOTP.Secret, dek)
+				if err != nil {
+					t.Fatal("Failed to decrypt secret", err)
+				}
+
+				code, err := totp.GenerateCode(secret, time.Now().UTC())
+				if err != nil {
+					t.Fatal("Failed to generate code", err)
+				}
+
+				return bodies.TwoFactorLoginBody{
+					Code: code,
+				}, token
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertFullAuthAccessResponse[bodies.TwoFactorLoginBody],
+		},
+		{
+			Name: "Should return 200 OK with access and refresh tokens for email 2FA",
 			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
 				account, token := genTwoFactorAccount(t, services.TwoFactorEmail)
-				return bodies.TwoFactorLoginBody{
-					Code: genEmailCode(t, account),
-				}, token
+				return bodies.TwoFactorLoginBody{Code: genEmailCode(t, account)}, token
 			},
 			ExpStatus: http.StatusOK,
 			AssertFn:  assertFullAuthAccessResponse[bodies.TwoFactorLoginBody],

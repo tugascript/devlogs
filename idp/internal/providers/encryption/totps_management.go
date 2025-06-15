@@ -272,16 +272,27 @@ func (e *Encryption) GenerateAccountTotpKey(
 	})
 }
 
-func (e *Encryption) processTotpDEK(
+type ProcessTotpDEKOptions struct {
+	RequestID string
+	TotpType  TotpType
+	StoredDEK string
+}
+
+func (e *Encryption) ProcessTotpDEK(
 	ctx context.Context,
-	logger *slog.Logger,
-	requestID string,
-	totpType TotpType,
-	storedDEK string,
+	opts ProcessTotpDEKOptions,
 ) ([]byte, string, error) {
-	switch totpType {
+	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
+		Layer:     logLayer,
+		Location:  totpsManagementLocation,
+		Method:    "ProcessTotpDEK",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Processing TOTP DEK...")
+
+	switch opts.TotpType {
 	case TotpTypeAccount:
-		dek, isOldKey, err := e.decryptAccountDEK(ctx, requestID, storedDEK)
+		dek, isOldKey, err := e.decryptAccountDEK(ctx, opts.RequestID, opts.StoredDEK)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
 			return nil, "", err
@@ -293,7 +304,7 @@ func (e *Encryption) processTotpDEK(
 		}
 		return dek, newDEK, nil
 	case TotpTypeUser:
-		dek, isOldKey, err := e.decryptUserDEK(ctx, requestID, storedDEK)
+		dek, isOldKey, err := e.decryptUserDEK(ctx, opts.RequestID, opts.StoredDEK)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
 			return nil, "", err
@@ -305,8 +316,8 @@ func (e *Encryption) processTotpDEK(
 		}
 		return dek, newDEK, nil
 	default:
-		logger.ErrorContext(ctx, "Invalid TOTP type", "type", totpType)
-		return nil, "", fmt.Errorf("invalid TOTP type: %s", totpType)
+		logger.ErrorContext(ctx, "Invalid TOTP type", "type", opts.TotpType)
+		return nil, "", fmt.Errorf("invalid TOTP type: %s", opts.TotpType)
 	}
 }
 
@@ -330,7 +341,11 @@ func (e *Encryption) VerifyTotpCode(
 	})
 	logger.DebugContext(ctx, "Verifying account TOTP code...")
 
-	dek, newDEK, err := e.processTotpDEK(ctx, logger, opts.RequestID, opts.TotpType, opts.StoredDEK)
+	dek, newDEK, err := e.ProcessTotpDEK(ctx, ProcessTotpDEKOptions{
+		RequestID: opts.RequestID,
+		TotpType:  opts.TotpType,
+		StoredDEK: opts.StoredDEK,
+	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to process TOTP DEK", "error", err)
 		return false, "", err
