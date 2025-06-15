@@ -75,3 +75,28 @@ func (q *Queries) FindAccountTotpByAccountID(ctx context.Context, accountID int3
 	)
 	return i, err
 }
+
+const updateAccountTotp = `-- name: UpdateAccountTotp :exec
+UPDATE "account_totps" SET
+  "url" = $2,
+  "secret" = $3,
+  "recovery_codes" = $4
+WHERE "id" = $1
+`
+
+type UpdateAccountTotpParams struct {
+	ID            int32
+	Url           string
+	Secret        string
+	RecoveryCodes []byte
+}
+
+func (q *Queries) UpdateAccountTotp(ctx context.Context, arg UpdateAccountTotpParams) error {
+	_, err := q.db.Exec(ctx, updateAccountTotp,
+		arg.ID,
+		arg.Url,
+		arg.Secret,
+		arg.RecoveryCodes,
+	)
+	return err
+}

@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -521,7 +522,7 @@ func (s *Services) LogoutAccount(
 
 	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		PublicID:  uuid.UUID(claims.AccountID),
+		PublicID:  claims.AccountID,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to find account of refresh token")
@@ -629,14 +630,14 @@ func (s *Services) RefreshTokenAccount(
 	)
 }
 
-type ForgoutAccountPasswordOptions struct {
+type ForgotAccountPasswordOptions struct {
 	RequestID string
 	Email     string
 }
 
-func (s *Services) ForgoutAccountPassword(
+func (s *Services) ForgotAccountPassword(
 	ctx context.Context,
-	opts ForgoutAccountPasswordOptions,
+	opts ForgotAccountPasswordOptions,
 ) (dtos.MessageDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, authLocation, "ForgotAccountPassword")
 	logger.InfoContext(ctx, "Forgout account password...")
@@ -743,4 +744,117 @@ func (s *Services) ResetAccountPassword(
 
 	logger.InfoContext(ctx, "Account password reset successfully")
 	return dtos.NewMessageDTO(resetMessage), nil
+}
+
+var recoveryRegex = regexp.MustCompile(`^[A-Z0-9]{4}(?:-[A-Z0-9]{4})*$`)
+
+func isValidRecoveryCode(code string) bool {
+	if code == "" || len(code) < 16 {
+		return false
+	}
+
+	return recoveryRegex.MatchString(code)
+}
+
+type RecoverAccountOptions struct {
+	RequestID    string
+	PublicID     uuid.UUID
+	Version      int32
+	RecoveryCode string
+}
+
+func (s *Services) RecoverAccount(
+	ctx context.Context,
+	opts RecoverAccountOptions,
+) (dtos.AuthDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, authLocation, "RecoverAccount").With(
+		"publicID", opts.PublicID,
+		"version", opts.Version,
+	)
+	logger.InfoContext(ctx, "Recovering account...")
+
+	if !isValidRecoveryCode(opts.RecoveryCode) {
+		logger.WarnContext(ctx, "Invalid recovery code format", "recoveryCode", opts.RecoveryCode)
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.PublicID,
+		Version:   opts.Version,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get account by public ID and version", "error", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+	if accountDTO.TwoFactorType != database.TwoFactorTypeTotp {
+		logger.WarnContext(ctx, "Account does not have TOTP enabled")
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, accountDTO.ID())
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account TOTP not found", "error", err)
+			return dtos.AuthDTO{}, exceptions.NewForbiddenError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to find account TOTP", "error", err)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	ok, newTotpKey, err := s.encrypt.VerifyTotpRecoveryCode(ctx, encryption.VerifyTotpRecoveryCodeOptions{
+		RequestID:   opts.RequestID,
+		RecoverCode: opts.RecoveryCode,
+		HashedCodes: accountTOTP.RecoveryCodes,
+		StoredDEK:   accountDTO.DEK(),
+		Email:       accountDTO.Email,
+		TotpType:    encryption.TotpTypeAccount,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to verify TOTP recovery code", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewServerError()
+	}
+	if !ok {
+		logger.WarnContext(ctx, "Failed to verify TOTP recovery code")
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	}
+	if newTotpKey.HashedCodes() == nil {
+		logger.ErrorContext(ctx, "New TOTP key is empty, cannot update account TOTP")
+		return dtos.AuthDTO{}, exceptions.NewServerError()
+	}
+
+	if err := s.database.UpdateAccountTotp(ctx, database.UpdateAccountTotpParams{
+		ID:            accountTOTP.ID,
+		Url:           newTotpKey.URL(),
+		Secret:        newTotpKey.EncryptedSecret(),
+		RecoveryCodes: newTotpKey.HashedCodes(),
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to update account TOTP", "error", err)
+		return dtos.AuthDTO{}, exceptions.FromDBError(err)
+	}
+
+	token, err := s.jwt.Create2FAToken(tokens.Account2FATokenOptions{
+		PublicID: accountDTO.PublicID,
+		Version:  accountDTO.Version(),
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate 2FA access token", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewServerError()
+	}
+
+	authDTOData := map[string]string{
+		"image": newTotpKey.Img(),
+	}
+	if newTotpKey.Codes() != "" {
+		authDTOData["recovery_keys"] = newTotpKey.Codes()
+	}
+
+	return dtos.NewAuthDTOWithData(
+		token,
+		"Please scan QR Code with your authentication app",
+		authDTOData,
+		s.jwt.Get2FATTL(),
+	), nil
 }
