@@ -345,19 +345,26 @@ func (s *Services) UpdateAccountEmail(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	_, err := s.database.FindAccountAuthProviderByEmailAndProvider(ctx, database.FindAccountAuthProviderByEmailAndProviderParams{
-		Email:    accountDTO.Email,
-		Provider: database.AuthProviderUsernamePassword,
-	})
+	count, err := s.database.CountAccountAuthProvidersByEmailAndProvider(
+		ctx,
+		database.CountAccountAuthProvidersByEmailAndProviderParams{
+			Email:    accountDTO.Email,
+			Provider: database.AuthProviderUsernamePassword,
+		},
+	)
 	if err != nil {
-		serviceErr := exceptions.FromDBError(err)
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.InfoContext(ctx, "Email auth Provider not found", "error", err)
-			return dtos.AuthDTO{}, exceptions.NewForbiddenError()
-		}
+		logger.ErrorContext(ctx, "Failed to count account auth providers", "error", err)
+		return dtos.AuthDTO{}, exceptions.FromDBError(err)
+	}
+	if count == 0 {
+		logger.WarnContext(ctx, "Username and password auth provider not found for account")
+		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
+	}
 
-		logger.ErrorContext(ctx, "Failed to get email auth Provider", "error", err)
-		return dtos.AuthDTO{}, serviceErr
+	newEmail := utils.Lowered(opts.Email)
+	if accountDTO.Email == newEmail {
+		logger.WarnContext(ctx, "New email is the same as current email")
+		return dtos.AuthDTO{}, exceptions.NewValidationError("New email must be different from current")
 	}
 
 	ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
@@ -370,7 +377,16 @@ func (s *Services) UpdateAccountEmail(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	newEmail := utils.Lowered(opts.Email)
+	count, err = s.database.CountAccountsByEmail(ctx, newEmail)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count accounts by email", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewServerError()
+	}
+	if count > 0 {
+		logger.WarnContext(ctx, "Email already in use")
+		return dtos.AuthDTO{}, exceptions.NewConflictError("Email already in use")
+	}
+
 	if accountDTO.TwoFactorType != database.TwoFactorTypeNone {
 		logger.InfoContext(ctx, "Account has 2FA enabled", "twoFactorType", accountDTO.TwoFactorType)
 
@@ -399,17 +415,6 @@ func (s *Services) UpdateAccountEmail(
 
 		logger.InfoContext(ctx, "Email update request cached successfully")
 		return authDTO, serviceErr
-	}
-
-	if _, err := s.database.FindAccountByEmail(ctx, newEmail); err != nil {
-		serviceErr := exceptions.FromDBError(err)
-		if serviceErr.Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to check if email exists", "error", serviceErr)
-			return dtos.AuthDTO{}, serviceErr
-		}
-	} else {
-		logger.WarnContext(ctx, "Email already in use")
-		return dtos.AuthDTO{}, exceptions.NewConflictError("Email already in use")
 	}
 
 	account, err := s.updateAccountEmailInDB(ctx, logger, accountDTO.ID(), accountDTO.Email, newEmail)
@@ -480,17 +485,6 @@ func (s *Services) ConfirmUpdateAccountEmail(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if _, err := s.database.FindAccountByEmail(ctx, newEmail); err != nil {
-		serviceErr := exceptions.FromDBError(err)
-		if serviceErr.Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to check if email exists", "error", serviceErr)
-			return dtos.AuthDTO{}, serviceErr
-		}
-	} else {
-		logger.WarnContext(ctx, "Email already in use")
-		return dtos.AuthDTO{}, exceptions.NewConflictError("Email already in use")
-	}
-
 	account, err := s.updateAccountEmailInDB(ctx, logger, accountDTO.ID(), accountDTO.Email, newEmail)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account email", "error", err)
@@ -558,18 +552,20 @@ func (s *Services) UpdateAccountPassword(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if _, err := s.database.FindAccountAuthProviderByEmailAndProvider(ctx, database.FindAccountAuthProviderByEmailAndProviderParams{
-		Email:    accountDTO.Email,
-		Provider: database.AuthProviderUsernamePassword,
-	}); err != nil {
-		serviceErr := exceptions.FromDBError(err)
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.InfoContext(ctx, "Email auth Provider not found", "error", err)
-			return dtos.AuthDTO{}, exceptions.NewForbiddenError()
-		}
-
-		logger.ErrorContext(ctx, "Failed to get email auth Provider", "error", err)
-		return dtos.AuthDTO{}, serviceErr
+	count, err := s.database.CountAccountAuthProvidersByEmailAndProvider(
+		ctx,
+		database.CountAccountAuthProvidersByEmailAndProviderParams{
+			Email:    accountDTO.Email,
+			Provider: database.AuthProviderUsernamePassword,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count account auth providers", "error", err)
+		return dtos.AuthDTO{}, exceptions.FromDBError(err)
+	}
+	if count == 0 {
+		logger.WarnContext(ctx, "Username and password auth provider not found for account")
+		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 	}
 
 	ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
@@ -727,18 +723,20 @@ func (s *Services) CreateAccountPassword(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	// Check if password auth provider already exists
-	_, err := s.database.FindAccountAuthProviderByEmailAndProvider(ctx, database.FindAccountAuthProviderByEmailAndProviderParams{
-		Email:    accountDTO.Email,
-		Provider: database.AuthProviderUsernamePassword,
-	})
-	if err == nil {
-		logger.WarnContext(ctx, "Password already set for this account")
-		return dtos.AuthDTO{}, exceptions.NewConflictError("Password already set for this account")
+	count, err := s.database.CountAccountAuthProvidersByEmailAndProvider(
+		ctx,
+		database.CountAccountAuthProvidersByEmailAndProviderParams{
+			Email:    accountDTO.Email,
+			Provider: database.AuthProviderUsernamePassword,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count account auth providers", "error", err)
+		return dtos.AuthDTO{}, exceptions.FromDBError(err)
 	}
-	if serviceErr := exceptions.FromDBError(err); serviceErr.Code != exceptions.CodeNotFound {
-		logger.ErrorContext(ctx, "Failed to check password provider", "error", err)
-		return dtos.AuthDTO{}, serviceErr
+	if count > 0 {
+		logger.WarnContext(ctx, "Username and password auth provider already exists for account")
+		return dtos.AuthDTO{}, exceptions.NewConflictError("Password already set for account")
 	}
 
 	hashedPassword, err := utils.Argon2HashString(opts.Password)
@@ -863,16 +861,18 @@ func (s *Services) UpdateAccountUsername(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if _, err := s.database.FindAccountAuthProviderByEmailAndProvider(ctx, database.FindAccountAuthProviderByEmailAndProviderParams{
-		Email:    accountDTO.Email,
-		Provider: database.AuthProviderUsernamePassword,
-	}); err != nil {
-		serviceErr := exceptions.FromDBError(err)
-		if serviceErr.Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to get email auth Provider", "error", err)
-			return dtos.AuthDTO{}, serviceErr
-		}
-	} else {
+	count, err := s.database.CountAccountAuthProvidersByEmailAndProvider(
+		ctx,
+		database.CountAccountAuthProvidersByEmailAndProviderParams{
+			Email:    accountDTO.Email,
+			Provider: database.AuthProviderUsernamePassword,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count account auth providers", "error", err)
+		return dtos.AuthDTO{}, exceptions.FromDBError(err)
+	}
+	if count > 0 {
 		if opts.Password == "" {
 			logger.WarnContext(ctx, "Password is required for email auth Provider")
 			return dtos.AuthDTO{}, exceptions.NewValidationError("password is required")
@@ -890,6 +890,16 @@ func (s *Services) UpdateAccountUsername(
 	}
 
 	username := utils.Lowered(opts.Username)
+	count, err = s.database.CountAccountsByUsername(ctx, username)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count account by username", "error", err)
+		return dtos.AuthDTO{}, exceptions.FromDBError(err)
+	}
+	if count > 0 {
+		logger.WarnContext(ctx, "Username already in use")
+		return dtos.AuthDTO{}, exceptions.NewConflictError("Username already in use")
+	}
+
 	if accountDTO.TwoFactorType != database.TwoFactorTypeNone {
 		logger.InfoContext(ctx, "Account has 2FA enabled", "twoFactorType", accountDTO.TwoFactorType)
 
@@ -917,16 +927,6 @@ func (s *Services) UpdateAccountUsername(
 
 		logger.InfoContext(ctx, "Username update request cached successfully")
 		return authDTO, serviceErr
-	}
-
-	count, err := s.database.CountAccountByUsername(ctx, username)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to count account by username", "error", err)
-		return dtos.AuthDTO{}, exceptions.FromDBError(err)
-	}
-	if count > 0 {
-		logger.WarnContext(ctx, "Username already in use")
-		return dtos.AuthDTO{}, exceptions.NewConflictError("Username already in use")
 	}
 
 	account, err := s.database.UpdateAccountUsername(ctx, database.UpdateAccountUsernameParams{
@@ -999,7 +999,7 @@ func (s *Services) ConfirmUpdateAccountUsername(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	count, err := s.database.CountAccountByUsername(ctx, newUsername)
+	count, err := s.database.CountAccountsByUsername(ctx, newUsername)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count account by username", "error", err)
 		return dtos.AuthDTO{}, exceptions.FromDBError(err)
