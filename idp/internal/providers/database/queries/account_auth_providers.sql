@@ -24,4 +24,4 @@ LIMIT 1;
 DELETE FROM "account_auth_providers"
 WHERE 
   "email" = $1 AND 
-  "provider" != "username_password";
+  "provider" != 'username_password';

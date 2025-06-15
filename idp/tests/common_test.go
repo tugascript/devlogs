@@ -37,6 +37,8 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 )
 
+const v1Path string = "/v1"
+
 var _testConfig *config.Config
 var _testServices *services.Services
 var _testServer *server.FiberServer
