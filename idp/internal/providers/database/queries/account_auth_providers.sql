@@ -7,11 +7,26 @@
 -- name: CreateAccountAuthProvider :exec
 INSERT INTO "account_auth_providers" (
   "email",
+  "account_public_id",
   "provider"
 ) VALUES (
   $1,
-  $2
+  $2,
+  $3
 );
+
+-- name: FindAccountAuthProvidersByAccountPublicId :many
+SELECT * FROM "account_auth_providers"
+WHERE
+  "account_public_id" = $1
+ORDER BY "id" DESC;
+
+-- name: FindAccountAuthProviderByAccountPublicIdAndProvider :one
+SELECT * FROM "account_auth_providers"
+WHERE
+  "account_public_id" = $1 AND
+  "provider" = $2
+LIMIT 1;
 
 -- name: FindAccountAuthProviderByEmailAndProvider :one
 SELECT * FROM "account_auth_providers"
@@ -20,8 +35,15 @@ WHERE
   "provider" = $2
 LIMIT 1;
 
+-- name: CountAccountAuthProvidersByEmailAndProvider :one
+SELECT COUNT("id") FROM "account_auth_providers"
+WHERE
+  "email" = $1 AND
+  "provider" = $2
+LIMIT 1;
+
 -- name: DeleteExternalAccountAuthProviders :exec
 DELETE FROM "account_auth_providers"
 WHERE 
   "email" = $1 AND 
-  "provider" != "username_password";
+  "provider" != 'username_password';

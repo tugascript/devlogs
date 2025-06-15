@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-06-14T23:32:04.570Z
+-- Generated at: 2025-06-15T10:19:29.439Z
 
 CREATE TYPE "two_factor_type" AS ENUM (
   'none',
@@ -27,7 +27,8 @@ CREATE TYPE "account_credentials_scope" AS ENUM (
   'account:apps:read',
   'account:apps:write',
   'account:credentials:read',
-  'account:credentials:write'
+  'account:credentials:write',
+  'account:auth_providers:read'
 );
 
 CREATE TYPE "auth_provider" AS ENUM (
@@ -189,6 +190,7 @@ CREATE TABLE "account_auth_providers" (
   "id" serial PRIMARY KEY,
   "email" varchar(250) NOT NULL,
   "provider" auth_provider NOT NULL,
+  "account_public_id" uuid NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -441,6 +443,10 @@ CREATE INDEX "account_credentials_keys_account_public_id_idx" ON "account_creden
 CREATE INDEX "auth_providers_email_idx" ON "account_auth_providers" ("email");
 
 CREATE UNIQUE INDEX "auth_providers_email_provider_uidx" ON "account_auth_providers" ("email", "provider");
+
+CREATE INDEX "auth_providers_account_public_id_idx" ON "account_auth_providers" ("account_public_id");
+
+CREATE INDEX "auth_providers_account_public_id_email_idx" ON "account_auth_providers" ("account_public_id", "email");
 
 CREATE UNIQUE INDEX "oidc_configs_account_id_uidx" ON "oidc_configs" ("account_id");
 

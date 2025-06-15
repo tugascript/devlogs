@@ -29,6 +29,7 @@ type Config struct {
 	emailPubChannel      string
 	encryptionSecret     string
 	serviceID            uuid.UUID
+	serviceName          string
 	loggerConfig         LoggerConfig
 	tokensConfig         TokensConfig
 	oAuthProvidersConfig OAuthProvidersConfig
@@ -78,6 +79,10 @@ func (c *Config) EmailPubChannel() string {
 
 func (c *Config) EncryptionSecret() string {
 	return c.encryptionSecret
+}
+
+func (c *Config) ServiceName() string {
+	return c.serviceName
 }
 
 func (c *Config) ServiceID() uuid.UUID {
@@ -232,6 +237,7 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 		cookieName:         variablesMap["COOKIE_NAME"],
 		emailPubChannel:    variablesMap["EMAIL_PUB_CHANNEL"],
 		serviceID:          uuid.MustParse(variablesMap["SERVICE_ID"]),
+		serviceName:        variablesMap["SERVICE_NAME"],
 		loggerConfig: NewLoggerConfig(
 			strings.ToLower(variablesMap["DEBUG"]) == "true",
 			env,

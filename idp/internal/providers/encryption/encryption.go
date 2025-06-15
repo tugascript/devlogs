@@ -27,7 +27,7 @@ type Encryption struct {
 	oidcSecretKey    Secret
 	userSecretKey    Secret
 	oldSecrets       map[string][]byte
-	backendDomain    string
+	serviceName      string
 }
 
 func decodeSecret(secret string) Secret {
@@ -45,7 +45,7 @@ func decodeSecret(secret string) Secret {
 func NewEncryption(
 	logger *slog.Logger,
 	cfg config.EncryptionConfig,
-	backendDomain string,
+	serviceName string,
 ) *Encryption {
 	oldSecretsMap := make(map[string][]byte)
 	for _, s := range cfg.OldSecrets() {
@@ -59,6 +59,6 @@ func NewEncryption(
 		oidcSecretKey:    decodeSecret(cfg.OIDCSecret()),
 		userSecretKey:    decodeSecret(cfg.UserSecret()),
 		oldSecrets:       oldSecretsMap,
-		backendDomain:    backendDomain,
+		serviceName:      utils.Capitalized(serviceName),
 	}
 }

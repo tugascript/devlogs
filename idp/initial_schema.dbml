@@ -122,6 +122,7 @@ Enum account_credentials_scope {
     "account:apps:write"
     "account:credentials:read"
     "account:credentials:write"
+    "account:auth_providers:read"
 }
 
 Table account_credentials as AC {
@@ -204,6 +205,7 @@ Table account_auth_providers as AP {
     
     email varchar(250) [not null]
     provider auth_provider [not null]
+    account_public_id uuid [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -211,6 +213,8 @@ Table account_auth_providers as AP {
     Indexes {
         email [name: 'auth_providers_email_idx']
         (email, provider) [unique, name: 'auth_providers_email_provider_uidx']
+        account_public_id [name: 'auth_providers_account_public_id_idx']
+        (account_public_id, email) [name: 'auth_providers_account_public_id_email_idx']
     }
 }
 Ref: AP.email > A.email [delete: cascade, update: cascade]

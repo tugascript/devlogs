@@ -2,8 +2,7 @@
 
 Please check if your PR fulfills the following requirements:
 
-- [ ] The commit message follows our
-  [guidelines](https://github.com/tugascript/devlogs/blob/master/CONTRIBUTING.md)
+- [ ] The commit message follows our [guidelines](https://github.com/tugascript/devlogs/blob/master/CONTRIBUTING.md)
 - [ ] Tests for the changes have been added (for bug fixes / features)
 
 ## PR Type

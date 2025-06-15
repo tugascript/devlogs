@@ -16,13 +16,14 @@ import (
 type AccountCredentialsScope string
 
 const (
-	AccountCredentialsScopeAccountAdmin            AccountCredentialsScope = "account:admin"
-	AccountCredentialsScopeAccountUsersRead        AccountCredentialsScope = "account:users:read"
-	AccountCredentialsScopeAccountUsersWrite       AccountCredentialsScope = "account:users:write"
-	AccountCredentialsScopeAccountAppsRead         AccountCredentialsScope = "account:apps:read"
-	AccountCredentialsScopeAccountAppsWrite        AccountCredentialsScope = "account:apps:write"
-	AccountCredentialsScopeAccountCredentialsRead  AccountCredentialsScope = "account:credentials:read"
-	AccountCredentialsScopeAccountCredentialsWrite AccountCredentialsScope = "account:credentials:write"
+	AccountCredentialsScopeAccountAdmin             AccountCredentialsScope = "account:admin"
+	AccountCredentialsScopeAccountUsersRead         AccountCredentialsScope = "account:users:read"
+	AccountCredentialsScopeAccountUsersWrite        AccountCredentialsScope = "account:users:write"
+	AccountCredentialsScopeAccountAppsRead          AccountCredentialsScope = "account:apps:read"
+	AccountCredentialsScopeAccountAppsWrite         AccountCredentialsScope = "account:apps:write"
+	AccountCredentialsScopeAccountCredentialsRead   AccountCredentialsScope = "account:credentials:read"
+	AccountCredentialsScopeAccountCredentialsWrite  AccountCredentialsScope = "account:credentials:write"
+	AccountCredentialsScopeAccountAuthProvidersRead AccountCredentialsScope = "account:auth_providers:read"
 )
 
 func (e *AccountCredentialsScope) Scan(src interface{}) error {
@@ -542,11 +543,12 @@ type Account struct {
 }
 
 type AccountAuthProvider struct {
-	ID        int32
-	Email     string
-	Provider  AuthProvider
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID              int32
+	Email           string
+	Provider        AuthProvider
+	AccountPublicID uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type AccountCredential struct {

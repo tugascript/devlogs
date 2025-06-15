@@ -23,6 +23,10 @@ type TwoFactorLoginBody struct {
 	Code string `json:"code" validate:"required,min=6,max=6,numeric"`
 }
 
+type RecoverBody struct {
+	RecoveryCode string `json:"recovery_code" validate:"required,min=1"`
+}
+
 type ForgoutPasswordBody struct {
 	Email string `json:"email" validate:"required,email"`
 }
@@ -75,6 +79,11 @@ type UpdatePasswordBody struct {
 	OldPassword string `json:"old_password" validate:"required,min=1"`
 	Password    string `json:"password" validate:"required,min=8,max=100,password"`
 	Password2   string `json:"password2" validate:"required,eqfield=Password"`
+}
+
+type CreatePasswordBody struct {
+	Password  string `json:"password" validate:"required,min=8,max=100,password"`
+	Password2 string `json:"password2" validate:"required,eqfield=Password"`
 }
 
 type DeleteWithPasswordBody struct {

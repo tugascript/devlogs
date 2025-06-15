@@ -224,6 +224,10 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 		return oauthErrorResponseMapper(logger, ctx, serviceErr)
 	}
 
+	if authDTO.RefreshToken != "" {
+		c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
+	}
+
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }

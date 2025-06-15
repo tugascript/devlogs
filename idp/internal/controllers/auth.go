@@ -8,6 +8,8 @@ package controllers
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/tugascript/devlogs/idp/internal/controllers/params"
+	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
@@ -156,6 +158,38 @@ func (c *Controllers) TwoFactorLoginAccount(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
+func (c *Controllers) RecoverAccount(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, authLocation, "RecoverAccount")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.RecoverBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	authDTO, serviceErr := c.services.RecoverAccount(ctx.UserContext(), services.RecoverAccountOptions{
+		RequestID:    requestID,
+		PublicID:     accountClaims.AccountID,
+		Version:      accountClaims.AccountVersion,
+		RecoveryCode: body.RecoveryCode,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
+}
+
 func (c *Controllers) LogoutAccount(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "LogoutAccount")
@@ -228,7 +262,7 @@ func (c *Controllers) ForgotAccountPassword(ctx *fiber.Ctx) error {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	messageDTO, serviceErr := c.services.ForgoutAccountPassword(ctx.UserContext(), services.ForgoutAccountPasswordOptions{
+	messageDTO, serviceErr := c.services.ForgotAccountPassword(ctx.UserContext(), services.ForgotAccountPasswordOptions{
 		RequestID: requestID,
 		Email:     body.Email,
 	})
@@ -264,4 +298,62 @@ func (c *Controllers) ResetAccountPassword(ctx *fiber.Ctx) error {
 
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&messageDTO)
+}
+
+func (c *Controllers) ListAccountAuthProviders(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, authLocation, "ListAccountAuthProviders")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	authProvidersDTO, serviceErr := c.services.ListAccountAuthProviders(
+		ctx.UserContext(),
+		services.ListAccountAuthProvidersOptions{
+			RequestID: requestID,
+			PublicID:  accountClaims.AccountID,
+		})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	items := dtos.NewItemsDTO(authProvidersDTO)
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&items)
+}
+
+func (c *Controllers) GetAccountAuthProvider(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, authLocation, "GetAccountAuthProvider")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	urlParams := params.AccountAuthProviderURLParams{
+		Provider: ctx.Params("provider"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+		return validateURLParamsErrorResponse(logger, ctx, err)
+	}
+
+	authProviderDTO, serviceErr := c.services.GetAccountAuthProvider(
+		ctx.UserContext(),
+		services.GetAccountAuthProviderOptions{
+			RequestID: requestID,
+			PublicID:  accountClaims.AccountID,
+			Provider:  urlParams.Provider,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&authProviderDTO)
 }

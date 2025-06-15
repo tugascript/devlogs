@@ -16,4 +16,6 @@ const (
 	AuthLogout         string = "/logout"
 	AuthForgotPassword string = "/forgot-password"
 	AuthResetPassword  string = "/reset-password"
+	AuthProviders      string = "/providers"
+	AuthSingleProvider string = "/providers/:provider"
 )

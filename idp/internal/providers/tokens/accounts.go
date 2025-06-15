@@ -23,15 +23,16 @@ import (
 type AccountScope = string
 
 const (
-	AccountScopeEmail            AccountScope = "email"
-	AccountScopeProfile          AccountScope = "profile"
-	AccountScopeAdmin            AccountScope = "account:admin"
-	AccountScopeUsersRead        AccountScope = "account:users:read"
-	AccountScopeUsersWrite       AccountScope = "account:users:write"
-	AccountScopeAppsRead         AccountScope = "account:apps:read"
-	AccountScopeAppsWrite        AccountScope = "account:apps:write"
-	AccountScopeCredentialsRead  AccountScope = "account:credentials:read"
-	AccountScopeCredentialsWrite AccountScope = "account:credentials:write"
+	AccountScopeEmail             AccountScope = "email"
+	AccountScopeProfile           AccountScope = "profile"
+	AccountScopeAdmin             AccountScope = "account:admin"
+	AccountScopeUsersRead         AccountScope = "account:users:read"
+	AccountScopeUsersWrite        AccountScope = "account:users:write"
+	AccountScopeAppsRead          AccountScope = "account:apps:read"
+	AccountScopeAppsWrite         AccountScope = "account:apps:write"
+	AccountScopeCredentialsRead   AccountScope = "account:credentials:read"
+	AccountScopeCredentialsWrite  AccountScope = "account:credentials:write"
+	AccountScopeAuthProvidersRead AccountScope = "account:auth_providers:read"
 )
 
 var baseAuthScopes = []AccountScope{AccountScopeEmail, AccountScopeProfile}

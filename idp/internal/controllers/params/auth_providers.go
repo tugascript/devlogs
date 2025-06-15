@@ -4,12 +4,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-package paths
+package params
 
-const (
-	Base    string = "/"
-	Keys    string = "/keys"
-	Confirm string = "/confirm"
-	TwoFA   string = "/2fa"
-	Recover string = "/recover"
-)
+type AccountAuthProviderURLParams struct {
+	Provider string `validate:"required,oneof=apple facebook github google microsoft"`
+}

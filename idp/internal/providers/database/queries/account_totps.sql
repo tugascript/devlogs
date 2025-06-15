@@ -24,3 +24,10 @@ WHERE "account_id" = $1 LIMIT 1;
 -- name: DeleteAccountRecoveryKeys :exec
 DELETE FROM "account_totps"
 WHERE "account_id" = $1;
+
+-- name: UpdateAccountTotp :exec
+UPDATE "account_totps" SET
+  "url" = $2,
+  "secret" = $3,
+  "recovery_codes" = $4
+WHERE "id" = $1;
