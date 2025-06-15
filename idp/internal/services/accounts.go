@@ -147,8 +147,9 @@ func (s *Services) CreateAccount(
 	}
 
 	if err := qrs.CreateAccountAuthProvider(ctx, database.CreateAccountAuthProviderParams{
-		Email:    email,
-		Provider: authProvider,
+		Email:           email,
+		Provider:        authProvider,
+		AccountPublicID: publicID,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create auth Provider", "error", err)
 		serviceErr = exceptions.FromDBError(err)

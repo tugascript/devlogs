@@ -858,3 +858,65 @@ func (s *Services) RecoverAccount(
 		s.jwt.Get2FATTL(),
 	), nil
 }
+
+type ListAccountAuthProvidersOptions struct {
+	RequestID string
+	PublicID  uuid.UUID
+}
+
+func (s *Services) ListAccountAuthProviders(
+	ctx context.Context,
+	opts ListAccountAuthProvidersOptions,
+) ([]dtos.AuthProviderDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, authLocation, "ListAccountAuthProviders").With(
+		"publicID", opts.PublicID,
+	)
+	logger.InfoContext(ctx, "Getting account auth providers...")
+
+	providers, err := s.database.FindAccountAuthProvidersByAccountPublicId(ctx, opts.PublicID)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account auth providers", "error", err)
+		return nil, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Retrieved account auth providers successfully")
+	return utils.MapSlice(providers, dtos.MapAccountAuthProviderToDTO), nil
+}
+
+type GetAccountAuthProviderOptions struct {
+	RequestID string
+	PublicID  uuid.UUID
+	Provider  string
+}
+
+func (s *Services) GetAccountAuthProvider(
+	ctx context.Context,
+	opts GetAccountAuthProviderOptions,
+) (dtos.AuthProviderDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, authLocation, "GetAccountAuthProvider").With(
+		"publicID", opts.PublicID,
+		"provider", opts.Provider,
+	)
+	logger.InfoContext(ctx, "Getting account auth provider...")
+
+	provider, serviceErr := mapAuthProvider(opts.Provider)
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Invalid auth provider", "serviceError", serviceErr)
+		return dtos.AuthProviderDTO{}, serviceErr
+	}
+
+	authProvider, err := s.database.FindAccountAuthProviderByAccountPublicIdAndProvider(
+		ctx,
+		database.FindAccountAuthProviderByAccountPublicIdAndProviderParams{
+			AccountPublicID: opts.PublicID,
+			Provider:        provider,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account auth provider", "error", err)
+		return dtos.AuthProviderDTO{}, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Retrieved account auth provider successfully")
+	return dtos.MapAccountAuthProviderToDTO(&authProvider), nil
+}

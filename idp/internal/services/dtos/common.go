@@ -121,3 +121,14 @@ func GetJwtCryptoSuite(cryptoSuite database.TokenCryptoSuite) (tokens.SupportedC
 		return "", exceptions.NewServerError()
 	}
 }
+
+type ItemsDTO[T any] struct {
+	Items []T `json:"items"`
+}
+
+func NewItemsDTO[T any](items []T) ItemsDTO[T] {
+	if items == nil {
+		return ItemsDTO[T]{Items: make([]T, 0)}
+	}
+	return ItemsDTO[T]{Items: items}
+}

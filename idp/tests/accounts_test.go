@@ -8,20 +8,21 @@ package tests
 
 import (
 	"context"
-	"github.com/google/uuid"
-	"github.com/pquerna/otp/totp"
-	"github.com/tugascript/devlogs/idp/internal/providers/cache"
-	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/pquerna/otp/totp"
+
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/cache"
+	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 func TestGetCurrentAccount(t *testing.T) {

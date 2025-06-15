@@ -7,22 +7,27 @@ package database
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const createAccountAuthProvider = `-- name: CreateAccountAuthProvider :exec
 
 INSERT INTO "account_auth_providers" (
   "email",
+  "account_public_id",
   "provider"
 ) VALUES (
   $1,
-  $2
+  $2,
+  $3
 )
 `
 
 type CreateAccountAuthProviderParams struct {
-	Email    string
-	Provider AuthProvider
+	Email           string
+	AccountPublicID uuid.UUID
+	Provider        AuthProvider
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -31,7 +36,7 @@ type CreateAccountAuthProviderParams struct {
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateAccountAuthProvider(ctx context.Context, arg CreateAccountAuthProviderParams) error {
-	_, err := q.db.Exec(ctx, createAccountAuthProvider, arg.Email, arg.Provider)
+	_, err := q.db.Exec(ctx, createAccountAuthProvider, arg.Email, arg.AccountPublicID, arg.Provider)
 	return err
 }
 
@@ -47,8 +52,35 @@ func (q *Queries) DeleteExternalAccountAuthProviders(ctx context.Context, email 
 	return err
 }
 
+const findAccountAuthProviderByAccountPublicIdAndProvider = `-- name: FindAccountAuthProviderByAccountPublicIdAndProvider :one
+SELECT id, email, provider, account_public_id, created_at, updated_at FROM "account_auth_providers"
+WHERE
+  "account_public_id" = $1 AND
+  "provider" = $2
+LIMIT 1
+`
+
+type FindAccountAuthProviderByAccountPublicIdAndProviderParams struct {
+	AccountPublicID uuid.UUID
+	Provider        AuthProvider
+}
+
+func (q *Queries) FindAccountAuthProviderByAccountPublicIdAndProvider(ctx context.Context, arg FindAccountAuthProviderByAccountPublicIdAndProviderParams) (AccountAuthProvider, error) {
+	row := q.db.QueryRow(ctx, findAccountAuthProviderByAccountPublicIdAndProvider, arg.AccountPublicID, arg.Provider)
+	var i AccountAuthProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Provider,
+		&i.AccountPublicID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const findAccountAuthProviderByEmailAndProvider = `-- name: FindAccountAuthProviderByEmailAndProvider :one
-SELECT id, email, provider, created_at, updated_at FROM "account_auth_providers"
+SELECT id, email, provider, account_public_id, created_at, updated_at FROM "account_auth_providers"
 WHERE 
   "email" = $1 AND 
   "provider" = $2
@@ -67,8 +99,43 @@ func (q *Queries) FindAccountAuthProviderByEmailAndProvider(ctx context.Context,
 		&i.ID,
 		&i.Email,
 		&i.Provider,
+		&i.AccountPublicID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const findAccountAuthProvidersByAccountPublicId = `-- name: FindAccountAuthProvidersByAccountPublicId :many
+SELECT id, email, provider, account_public_id, created_at, updated_at FROM "account_auth_providers"
+WHERE
+  "account_public_id" = $1
+ORDER BY "id" DESC
+`
+
+func (q *Queries) FindAccountAuthProvidersByAccountPublicId(ctx context.Context, accountPublicID uuid.UUID) ([]AccountAuthProvider, error) {
+	rows, err := q.db.Query(ctx, findAccountAuthProvidersByAccountPublicId, accountPublicID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AccountAuthProvider{}
+	for rows.Next() {
+		var i AccountAuthProvider
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Provider,
+			&i.AccountPublicID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
