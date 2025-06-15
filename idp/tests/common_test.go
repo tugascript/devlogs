@@ -43,6 +43,7 @@ var _testServer *server.FiberServer
 var _testTokens *tokens.Tokens
 var _testDatabase *database.Database
 var _testCache *cache.Cache
+var _testEncryption *encryption.Encryption
 
 func initTestServicesAndApp(t *testing.T) {
 	logger := server.DefaultLogger()
@@ -101,7 +102,7 @@ func initTestServicesAndApp(t *testing.T) {
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")
 
 	logger.InfoContext(ctx, "Building encryption...")
-	encryp := encryption.NewEncryption(logger, cfg.EncryptionConfig(), cfg.BackendDomain())
+	_testEncryption = encryption.NewEncryption(logger, cfg.EncryptionConfig(), cfg.BackendDomain())
 	logger.InfoContext(ctx, "Finished building encryption")
 
 	logger.InfoContext(ctx, "Building OAuth provider...")
@@ -122,7 +123,7 @@ func initTestServicesAndApp(t *testing.T) {
 		_testCache,
 		mail,
 		_testTokens,
-		encryp,
+		_testEncryption,
 		oauthProviders,
 	)
 
@@ -183,7 +184,16 @@ func GetTestTokens(t *testing.T) *tokens.Tokens {
 	return _testTokens
 }
 
-func CreateTestJSONRequestBody(t *testing.T, reqBody interface{}) *bytes.Reader {
+func GetTestEncryption(t *testing.T) *encryption.Encryption {
+	if _testEncryption == nil {
+		initTestServicesAndApp(t)
+		_testServer.RegisterFiberRoutes()
+	}
+
+	return _testEncryption
+}
+
+func CreateTestJSONRequestBody(t *testing.T, reqBody any) *bytes.Reader {
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
 		t.Fatal("Failed to marshal JSON", err)
