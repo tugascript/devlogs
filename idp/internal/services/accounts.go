@@ -30,9 +30,33 @@ type CreateAccountOptions struct {
 	RequestID  string
 	GivenName  string
 	FamilyName string
+	Username   string
 	Email      string
 	Password   string
 	Provider   string
+}
+
+func (s *Services) setAccountUsername(
+	logger *slog.Logger,
+	username string,
+) (string, *exceptions.ServiceError) {
+	if username == "" {
+		username = uuid.NewString()
+		logger.Info("Generated random username", "username", username)
+		return username, nil
+	}
+
+	count, err := s.database.CountAccountsByUsername(context.Background(), username)
+	if err != nil {
+		logger.Error("Failed to count accounts by username", "error", err)
+		return "", exceptions.NewServerError()
+	}
+	if count > 0 {
+		logger.Warn("Username already in use", "username", username)
+		return "", exceptions.NewConflictError("Username already in use")
+	}
+
+	return username, nil
 }
 
 func (s *Services) CreateAccount(
@@ -83,21 +107,26 @@ func (s *Services) CreateAccount(
 		logger.ErrorContext(ctx, "Provider must be 'email', 'apple', 'facebook', 'github', 'google' or 'microsoft'")
 		return dtos.AccountDTO{}, exceptions.NewServerError()
 	}
-	if _, err := s.database.FindAccountByEmail(ctx, email); err != nil {
-		serviceErr := exceptions.FromDBError(err)
-		if serviceErr.Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to get account by email", "error", serviceErr)
-			return dtos.AccountDTO{}, serviceErr
-		}
-	} else {
-		logger.WarnContext(ctx, "Account already exists for given email")
-		return dtos.AccountDTO{}, exceptions.NewConflictError("Email already in use")
-	}
 
 	dek, err := s.encrypt.GenerateAccountDEK(ctx, opts.RequestID)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate account DEK", "error", err)
 		return dtos.AccountDTO{}, exceptions.NewServerError()
+	}
+
+	count, err := s.database.CountAccountsByEmail(ctx, email)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count accounts by email", "error", err)
+		return dtos.AccountDTO{}, exceptions.FromDBError(err)
+	}
+	if count > 0 {
+		logger.WarnContext(ctx, "Email already in use", "email", email)
+		return dtos.AccountDTO{}, exceptions.NewConflictError("Email already in use")
+	}
+
+	username, serviceErr := s.setAccountUsername(logger, opts.Username)
+	if serviceErr != nil {
+		return dtos.AccountDTO{}, serviceErr
 	}
 
 	qrs, txn, err := s.database.BeginTx(ctx)
@@ -118,7 +147,6 @@ func (s *Services) CreateAccount(
 
 	givenName := utils.Capitalized(opts.GivenName)
 	familyName := utils.Capitalized(opts.FamilyName)
-	username := uuid.NewString()
 	var account database.Account
 	if authProvider == database.AuthProviderUsernamePassword {
 		account, err = qrs.CreateAccountWithPassword(ctx, database.CreateAccountWithPasswordParams{
@@ -861,6 +889,12 @@ func (s *Services) UpdateAccountUsername(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
+	username := utils.Lowered(opts.Username)
+	if accountDTO.Username == username {
+		logger.WarnContext(ctx, "New username is the same as current username")
+		return dtos.AuthDTO{}, exceptions.NewValidationError("New username must be different from current")
+	}
+
 	count, err := s.database.CountAccountAuthProvidersByEmailAndProvider(
 		ctx,
 		database.CountAccountAuthProvidersByEmailAndProviderParams{
@@ -889,7 +923,6 @@ func (s *Services) UpdateAccountUsername(
 		}
 	}
 
-	username := utils.Lowered(opts.Username)
 	count, err = s.database.CountAccountsByUsername(ctx, username)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count account by username", "error", err)
@@ -997,16 +1030,6 @@ func (s *Services) ConfirmUpdateAccountUsername(
 		opts.Code,
 	); serviceErr != nil {
 		return dtos.AuthDTO{}, serviceErr
-	}
-
-	count, err := s.database.CountAccountsByUsername(ctx, newUsername)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to count account by username", "error", err)
-		return dtos.AuthDTO{}, exceptions.FromDBError(err)
-	}
-	if count > 0 {
-		logger.WarnContext(ctx, "Username already in use")
-		return dtos.AuthDTO{}, exceptions.NewConflictError("Username already in use")
 	}
 
 	account, err := s.database.UpdateAccountUsername(ctx, database.UpdateAccountUsernameParams{

@@ -891,3 +891,374 @@ func TestConfirmUpdateAccountEmail(t *testing.T) {
 
 	t.Cleanup(accountsCleanUp(t))
 }
+
+func TestUpdateAccountUsername(t *testing.T) {
+	const updateUsernamePath = v1Path + paths.AccountsBase + paths.AccountUsername
+
+	testCases := []TestRequestCase[bodies.UpdateAccountUsernameBody]{
+		{
+			Name: "Should return 200 OK updating account username",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
+				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				account := CreateTestAccount(t, accountData)
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.UpdateAccountUsernameBody{
+					Username: "newusername-" + uuid.NewString()[:8],
+					Password: accountData.Password,
+				}, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, req bodies.UpdateAccountUsernameBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertNotEmpty(t, resBody.AccessToken)
+				AssertNotEmpty(t, resBody.RefreshToken)
+			},
+		},
+		{
+			Name: "Should return 200 OK updating account username even without password for social accounts",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
+				accountData := GenerateFakeAccountData(t, services.AuthProviderFacebook)
+				account := CreateTestAccount(t, accountData)
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.UpdateAccountUsernameBody{
+					Username: "newusername-" + uuid.NewString()[:8],
+					Password: accountData.Password,
+				}, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, req bodies.UpdateAccountUsernameBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertNotEmpty(t, resBody.AccessToken)
+				AssertNotEmpty(t, resBody.RefreshToken)
+			},
+		},
+		{
+			Name: "Should return 200 OK pending username update confirmation if 2FA enabled",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
+				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				account := CreateTestAccount(t, accountData)
+				testS := GetTestServices(t)
+				requestID := uuid.NewString()
+				if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
+					RequestID:     requestID,
+					PublicID:      account.PublicID,
+					Version:       account.Version(),
+					TwoFactorType: services.TwoFactorEmail,
+					Password:      accountData.Password,
+				}); err != nil {
+					t.Fatalf("failed to enable 2FA for account: %v", err)
+				}
+				account, err := testS.GetAccountByPublicID(context.Background(), services.GetAccountByPublicIDOptions{
+					RequestID: requestID,
+					PublicID:  account.PublicID,
+				})
+				if err != nil {
+					t.Fatalf("failed to get account by public ID: %v", err)
+				}
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.UpdateAccountUsernameBody{
+					Username: "pendingusername-" + uuid.NewString()[:8],
+					Password: accountData.Password,
+				}, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, req bodies.UpdateAccountUsernameBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertNotEmpty(t, resBody.AccessToken)
+				AssertEmpty(t, resBody.RefreshToken)
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST if username is the same as current",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
+				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				account := CreateTestAccount(t, accountData)
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.UpdateAccountUsernameBody{
+					Username: account.Username,
+					Password: accountData.Password,
+				}, accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ bodies.UpdateAccountUsernameBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, resBody.Message, "New username must be different from current")
+			},
+		},
+		{
+			Name: "Should return 409 CONFLICT if username is already in use",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
+				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				account := CreateTestAccount(t, accountData)
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				anotherAccountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				anotherAccount := CreateTestAccount(t, anotherAccountData)
+				return bodies.UpdateAccountUsernameBody{
+					Username: anotherAccount.Username,
+					Password: accountData.Password,
+				}, accessToken
+			},
+			ExpStatus: http.StatusConflict,
+			AssertFn: func(t *testing.T, _ bodies.UpdateAccountUsernameBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ErrorResponse{})
+				AssertEqual(t, resBody.Message, "Username already in use")
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST if validation fails",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
+				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				account := CreateTestAccount(t, accountData)
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.UpdateAccountUsernameBody{
+					Username: "x",
+					Password: accountData.Password,
+				}, accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ bodies.UpdateAccountUsernameBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "username", resBody.Fields[0].Param)
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if password is wrong",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
+				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				account := CreateTestAccount(t, accountData)
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.UpdateAccountUsernameBody{
+					Username: "newusername-" + uuid.NewString()[:8],
+					Password: "WrongPassword123!",
+				}, accessToken
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.UpdateAccountUsernameBody],
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if no access token",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
+				return bodies.UpdateAccountUsernameBody{
+					Username: "newusername_" + uuid.NewString()[:8],
+					Password: "Password123!",
+				}, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.UpdateAccountUsernameBody],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPatch, updateUsernamePath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+func TestConfirmUpdateAccountUsername(t *testing.T) {
+	const confirmUsernamePath = v1Path + paths.AccountsBase + paths.AccountUsername + paths.Confirm
+
+	genTwoFactorAccount := func(t *testing.T, twoFactorType string) (dtos.AccountDTO, string, string) {
+		accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+		account := CreateTestAccount(t, accountData)
+		testS := GetTestServices(t)
+		requestID := uuid.NewString()
+
+		if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
+			RequestID:     requestID,
+			PublicID:      account.PublicID,
+			Version:       account.Version(),
+			TwoFactorType: twoFactorType,
+			Password:      accountData.Password,
+		}); err != nil {
+			t.Fatalf("failed to enable 2FA for account: %v", err)
+		}
+
+		account, serviceErr := testS.GetAccountByPublicID(context.Background(), services.GetAccountByPublicIDOptions{
+			RequestID: requestID,
+			PublicID:  account.PublicID,
+		})
+		if serviceErr != nil {
+			t.Fatalf("failed to get account by public ID: %v", serviceErr)
+		}
+
+		return account, accountData.Password, "newusername-" + uuid.NewString()[:8]
+	}
+
+	testCases := []TestRequestCase[bodies.TwoFactorLoginBody]{
+		{
+			Name: "Should return 200 OK and update username after confirmation for TOTP 2FA",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				account, password, newUsername := genTwoFactorAccount(t, services.TwoFactorTotp)
+				requestID := uuid.NewString()
+				authDTO, serviceErr := GetTestServices(t).UpdateAccountUsername(
+					context.Background(),
+					services.UpdateAccountUsernameOptions{
+						RequestID: requestID,
+						PublicID:  account.PublicID,
+						Version:   account.Version(),
+						Password:  password,
+						Username:  newUsername,
+					},
+				)
+				if serviceErr != nil {
+					t.Fatalf("failed to update account username: %v", serviceErr)
+				}
+
+				accountTOTP, err := GetTestDatabase(t).FindAccountTotpByAccountID(context.Background(), account.ID())
+				if err != nil {
+					t.Fatal("Failed to find account TOTP", err)
+				}
+
+				dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
+					encryption.ProcessTotpDEKOptions{
+						RequestID: uuid.NewString(),
+						TotpType:  encryption.TotpTypeAccount,
+						StoredDEK: account.DEK(),
+					},
+				)
+				if err != nil {
+					t.Fatal("Failed to decrypt account DEK", err)
+				}
+
+				secret, err := utils.Decrypt(accountTOTP.Secret, dek)
+				if err != nil {
+					t.Fatal("Failed to decrypt secret", err)
+				}
+
+				code, err := totp.GenerateCode(secret, time.Now().UTC())
+				if err != nil {
+					t.Fatal("Failed to generate code", err)
+				}
+
+				return bodies.TwoFactorLoginBody{
+					Code: code,
+				}, authDTO.AccessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.TwoFactorLoginBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertNotEmpty(t, resBody.AccessToken)
+				AssertNotEmpty(t, resBody.RefreshToken)
+			},
+		},
+		{
+			Name: "Should return 200 OK and update username after confirmation for email 2FA",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				account, password, newUsername := genTwoFactorAccount(t, services.TwoFactorEmail)
+				requestID := uuid.NewString()
+				authDTO, serviceErr := GetTestServices(t).UpdateAccountUsername(
+					context.Background(),
+					services.UpdateAccountUsernameOptions{
+						RequestID: requestID,
+						PublicID:  account.PublicID,
+						Version:   account.Version(),
+						Password:  password,
+						Username:  newUsername,
+					},
+				)
+				if serviceErr != nil {
+					t.Fatalf("failed to update account username: %v", serviceErr)
+				}
+
+				code, err := GetTestCache(t).AddTwoFactorCode(context.Background(), cache.AddTwoFactorCodeOptions{
+					RequestID: uuid.NewString(),
+					AccountID: account.ID(),
+					TTL:       GetTestTokens(t).Get2FATTL(),
+				})
+				if err != nil {
+					t.Fatal("Failed to create email code", err)
+				}
+
+				return bodies.TwoFactorLoginBody{
+					Code: code,
+				}, authDTO.AccessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.TwoFactorLoginBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertNotEmpty(t, resBody.AccessToken)
+				AssertNotEmpty(t, resBody.RefreshToken)
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST if code is malformed",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				account, password, newUsername := genTwoFactorAccount(t, services.TwoFactorEmail)
+				requestID := uuid.NewString()
+				authDTO, serviceErr := GetTestServices(t).UpdateAccountUsername(
+					context.Background(),
+					services.UpdateAccountUsernameOptions{
+						RequestID: requestID,
+						PublicID:  account.PublicID,
+						Version:   account.Version(),
+						Password:  password,
+						Username:  newUsername,
+					},
+				)
+				if serviceErr != nil {
+					t.Fatalf("failed to update account username: %v", serviceErr)
+				}
+
+				return bodies.TwoFactorLoginBody{
+					Code: "not-a-valid-code",
+				}, authDTO.AccessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ bodies.TwoFactorLoginBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "code", resBody.Fields[0].Param)
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if code is invalid",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				account, password, newUsername := genTwoFactorAccount(t, services.TwoFactorEmail)
+				requestID := uuid.NewString()
+				authDTO, serviceErr := GetTestServices(t).UpdateAccountUsername(
+					context.Background(),
+					services.UpdateAccountUsernameOptions{
+						RequestID: requestID,
+						PublicID:  account.PublicID,
+						Version:   account.Version(),
+						Password:  password,
+						Username:  newUsername,
+					},
+				)
+				if serviceErr != nil {
+					t.Fatalf("failed to update account username: %v", serviceErr)
+				}
+
+				return bodies.TwoFactorLoginBody{
+					Code: "129876",
+				}, authDTO.AccessToken
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.TwoFactorLoginBody],
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if no access token",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				return bodies.TwoFactorLoginBody{
+					Code: "123456",
+				}, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.TwoFactorLoginBody],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, confirmUsernamePath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+// TODO: add update account 2FA test and confirm tests

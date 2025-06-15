@@ -4,15 +4,15 @@ type UserData = map[string]any
 
 type CreateUserBody struct {
 	Email    string `json:"email" validate:"required,email"`
-	Username string `json:"username,omitempty" validate:"optional,min=3,max=100,slug"`
+	Username string `json:"username,omitempty" validate:"omitempty,min=3,max=100,slug"`
 	Password string `json:"password" validate:"required,min=8,max=100,password"`
 	UserData
 }
 
 type UpdateUserBody struct {
-	Email    string `json:"email" validate:"optional,email"`
-	Username string `json:"username,omitempty" validate:"optional,min=3,max=100,slug"`
-	IsActive bool   `json:"is_active" validate:"optional"`
+	Email    string `json:"email" validate:"email"`
+	Username string `json:"username,omitempty" validate:"omitempty,min=3,max=100,slug"`
+	IsActive bool   `json:"is_active"`
 	UserData
 }
 
@@ -22,6 +22,6 @@ type UpdateUserPasswordBody struct {
 }
 
 type UpdateAccountUsernameBody struct {
-	Username string `json:"username" validate:"required,min=1,max=63,slug"`
-	Password string `json:"password,omitempty" validate:"optional,min=1"`
+	Username string `json:"username" validate:"required,min=3,max=63,slug"`
+	Password string `json:"password,omitempty" validate:"omitempty,min=1"`
 }

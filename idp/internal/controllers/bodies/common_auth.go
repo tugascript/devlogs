@@ -50,8 +50,7 @@ type AuthCodeLoginBody struct {
 
 type ClientCredentialsBody struct {
 	GrantType string `json:"grant_type" validate:"required,eq=client_credentials"`
-	Audience  string `json:"audience,omitempty" validate:"url"`
-	Scope     string `json:"scopes,omitempty" validate:"scopes"`
+	Scope     string `json:"scopes,omitempty" validate:"omitempty,scopes"`
 }
 
 type AppleLoginBody struct {
@@ -87,10 +86,10 @@ type CreatePasswordBody struct {
 }
 
 type DeleteWithPasswordBody struct {
-	Password string `json:"password,omitempty" validate:"optional,min=1"`
+	Password string `json:"password,omitempty" validate:"omitempty,min=1"`
 }
 
 type UpdateTwoFactorBody struct {
 	TwoFactorType string `json:"two_factor_type" validate:"required,two_factor_type"`
-	Password      string `json:"password,omitempty" validate:"optional,min=1"`
+	Password      string `json:"password,omitempty" validate:"omitempty,min=1"`
 }

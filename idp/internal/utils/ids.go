@@ -15,13 +15,9 @@ import (
 	"github.com/google/uuid"
 )
 
-func Base62UUID() (string, error) {
-	id, err := uuid.NewRandom()
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%022s", Base62Encode(id[:])), nil
+func Base62UUID() string {
+	id := uuid.New()
+	return fmt.Sprintf("%022s", Base62Encode(id[:]))
 }
 
 func Base64UUID() (string, error) {

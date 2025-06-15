@@ -739,11 +739,7 @@ func TestOAuthToken(t *testing.T) {
 			Name: "POST should return 400 BAD REQUEST invalid_grant with authorization_code grant type with invalid code and valid token",
 			ReqFn: func(t *testing.T) (string, string) {
 				_, accessToken := beforeEachAuthorization(t)
-				code, err := utils.Base62UUID()
-				if err != nil {
-					t.Fatal("Failed to generate random code", err)
-				}
-				return createAuthorizationBody(code), accessToken
+				return createAuthorizationBody(utils.Base62UUID()), accessToken
 			},
 			ExpStatus: http.StatusBadRequest,
 			AssertFn: func(t *testing.T, req string, res *http.Response) {

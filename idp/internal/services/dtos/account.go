@@ -17,6 +17,7 @@ type AccountDTO struct {
 	GivenName     string                 `json:"given_name"`
 	FamilyName    string                 `json:"family_name"`
 	Email         string                 `json:"email"`
+	Username      string                 `json:"username"`
 	TwoFactorType database.TwoFactorType `json:"two_factor_type"`
 
 	id            int32
@@ -55,6 +56,7 @@ func MapAccountToDTO(account *database.Account) AccountDTO {
 		FamilyName:    account.FamilyName,
 		Email:         account.Email,
 		TwoFactorType: account.TwoFactorType,
+		Username:      account.Username,
 		emailVerified: account.EmailVerified,
 		password:      account.Password.String,
 		dek:           account.Dek,
