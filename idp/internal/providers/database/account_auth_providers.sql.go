@@ -11,6 +11,26 @@ import (
 	"github.com/google/uuid"
 )
 
+const countAccountAuthProvidersByEmailAndProvider = `-- name: CountAccountAuthProvidersByEmailAndProvider :one
+SELECT COUNT("id") FROM "account_auth_providers"
+WHERE
+  "email" = $1 AND
+  "provider" = $2
+LIMIT 1
+`
+
+type CountAccountAuthProvidersByEmailAndProviderParams struct {
+	Email    string
+	Provider AuthProvider
+}
+
+func (q *Queries) CountAccountAuthProvidersByEmailAndProvider(ctx context.Context, arg CountAccountAuthProvidersByEmailAndProviderParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccountAuthProvidersByEmailAndProvider, arg.Email, arg.Provider)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAccountAuthProvider = `-- name: CreateAccountAuthProvider :exec
 
 INSERT INTO "account_auth_providers" (

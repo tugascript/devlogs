@@ -35,6 +35,13 @@ WHERE
   "provider" = $2
 LIMIT 1;
 
+-- name: CountAccountAuthProvidersByEmailAndProvider :one
+SELECT COUNT("id") FROM "account_auth_providers"
+WHERE
+  "email" = $1 AND
+  "provider" = $2
+LIMIT 1;
+
 -- name: DeleteExternalAccountAuthProviders :exec
 DELETE FROM "account_auth_providers"
 WHERE 

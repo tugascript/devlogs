@@ -44,13 +44,25 @@ func (q *Queries) ConfirmAccount(ctx context.Context, id int32) (Account, error)
 	return i, err
 }
 
-const countAccountByUsername = `-- name: CountAccountByUsername :one
+const countAccountsByEmail = `-- name: CountAccountsByEmail :one
+SELECT COUNT("id") FROM "accounts"
+WHERE "email" = $1 LIMIT 1
+`
+
+func (q *Queries) CountAccountsByEmail(ctx context.Context, email string) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccountsByEmail, email)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countAccountsByUsername = `-- name: CountAccountsByUsername :one
 SELECT COUNT("id") FROM "accounts"
 WHERE "username" = $1 LIMIT 1
 `
 
-func (q *Queries) CountAccountByUsername(ctx context.Context, username string) (int64, error) {
-	row := q.db.QueryRow(ctx, countAccountByUsername, username)
+func (q *Queries) CountAccountsByUsername(ctx context.Context, username string) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccountsByUsername, username)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
