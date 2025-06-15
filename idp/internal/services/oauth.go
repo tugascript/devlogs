@@ -236,7 +236,11 @@ func (s *Services) saveExtAccount(
 			return dtos.AccountDTO{}, serviceErr
 		}
 
-		if err := s.database.CreateAccountAuthProvider(ctx, database.CreateAccountAuthProviderParams(prvdrOpts)); err != nil {
+		if err := s.database.CreateAccountAuthProvider(ctx, database.CreateAccountAuthProviderParams{
+			Email:           accountDto.Email,
+			Provider:        authProvider,
+			AccountPublicID: accountDto.PublicID,
+		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to create auth Provider", "error", err)
 			return dtos.AccountDTO{}, exceptions.FromDBError(err)
 		}
