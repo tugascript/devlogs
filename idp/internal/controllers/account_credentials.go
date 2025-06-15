@@ -74,7 +74,7 @@ func (c *Controllers) ListAccountCredentials(ctx *fiber.Ctx) error {
 		Offset: ctx.QueryInt("offset", 0),
 		Limit:  ctx.QueryInt("limit", 20),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), queryParams); err != nil {
+	if err := c.validate.StructCtx(ctx.UserContext(), &queryParams); err != nil {
 		return validateQueryParamsErrorResponse(logger, ctx, err)
 	}
 
