@@ -31,7 +31,7 @@ type Ed25519JWK struct {
 	D      string   `json:"d,omitempty"` // Private Key, omit if public key jwt
 	Use    string   `json:"use"`         // Usage (e.g., "sig" for signing)
 	Alg    string   `json:"alg"`         // Algorithm (EdDSA for Ed25519)
-	Kid    string   `json:"kid"`         // Key AccountID
+	Kid    string   `json:"kid"`         // Key ID
 	KeyOps []string `json:"key_ops"`     // Key Operations
 }
 
@@ -59,7 +59,7 @@ type ES256JWK struct {
 	D      string   `json:"d,omitempty"` // Private Key, omit if public key jwt
 	Use    string   `json:"use"`         // Usage (e.g., "sig" for signing)
 	Alg    string   `json:"alg"`         // Algorithm (ES256 for P-256)
-	Kid    string   `json:"kid"`         // Key AccountID
+	Kid    string   `json:"kid"`         // Key ID
 	KeyOps []string `json:"key_ops"`     // Key Operations
 }
 
