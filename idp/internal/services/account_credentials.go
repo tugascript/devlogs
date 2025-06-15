@@ -108,12 +108,6 @@ func (s *Services) CreateAccountCredentials(
 		return dtos.AccountCredentialsDTO{}, exceptions.NewConflictError("Account keys alias already exists")
 	}
 
-	clientID, err := utils.Base62UUID()
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate client id", "error", err)
-		return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
-	}
-
 	qrs, txn, err := s.database.BeginTx(ctx)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
@@ -125,7 +119,7 @@ func (s *Services) CreateAccountCredentials(
 	}()
 
 	accountCredentials, err := qrs.CreateAccountCredentials(ctx, database.CreateAccountCredentialsParams{
-		ClientID:        clientID,
+		ClientID:        utils.Base62UUID(),
 		AccountID:       accountID,
 		AccountPublicID: opts.AccountPublicID,
 		Scopes:          scopes,

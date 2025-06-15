@@ -87,6 +87,33 @@ func TestRegister(t *testing.T) {
 			},
 		},
 		{
+			Name: "Should return 200 OK registering a user with username",
+			ReqFn: func(t *testing.T) (bodies.RegisterAccountBody, string) {
+				data := generateFakeRegisterData(t)
+				random, err := utils.GenerateBase32Secret(16)
+				if err != nil {
+					t.Fatal("Failed to generate random username", err)
+				}
+				data.Username = utils.Lowered(random)
+				return data, ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, body bodies.RegisterAccountBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.MessageDTO{})
+				AssertEqual(
+					t,
+					"Account registered successfully. Confirmation email has been sent.",
+					resBody.Message,
+				)
+				AssertNotEmpty(t, resBody.ID)
+				count, err := GetTestDatabase(t).CountAccountsByUsername(context.Background(), body.Username)
+				if err != nil {
+					t.Fatal("Failed to count accounts by username", err)
+				}
+				AssertEqual(t, int64(1), count)
+			},
+		},
+		{
 			Name: "Should return 400 BAD REQUEST if request validation fails",
 			ReqFn: func(t *testing.T) (bodies.RegisterAccountBody, string) {
 				data := generateFakeRegisterData(t)
@@ -731,3 +758,7 @@ func TestRefreshToken(t *testing.T) {
 
 	t.Cleanup(accountsCleanUp(t))
 }
+
+// TODO: add tests for account 2fa recovery
+// TODO: add tests for account forgot password and reset password
+// TODO: add tests for list and get auth providers

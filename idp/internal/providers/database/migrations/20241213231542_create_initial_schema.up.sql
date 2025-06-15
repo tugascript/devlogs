@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-06-15T10:19:29.439Z
+-- Generated at: 2025-06-15T13:07:46.315Z
 
 CREATE TYPE "two_factor_type" AS ENUM (
   'none',
@@ -353,6 +353,15 @@ CREATE TABLE "app_server_urls" (
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
+CREATE TABLE "app_service_audiences" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "app_id" integer NOT NULL,
+  "audiences" varchar(250)[] NOT NULL DEFAULT '{}',
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
 CREATE TABLE "app_designs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
@@ -542,6 +551,10 @@ CREATE INDEX "app_server_urls_account_id_idx" ON "app_server_urls" ("account_id"
 
 CREATE UNIQUE INDEX "app_server_urls_app_id_uidx" ON "app_server_urls" ("app_id");
 
+CREATE INDEX "app_service_uris_account_id_idx" ON "app_service_audiences" ("account_id");
+
+CREATE UNIQUE INDEX "app_service_uris_app_id_uidx" ON "app_service_audiences" ("app_id");
+
 CREATE INDEX "app_designs_account_id_idx" ON "app_designs" ("account_id");
 
 CREATE UNIQUE INDEX "app_designs_app_id_uidx" ON "app_designs" ("app_id");
@@ -631,6 +644,10 @@ ALTER TABLE "app_callback_uris" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("i
 ALTER TABLE "app_server_urls" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_server_urls" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "app_service_audiences" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "app_service_audiences" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_designs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

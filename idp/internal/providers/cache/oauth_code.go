@@ -34,12 +34,7 @@ func (c *Cache) GenerateOAuthCode(ctx context.Context, opts GenerateOAuthOptions
 	})
 	logger.DebugContext(ctx, "Generating OAuth code...")
 
-	code, err := utils.Base62UUID()
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate code", "error", err)
-		return "", err
-	}
-
+	code := utils.Base62UUID()
 	hashedCode, err := utils.Argon2HashString(code)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash code", "error", err)

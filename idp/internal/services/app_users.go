@@ -43,12 +43,6 @@ func (s *Services) CreateAppUser(
 	)
 	logger.InfoContext(ctx, "Creating app user...")
 
-	publicID, err := uuid.NewRandom()
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate user public ID", "error", err)
-		return dtos.UserDTO{}, exceptions.NewServerError()
-	}
-
 	authProvider, serviceErr := mapAuthProvider(opts.Provider)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map auth provider", "serviceError", serviceErr)
@@ -115,6 +109,7 @@ func (s *Services) CreateAppUser(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
+	publicID := uuid.New()
 	var user database.User
 	if authProvider == database.AuthProviderUsernamePassword {
 		user, err = qrs.CreateUserWithPassword(ctx, database.CreateUserWithPasswordParams{

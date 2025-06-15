@@ -118,6 +118,7 @@ type RegisterAccountOptions struct {
 	Email     string
 	GivenName string
 	LastName  string
+	Username  string
 	Password  string
 }
 
@@ -137,6 +138,7 @@ func (s *Services) RegisterAccount(
 		FamilyName: opts.LastName,
 		Email:      opts.Email,
 		Password:   opts.Password,
+		Username:   opts.Username,
 		Provider:   AuthProviderUsernamePassword,
 	})
 	if serviceErr != nil {

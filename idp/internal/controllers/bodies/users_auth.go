@@ -8,7 +8,7 @@ package bodies
 
 type RegisterUserBody struct {
 	Email     string `json:"email" validate:"required,email"`
-	Username  string `json:"username,omitempty" validate:"slug,min=3,max=63"`
+	Username  string `json:"username,omitempty" validate:"omitempty,slug,min=3,max=100"`
 	Password  string `json:"password" validate:"required,min=8,max=63,password"`
 	Password2 string `json:"password2" validate:"required,eqfield=Password"`
 	UserData

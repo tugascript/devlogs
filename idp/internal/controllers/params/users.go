@@ -21,7 +21,7 @@ type ListUsersQueryParams struct {
 	Limit  int    `validate:"min=1,max=100"`
 	Offset int    `validate:"min=0"`
 	Order  string `validate:"oneof=date email username"`
-	Search string `validate:"optional,min=1,max=255"`
+	Search string `validate:"min=1,max=255"`
 }
 
 type GetUserURLParams struct {

@@ -59,6 +59,7 @@ func (c *Controllers) RegisterAccount(ctx *fiber.Ctx) error {
 		Email:     body.Email,
 		GivenName: body.GivenName,
 		LastName:  body.FamilyName,
+		Username:  body.Username,
 		Password:  body.Password,
 	})
 	if serviceErr != nil {
