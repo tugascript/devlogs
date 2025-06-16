@@ -14,6 +14,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -27,7 +28,8 @@ type UserAuthClaims struct {
 type userAuthTokenClaims struct {
 	UserAuthClaims
 	AppClaims
-	Scope string `json:"scope"`
+	Scope           string `json:"scope"`
+	AuthorizedParty string `json:"azp,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -106,9 +108,9 @@ func (t *Tokens) CreateUserAuthToken(opts UserAuthTokenOptions) (string, error) 
 		}), " "),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: iss,
-			Audience: jwt.ClaimStrings(utils.MapSlice(opts.Paths, func(path *string) string {
+			Audience: utils.MapSlice(opts.Paths, func(path *string) string {
 				return buildPathAudience(iss, *path)
-			})),
+			}),
 			Subject:   opts.TokenSubject,
 			IssuedAt:  iat,
 			NotBefore: iat,

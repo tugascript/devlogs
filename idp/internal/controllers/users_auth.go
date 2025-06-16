@@ -319,7 +319,7 @@ func (c *Controllers) ForgotUserPassword(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 	}
 
-	body := new(bodies.ForgoutPasswordBody)
+	body := new(bodies.ForgotPasswordBody)
 	if err := ctx.BodyParser(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
@@ -329,7 +329,7 @@ func (c *Controllers) ForgotUserPassword(ctx *fiber.Ctx) error {
 
 	messageDTO, serviceErr := c.services.ForgoutUserPassword(ctx.UserContext(), services.ForgoutUserPasswordOptions{
 		RequestID:       requestID,
-		AccountID:       int32(accountID),
+		AccountID:       accountID,
 		AccountUsername: accountUsername,
 		AppClientID:     appClaims.ClientID,
 		AppVersion:      appClaims.Version,

@@ -152,7 +152,7 @@ func (s *Services) UnmarshalSchemaBody(
 		if !ok {
 			logger.WarnContext(ctx, "Field not found in schema", "fieldName", fieldName)
 			fieldErrors = append(fieldErrors, exceptions.FieldError{
-				Param:   string(fieldName),
+				Param:   fieldName,
 				Message: unkwonFieldMsg,
 				Value:   fieldValue,
 			})
@@ -163,7 +163,7 @@ func (s *Services) UnmarshalSchemaBody(
 		if !(field.IsValid() && field.CanSet()) {
 			logger.WarnContext(ctx, "Invalid field name", "fieldName", fieldName)
 			fieldErrors = append(fieldErrors, exceptions.FieldError{
-				Param:   string(fieldName),
+				Param:   fieldName,
 				Message: invalidFieldMsg,
 				Value:   fieldValue,
 			})

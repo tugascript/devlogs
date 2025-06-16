@@ -8,8 +8,10 @@ package tests
 
 import (
 	"context"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	"github.com/pquerna/otp/totp"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
+	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -195,7 +198,7 @@ func assertFullAuthAccessResponse[T any](t *testing.T, _ T, res *http.Response) 
 	AssertEqual(t, "Bearer", resBody.TokenType)
 	AssertNotEmpty(t, resBody.AccessToken)
 	AssertNotEmpty(t, resBody.RefreshToken)
-	AssertEqual(t, GetTestTokens(t).GetAccessTTL(), int64(resBody.ExpiresIn))
+	AssertEqual(t, GetTestTokens(t).GetAccessTTL(), resBody.ExpiresIn)
 }
 
 func assertTempAccessResponse[T any](t *testing.T, _ T, res *http.Response) {
@@ -759,6 +762,799 @@ func TestRefreshToken(t *testing.T) {
 	t.Cleanup(accountsCleanUp(t))
 }
 
-// TODO: add tests for account 2fa recovery
-// TODO: add tests for account forgot password and reset password
-// TODO: add tests for list and get auth providers
+func TestAccount2FARecover(t *testing.T) {
+	const recover2FAPath = v1Path + paths.AuthBase + paths.AuthLogin + paths.Auth2FA + paths.Recover
+
+	getRandomZeroToSeven := func() int {
+		return rand.Intn(8)
+	}
+
+	gen2FAAccount := func(t *testing.T) (dtos.AccountDTO, string, string) {
+		data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+		accountDTO := CreateTestAccount(t, data)
+		testE := GetTestEncryption(t)
+		testD := GetTestDatabase(t)
+		testT := GetTestTokens(t)
+		requestID := uuid.NewString()
+
+		totpKey, err := testE.GenerateTotpKey(context.Background(), encryption.GenerateTotpKeyOptions{
+			RequestID: requestID,
+			Email:     accountDTO.Email,
+			TotpType:  encryption.TotpTypeAccount,
+			StoredDEK: accountDTO.DEK(),
+		})
+		if err != nil {
+			t.Fatal("Failed to generate TOTP key", err)
+		}
+
+		account, err := testD.UpdateAccountTwoFactorType(context.Background(), database.UpdateAccountTwoFactorTypeParams{
+			TwoFactorType: database.TwoFactorTypeTotp,
+			ID:            accountDTO.ID(),
+		})
+		if err != nil {
+			t.Fatal("Failed to update account two factor type", err)
+		}
+
+		if err := testD.CreateAccountTotps(context.Background(), database.CreateAccountTotpsParams{
+			AccountID:     account.ID,
+			Url:           totpKey.URL(),
+			Secret:        totpKey.EncryptedSecret(),
+			RecoveryCodes: totpKey.HashedCodes(),
+		}); err != nil {
+			t.Fatal("Failed to create account TOTP", err)
+		}
+
+		twoFAToken, err := testT.Create2FAToken(tokens.Account2FATokenOptions{
+			PublicID: account.PublicID,
+			Version:  account.Version,
+		})
+		if err != nil {
+			t.Fatal("Failed to create 2FA token", err)
+		}
+
+		recoveryCode := strings.Split(totpKey.Codes(), "\n")[getRandomZeroToSeven()]
+		return dtos.MapAccountToDTO(&account), twoFAToken, recoveryCode
+	}
+
+	testCases := []TestRequestCase[bodies.RecoverBody]{
+		{
+			Name: "Should return 200 OK and disable 2FA with valid recovery code",
+			ReqFn: func(t *testing.T) (bodies.RecoverBody, string) {
+				_, token, recoveryCode := gen2FAAccount(t)
+				return bodies.RecoverBody{
+					RecoveryCode: recoveryCode,
+				}, token
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.RecoverBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertEqual(t, resBody.Message, "Please scan QR Code with your authentication app")
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED with invalid recovery code",
+			ReqFn: func(t *testing.T) (bodies.RecoverBody, string) {
+				gen2FAAccount(t)
+				return bodies.RecoverBody{
+					RecoveryCode: "invalid-code",
+				}, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.RecoverBody],
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED without 2FA access token",
+			ReqFn: func(t *testing.T) (bodies.RecoverBody, string) {
+				_, _, recoveryCode := gen2FAAccount(t)
+				return bodies.RecoverBody{
+					RecoveryCode: recoveryCode,
+				}, "wrong-token"
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.RecoverBody],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, recover2FAPath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+func TestAccountAuth2FAUpdate(t *testing.T) {
+	const update2FAPath = v1Path + paths.AuthBase + paths.Auth2FA
+
+	genTwoFactorAccount := func(t *testing.T, twoFactorType string) string {
+		accountData := GenerateFakeAccountData(t, services.AuthProviderGitHub)
+		account := CreateTestAccount(t, accountData)
+		testS := GetTestServices(t)
+		requestID := uuid.NewString()
+
+		if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
+			RequestID:     requestID,
+			PublicID:      account.PublicID,
+			Version:       account.Version(),
+			TwoFactorType: twoFactorType,
+			Password:      accountData.Password,
+		}); err != nil {
+			t.Fatalf("failed to enable 2FA for account: %v", err)
+		}
+
+		account, serviceErr := testS.GetAccountByPublicID(context.Background(), services.GetAccountByPublicIDOptions{
+			RequestID: requestID,
+			PublicID:  account.PublicID,
+		})
+		if serviceErr != nil {
+			t.Fatalf("failed to get account by public ID: %v", serviceErr)
+		}
+
+		accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+		return accessToken
+	}
+
+	testCases := []TestRequestCase[bodies.Update2FABody]{
+		{
+			Name: "Should enable TOTP 2FA for account with password",
+			ReqFn: func(t *testing.T) (bodies.Update2FABody, string) {
+				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				account := CreateTestAccount(t, data)
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.Update2FABody{
+					TwoFactorType: services.TwoFactorTotp,
+					Password:      data.Password,
+				}, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.Update2FABody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertEqual(t, resBody.Message, "Please scan QR Code with your authentication app")
+			},
+		},
+		{
+			Name: "Should enable Email 2FA for account without password",
+			ReqFn: func(t *testing.T) (bodies.Update2FABody, string) {
+				data := GenerateFakeAccountData(t, services.AuthProviderMicrosoft)
+				account := CreateTestAccount(t, data)
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.Update2FABody{
+					TwoFactorType: services.TwoFactorEmail,
+				}, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.Update2FABody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertEqual(t, "Please provide email two factor code", resBody.Message)
+			},
+		},
+		{
+			Name: "Should ask for confirmation to enable TOTP 2FA for account with email 2FA",
+			ReqFn: func(t *testing.T) (bodies.Update2FABody, string) {
+				accessToken := genTwoFactorAccount(t, services.TwoFactorEmail)
+				return bodies.Update2FABody{
+					TwoFactorType: services.TwoFactorTotp,
+				}, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.Update2FABody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertEqual(t, resBody.Message, "Please provide two factor code to confirm two factor update")
+			},
+		},
+		{
+			Name: "Should ask for confirmation to enable email 2FA for account with TOTP 2FA",
+			ReqFn: func(t *testing.T) (bodies.Update2FABody, string) {
+				accessToken := genTwoFactorAccount(t, services.TwoFactorTotp)
+				return bodies.Update2FABody{
+					TwoFactorType: services.TwoFactorEmail,
+				}, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.Update2FABody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertEqual(t, resBody.Message, "Please provide two factor code to confirm two factor update")
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST 2FA type is the same as current",
+			ReqFn: func(t *testing.T) (bodies.Update2FABody, string) {
+				accessToken := genTwoFactorAccount(t, services.TwoFactorTotp)
+				return bodies.Update2FABody{
+					TwoFactorType: services.TwoFactorTotp,
+				}, accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ bodies.Update2FABody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ErrorResponse{})
+				AssertEqual(t, resBody.Message, "Account already uses given 2FA type")
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST if password is invalid",
+			ReqFn: func(t *testing.T) (bodies.Update2FABody, string) {
+				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				account := CreateTestAccount(t, data)
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.Update2FABody{
+					TwoFactorType: services.TwoFactorTotp,
+					Password:      "wrong-password",
+				}, accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req bodies.Update2FABody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ErrorResponse{})
+				AssertEqual(t, resBody.Message, "Invalid password")
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if access token is missing",
+			ReqFn: func(t *testing.T) (bodies.Update2FABody, string) {
+				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				CreateTestAccount(t, data)
+				return bodies.Update2FABody{
+					TwoFactorType: services.TwoFactorTotp,
+					Password:      data.Password,
+				}, "asdsad"
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.Update2FABody],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPut, update2FAPath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+func TestAccountAuth2FAUpdateConfirm(t *testing.T) {
+	const confirm2FAPath = v1Path + paths.AuthBase + paths.Auth2FA + paths.Confirm
+
+	genEmailCode := func(t *testing.T, account dtos.AccountDTO) string {
+		code, err := GetTestCache(t).AddTwoFactorCode(context.Background(), cache.AddTwoFactorCodeOptions{
+			RequestID: uuid.NewString(),
+			AccountID: account.ID(),
+			TTL:       GetTestTokens(t).Get2FATTL(),
+		})
+		if err != nil {
+			t.Fatal("Failed to create email code", err)
+		}
+		return code
+	}
+
+	genToptCode := func(t *testing.T, account dtos.AccountDTO) string {
+		accountTOTP, err := GetTestDatabase(t).FindAccountTotpByAccountID(context.Background(), account.ID())
+		if err != nil {
+			t.Fatal("Failed to find account TOTP", err)
+		}
+
+		dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
+			encryption.ProcessTotpDEKOptions{
+				RequestID: uuid.NewString(),
+				TotpType:  encryption.TotpTypeAccount,
+				StoredDEK: account.DEK(),
+			},
+		)
+		if err != nil {
+			t.Fatal("Failed to decrypt account DEK", err)
+		}
+
+		secret, err := utils.Decrypt(accountTOTP.Secret, dek)
+		if err != nil {
+			t.Fatal("Failed to decrypt secret", err)
+		}
+
+		code, err := totp.GenerateCode(secret, time.Now().UTC())
+		if err != nil {
+			t.Fatal("Failed to generate code", err)
+		}
+
+		return code
+	}
+
+	gen2FAUpdate := func(t *testing.T, old2FAType, new2FAType string) (string, string) {
+		accountData := GenerateFakeAccountData(t, services.AuthProviderGitHub)
+		account := CreateTestAccount(t, accountData)
+		testS := GetTestServices(t)
+		testC := GetTestCache(t)
+		requestID := uuid.NewString()
+
+		authDTO, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
+			RequestID:     requestID,
+			PublicID:      account.PublicID,
+			Version:       account.Version(),
+			TwoFactorType: old2FAType,
+			Password:      accountData.Password,
+		})
+		if err != nil {
+			t.Fatalf("failed to enable 2FA for account: %v", err)
+		}
+
+		if err := testC.SaveTwoFactorUpdateRequest(context.Background(), cache.SaveTwoFactorUpdateRequestOptions{
+			RequestID:       requestID,
+			PrefixType:      cache.SensitiveRequestAccountPrefix,
+			PublicID:        account.PublicID,
+			TwoFactorType:   database.TwoFactorType(new2FAType),
+			DurationSeconds: 300,
+		}); err != nil {
+			t.Fatalf("failed to save 2FA update request: %v", err)
+		}
+
+		switch old2FAType {
+		case services.TwoFactorEmail:
+			return authDTO.AccessToken, genEmailCode(t, account)
+		case services.TwoFactorTotp:
+			return authDTO.AccessToken, genToptCode(t, account)
+		default:
+			t.Fatalf("unsupported 2FA type: %s", old2FAType)
+			return "", ""
+		}
+	}
+
+	testCases := []TestRequestCase[bodies.TwoFactorLoginBody]{
+		{
+			Name: "Should confirm 2FA update from email to TOTP with valid code",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				accessToken, code := gen2FAUpdate(t, services.TwoFactorEmail, services.TwoFactorTotp)
+				return bodies.TwoFactorLoginBody{Code: code}, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.TwoFactorLoginBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertEqual(t, resBody.Message, "Please scan QR Code with your authentication app")
+				AssertNotEmpty(t, resBody.Data["image"])
+				AssertNotEmpty(t, resBody.Data["recovery_keys"])
+			},
+		},
+		{
+			Name: "Should confirm 2FA update from TOTP to email with valid code",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				accessToken, code := gen2FAUpdate(t, services.TwoFactorTotp, services.TwoFactorEmail)
+				return bodies.TwoFactorLoginBody{Code: code}, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.TwoFactorLoginBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertEqual(t, resBody.Message, "Please provide email two factor code")
+			},
+		},
+		{
+			Name: "Should disable 2FA with valid code",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				accessToken, code := gen2FAUpdate(t, services.TwoFactorTotp, services.TwoFactorNone)
+				return bodies.TwoFactorLoginBody{Code: code}, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.TwoFactorLoginBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+				AssertEmpty(t, resBody.Message)
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST with invalid code",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				accessToken, _ := gen2FAUpdate(t, services.TwoFactorEmail, services.TwoFactorTotp)
+				return bodies.TwoFactorLoginBody{Code: "invalid"}, accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req bodies.TwoFactorLoginBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "code", resBody.Fields[0].Param)
+				AssertEqual(t, req.Code, resBody.Fields[0].Value.(string))
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if access token is missing",
+			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
+				_, code := gen2FAUpdate(t, services.TwoFactorEmail, services.TwoFactorTotp)
+				return bodies.TwoFactorLoginBody{Code: code}, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.TwoFactorLoginBody],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, confirm2FAPath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+func TestForgotAccountPassword(t *testing.T) {
+	const forgotPasswordPath = v1Path + paths.AuthBase + paths.AuthForgotPassword
+
+	testCases := []TestRequestCase[bodies.ForgotPasswordBody]{
+		{
+			Name: "Should return 200 OK and send reset email for valid email",
+			ReqFn: func(t *testing.T) (bodies.ForgotPasswordBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				return bodies.ForgotPasswordBody{Email: account.Email}, ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.ForgotPasswordBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.MessageDTO{})
+				AssertEqual(t, resBody.Message, "Reset password email sent if account exists")
+			},
+		},
+		{
+			Name: "Should return 200 OK for non-existent email (do not reveal existence)",
+			ReqFn: func(t *testing.T) (bodies.ForgotPasswordBody, string) {
+				return bodies.ForgotPasswordBody{Email: "nonexistent@example.com"}, ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.ForgotPasswordBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.MessageDTO{})
+				AssertEqual(t, resBody.Message, "Reset password email sent if account exists")
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST for invalid email format",
+			ReqFn: func(t *testing.T) (bodies.ForgotPasswordBody, string) {
+				return bodies.ForgotPasswordBody{Email: "not-an-email"}, ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req bodies.ForgotPasswordBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "email", resBody.Fields[0].Param)
+				AssertEqual(t, exceptions.StrFieldErrMessageEmail, resBody.Fields[0].Message)
+				AssertEqual(t, req.Email, resBody.Fields[0].Value.(string))
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, forgotPasswordPath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+func TestResetAccountPassword(t *testing.T) {
+	const resetPasswordPath = v1Path + paths.AuthBase + paths.AuthResetPassword
+
+	generateResetToken := func(t *testing.T, email string) string {
+		testTokens := GetTestTokens(t)
+		account, err := GetTestDatabase(t).FindAccountByEmail(context.Background(), email)
+		if err != nil {
+			t.Fatal("Failed to find account by email", err)
+		}
+		token, err := testTokens.CreateResetToken(tokens.AccountResetTokenOptions{
+			PublicID: account.PublicID,
+			Version:  account.Version,
+		})
+		if err != nil {
+			t.Fatal("Failed to create reset password token", err)
+		}
+		return token
+	}
+
+	testCases := []TestRequestCase[bodies.ResetPasswordBody]{
+		{
+			Name: "Should return 200 OK and reset password with valid token",
+			ReqFn: func(t *testing.T) (bodies.ResetPasswordBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				token := generateResetToken(t, account.Email)
+				newPassword := "NewP@ssw0rd123"
+				return bodies.ResetPasswordBody{
+					ResetToken: token,
+					Password:   newPassword,
+					Password2:  newPassword,
+				}, ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.ResetPasswordBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.MessageDTO{})
+				AssertEqual(t, resBody.Message, "Password reset successfully")
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST if token is invalid",
+			ReqFn: func(t *testing.T) (bodies.ResetPasswordBody, string) {
+				return bodies.ResetPasswordBody{
+					ResetToken: "invalid-token",
+					Password:   "NewP@ssw0rd123",
+					Password2:  "NewP@ssw0rd123",
+				}, ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req bodies.ResetPasswordBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "reset_token", resBody.Fields[0].Param)
+				AssertEqual(t, req.ResetToken, resBody.Fields[0].Value.(string))
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST if password is too weak",
+			ReqFn: func(t *testing.T) (bodies.ResetPasswordBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				token := generateResetToken(t, account.Email)
+				return bodies.ResetPasswordBody{
+					ResetToken: token,
+					Password:   "password",
+					Password2:  "password",
+				}, ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req bodies.ResetPasswordBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "password", resBody.Fields[0].Param)
+				AssertEqual(t, req.Password, resBody.Fields[0].Value.(string))
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST if passwords do not match",
+			ReqFn: func(t *testing.T) (bodies.ResetPasswordBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				token := generateResetToken(t, account.Email)
+				return bodies.ResetPasswordBody{
+					ResetToken: token,
+					Password:   "NewP@ssw0rd123",
+					Password2:  "DifferentP@ssw0rd",
+				}, ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req bodies.ResetPasswordBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, 1, len(resBody.Fields))
+				AssertEqual(t, "password2", resBody.Fields[0].Param)
+				AssertEqual(t, req.Password2, resBody.Fields[0].Value.(string))
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if user is not found",
+			ReqFn: func(t *testing.T) (bodies.ResetPasswordBody, string) {
+				testTokens := GetTestTokens(t)
+				token, _ := testTokens.CreateResetToken(tokens.AccountResetTokenOptions{
+					PublicID: uuid.New(),
+					Version:  1,
+				})
+				return bodies.ResetPasswordBody{
+					ResetToken: token,
+					Password:   "NewP@ssw0rd123",
+					Password2:  "NewP@ssw0rd123",
+				}, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.ResetPasswordBody],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, resetPasswordPath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+func TestListAccountAuthProviders(t *testing.T) {
+	const authProvidersPath = v1Path + paths.AuthBase + paths.AuthProviders
+
+	testCases := []TestRequestCase[string]{
+		{
+			Name: "Should return 200 OK with list of a single auth providers",
+			ReqFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return "", accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ItemsDTO[dtos.AuthProviderDTO]{})
+				AssertEqual(t, len(resBody.Items), 1)
+				AssertEqual(t, resBody.Items[0].Provider, services.AuthProviderUsernamePassword)
+				AssertNotEmpty(t, resBody.Items[0].RegisteredAt)
+			},
+		},
+		{
+			Name: "Should return 200 OK with list of a multiple auth providers",
+			ReqFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				testD := GetTestDatabase(t)
+				providers := []database.AuthProvider{
+					database.AuthProviderMicrosoft,
+					database.AuthProviderGoogle,
+				}
+				for _, provider := range providers {
+					if err := testD.CreateAccountAuthProvider(
+						context.Background(),
+						database.CreateAccountAuthProviderParams{
+							Email:           account.Email,
+							AccountPublicID: account.PublicID,
+							Provider:        provider,
+						},
+					); err != nil {
+						t.Fatalf("Failed to create auth provider: %v", err)
+					}
+				}
+
+				accessToken, err := GetTestTokens(t).CreateAccessToken(tokens.AccountAccessTokenOptions{
+					PublicID:     account.PublicID,
+					Version:      account.Version(),
+					Scopes:       []tokens.AccountScope{tokens.AccountScopeAuthProvidersRead},
+					TokenSubject: "",
+				})
+				if err != nil {
+					t.Fatalf("Failed to create access token: %v", err)
+				}
+
+				return "", accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ItemsDTO[dtos.AuthProviderDTO]{})
+				AssertEqual(t, len(resBody.Items), 3)
+				AssertEqual(t, resBody.Items[0].Provider, services.AuthProviderGoogle)
+				AssertNotEmpty(t, resBody.Items[0].RegisteredAt)
+				AssertEqual(t, resBody.Items[1].Provider, services.AuthProviderMicrosoft)
+				AssertNotEmpty(t, resBody.Items[1].RegisteredAt)
+				AssertEqual(t, resBody.Items[2].Provider, services.AuthProviderUsernamePassword)
+				AssertNotEmpty(t, resBody.Items[2].RegisteredAt)
+			},
+		},
+		{
+			Name: "Should return 403 forbidden if token has not enough permissions",
+			ReqFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken, err := GetTestTokens(t).CreateAccessToken(tokens.AccountAccessTokenOptions{
+					PublicID: account.PublicID,
+					Version:  account.Version(),
+					Scopes: []tokens.AccountScope{
+						tokens.AccountScopeCredentialsWrite,
+						tokens.AccountScopeCredentialsRead,
+					},
+					TokenSubject: account.PublicID.String(),
+				})
+				if err != nil {
+					t.Fatalf("Failed to create access token: %v", err)
+				}
+				return "", accessToken
+			},
+			ExpStatus: http.StatusForbidden,
+			AssertFn:  AssertForbiddenError[string],
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if access token is missing",
+			ReqFn: func(t *testing.T) (string, string) {
+				return "", ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[string],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodGet, authProvidersPath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+func TestGetAccountAuthProvider(t *testing.T) {
+	const authProviderPath = v1Path + paths.AuthBase + paths.AuthProviders
+
+	testCases := []TestRequestCase[string]{
+		{
+			Name: "Should return 200 OK with auth provider details",
+			ReqFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderApple))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return "", accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, provider string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthProviderDTO{})
+				AssertEqual(t, resBody.Provider, services.AuthProviderApple)
+				AssertNotEmpty(t, resBody.RegisteredAt)
+			},
+			Path: authProviderPath + "/apple",
+		},
+		{
+			Name: "Should return 200 OK with auth provider details if user has correct permissions",
+			ReqFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken, err := GetTestTokens(t).CreateAccessToken(tokens.AccountAccessTokenOptions{
+					PublicID:     account.PublicID,
+					Version:      account.Version(),
+					Scopes:       []tokens.AccountScope{tokens.AccountScopeAuthProvidersRead},
+					TokenSubject: account.PublicID.String(),
+				})
+				if err != nil {
+					t.Fatalf("Failed to create access token: %v", err)
+				}
+
+				return "", accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, provider string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AuthProviderDTO{})
+				AssertEqual(t, resBody.Provider, services.AuthProviderGoogle)
+				AssertNotEmpty(t, resBody.RegisteredAt)
+			},
+			Path: authProviderPath + "/google",
+		},
+		{
+			Name: "Should return 404 NOT FOUND for non-existent auth provider",
+			ReqFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return "", accessToken
+			},
+			ExpStatus: http.StatusNotFound,
+			AssertFn:  AssertNotFoundError[string],
+			Path:      authProviderPath + "/facebook",
+		},
+		{
+			Name: "Should return 400 BAD REQUEST for an invalid auth provider",
+			ReqFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGitHub))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return "", accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, resBody.Message, "Invalid request")
+				AssertEqual(t, len(resBody.Fields), 1)
+				AssertEqual(t, resBody.Fields[0].Param, "provider")
+				AssertEqual(t, resBody.Fields[0].Value, "unknown")
+				AssertEqual(t, resBody.Fields[0].Message, "must be valid")
+			},
+			Path: authProviderPath + "/unknown",
+		},
+		{
+			Name: "Should return 403 forbidden if token has not enough permissions",
+			ReqFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderMicrosoft))
+				accessToken, err := GetTestTokens(t).CreateAccessToken(tokens.AccountAccessTokenOptions{
+					PublicID:     account.PublicID,
+					Version:      account.Version(),
+					Scopes:       []tokens.AccountScope{tokens.AccountScopeAppsRead},
+					TokenSubject: account.PublicID.String(),
+				})
+				if err != nil {
+					t.Fatalf("Failed to create access token: %v", err)
+				}
+
+				return "", accessToken
+			},
+			ExpStatus: http.StatusForbidden,
+			AssertFn:  AssertForbiddenError[string],
+			Path:      authProviderPath + "/github",
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED if access token is missing",
+			ReqFn: func(t *testing.T) (string, string) {
+				return "", ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[string],
+			Path:      authProviderPath + "/username_password",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodGet, tc.Path, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}

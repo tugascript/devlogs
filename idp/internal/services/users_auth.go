@@ -559,7 +559,7 @@ func (s *Services) LoginUser(
 			UserVersion:     userDTO.Version(),
 			AppClientID:     appDTO.ClientID,
 			AppVersion:      appDTO.Version(),
-			Path:            paths.AppsBase + paths.UsersBase + paths.AuthLogin + paths.TwoFA,
+			Path:            paths.AppsBase + paths.UsersBase + paths.AuthLogin + paths.Auth2FA,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create two-factor authentication token", "error", err)

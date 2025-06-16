@@ -101,9 +101,9 @@ func (t *Tokens) createAuthToken(opts accountAuthTokenOptions) (string, error) {
 		},
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: fmt.Sprintf("https://%s", t.backendDomain),
-			Audience: jwt.ClaimStrings(utils.MapSlice(opts.paths, func(path *string) string {
+			Audience: utils.MapSlice(opts.paths, func(path *string) string {
 				return buildPathAudience(t.backendDomain, *path)
-			})),
+			}),
 			Subject:   opts.tokenSubject,
 			IssuedAt:  iat,
 			NotBefore: iat,

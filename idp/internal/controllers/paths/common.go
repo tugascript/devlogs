@@ -10,6 +10,5 @@ const (
 	Base    string = "/"
 	Keys    string = "/keys"
 	Confirm string = "/confirm"
-	TwoFA   string = "/2fa"
 	Recover string = "/recover"
 )

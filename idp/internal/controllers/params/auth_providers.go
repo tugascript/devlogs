@@ -7,5 +7,5 @@
 package params
 
 type AccountAuthProviderURLParams struct {
-	Provider string `validate:"required,oneof=apple facebook github google microsoft"`
+	Provider string `validate:"required,oneof=apple facebook github google microsoft username_password"`
 }
