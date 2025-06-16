@@ -43,40 +43,6 @@ func (h *HashSet[T]) IsEmpty() bool {
 	return len(h.items) == 0
 }
 
-func (h *HashSet[T]) MapToSlice(f func(*T) any) []any {
-	items := make([]any, 0, len(h.items))
-	for item := range h.items {
-		items = append(items, f(&item))
-	}
-	return items
-}
-
-func MapHashSetToSlice[T comparable, V any](h HashSet[T], f func(*T) V) []V {
-	items := make([]V, 0, len(h.items))
-	for item := range h.items {
-		items = append(items, f(&item))
-	}
-	return items
-}
-
-func MapHashSetToSliceWithError[T comparable, V any, E error](h HashSet[T], f func(*T) (V, E)) ([]V, E) {
-	items := make([]V, 0, len(h.items))
-
-	for item := range h.items {
-		var err error
-		mv, err := f(&item)
-		if err != nil {
-			if custErr, ok := err.(E); ok {
-				return nil, custErr
-			}
-		}
-		items = append(items, mv)
-	}
-
-	var err E
-	return items, err
-}
-
 func MapSliceToHashSet[T comparable](s []T) HashSet[T] {
 	h := HashSet[T]{
 		items: make(map[T]struct{}),

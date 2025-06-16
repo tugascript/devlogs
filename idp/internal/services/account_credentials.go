@@ -33,21 +33,36 @@ const (
 	accountCredentialsKeysCacheKeyPrefix string = "account_credentials_keys"
 )
 
-func mapAccountCredentialsScope(scope *string) (database.AccountCredentialsScope, *exceptions.ServiceError) {
-	acScope := database.AccountCredentialsScope(*scope)
+func mapAccountCredentialsScope(scope string) (database.AccountCredentialsScope, *exceptions.ServiceError) {
+	acScope := database.AccountCredentialsScope(scope)
 	switch acScope {
-	case database.AccountCredentialsScopeAccountAdmin,
+	case database.AccountCredentialsScopeAccountAdmin, database.AccountCredentialsScopeAccountAuthProvidersRead,
 		database.AccountCredentialsScopeAccountUsersRead, database.AccountCredentialsScopeAccountUsersWrite,
-		database.AccountCredentialsScopeAccountAppsRead, database.AccountCredentialsScopeAccountAppsWrite:
+		database.AccountCredentialsScopeAccountAppsRead, database.AccountCredentialsScopeAccountAppsWrite,
+		database.AccountCredentialsScopeAccountCredentialsRead, database.AccountCredentialsScopeAccountCredentialsWrite:
 		return acScope, nil
 	}
 
-	return "", exceptions.NewValidationError("invalid account credentials scope")
+	return "", exceptions.NewValidationError("invalid scope: " + scope)
 }
 
+// NOTE: using a map will lead to a null pointer dereference even if the slice is not empty
 func mapAccountCredentialsScopes(scopes []string) ([]database.AccountCredentialsScope, *exceptions.ServiceError) {
 	scopesSet := utils.MapSliceToHashSet(scopes)
-	return utils.MapHashSetToSliceWithError(scopesSet, mapAccountCredentialsScope)
+	if scopesSet.IsEmpty() {
+		return nil, exceptions.NewValidationError("scopes cannot be empty")
+	}
+
+	// return utils.MapSliceWithErr(scopesSet.Items(), mapAccountCredentialsScope)
+	mappedScopes := make([]database.AccountCredentialsScope, 0, scopesSet.Size())
+	for _, scope := range scopesSet.Items() {
+		mappedScope, serviceErr := mapAccountCredentialsScope(scope)
+		if serviceErr != nil {
+			return nil, serviceErr
+		}
+		mappedScopes = append(mappedScopes, mappedScope)
+	}
+	return mappedScopes, nil
 }
 
 type CreateAccountCredentialsOptions struct {
@@ -66,6 +81,7 @@ func (s *Services) CreateAccountCredentials(
 	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "CreateAccountCredentials").With(
 		"accountPublicID", opts.AccountPublicID,
 		"scopes", opts.Scopes,
+		"authMethods", opts.AuthMethods,
 	)
 	logger.InfoContext(ctx, "Creating account keys...")
 
@@ -100,12 +116,12 @@ func (s *Services) CreateAccountCredentials(
 		},
 	)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to count account keys by alias", "error", err)
+		logger.ErrorContext(ctx, "Failed to count account credentials by alias", "error", err)
 		return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
 	}
 	if count > 0 {
-		logger.WarnContext(ctx, "Account keys alias already exists", "alias", alias)
-		return dtos.AccountCredentialsDTO{}, exceptions.NewConflictError("Account keys alias already exists")
+		logger.WarnContext(ctx, "Account credentials alias already exists", "alias", alias)
+		return dtos.AccountCredentialsDTO{}, exceptions.NewConflictError("Account credentials alias already exists")
 	}
 
 	qrs, txn, err := s.database.BeginTx(ctx)
@@ -127,7 +143,7 @@ func (s *Services) CreateAccountCredentials(
 		Alias:           alias,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create account keys", "error", err)
+		logger.ErrorContext(ctx, "Failed to create account credentials", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}

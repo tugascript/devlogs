@@ -7,7 +7,7 @@
 package bodies
 
 type CreateAccountCredentialsBody struct {
-	Scopes      []string `json:"scopes" validate:"required,unique,oneof=admin users:read users:write apps:read apps:write"`
+	Scopes      []string `json:"scopes" validate:"required,unique,dive,oneof=account:admin account:users:read account:users:write account:apps:read account:apps:write account:credentials:read account:credentials:write accounts:auth_providers:read"`
 	Alias       string   `json:"alias" validate:"required,min=1,max=50,alphanum"`
 	AuthMethods string   `json:"auth_method" validate:"required,oneof=client_secret_basic client_secret_post both_client_secrets private_key_jwt"`
 }

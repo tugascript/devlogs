@@ -102,6 +102,15 @@ func (q *Queries) DeleteAccountCredentials(ctx context.Context, clientID string)
 	return err
 }
 
+const deleteAllAccountCredentials = `-- name: DeleteAllAccountCredentials :exec
+DELETE FROM "account_credentials"
+`
+
+func (q *Queries) DeleteAllAccountCredentials(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteAllAccountCredentials)
+	return err
+}
+
 const findAccountCredentialsByAccountPublicIDAndClientID = `-- name: FindAccountCredentialsByAccountPublicIDAndClientID :one
 SELECT id, account_id, account_public_id, scopes, auth_methods, alias, client_id, created_at, updated_at FROM "account_credentials"
 WHERE "account_public_id" = $1 AND "client_id" = $2

@@ -35,23 +35,3 @@ func MapSliceWithErr[T any, U any, E error](s []T, f func(*T) (U, E)) ([]U, E) {
 	var err E
 	return result, err
 }
-
-func MapSliceWithErrorToMap[T any, K comparable, U any, E error](s []T, f func(*T) (K, U, E)) (map[K]U, E) {
-	result := make(map[K]U, len(s))
-
-	for _, v := range s {
-		var err error
-		k, val, err := f(&v)
-
-		if err != nil {
-			if custErr, ok := err.(E); ok {
-				return nil, custErr
-			}
-		}
-
-		result[k] = val
-	}
-
-	var err E
-	return result, err
-}

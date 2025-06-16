@@ -8,6 +8,8 @@ package server
 
 import (
 	"context"
+	"github.com/jackc/pgx/v5"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 	"log/slog"
 	"time"
 
@@ -39,6 +41,34 @@ type FiberServer struct {
 	routes *routes.Routes
 }
 
+const (
+	PgTypeTwoFactorType           = "two_factor_type"
+	PgTypeTokenCryptoSuite        = "token_crypto_suite"
+	PgTypeAuthMethod              = "auth_method"
+	PgTypeAccountCredentialsScope = "account_credentials_scope"
+	PgTypeAuthProvider            = "auth_provider"
+	PgTypeClaims                  = "claims"
+	PgTypeScopes                  = "scopes"
+	PgTypeAppType                 = "app_type"
+	PgTypeAppUsernameColumn       = "app_username_column"
+	PgTypeGrantType               = "grant_type"
+	PgTypeResponseType            = "response_type"
+)
+
+var PgTypes = [11]string{
+	PgTypeTwoFactorType,
+	PgTypeTokenCryptoSuite,
+	PgTypeAuthMethod,
+	PgTypeAccountCredentialsScope,
+	PgTypeAuthProvider,
+	PgTypeClaims,
+	PgTypeScopes,
+	PgTypeAppType,
+	PgTypeAppUsernameColumn,
+	PgTypeGrantType,
+	PgTypeResponseType,
+}
+
 func New(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -56,11 +86,41 @@ func New(
 	logger.InfoContext(ctx, "Finished building redis storage")
 
 	logger.InfoContext(ctx, "Building database connection pool...")
-	dbConnPool, err := pgxpool.New(ctx, cfg.DatabaseURL())
+	pgCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL())
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to parse database URL", "error", err)
+		panic(err)
+	}
+	pgCfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		logger.InfoContext(ctx, "Loading types into database connection pool...")
+
+		ts, err := conn.LoadTypes(ctx, PgTypes[:])
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to load normal types into database connection pool", "error", err)
+			return err
+		}
+		conn.TypeMap().RegisterTypes(ts)
+
+		arrTypes := utils.MapSlice(PgTypes[:], func(t *string) string {
+			return "_" + *t
+		})
+		ts, err = conn.LoadTypes(ctx, arrTypes)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to load prefixed types into database connection pool", "error", err)
+			return err
+		}
+		conn.TypeMap().RegisterTypes(ts)
+
+		logger.InfoContext(ctx, "Types loaded into database connection pool")
+		return nil
+	}
+
+	dbConnPool, err := pgxpool.NewWithConfig(ctx, pgCfg)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to connect to database", "error", err)
 		panic(err)
 	}
+
 	db := database.NewDatabase(dbConnPool)
 	logger.InfoContext(ctx, "Finished building database connection pool")
 
