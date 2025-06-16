@@ -28,14 +28,14 @@ NONE
 - Multiple secrets Account Keys
 - Fix all outstanding errors
 - Accounts fix standard authentication
+- Test account standard authentication & account operations
 
 #### IDP On-Going
 
-- Test account standard authentication & account operations
+- Test multiple secrets account keys
 
 #### IDP Todo
 
-- Test multiple secrets account keys
 - Account KEK openbao integration
 - Accounts m2m auth:
   - client_credentials
