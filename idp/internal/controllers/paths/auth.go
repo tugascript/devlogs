@@ -18,4 +18,5 @@ const (
 	AuthResetPassword  string = "/reset-password"
 	AuthProviders      string = "/providers"
 	AuthSingleProvider string = "/providers/:provider"
+	Auth2FA            string = "/2fa"
 )

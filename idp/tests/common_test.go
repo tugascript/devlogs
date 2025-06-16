@@ -442,3 +442,7 @@ func AssertUnauthorizedError[T any](t *testing.T, _ T, res *http.Response) {
 func AssertForbiddenError[T any](t *testing.T, _ T, res *http.Response) {
 	assertErrorResponse(t, res, exceptions.StatusForbidden, exceptions.MessageForbidden)
 }
+
+func AssertNotFoundError[T any](t *testing.T, _ T, res *http.Response) {
+	assertErrorResponse(t, res, exceptions.StatusNotFound, exceptions.MessageNotFound)
+}

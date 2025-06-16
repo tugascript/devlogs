@@ -27,7 +27,7 @@ func (t *Tokens) Create2FAToken(opts Account2FATokenOptions) (string, error) {
 		ttlSec:          t.twoFAData.ttlSec,
 		accountPublicID: opts.PublicID,
 		accountVersion:  opts.Version,
-		path:            paths.AuthBase + paths.AuthLogin + paths.TwoFA,
+		path:            paths.AuthBase + paths.AuthLogin + paths.Auth2FA,
 		purpose:         TokenPurpose2FA,
 	})
 }

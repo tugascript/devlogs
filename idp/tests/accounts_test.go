@@ -225,7 +225,7 @@ func TestUpdateAccountPassword(t *testing.T) {
 			},
 		},
 		{
-			Name: "Should return 401 UNAUTHORIZED if old password is wrong",
+			Name: "Should return 400 BAD REQUEST if old password is wrong",
 			ReqFn: func(t *testing.T) (bodies.UpdatePasswordBody, string) {
 				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
 				account := CreateTestAccount(t, data)
@@ -237,8 +237,11 @@ func TestUpdateAccountPassword(t *testing.T) {
 					Password2:   newPassword,
 				}, accessToken
 			},
-			ExpStatus: http.StatusUnauthorized,
-			AssertFn:  AssertUnauthorizedError[bodies.UpdatePasswordBody],
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ bodies.UpdatePasswordBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ErrorResponse{})
+				AssertEqual(t, resBody.Message, "Invalid password")
+			},
 		},
 	}
 
@@ -654,7 +657,7 @@ func TestUpdateAccountEmail(t *testing.T) {
 			},
 		},
 		{
-			Name: "Should return 401 UNAUTHORIZED if password is wrong",
+			Name: "Should return 400 BAD REQUEST if password is wrong",
 			ReqFn: func(t *testing.T) (bodies.UpdateEmailBody, string) {
 				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
 				account := CreateTestAccount(t, accountData)
@@ -664,8 +667,11 @@ func TestUpdateAccountEmail(t *testing.T) {
 					Password: "WrongPassword123!",
 				}, accessToken
 			},
-			ExpStatus: http.StatusUnauthorized,
-			AssertFn:  AssertUnauthorizedError[bodies.UpdateEmailBody],
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ bodies.UpdateEmailBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ErrorResponse{})
+				AssertEqual(t, resBody.Message, "Invalid password")
+			},
 		},
 		{
 			Name: "Should return 401 UNAUTHORIZED if no access token",
@@ -1023,7 +1029,7 @@ func TestUpdateAccountUsername(t *testing.T) {
 			},
 		},
 		{
-			Name: "Should return 401 UNAUTHORIZED if password is wrong",
+			Name: "Should return 400 BAD REQUEST if password is wrong",
 			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
 				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
 				account := CreateTestAccount(t, accountData)
@@ -1033,8 +1039,11 @@ func TestUpdateAccountUsername(t *testing.T) {
 					Password: "WrongPassword123!",
 				}, accessToken
 			},
-			ExpStatus: http.StatusUnauthorized,
-			AssertFn:  AssertUnauthorizedError[bodies.UpdateAccountUsernameBody],
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ bodies.UpdateAccountUsernameBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ErrorResponse{})
+				AssertEqual(t, resBody.Message, "Invalid password")
+			},
 		},
 		{
 			Name: "Should return 401 UNAUTHORIZED if no access token",
@@ -1260,5 +1269,3 @@ func TestConfirmUpdateAccountUsername(t *testing.T) {
 
 	t.Cleanup(accountsCleanUp(t))
 }
-
-// TODO: add update account 2FA test and confirm tests

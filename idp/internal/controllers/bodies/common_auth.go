@@ -27,7 +27,7 @@ type RecoverBody struct {
 	RecoveryCode string `json:"recovery_code" validate:"required,min=1"`
 }
 
-type ForgoutPasswordBody struct {
+type ForgotPasswordBody struct {
 	Email string `json:"email" validate:"required,email"`
 }
 
@@ -89,7 +89,7 @@ type DeleteWithPasswordBody struct {
 	Password string `json:"password,omitempty" validate:"omitempty,min=1"`
 }
 
-type UpdateTwoFactorBody struct {
-	TwoFactorType string `json:"two_factor_type" validate:"required,two_factor_type"`
+type Update2FABody struct {
+	TwoFactorType string `json:"two_factor_type" validate:"required,oneof=none totp email"`
 	Password      string `json:"password,omitempty" validate:"omitempty,min=1"`
 }

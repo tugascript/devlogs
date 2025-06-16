@@ -62,17 +62,6 @@ func (r *Routes) AccountsRoutes(app *fiber.App) {
 		r.controllers.ConfirmUpdateAccountEmail,
 	)
 	router.Patch(
-		paths.TwoFA,
-		r.controllers.AccountAccessClaimsMiddleware,
-		r.controllers.AdminScopeMiddleware,
-		r.controllers.UpdateAccount2FA,
-	)
-	router.Post(
-		paths.TwoFA+paths.Confirm,
-		r.controllers.TwoFAAccessClaimsMiddleware,
-		r.controllers.ConfirmUpdateAccount2FA,
-	)
-	router.Patch(
 		paths.AccountUsername,
 		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,

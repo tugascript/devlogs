@@ -300,7 +300,7 @@ func (c *Controllers) UpdateUser(ctx *fiber.Ctx) error {
 	userDTO, serviceErr := c.services.UpdateUser(ctx.UserContext(), services.UpdateUserOptions{
 		RequestID: requestID,
 		AccountID: accountID,
-		UserID:    int32(urlParams.UserID),
+		UserID:    urlParams.UserID,
 		Email:     body.Email,
 		Username:  body.Username,
 		UserData:  schemaValue,
@@ -367,7 +367,7 @@ func (c *Controllers) UpdateUserPassword(ctx *fiber.Ctx) error {
 	userDTO, serviceErr := c.services.UpdateUserPassword(ctx.UserContext(), services.UpdateUserPasswordOptions{
 		RequestID: requestID,
 		AccountID: accountID,
-		UserID:    int32(urlParams.UserID),
+		UserID:    urlParams.UserID,
 		Password:  body.Password,
 	})
 	if serviceErr != nil {
@@ -423,7 +423,7 @@ func (c *Controllers) DeleteUser(ctx *fiber.Ctx) error {
 	if serviceErr := c.services.DeleteUser(ctx.UserContext(), services.DeleteUserOptions{
 		RequestID: requestID,
 		AccountID: accountID,
-		UserID:    int32(urlParams.UserID),
+		UserID:    urlParams.UserID,
 	}); serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}

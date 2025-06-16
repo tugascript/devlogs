@@ -44,7 +44,7 @@ type GetPrivateKeyOptions struct {
 }
 
 func encodeEd25519PrivateKeyBytes(privKey ed25519.PrivateKey) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(privKey))
+	return base64.RawURLEncoding.EncodeToString(privKey)
 }
 
 func (e *Encryption) GenerateEd25519KeyPair(
@@ -111,7 +111,7 @@ func decodeEd25519PrivateKeyBytes(bytes string) (ed25519.PrivateKey, error) {
 		return nil, err
 	}
 
-	return ed25519.PrivateKey(decodedBytes), nil
+	return decodedBytes, nil
 }
 
 func (e *Encryption) DecryptEd25519PrivateKey(

@@ -372,7 +372,7 @@ func (s *Services) UpdateAccountCredentials(
 	}
 
 	accountCredentials, err := s.database.UpdateAccountCredentials(ctx, database.UpdateAccountCredentialsParams{
-		ID:     int32(accountCredentialsDTO.ID()),
+		ID:     accountCredentialsDTO.ID(),
 		Scopes: scopes,
 		Alias:  alias,
 	})

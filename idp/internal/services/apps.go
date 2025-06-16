@@ -159,7 +159,7 @@ func (s *Services) DeleteApp(ctx context.Context, opts DeleteAppOptions) *except
 		return serviceErr
 	}
 
-	if err := s.database.DeleteApp(ctx, int32(app.ID())); err != nil {
+	if err := s.database.DeleteApp(ctx, app.ID()); err != nil {
 		logger.ErrorContext(ctx, "Failed to delete app", "error", err)
 		return exceptions.FromDBError(err)
 	}
