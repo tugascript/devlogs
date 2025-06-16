@@ -59,6 +59,8 @@ func MapAccountCredentialsToDTOWithJWK(
 		ClientSecretID:  jwk.GetKeyID(),
 		ClientSecretJWK: jwk,
 		ClientSecretExp: exp.Unix(),
+		Scopes:          accountKeys.Scopes,
+		AuthMethods:     accountKeys.AuthMethods,
 		accountId:       accountKeys.AccountID,
 	}
 }
@@ -75,6 +77,8 @@ func MapAccountCredentialsToDTOWithSecret(
 		ClientSecretID:  secretID,
 		ClientSecret:    fmt.Sprintf("%s.%s", secretID, secret),
 		ClientSecretExp: exp.Unix(),
+		Scopes:          accountKeys.Scopes,
+		AuthMethods:     accountKeys.AuthMethods,
 		accountId:       accountKeys.AccountID,
 	}
 }

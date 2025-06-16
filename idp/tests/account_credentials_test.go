@@ -8,6 +8,7 @@ package tests
 
 import (
 	"context"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"net/http"
 	"testing"
 
@@ -49,6 +50,9 @@ func TestCreateAccountCredentials(t *testing.T) {
 				resBody := AssertTestResponseBody(t, res, dtos.AccountCredentialsDTO{})
 				AssertNotEmpty(t, resBody.ClientID)
 				AssertNotEmpty(t, resBody.ClientSecretID)
+				AssertNotEmpty(t, resBody.ClientSecret)
+				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodClientSecretBasic)
+				AssertEqual(t, resBody.AuthMethods[1], database.AuthMethodClientSecretPost)
 			},
 		},
 	}
