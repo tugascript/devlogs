@@ -10,7 +10,7 @@ type CreateUserBody struct {
 }
 
 type UpdateUserBody struct {
-	Email    string `json:"email" validate:"email"`
+	Email    string `json:"email" validate:"omitempty,email"`
 	Username string `json:"username,omitempty" validate:"omitempty,min=3,max=100,slug"`
 	IsActive bool   `json:"is_active"`
 	UserData
