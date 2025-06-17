@@ -373,12 +373,12 @@ func (s *Services) UpdateAccountCredentials(
 			},
 		)
 		if err != nil {
-			logger.ErrorContext(ctx, "Failed to count account keys by alias", "error", err)
+			logger.ErrorContext(ctx, "Failed to count account credentials by alias", "error", err)
 			return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
 		}
 		if count > 0 {
-			logger.WarnContext(ctx, "Account keys alias already exists", "alias", alias)
-			return dtos.AccountCredentialsDTO{}, exceptions.NewConflictError("Account keys alias already exists")
+			logger.WarnContext(ctx, "Account credentials alias already exists", "alias", alias)
+			return dtos.AccountCredentialsDTO{}, exceptions.NewConflictError("Account credentials alias already exists")
 		}
 	}
 

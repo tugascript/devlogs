@@ -376,7 +376,7 @@ func TestListAccountCredentials(t *testing.T) {
 	t.Cleanup(accountCredentialsCleanUp(t))
 }
 
-func TestGetAccountCredential(t *testing.T) {
+func TestGetAccountCredentials(t *testing.T) {
 	const accountCredentialsPath = v1Path + paths.AccountsBase + paths.CredentialsBase
 
 	var clientID string
@@ -475,6 +475,282 @@ func TestGetAccountCredential(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			PerformTestRequestCaseWithPathFn(t, http.MethodGet, tc)
+		})
+	}
+
+	t.Cleanup(accountCredentialsCleanUp(t))
+}
+
+func TestUpdateAccountCredentials(t *testing.T) {
+	const accountCredentialsPath = v1Path + paths.AccountsBase + paths.CredentialsBase
+
+	var clientID string
+	updateAccountCredentialBeforeEach := func(t *testing.T) string {
+		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+		accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsRead, tokens.AccountScopeCredentialsWrite})
+
+		cred, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+			RequestID:       uuid.NewString(),
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			Alias:           "update-cred",
+			Scopes:          []string{"account:admin"},
+			AuthMethods:     "client_secret_basic",
+		})
+		if err != nil {
+			t.Fatalf("Failed to create account credentials: %v", err)
+		}
+		clientID = cred.ClientID
+		return accessToken
+	}
+
+	testCases := []TestRequestCase[bodies.UpdateAccountCredentialsBody]{
+		{
+			Name: "Should return 200 OK and update alias and scopes",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountCredentialsBody, string) {
+				accessToken := updateAccountCredentialBeforeEach(t)
+				return bodies.UpdateAccountCredentialsBody{
+					Alias:  "updated-alias",
+					Scopes: []string{"account:users:read"},
+				}, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ bodies.UpdateAccountCredentialsBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AccountCredentialsDTO{})
+				AssertEqual(t, resBody.Alias, "updated-alias")
+				AssertEqual(t, len(resBody.Scopes), 1)
+				AssertEqual(t, resBody.Scopes[0], "account:users:read")
+			},
+			PathFn: func() string {
+				return accountCredentialsPath + "/" + clientID
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST with invalid data",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountCredentialsBody, string) {
+				accessToken := updateAccountCredentialBeforeEach(t)
+				return bodies.UpdateAccountCredentialsBody{
+					Alias:  "invalid alias ###",
+					Scopes: []string{"account:users:read", "invalid:scope"},
+				}, accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ bodies.UpdateAccountCredentialsBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, len(resBody.Fields), 2)
+				AssertEqual(t, resBody.Fields[0].Param, "scopes[1]")
+				AssertEqual(t, resBody.Fields[1].Param, "alias")
+			},
+			PathFn: func() string {
+				return accountCredentialsPath + "/" + clientID
+			},
+		},
+		{
+			Name: "Should return 409 conflict and update alias and scopes",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountCredentialsBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderFacebook))
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsWrite})
+				testS := GetTestServices(t)
+				if _, err := testS.CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+					RequestID:       uuid.NewString(),
+					AccountPublicID: account.PublicID,
+					AccountVersion:  account.Version(),
+					Alias:           "existing-alias",
+					Scopes:          []string{"account:users:read"},
+					AuthMethods:     "client_secret_basic",
+				}); err != nil {
+					t.Fatalf("Failed to create initial account credentials: %v", err)
+				}
+
+				clientCreds, err := testS.CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+					RequestID:       uuid.NewString(),
+					AccountPublicID: account.PublicID,
+					AccountVersion:  account.Version(),
+					Alias:           "other-alias",
+					Scopes:          []string{"account:users:read"},
+					AuthMethods:     "client_secret_basic",
+				})
+				if err != nil {
+					t.Fatalf("Failed to create initial account credentials: %v", err)
+				}
+				clientID = clientCreds.ClientID
+				return bodies.UpdateAccountCredentialsBody{
+					Alias:  "existing-alias",
+					Scopes: []string{"account:users:read"},
+				}, accessToken
+			},
+			ExpStatus: http.StatusConflict,
+			AssertFn: func(t *testing.T, _ bodies.UpdateAccountCredentialsBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ErrorResponse{})
+				AssertEqual(t, resBody.Message, "Account credentials alias already exists")
+			},
+			PathFn: func() string {
+				return accountCredentialsPath + "/" + clientID
+			},
+		},
+		{
+			Name: "Should return 404 NOT FOUND for non-existent credential",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountCredentialsBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsWrite})
+				return bodies.UpdateAccountCredentialsBody{
+					Alias:  "new-alias",
+					Scopes: []string{"account:users:read"},
+				}, accessToken
+			},
+			ExpStatus: http.StatusNotFound,
+			AssertFn:  AssertNotFoundError[bodies.UpdateAccountCredentialsBody],
+			PathFn: func() string {
+				return accountCredentialsPath + "/" + utils.Base62UUID()
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED without access token",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountCredentialsBody, string) {
+				updateAccountCredentialBeforeEach(t)
+				return bodies.UpdateAccountCredentialsBody{
+					Alias:  "updated-alias",
+					Scopes: []string{"account:users:read"},
+				}, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.UpdateAccountCredentialsBody],
+			PathFn: func() string {
+				return accountCredentialsPath + "/" + clientID
+			},
+		},
+		{
+			Name: "Should return 403 FORBIDDEN without account:credentials:write scope",
+			ReqFn: func(t *testing.T) (bodies.UpdateAccountCredentialsBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsRead})
+				cred, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+					RequestID:       uuid.NewString(),
+					AccountPublicID: account.PublicID,
+					AccountVersion:  account.Version(),
+					Alias:           "forbidden-cred",
+					Scopes:          []string{"account:admin"},
+					AuthMethods:     "client_secret_basic",
+				})
+				if err != nil {
+					t.Fatalf("Failed to create account credentials: %v", err)
+				}
+				clientID = cred.ClientID
+				return bodies.UpdateAccountCredentialsBody{
+					Alias:  "updated-alias",
+					Scopes: []string{"account:users:read"},
+				}, accessToken
+			},
+			ExpStatus: http.StatusForbidden,
+			AssertFn:  AssertForbiddenError[bodies.UpdateAccountCredentialsBody],
+			PathFn: func() string {
+				return accountCredentialsPath + "/" + clientID
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCaseWithPathFn(t, http.MethodPut, tc)
+		})
+	}
+
+	t.Cleanup(accountCredentialsCleanUp(t))
+}
+
+func TestDeleteAccountCredentials(t *testing.T) {
+	const accountCredentialsPath = v1Path + paths.AccountsBase + paths.CredentialsBase
+
+	var clientID string
+	deleteAccountCredentialBeforeEach := func(t *testing.T) string {
+		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+		accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsRead, tokens.AccountScopeCredentialsWrite})
+
+		cred, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+			RequestID:       uuid.NewString(),
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			Alias:           "delete-cred",
+			Scopes:          []string{"account:admin"},
+			AuthMethods:     "client_secret_basic",
+		})
+		if err != nil {
+			t.Fatalf("Failed to create account credentials: %v", err)
+		}
+		clientID = cred.ClientID
+		return accessToken
+	}
+
+	testCases := []TestRequestCase[any]{
+		{
+			Name: "Should return 204 NO CONTENT on successful delete",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := deleteAccountCredentialBeforeEach(t)
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusNoContent,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				AssertEqual(t, res.StatusCode, http.StatusNoContent)
+			},
+			PathFn: func() string {
+				return accountCredentialsPath + "/" + clientID
+			},
+		},
+		{
+			Name: "Should return 404 NOT FOUND for non-existent credential",
+			ReqFn: func(t *testing.T) (any, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsWrite})
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusNotFound,
+			AssertFn:  AssertNotFoundError[any],
+			PathFn: func() string {
+				return accountCredentialsPath + "/" + utils.Base62UUID()
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED without access token",
+			ReqFn: func(t *testing.T) (any, string) {
+				deleteAccountCredentialBeforeEach(t)
+				return nil, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[any],
+			PathFn: func() string {
+				return accountCredentialsPath + "/" + clientID
+			},
+		},
+		{
+			Name: "Should return 403 FORBIDDEN without account:credentials:write scope",
+			ReqFn: func(t *testing.T) (any, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsRead})
+				cred, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+					RequestID:       uuid.NewString(),
+					AccountPublicID: account.PublicID,
+					AccountVersion:  account.Version(),
+					Alias:           "forbidden-cred",
+					Scopes:          []string{"account:admin"},
+					AuthMethods:     "client_secret_basic",
+				})
+				if err != nil {
+					t.Fatalf("Failed to create account credentials: %v", err)
+				}
+				clientID = cred.ClientID
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusForbidden,
+			AssertFn:  AssertForbiddenError[any],
+			PathFn: func() string {
+				return accountCredentialsPath + "/" + clientID
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCaseWithPathFn(t, http.MethodDelete, tc)
 		})
 	}
 
