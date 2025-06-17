@@ -253,42 +253,37 @@ func (s *Services) GetAccountCredentialsByClientID(
 	return dtos.MapAccountCredentialsToDTO(&accountCredentials), nil
 }
 
-type GetAccountCredentialsForMutationOptions struct {
-	RequestID       string
-	AccountPublicID uuid.UUID
-	AccountVersion  int32
-	ClientID        string
+type getAccountCredentialsForMutationOptions struct {
+	requestID       string
+	accountPublicID uuid.UUID
+	accountVersion  int32
+	clientID        string
 }
 
-func (s *Services) GetAccountCredentialsForMutation(
+func (s *Services) getAccountCredentialsForMutation(
 	ctx context.Context,
-	opts GetAccountCredentialsForMutationOptions,
+	opts getAccountCredentialsForMutationOptions,
 ) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "GetAccountCredentialsForMutation").With(
-		"clientId", opts.ClientID,
-		"accountPublicID", opts.AccountPublicID,
-		"accountVersion", opts.AccountVersion,
+	logger := s.buildLogger(opts.requestID, accountCredentialsLocation, "getAccountCredentialsForMutation").With(
+		"clientId", opts.clientID,
+		"accountPublicID", opts.accountPublicID,
+		"accountVersion", opts.accountVersion,
 	)
 	logger.InfoContext(ctx, "Getting account keys for mutation...")
 
-	accountID, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
-		RequestID: opts.RequestID,
-		PublicID:  opts.AccountPublicID,
-		Version:   opts.AccountVersion,
-	})
-	if serviceErr != nil {
+	if _, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
+		RequestID: opts.requestID,
+		PublicID:  opts.accountPublicID,
+		Version:   opts.accountVersion,
+	}); serviceErr != nil {
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	accountCredentials, err := s.database.FindAccountCredentialsByClientID(ctx, opts.ClientID)
-	if err != nil {
-		return dtos.AccountCredentialsDTO{}, exceptions.FromDBError(err)
-	}
-	if accountCredentials.AccountID != accountID {
-		return dtos.AccountCredentialsDTO{}, exceptions.NewNotFoundError()
-	}
-
-	return dtos.MapAccountCredentialsToDTO(&accountCredentials), nil
+	return s.GetAccountCredentialsByClientID(ctx, GetAccountCredentialsByClientIDOptions{
+		RequestID:       opts.requestID,
+		AccountPublicID: opts.accountPublicID,
+		ClientID:        opts.clientID,
+	})
 }
 
 type ListAccountCredentialsByAccountPublicID struct {
@@ -350,13 +345,13 @@ func (s *Services) UpdateAccountCredentials(
 	)
 	logger.InfoContext(ctx, "Updating account keys scopes...")
 
-	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsForMutation(
+	accountCredentialsDTO, serviceErr := s.getAccountCredentialsForMutation(
 		ctx,
-		GetAccountCredentialsForMutationOptions{
-			RequestID:       opts.RequestID,
-			AccountPublicID: opts.AccountPublicID,
-			AccountVersion:  opts.AccountVersion,
-			ClientID:        opts.ClientID,
+		getAccountCredentialsForMutationOptions{
+			requestID:       opts.RequestID,
+			accountPublicID: opts.AccountPublicID,
+			accountVersion:  opts.AccountVersion,
+			clientID:        opts.ClientID,
 		},
 	)
 	if serviceErr != nil {
@@ -414,9 +409,14 @@ func (s *Services) DeleteAccountCredentials(ctx context.Context, opts DeleteAcco
 	)
 	logger.InfoContext(ctx, "Deleting account keys...")
 
-	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsForMutation(
+	accountCredentialsDTO, serviceErr := s.getAccountCredentialsForMutation(
 		ctx,
-		GetAccountCredentialsForMutationOptions(opts),
+		getAccountCredentialsForMutationOptions{
+			requestID:       opts.RequestID,
+			accountPublicID: opts.AccountPublicID,
+			accountVersion:  opts.AccountVersion,
+			clientID:        opts.ClientID,
+		},
 	)
 	if serviceErr != nil {
 		return serviceErr
@@ -641,9 +641,14 @@ func (s *Services) RotateAccountCredentialsSecret(
 	)
 	logger.InfoContext(ctx, "Rotating account keys secret...")
 
-	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsForMutation(
+	accountCredentialsDTO, serviceErr := s.getAccountCredentialsForMutation(
 		ctx,
-		GetAccountCredentialsForMutationOptions(opts),
+		getAccountCredentialsForMutationOptions{
+			requestID:       opts.RequestID,
+			accountPublicID: opts.AccountPublicID,
+			accountVersion:  opts.AccountVersion,
+			clientID:        opts.ClientID,
+		},
 	)
 	if serviceErr != nil {
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
@@ -1006,13 +1011,13 @@ func (s *Services) RevokeAccountCredentialsSecretOrKey(
 	)
 	logger.InfoContext(ctx, "Revoking account credentials secret or key...")
 
-	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsForMutation(
+	accountCredentialsDTO, serviceErr := s.getAccountCredentialsForMutation(
 		ctx,
-		GetAccountCredentialsForMutationOptions{
-			RequestID:       opts.RequestID,
-			AccountPublicID: opts.AccountPublicID,
-			AccountVersion:  opts.AccountVersion,
-			ClientID:        opts.ClientID,
+		getAccountCredentialsForMutationOptions{
+			requestID:       opts.RequestID,
+			accountPublicID: opts.AccountPublicID,
+			accountVersion:  opts.AccountVersion,
+			clientID:        opts.ClientID,
 		},
 	)
 	if serviceErr != nil {

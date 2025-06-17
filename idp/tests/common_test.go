@@ -458,6 +458,20 @@ func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (stri
 	return accessToken, refreshToken
 }
 
+func GenerateScopedAccountAccessToken(t *testing.T, account *dtos.AccountDTO, scopes []tokens.AccountScope) string {
+	tks := GetTestTokens(t)
+	accessToken, err := tks.CreateAccessToken(tokens.AccountAccessTokenOptions{
+		PublicID:     account.PublicID,
+		Version:      account.Version(),
+		TokenSubject: account.PublicID.String(),
+		Scopes:       scopes,
+	})
+	if err != nil {
+		t.Fatal("Failed to create access token", err)
+	}
+	return accessToken
+}
+
 func assertErrorResponse(t *testing.T, res *http.Response, code, message string) {
 	resBody := AssertTestResponseBody(t, res, exceptions.ErrorResponse{})
 	AssertEqual(t, message, resBody.Message)

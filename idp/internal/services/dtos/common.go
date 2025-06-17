@@ -68,7 +68,7 @@ func processExtraParams(extraParams []string) string {
 }
 
 func formatPaginationURL(backendDomain, route string, offset, limit int, extraParams string) string {
-	return fmt.Sprintf("https://%s/%s?offset=%d&limit=%d%s", backendDomain, route, offset, limit, extraParams)
+	return fmt.Sprintf("https://%s/v1%s?offset=%d&limit=%d%s", backendDomain, route, offset, limit, extraParams)
 }
 
 func newPaginationNextURL(backendDomain, route string, limit, offset int, count int64, extraParams string) string {
