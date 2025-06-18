@@ -23,3 +23,10 @@ UPDATE "credentials_secrets" SET
     "updated_at" = now()
 WHERE "id" = $1
 RETURNING *;
+
+-- name: UpdateCredentialsSecretExpiresAtAndCreatedAt :exec
+UPDATE "credentials_secrets" SET
+    "expires_at" = $2,
+    "created_at" = $3,
+    "updated_at" = now()
+WHERE "secret_id" = $1;

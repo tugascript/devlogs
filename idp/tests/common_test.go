@@ -10,6 +10,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/jackc/pgx/v5"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -66,7 +68,34 @@ func initTestServicesAndApp(t *testing.T) {
 
 	// Build database connection
 	logger.InfoContext(ctx, "Building database connection...")
-	dbConnPool, err := pgxpool.New(ctx, _testConfig.DatabaseURL())
+	pgCfg, err := pgxpool.ParseConfig(_testConfig.DatabaseURL())
+	if err != nil {
+		t.Fatal("Failed to parse database URL", err)
+	}
+	pgCfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		logger.InfoContext(ctx, "Loading types into database connection pool...")
+
+		ts, err := conn.LoadTypes(ctx, server.PgTypes[:])
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to load normal types into database connection pool", "error", err)
+			return err
+		}
+		conn.TypeMap().RegisterTypes(ts)
+
+		arrTypes := utils.MapSlice(server.PgTypes[:], func(t *string) string {
+			return "_" + *t
+		})
+		ts, err = conn.LoadTypes(ctx, arrTypes)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to load prefixed types into database connection pool", "error", err)
+			return err
+		}
+		conn.TypeMap().RegisterTypes(ts)
+
+		logger.InfoContext(ctx, "Types loaded into database connection pool")
+		return nil
+	}
+	dbConnPool, err := pgxpool.NewWithConfig(ctx, pgCfg)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to connect to database", "error", err)
 		t.Fatal("Failed to connect to database", err)
@@ -260,7 +289,7 @@ func AssertTestResponseBody[V interface{}](t *testing.T, resp *http.Response, ex
 
 	if err := json.Unmarshal(body, &expectedBody); err != nil {
 		t.Logf("Body: %s", body)
-		t.Fatal("Failed to register user")
+		t.Fatal("Failed to unmarshal response body", err)
 	}
 	return expectedBody
 }
@@ -427,6 +456,20 @@ func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (stri
 		t.Fatal("Failed to create refresh token", err)
 	}
 	return accessToken, refreshToken
+}
+
+func GenerateScopedAccountAccessToken(t *testing.T, account *dtos.AccountDTO, scopes []tokens.AccountScope) string {
+	tks := GetTestTokens(t)
+	accessToken, err := tks.CreateAccessToken(tokens.AccountAccessTokenOptions{
+		PublicID:     account.PublicID,
+		Version:      account.Version(),
+		TokenSubject: account.PublicID.String(),
+		Scopes:       scopes,
+	})
+	if err != nil {
+		t.Fatal("Failed to create access token", err)
+	}
+	return accessToken
 }
 
 func assertErrorResponse(t *testing.T, res *http.Response, code, message string) {

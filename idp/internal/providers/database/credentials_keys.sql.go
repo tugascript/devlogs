@@ -83,3 +83,22 @@ func (q *Queries) RevokeCredentialsKey(ctx context.Context, id int32) (Credentia
 	)
 	return i, err
 }
+
+const updateCredentialsKeyExpiresAtAndCreatedAt = `-- name: UpdateCredentialsKeyExpiresAtAndCreatedAt :exec
+UPDATE "credentials_keys" SET
+    "expires_at" = $2,
+    "created_at" = $3,
+    "updated_at" = now()
+WHERE "public_kid" = $1
+`
+
+type UpdateCredentialsKeyExpiresAtAndCreatedAtParams struct {
+	PublicKid string
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+func (q *Queries) UpdateCredentialsKeyExpiresAtAndCreatedAt(ctx context.Context, arg UpdateCredentialsKeyExpiresAtAndCreatedAtParams) error {
+	_, err := q.db.Exec(ctx, updateCredentialsKeyExpiresAtAndCreatedAt, arg.PublicKid, arg.ExpiresAt, arg.CreatedAt)
+	return err
+}

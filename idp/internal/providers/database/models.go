@@ -688,6 +688,15 @@ type AppServerUrl struct {
 	UpdatedAt       time.Time
 }
 
+type AppServiceAudience struct {
+	ID        int32
+	AccountID int32
+	AppID     int32
+	Audiences []string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type CredentialsKey struct {
 	ID             int32
 	AccountID      int32

@@ -57,3 +57,6 @@ OFFSET $2 LIMIT $3;
 SELECT COUNT("id") FROM "account_credentials"
 WHERE "account_public_id" = $1
 LIMIT 1;
+
+-- name: DeleteAllAccountCredentials :exec
+DELETE FROM "account_credentials";

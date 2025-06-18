@@ -21,7 +21,7 @@ type AccountCredentialsDTO struct {
 	AuthMethods     []database.AuthMethod              `json:"auth_methods"`
 	ClientSecretID  string                             `json:"client_secret_id,omitempty"`
 	ClientSecret    string                             `json:"client_secret,omitempty"`
-	ClientSecretJWK utils.JWK                          `json:"client_secret_jwk,omitempty"`
+	ClientSecretJWK *utils.ES256JWK                    `json:"client_secret_jwk,omitempty"`
 	ClientSecretExp int64                              `json:"client_secret_exp,omitempty"`
 
 	id        int32
@@ -42,6 +42,7 @@ func MapAccountCredentialsToDTO(
 	return AccountCredentialsDTO{
 		id:          accountKeys.ID,
 		ClientID:    accountKeys.ClientID,
+		Alias:       accountKeys.Alias,
 		Scopes:      accountKeys.Scopes,
 		AuthMethods: accountKeys.AuthMethods,
 		accountId:   accountKeys.AccountID,
@@ -50,15 +51,18 @@ func MapAccountCredentialsToDTO(
 
 func MapAccountCredentialsToDTOWithJWK(
 	accountKeys *database.AccountCredential,
-	jwk utils.JWK,
+	jwk *utils.ES256JWK,
 	exp time.Time,
 ) AccountCredentialsDTO {
 	return AccountCredentialsDTO{
 		id:              accountKeys.ID,
+		Alias:           accountKeys.Alias,
 		ClientID:        accountKeys.ClientID,
 		ClientSecretID:  jwk.GetKeyID(),
 		ClientSecretJWK: jwk,
 		ClientSecretExp: exp.Unix(),
+		Scopes:          accountKeys.Scopes,
+		AuthMethods:     accountKeys.AuthMethods,
 		accountId:       accountKeys.AccountID,
 	}
 }
@@ -71,10 +75,13 @@ func MapAccountCredentialsToDTOWithSecret(
 ) AccountCredentialsDTO {
 	return AccountCredentialsDTO{
 		id:              accountKeys.ID,
+		Alias:           accountKeys.Alias,
 		ClientID:        accountKeys.ClientID,
 		ClientSecretID:  secretID,
 		ClientSecret:    fmt.Sprintf("%s.%s", secretID, secret),
 		ClientSecretExp: exp.Unix(),
+		Scopes:          accountKeys.Scopes,
+		AuthMethods:     accountKeys.AuthMethods,
 		accountId:       accountKeys.AccountID,
 	}
 }
