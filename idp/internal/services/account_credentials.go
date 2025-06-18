@@ -432,10 +432,10 @@ func (s *Services) DeleteAccountCredentials(ctx context.Context, opts DeleteAcco
 }
 
 type createAccountCredentialsKeyOptions struct {
-	requestID       string
-	accountID       int32
-	accountPublicID uuid.UUID
-	clientID        string
+	requestID            string
+	accountID            int32
+	accountPublicID      uuid.UUID
+	accountCredentialsID int32
 }
 
 func (s *Services) createAccountCredentialsKey(
@@ -444,7 +444,7 @@ func (s *Services) createAccountCredentialsKey(
 ) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, accountCredentialsLocation, "createAccountCredentialsKey").With(
 		"accountID", opts.accountID,
-		"clientID", opts.clientID,
+		"accountCredentialsID", opts.accountCredentialsID,
 	)
 	logger.InfoContext(ctx, "Creating account credentials key...")
 
@@ -477,7 +477,7 @@ func (s *Services) createAccountCredentialsKey(
 
 	if err = qrs.CreateAccountCredentialKey(ctx, database.CreateAccountCredentialKeyParams{
 		AccountID:            opts.accountID,
-		AccountCredentialsID: opts.accountID,
+		AccountCredentialsID: opts.accountCredentialsID,
 		CredentialsKeyID:     clientKey.ID,
 		AccountPublicID:      opts.accountPublicID,
 	}); err != nil {
@@ -490,10 +490,10 @@ func (s *Services) createAccountCredentialsKey(
 }
 
 type rotateAccountCredentialsKeyOptions struct {
-	requestID       string
-	accountID       int32
-	accountPublicID uuid.UUID
-	clientID        string
+	requestID            string
+	accountID            int32
+	accountPublicID      uuid.UUID
+	accountCredentialsID int32
 }
 
 func (s *Services) rotateAccountCredentialsKey(
@@ -501,8 +501,8 @@ func (s *Services) rotateAccountCredentialsKey(
 	opts rotateAccountCredentialsKeyOptions,
 ) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, accountCredentialsLocation, "rotateAccountCredentialsKey").With(
-		"accountID", opts.accountID,
-		"clientID", opts.clientID,
+		"accountId", opts.accountID,
+		"accountCredentialsId", opts.accountCredentialsID,
 	)
 	logger.InfoContext(ctx, "Rotating account credentials key...")
 
@@ -530,9 +530,9 @@ func (s *Services) rotateAccountCredentialsKey(
 }
 
 type createAccountCredentialsSecretOptions struct {
-	requestID string
-	accountID int32
-	clientID  string
+	requestID            string
+	accountID            int32
+	accountCredentialsID int32
 }
 
 func (s *Services) createAccountCredentialsSecret(
@@ -541,7 +541,7 @@ func (s *Services) createAccountCredentialsSecret(
 ) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, accountCredentialsLocation, "createAccountCredentialsSecret").With(
 		"accountID", opts.accountID,
-		"clientID", opts.clientID,
+		"accountCredentialsID", opts.accountCredentialsID,
 	)
 	logger.InfoContext(ctx, "Creating account credentials secret...")
 
@@ -549,6 +549,7 @@ func (s *Services) createAccountCredentialsSecret(
 		requestID: opts.requestID,
 		accountID: opts.accountID,
 		expiresIn: accountCredentialsSecretExpiry,
+		prefix:    accountCredentialsSecretPrefix,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
@@ -574,7 +575,7 @@ func (s *Services) createAccountCredentialsSecret(
 
 	if err = qrs.CreateAccountCredentialSecret(ctx, database.CreateAccountCredentialSecretParams{
 		AccountID:            opts.accountID,
-		AccountCredentialsID: opts.accountID,
+		AccountCredentialsID: opts.accountCredentialsID,
 		CredentialsSecretID:  clientSecret.ID,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create account credential secret", "error", err)
@@ -586,9 +587,9 @@ func (s *Services) createAccountCredentialsSecret(
 }
 
 type rotateAccountCredentialsSecretOptions struct {
-	requestID string
-	accountID int32
-	clientID  string
+	requestID            string
+	accountID            int32
+	accountCredentialsID int32
 }
 
 func (s *Services) rotateAccountCredentialsSecret(
@@ -597,7 +598,7 @@ func (s *Services) rotateAccountCredentialsSecret(
 ) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, accountCredentialsLocation, "rotateAccountCredentialsSecret").With(
 		"accountID", opts.accountID,
-		"clientID", opts.clientID,
+		"accountCredentialsID", opts.accountCredentialsID,
 	)
 	logger.InfoContext(ctx, "Rotating account credentials secret...")
 
@@ -657,17 +658,17 @@ func (s *Services) RotateAccountCredentialsSecret(
 	amHashSet := utils.MapSliceToHashSet(accountCredentialsDTO.AuthMethods)
 	if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
 		return s.rotateAccountCredentialsKey(ctx, rotateAccountCredentialsKeyOptions{
-			requestID:       opts.RequestID,
-			accountID:       accountCredentialsDTO.AccountID(),
-			clientID:        accountCredentialsDTO.ClientID,
-			accountPublicID: opts.AccountPublicID,
+			requestID:            opts.RequestID,
+			accountID:            accountCredentialsDTO.AccountID(),
+			accountPublicID:      opts.AccountPublicID,
+			accountCredentialsID: accountCredentialsDTO.ID(),
 		})
 	}
 	if amHashSet.Contains(database.AuthMethodClientSecretBasic) || amHashSet.Contains(database.AuthMethodClientSecretPost) {
 		return s.rotateAccountCredentialsSecret(ctx, rotateAccountCredentialsSecretOptions{
-			requestID: opts.RequestID,
-			accountID: accountCredentialsDTO.AccountID(),
-			clientID:  accountCredentialsDTO.ClientID,
+			requestID:            opts.RequestID,
+			accountID:            accountCredentialsDTO.AccountID(),
+			accountCredentialsID: accountCredentialsDTO.ID(),
 		})
 	}
 

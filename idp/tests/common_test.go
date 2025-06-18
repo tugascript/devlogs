@@ -289,7 +289,7 @@ func AssertTestResponseBody[V interface{}](t *testing.T, resp *http.Response, ex
 
 	if err := json.Unmarshal(body, &expectedBody); err != nil {
 		t.Logf("Body: %s", body)
-		t.Fatal("Failed to register user")
+		t.Fatal("Failed to unmarshal response body", err)
 	}
 	return expectedBody
 }

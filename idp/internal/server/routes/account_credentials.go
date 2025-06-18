@@ -59,8 +59,8 @@ func (r *Routes) AccountCredentialsSecretsRoutes(app *fiber.App) {
 		credentialsReadScopeMiddleware,
 		r.controllers.GetAccountCredentialsSecret,
 	)
-	router.Post(
-		paths.CredentialsSecretsRevoke,
+	router.Delete(
+		paths.CredentialsSecretsSingle,
 		credentialsWriteScopeMiddleware,
 		r.controllers.RevokeAccountCredentialsSecret,
 	)

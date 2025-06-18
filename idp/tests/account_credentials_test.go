@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -751,6 +752,625 @@ func TestDeleteAccountCredentials(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			PerformTestRequestCaseWithPathFn(t, http.MethodDelete, tc)
+		})
+	}
+
+	t.Cleanup(accountCredentialsCleanUp(t))
+}
+
+func TestRevokeAccountCredentialsSecret(t *testing.T) {
+	const accountCredentialsPath = v1Path + paths.AccountsBase + paths.CredentialsBase
+
+	var clientID string
+	var secretID string
+	revokeAccountCredentialBeforeEach := func(t *testing.T, authMethods string) string {
+		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+		accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsWrite})
+
+		cred, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+			RequestID:       uuid.NewString(),
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			Alias:           "revoke-cred",
+			Scopes:          []string{"account:admin"},
+			AuthMethods:     authMethods,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create account credentials: %v", err)
+		}
+		clientID = cred.ClientID
+		secretID = cred.ClientSecretID
+		return accessToken
+	}
+
+	generateFakeKeyID := func(t *testing.T) string {
+		key, err := utils.GenerateBase64Secret(16)
+		if err != nil {
+			t.Fatalf("Failed to generate fake key: %v", err)
+		}
+		return key
+	}
+
+	pathFN := func() string {
+		return accountCredentialsPath + "/" + clientID + "/secrets/" + secretID
+	}
+
+	testCases := []TestRequestCase[any]{
+		{
+			Name: "Should return 200 OK on successful secret revoke for client_secret_post and client_secret_basic",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := revokeAccountCredentialBeforeEach(t, "both_client_secrets")
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertEqual(t, resBody.PublicID, secretID)
+				AssertEqual(t, resBody.Status, "revoked")
+				AssertEmpty(t, resBody.ClientSecretJWK)
+				AssertEmpty(t, resBody.ClientSecret)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 200 OK on successful secret revoke for private_key_jwt",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := revokeAccountCredentialBeforeEach(t, "private_key_jwt")
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertEqual(t, resBody.PublicID, secretID)
+				AssertEqual(t, resBody.Status, "revoked")
+				AssertEmpty(t, resBody.ClientSecretJWK)
+				AssertEmpty(t, resBody.ClientSecret)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 404 NOT FOUND for non-existent credential",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := revokeAccountCredentialBeforeEach(t, "client_secret_post")
+				clientID = utils.Base62UUID()
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusNotFound,
+			AssertFn:  AssertNotFoundError[any],
+			PathFn:    pathFN,
+		},
+		{
+			Name: "Should return 404 NOT FOUND for non-existent secret",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := revokeAccountCredentialBeforeEach(t, "client_secret_basic")
+				secretID = generateFakeKeyID(t)
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusNotFound,
+			AssertFn:  AssertNotFoundError[any],
+			PathFn:    pathFN,
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED without access token",
+			ReqFn: func(t *testing.T) (any, string) {
+				revokeAccountCredentialBeforeEach(t, "client_secret_post")
+				return nil, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[any],
+			PathFn:    pathFN,
+		},
+		{
+			Name: "Should return 403 FORBIDDEN without account:credentials:write scope",
+			ReqFn: func(t *testing.T) (any, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsRead})
+				cred, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+					RequestID:       uuid.NewString(),
+					AccountPublicID: account.PublicID,
+					AccountVersion:  account.Version(),
+					Alias:           "forbidden-cred",
+					Scopes:          []string{"account:admin"},
+					AuthMethods:     "client_secret_basic",
+				})
+				if err != nil {
+					t.Fatalf("Failed to create account credentials: %v", err)
+				}
+				clientID = cred.ClientID
+				secretID = cred.ClientSecretID
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusForbidden,
+			AssertFn:  AssertForbiddenError[any],
+			PathFn:    pathFN,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCaseWithPathFn(t, http.MethodDelete, tc)
+		})
+	}
+
+	t.Cleanup(accountCredentialsCleanUp(t))
+}
+
+func TestListAccountCredentialsSecret(t *testing.T) {
+	const accountCredentialsPath = v1Path + paths.AccountsBase + paths.CredentialsBase
+
+	var clientID string
+	listAccountCredentialBeforeEach := func(t *testing.T, authMethods string) string {
+		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+		accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsRead, tokens.AccountScopeCredentialsWrite})
+
+		cred, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+			RequestID:       uuid.NewString(),
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			Alias:           "list-cred",
+			Scopes:          []string{"account:admin"},
+			AuthMethods:     authMethods,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create account credentials: %v", err)
+		}
+		clientID = cred.ClientID
+		return accessToken
+	}
+
+	pathFN := func() string {
+		return accountCredentialsPath + "/" + clientID + "/secrets"
+	}
+
+	testCases := []TestRequestCase[any]{
+		{
+			Name: "Should return 200 OK with secrets for both_client_secrets",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := listAccountCredentialBeforeEach(t, "both_client_secrets")
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.PaginationDTO[dtos.ClientCredentialsSecretDTO]{})
+				AssertEqual(t, resBody.Total > 0, true)
+				AssertNotEmpty(t, resBody.Items[0].PublicID)
+				AssertEqual(t, resBody.Items[0].Status, "active")
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 200 OK with secrets for private_key_jwt",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := listAccountCredentialBeforeEach(t, "private_key_jwt")
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.PaginationDTO[dtos.ClientCredentialsSecretDTO]{})
+				AssertEqual(t, resBody.Total > 0, true)
+				AssertNotEmpty(t, resBody.Items[0].PublicID)
+				AssertEqual(t, resBody.Items[0].Status, "active")
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 404 NOT FOUND for non-existent credential",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := listAccountCredentialBeforeEach(t, "client_secret_post")
+				clientID = utils.Base62UUID()
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusNotFound,
+			AssertFn:  AssertNotFoundError[any],
+			PathFn:    pathFN,
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED without access token",
+			ReqFn: func(t *testing.T) (any, string) {
+				listAccountCredentialBeforeEach(t, "client_secret_post")
+				return nil, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[any],
+			PathFn:    pathFN,
+		},
+		{
+			Name: "Should return 403 FORBIDDEN without account:credentials:read scope",
+			ReqFn: func(t *testing.T) (any, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsWrite})
+				cred, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+					RequestID:       uuid.NewString(),
+					AccountPublicID: account.PublicID,
+					AccountVersion:  account.Version(),
+					Alias:           "forbidden-cred",
+					Scopes:          []string{"account:admin"},
+					AuthMethods:     "client_secret_basic",
+				})
+				if err != nil {
+					t.Fatalf("Failed to create account credentials: %v", err)
+				}
+				clientID = cred.ClientID
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusForbidden,
+			AssertFn:  AssertForbiddenError[any],
+			PathFn:    pathFN,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCaseWithPathFn(t, http.MethodGet, tc)
+		})
+	}
+
+	t.Cleanup(accountCredentialsCleanUp(t))
+}
+
+func TestCreateAccountCredentialsSecret(t *testing.T) {
+	const accountCredentialsPath = v1Path + paths.AccountsBase + paths.CredentialsBase
+
+	var account dtos.AccountDTO
+	var clientID, secretID string
+	createAccountCredentialBeforeEach := func(t *testing.T, authMethods string) string {
+		account = CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+		accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsWrite})
+
+		cred, err := GetTestServices(t).CreateAccountCredentials(
+			context.Background(),
+			services.CreateAccountCredentialsOptions{
+				RequestID:       uuid.NewString(),
+				AccountPublicID: account.PublicID,
+				AccountVersion:  account.Version(),
+				Alias:           "create-secret-cred",
+				Scopes:          []string{"account:admin"},
+				AuthMethods:     authMethods,
+			},
+		)
+		if err != nil {
+			t.Fatalf("Failed to create account credentials: %v", err)
+		}
+
+		clientID = cred.ClientID
+		secretID = cred.ClientSecretID
+		return accessToken
+	}
+
+	pathFN := func() string {
+		return accountCredentialsPath + "/" + clientID + "/secrets"
+	}
+
+	testCases := []TestRequestCase[any]{
+		{
+			Name: "Should return 201 CREATED and create new secret for both_client_secrets when the main one is revoked",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := createAccountCredentialBeforeEach(t, "both_client_secrets")
+				if _, err := GetTestServices(t).RevokeAccountCredentialsSecretOrKey(
+					context.Background(),
+					services.RevokeAccountCredentialsSecretOrKeyOptions{
+						RequestID:       uuid.NewString(),
+						AccountPublicID: account.PublicID,
+						AccountVersion:  account.Version(),
+						ClientID:        clientID,
+						SecretID:        secretID,
+					},
+				); err != nil {
+					t.Fatalf("Failed to revoke account credentials secret: %v", err)
+				}
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertNotEmpty(t, resBody.PublicID)
+				AssertEqual(t, resBody.Status, "active")
+				AssertNotEmpty(t, resBody.ClientSecret)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 201 CREATED and create new secret for private_key_jwt when the main one is revoked",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := createAccountCredentialBeforeEach(t, "private_key_jwt")
+				if _, err := GetTestServices(t).RevokeAccountCredentialsSecretOrKey(
+					context.Background(),
+					services.RevokeAccountCredentialsSecretOrKeyOptions{
+						RequestID:       uuid.NewString(),
+						AccountPublicID: account.PublicID,
+						AccountVersion:  account.Version(),
+						ClientID:        clientID,
+						SecretID:        secretID,
+					},
+				); err != nil {
+					t.Fatalf("Failed to revoke account credentials secret: %v", err)
+				}
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertNotEmpty(t, resBody.PublicID)
+				AssertEqual(t, resBody.Status, "active")
+				AssertNotEmpty(t, resBody.ClientSecretJWK)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 201 CREATED and create new secret for both_client_secrets when the main on is almost expired",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := createAccountCredentialBeforeEach(t, "both_client_secrets")
+				if err := GetTestDatabase(t).UpdateCredentialsSecretExpiresAtAndCreatedAt(
+					context.Background(),
+					database.UpdateCredentialsSecretExpiresAtAndCreatedAtParams{
+						SecretID:  secretID,
+						ExpiresAt: time.Now().Add(24 * time.Hour),        // Set to 24 hours from now
+						CreatedAt: time.Now().Add(-24 * 365 * time.Hour), // Set to 1 year ago
+					},
+				); err != nil {
+					t.Fatalf("Failed to revoke account credentials secret: %v", err)
+				}
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertNotEmpty(t, resBody.PublicID)
+				AssertEqual(t, resBody.Status, "active")
+				AssertNotEmpty(t, resBody.ClientSecret)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 201 CREATED and create new secret for private_key_jwt when the main one is almost expired",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := createAccountCredentialBeforeEach(t, "private_key_jwt")
+				if err := GetTestDatabase(t).UpdateCredentialsKeyExpiresAtAndCreatedAt(
+					context.Background(),
+					database.UpdateCredentialsKeyExpiresAtAndCreatedAtParams{
+						PublicKid: secretID,
+						ExpiresAt: time.Now().Add(24 * time.Hour),        // Set to 24 hours from now
+						CreatedAt: time.Now().Add(-24 * 365 * time.Hour), // Set to 1 year ago
+					},
+				); err != nil {
+					t.Fatalf("Failed to revoke account credentials secret: %v", err)
+				}
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertNotEmpty(t, resBody.PublicID)
+				AssertEqual(t, resBody.Status, "active")
+				AssertNotEmpty(t, resBody.ClientSecretJWK)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 201 CREATED and create new secret for both_client_secrets when the main on is expired",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := createAccountCredentialBeforeEach(t, "both_client_secrets")
+				if err := GetTestDatabase(t).UpdateCredentialsSecretExpiresAtAndCreatedAt(
+					context.Background(),
+					database.UpdateCredentialsSecretExpiresAtAndCreatedAtParams{
+						SecretID:  secretID,
+						ExpiresAt: time.Now().Add(-24 * time.Hour),       // Set to 24 hours from now
+						CreatedAt: time.Now().Add(-24 * 366 * time.Hour), // Set to 1 year ago
+					},
+				); err != nil {
+					t.Fatalf("Failed to revoke account credentials secret: %v", err)
+				}
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertNotEmpty(t, resBody.PublicID)
+				AssertEqual(t, resBody.Status, "active")
+				AssertNotEmpty(t, resBody.ClientSecret)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 201 CREATED and create new secret for private_key_jwt when the main one is expired",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := createAccountCredentialBeforeEach(t, "private_key_jwt")
+				if err := GetTestDatabase(t).UpdateCredentialsKeyExpiresAtAndCreatedAt(
+					context.Background(),
+					database.UpdateCredentialsKeyExpiresAtAndCreatedAtParams{
+						PublicKid: secretID,
+						ExpiresAt: time.Now().Add(-24 * time.Hour),       // Set to 24 hours from now
+						CreatedAt: time.Now().Add(-24 * 366 * time.Hour), // Set to 1 year ago
+					},
+				); err != nil {
+					t.Fatalf("Failed to revoke account credentials secret: %v", err)
+				}
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertNotEmpty(t, resBody.PublicID)
+				AssertEqual(t, resBody.Status, "active")
+				AssertNotEmpty(t, resBody.ClientSecretJWK)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 404 NOT FOUND for non-existent credential",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := createAccountCredentialBeforeEach(t, "client_secret_post")
+				clientID = utils.Base62UUID()
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusNotFound,
+			AssertFn:  AssertNotFoundError[any],
+			PathFn:    pathFN,
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED without access token",
+			ReqFn: func(t *testing.T) (any, string) {
+				createAccountCredentialBeforeEach(t, "client_secret_post")
+				return nil, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[any],
+			PathFn:    pathFN,
+		},
+		{
+			Name: "Should return 403 FORBIDDEN without account:credentials:write scope",
+			ReqFn: func(t *testing.T) (any, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsRead})
+				cred, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+					RequestID:       uuid.NewString(),
+					AccountPublicID: account.PublicID,
+					AccountVersion:  account.Version(),
+					Alias:           "forbidden-cred",
+					Scopes:          []string{"account:admin"},
+					AuthMethods:     "client_secret_basic",
+				})
+				if err != nil {
+					t.Fatalf("Failed to create account credentials: %v", err)
+				}
+				clientID = cred.ClientID
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusForbidden,
+			AssertFn:  AssertForbiddenError[any],
+			PathFn:    pathFN,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCaseWithPathFn(t, http.MethodPost, tc)
+		})
+	}
+
+	t.Cleanup(accountCredentialsCleanUp(t))
+}
+
+func TestGetAccountCredentialsSecret(t *testing.T) {
+	const accountCredentialsPath = v1Path + paths.AccountsBase + paths.CredentialsBase
+
+	var clientID, secretID string
+	getAccountCredentialSecretBeforeEach := func(t *testing.T, authMethods string) string {
+		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+		accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsRead, tokens.AccountScopeCredentialsWrite})
+
+		cred, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+			RequestID:       uuid.NewString(),
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			Alias:           "get-secret-cred",
+			Scopes:          []string{"account:admin"},
+			AuthMethods:     authMethods,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create account credentials: %v", err)
+		}
+		clientID = cred.ClientID
+		secretID = cred.ClientSecretID
+		return accessToken
+	}
+
+	pathFN := func() string {
+		return accountCredentialsPath + "/" + clientID + "/secrets/" + secretID
+	}
+
+	testCases := []TestRequestCase[any]{
+		{
+			Name: "Should return 200 OK with secret for both_client_secrets",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := getAccountCredentialSecretBeforeEach(t, "both_client_secrets")
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertEqual(t, resBody.PublicID, secretID)
+				AssertEqual(t, resBody.Status, "active")
+				AssertEmpty(t, resBody.ClientSecret)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 200 OK with secret for private_key_jwt",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := getAccountCredentialSecretBeforeEach(t, "private_key_jwt")
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertEqual(t, resBody.PublicID, secretID)
+				AssertEqual(t, resBody.Status, "active")
+				AssertEmpty(t, resBody.ClientSecretJWK)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 404 NOT FOUND for non-existent credential",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := getAccountCredentialSecretBeforeEach(t, "client_secret_post")
+				clientID = utils.Base62UUID()
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusNotFound,
+			AssertFn:  AssertNotFoundError[any],
+			PathFn:    pathFN,
+		},
+		{
+			Name: "Should return 404 NOT FOUND for non-existent secret",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := getAccountCredentialSecretBeforeEach(t, "client_secret_basic")
+				secretID = utils.Base62UUID()
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusNotFound,
+			AssertFn:  AssertNotFoundError[any],
+			PathFn:    pathFN,
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED without access token",
+			ReqFn: func(t *testing.T) (any, string) {
+				getAccountCredentialSecretBeforeEach(t, "client_secret_post")
+				return nil, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[any],
+			PathFn:    pathFN,
+		},
+		{
+			Name: "Should return 403 FORBIDDEN without account:credentials:read scope",
+			ReqFn: func(t *testing.T) (any, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsWrite})
+				cred, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+					RequestID:       uuid.NewString(),
+					AccountPublicID: account.PublicID,
+					AccountVersion:  account.Version(),
+					Alias:           "forbidden-cred",
+					Scopes:          []string{"account:admin"},
+					AuthMethods:     "client_secret_basic",
+				})
+				if err != nil {
+					t.Fatalf("Failed to create account credentials: %v", err)
+				}
+				clientID = cred.ClientID
+				secretID = cred.ClientSecretID
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusForbidden,
+			AssertFn:  AssertForbiddenError[any],
+			PathFn:    pathFN,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCaseWithPathFn(t, http.MethodGet, tc)
 		})
 	}
 
