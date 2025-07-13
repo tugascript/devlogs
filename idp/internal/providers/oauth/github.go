@@ -146,7 +146,6 @@ func (p *Providers) GetGithubAuthorizationURL(
 ) (string, string, *exceptions.ServiceError) {
 	return getAuthorizationURL(ctx, getAuthorizationURLOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
-			Layer:     logLayer,
 			Location:  githubLocation,
 			Method:    "GetGithubAuthorizationURL",
 			RequestID: opts.RequestID,
@@ -164,7 +163,6 @@ func (p *Providers) GetGithubAccessToken(
 ) (string, *exceptions.ServiceError) {
 	return getAccessToken(ctx, getAccessTokenOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
-			Layer:     logLayer,
 			Location:  githubLocation,
 			Method:    "GetGithubAccessToken",
 			RequestID: opts.RequestID,
@@ -182,7 +180,6 @@ func (p *Providers) GetGithubUserData(
 	opts UserDataOptions,
 ) (UserData, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  githubLocation,
 		Method:    "GetGithubUserData",
 		RequestID: opts.RequestID,
@@ -214,7 +211,6 @@ func (p *Providers) GetGithubUserMap(
 	opts UserDataOptions,
 ) (string, map[string]any, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  githubLocation,
 		Method:    "GetGithubUserMap",
 		RequestID: opts.RequestID,

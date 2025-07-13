@@ -41,7 +41,6 @@ const (
 
 func (s *Services) buildLogger(requestID, location, function string) *slog.Logger {
 	return utils.BuildLogger(s.logger, utils.LoggerOptions{
-		Layer:     utils.ServicesLogLayer,
 		Location:  location,
 		Method:    function,
 		RequestID: requestID,

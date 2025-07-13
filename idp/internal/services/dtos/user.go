@@ -27,7 +27,6 @@ type UserDTO struct {
 	version       int32
 	emailVerified bool
 	password      string
-	dek           string
 }
 
 func (u *UserDTO) ID() int32 {
@@ -44,10 +43,6 @@ func (u *UserDTO) Password() string {
 
 func (u *UserDTO) EmailVerified() bool {
 	return u.emailVerified
-}
-
-func (u *UserDTO) DEK() string {
-	return u.dek
 }
 
 func MapUserToDTO(user *database.User) (UserDTO, *exceptions.ServiceError) {
@@ -67,6 +62,5 @@ func MapUserToDTO(user *database.User) (UserDTO, *exceptions.ServiceError) {
 		version:       user.Version,
 		emailVerified: user.EmailVerified,
 		password:      user.Password.String,
-		dek:           user.Dek,
 	}, nil
 }

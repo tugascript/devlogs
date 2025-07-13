@@ -6,41 +6,28 @@
 
 package config
 
-import "encoding/json"
-
 type EncryptionConfig struct {
-	accountSecret string
-	oidcSecret    string
-	userSecret    string
-	oldSecrets    []string
+	kekPath string
+	dekTTL  int64
+	jwkTTL  int64
 }
 
-func NewEncryptionConfig(accountSecret, oidcSecret, userSecret, oldSecrets string) EncryptionConfig {
-	var secretSlice []string
-	if err := json.Unmarshal([]byte(oldSecrets), &secretSlice); err != nil {
-		panic(err)
-	}
+func (ec *EncryptionConfig) KEKPath() string {
+	return ec.kekPath
+}
 
+func (ec *EncryptionConfig) DEKTTL() int64 {
+	return ec.dekTTL
+}
+
+func (ec *EncryptionConfig) JWKTTL() int64 {
+	return ec.jwkTTL
+}
+
+func NewEncryptionConfig(kekPath string, dekTTL, jwkTTL int64) EncryptionConfig {
 	return EncryptionConfig{
-		accountSecret: accountSecret,
-		oidcSecret:    oidcSecret,
-		userSecret:    userSecret,
-		oldSecrets:    secretSlice,
+		kekPath: kekPath,
+		dekTTL:  dekTTL,
+		jwkTTL:  jwkTTL,
 	}
-}
-
-func (e *EncryptionConfig) AccountSecret() string {
-	return e.accountSecret
-}
-
-func (e *EncryptionConfig) OIDCSecret() string {
-	return e.oidcSecret
-}
-
-func (e *EncryptionConfig) UserSecret() string {
-	return e.userSecret
-}
-
-func (e *EncryptionConfig) OldSecrets() []string {
-	return e.oldSecrets
 }

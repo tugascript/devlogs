@@ -8,6 +8,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"reflect"
 	"slices"
@@ -18,8 +19,8 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
+	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
@@ -33,57 +34,112 @@ const (
 	resetUserMessage  string = "Password reset successfully"
 )
 
+func mapAuthTokenTypeToKeyType(tokenType tokens.AuthTokenType) (database.TokenKeyType, error) {
+	switch tokenType {
+	case tokens.AuthTokenTypeAccess:
+		return database.TokenKeyTypeAccess, nil
+	case tokens.AuthTokenTypeRefresh:
+		return database.TokenKeyTypeRefresh, nil
+	case tokens.AuthTokenTypeClientCredentials:
+		return database.TokenKeyTypeClientCredentials, nil
+	default:
+		return "", fmt.Errorf("unsupported token type: %s", tokenType)
+	}
+}
+
+func mapPurposeTokenTypeToKeyType(tokenType tokens.PurposeTokenType) (database.TokenKeyType, error) {
+	switch tokenType {
+	case tokens.PurposeTokenTypeConfirmation:
+		return database.TokenKeyTypeEmailVerification, nil
+	case tokens.PurposeTokenTypeReset:
+		return database.TokenKeyTypePasswordReset, nil
+	case tokens.PurposeTokenTypeOAuth:
+		return database.TokenKeyTypeOauthAuthorization, nil
+	case tokens.PurposeTokenTypeTwoFA:
+		return database.TokenKeyType2faAuthentication, nil
+	default:
+		return "", fmt.Errorf("unsupported purpose token type: %s", tokenType)
+	}
+}
+
 type ProcessUserAuthHeaderOptions struct {
 	RequestID  string
 	AuthHeader string
-	Name       AppKeyName
+	AccountID  int32
+	TokenType  tokens.AuthTokenType
 }
 
-func (s *Services) ProcessUserAccessHeader(
+func (s *Services) ProcessUserAuthHeader(
 	ctx context.Context,
 	opts ProcessUserAuthHeaderOptions,
 ) (tokens.UserAuthClaims, tokens.AppClaims, []database.Scopes, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "ProcessUserAuthHeader").With(
+		"tokenType", opts.TokenType,
+		"accountId", opts.AccountID,
+	)
+	logger.InfoContext(ctx, "Processing user auth header...")
+
 	token, serviceErr := extractAuthHeaderToken(opts.AuthHeader)
 	if serviceErr != nil {
 		return tokens.UserAuthClaims{}, tokens.AppClaims{}, nil, serviceErr
 	}
 
-	userClaims, appClaims, scope, _, _, err := s.jwt.VerifyUserAuthToken(
-		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
-			RequestID: opts.RequestID,
-			Name:      AppKeyNameAccess,
-		}),
+	keyType, err := mapAuthTokenTypeToKeyType(opts.TokenType)
+	if err != nil {
+		logger.ErrorContext(ctx, "Unsupported token type", "error", err)
+		return tokens.UserAuthClaims{}, tokens.AppClaims{}, nil, exceptions.NewServerError()
+	}
+
+	userClaims, appClaims, scopes, _, _, err := s.jwt.VerifyUserAuthToken(
 		token,
+		utils.SupportedCryptoSuiteES256,
+		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			keyType:   keyType,
+		}),
 	)
 	if err != nil {
 		return tokens.UserAuthClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
 	}
 
-	return userClaims, appClaims, scope, nil
+	return userClaims, appClaims, scopes, nil
 }
 
 type ProcessUserPurposeHeaderOptions struct {
 	RequestID  string
 	AuthHeader string
+	AccountID  int32
 	TokenType  tokens.PurposeTokenType
-	Name       AppKeyName
 }
 
 func (s *Services) ProcessUserPurposeHeader(
 	ctx context.Context,
 	opts ProcessUserPurposeHeaderOptions,
 ) (tokens.UserPurposeClaims, tokens.AppClaims, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "ProcessUserPurposeHeader").With(
+		"tokenType", opts.TokenType,
+		"accountId", opts.AccountID,
+	)
+	logger.InfoContext(ctx, "Processing user purpose header...")
 	token, serviceErr := extractAuthHeaderToken(opts.AuthHeader)
 	if serviceErr != nil {
 		return tokens.UserPurposeClaims{}, tokens.AppClaims{}, serviceErr
 	}
 
+	keyType, err := mapPurposeTokenTypeToKeyType(opts.TokenType)
+	if err != nil {
+		logger.ErrorContext(ctx, "Unsupported token type", "error", err)
+		return tokens.UserPurposeClaims{}, tokens.AppClaims{}, exceptions.NewServerError()
+	}
+
 	userClaims, appClaims, purpose, err := s.jwt.VerifyUserPurposeToken(
-		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
-			RequestID: opts.RequestID,
-			Name:      opts.Name,
-		}),
 		token,
+		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			keyType:   keyType,
+		}),
 	)
 	if err != nil {
 		return tokens.UserPurposeClaims{}, tokens.AppClaims{}, exceptions.NewUnauthorizedError()
@@ -107,24 +163,18 @@ type sendUserConfirmationEmailOptions struct {
 
 func (s *Services) sendUserConfirmationEmail(
 	ctx context.Context,
-	logger *slog.Logger,
 	userDTO *dtos.UserDTO,
 	opts sendUserConfirmationEmailOptions,
 ) *exceptions.ServiceError {
-	appKeyDTO, serviceErr := s.GetOrCreateAccountKey(ctx, GetOrCreateAccountKeyOptions{
-		RequestID: opts.requestID,
-		AccountID: opts.accountID,
-		Name:      AppKeyNameConfirm,
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get or create app key", "error", serviceErr)
-		return serviceErr
-	}
+	logger := s.buildLogger(opts.requestID, usersAuthLocation, "sendUserConfirmationEmail").With(
+		"accountId", opts.accountID,
+		"appClientId", opts.appClientID,
+		"userPublicID", userDTO.PublicID,
+	)
+	logger.InfoContext(ctx, "Sending user confirmation email...")
 
 	token, err := s.jwt.CreateUserPurposeToken(tokens.UserPurposeTokenOptions{
 		TokenType:       tokens.PurposeTokenTypeConfirmation,
-		PrivateKey:      appKeyDTO.PrivateKey(),
-		KID:             appKeyDTO.PublicKID(),
 		AccountUsername: opts.accountUsername,
 		UserPublicID:    userDTO.PublicID,
 		UserVersion:     userDTO.Version(),
@@ -137,12 +187,26 @@ func (s *Services) sendUserConfirmationEmail(
 		return exceptions.NewServerError()
 	}
 
+	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
+		RequestID: opts.requestID,
+		Token:     token,
+		GetJWKfn: s.buildEncryptedAccountJWKFn(ctx, logger, buildEncryptedAccountJWKFnOptions{
+			requestID: opts.requestID,
+			keyType:   database.TokenKeyTypeEmailVerification,
+			accountID: opts.accountID,
+		}),
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to sign user token", "serviceError", serviceErr)
+		return serviceErr
+	}
+
 	if err := s.mail.PublishUserConfirmationEmail(ctx, mailer.UserConfirmationEmailOptions{
 		RequestID:         opts.requestID,
 		AppName:           opts.appName,
 		Email:             userDTO.Email,
 		ConfirmationURI:   opts.appConfirmationURI,
-		ConfirmationToken: token,
+		ConfirmationToken: signedToken,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to publish confirmation email", "error", err)
 		return exceptions.NewServerError()
@@ -204,7 +268,7 @@ func (s *Services) RegisterUser(
 		return dtos.MessageDTO{}, serviceErr
 	}
 
-	if serviceErr := s.sendUserConfirmationEmail(ctx, logger, &userDTO, sendUserConfirmationEmailOptions{
+	if serviceErr := s.sendUserConfirmationEmail(ctx, &userDTO, sendUserConfirmationEmailOptions{
 		requestID:       opts.RequestID,
 		accountID:       opts.AccountID,
 		accountUsername: opts.AccountUsername,
@@ -231,27 +295,9 @@ func (s *Services) generateFullUserAuthDTO(
 	accountUsername,
 	logSuccessMessage string,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
-	accountKeyDTOs, serviceErr := s.GetOrCreateMultipleAccountKeys(ctx, GetOrCreateMultipleAccountKeysOptions{
-		RequestID: requestID,
-		AccountID: accountID,
-		Names:     []AppKeyName{AppKeyNameAccess, AppKeyNameRefresh},
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get or create app keys", "error", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	keyDTOsMap := make(map[AppKeyName]dtos.AccountKeyDTO)
-	for _, key := range accountKeyDTOs {
-		keyDTOsMap[AppKeyName(key.Name())] = key
-	}
-
-	accessTokenKey := keyDTOsMap[AppKeyNameAccess]
 	accessToken, err := s.jwt.CreateUserAuthToken(tokens.UserAuthTokenOptions{
-		CryptoSuite:     accessTokenKey.JWTCryptoSuite(),
+		CryptoSuite:     utils.SupportedCryptoSuiteES256,
 		TokenType:       tokens.AuthTokenTypeAccess,
-		PrivateKey:      accessTokenKey.PrivateKey(),
-		KID:             accessTokenKey.PublicKID(),
 		AccountUsername: accountUsername,
 		UserPublicID:    userDTO.PublicID,
 		UserVersion:     userDTO.Version(),
@@ -266,12 +312,23 @@ func (s *Services) generateFullUserAuthDTO(
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
-	refreshTokenKey := keyDTOsMap[AppKeyNameRefresh]
+	signedAccessToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
+		RequestID: requestID,
+		Token:     accessToken,
+		GetJWKfn: s.buildEncryptedAccountJWKFn(ctx, logger, buildEncryptedAccountJWKFnOptions{
+			requestID: requestID,
+			keyType:   database.TokenKeyTypeAccess,
+			accountID: accountID,
+		}),
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to sign access token", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
 	refreshToken, err := s.jwt.CreateUserAuthToken(tokens.UserAuthTokenOptions{
-		CryptoSuite:     refreshTokenKey.JWTCryptoSuite(),
+		CryptoSuite:     utils.SupportedCryptoSuiteEd25519,
 		TokenType:       tokens.AuthTokenTypeRefresh,
-		PrivateKey:      refreshTokenKey.PrivateKey(),
-		KID:             refreshTokenKey.PublicKID(),
 		AccountUsername: accountUsername,
 		UserPublicID:    userDTO.PublicID,
 		UserVersion:     userDTO.Version(),
@@ -286,8 +343,22 @@ func (s *Services) generateFullUserAuthDTO(
 		return dtos.AuthDTO{}, exceptions.NewServerError()
 	}
 
+	signedRefreshToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
+		RequestID: requestID,
+		Token:     refreshToken,
+		GetJWKfn: s.buildEncryptedAccountJWKFn(ctx, logger, buildEncryptedAccountJWKFnOptions{
+			requestID: requestID,
+			keyType:   database.TokenKeyTypeRefresh,
+			accountID: accountID,
+		}),
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to sign access token", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
 	logger.InfoContext(ctx, logSuccessMessage)
-	return dtos.NewFullAuthDTO(accessToken, refreshToken, s.jwt.GetAccessTTL()), nil
+	return dtos.NewFullAuthDTO(signedAccessToken, signedRefreshToken, s.jwt.GetAccessTTL()), nil
 }
 
 type ConfirmAuthUserOptions struct {
@@ -331,11 +402,12 @@ func (s *Services) ConfirmAuthUser(
 	}
 
 	userClaims, appClaims, _, err := s.jwt.VerifyUserPurposeToken(
-		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
-			RequestID: opts.RequestID,
-			Name:      AppKeyNameConfirm,
-		}),
 		opts.ConfirmationToken,
+		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			keyType:   database.TokenKeyTypeEmailVerification,
+		}),
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify user token", "error", err)
@@ -525,7 +597,7 @@ func (s *Services) LoginUser(
 	if !userDTO.EmailVerified() {
 		logger.InfoContext(ctx, "User is not confirmed, sending new confirmation email")
 
-		if serviceErr := s.sendUserConfirmationEmail(ctx, logger, &userDTO, sendUserConfirmationEmailOptions{
+		if serviceErr := s.sendUserConfirmationEmail(ctx, &userDTO, sendUserConfirmationEmailOptions{
 			requestID:       opts.RequestID,
 			accountID:       opts.AccountID,
 			accountUsername: opts.AccountUsername,
@@ -541,19 +613,8 @@ func (s *Services) LoginUser(
 	switch userDTO.TwoFactorType {
 	case database.TwoFactorTypeEmail, database.TwoFactorTypeTotp:
 		logger.WarnContext(ctx, "User has two-factor authentication enabled")
-		appKeyDTO, serviceErr := s.GetOrCreateAccountKey(ctx, GetOrCreateAccountKeyOptions{
-			RequestID: opts.RequestID,
-			AccountID: opts.AccountID,
-			Name:      AppKeyName2FA,
-		})
-		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to get or create app key", "error", serviceErr)
-			return dtos.AuthDTO{}, serviceErr
-		}
 		twoFAToken, err := s.jwt.CreateUserPurposeToken(tokens.UserPurposeTokenOptions{
 			TokenType:       tokens.PurposeTokenTypeTwoFA,
-			PrivateKey:      appKeyDTO.PrivateKey(),
-			KID:             appKeyDTO.PublicKID(),
 			AccountUsername: opts.AccountUsername,
 			UserPublicID:    userDTO.PublicID,
 			UserVersion:     userDTO.Version(),
@@ -564,6 +625,20 @@ func (s *Services) LoginUser(
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create two-factor authentication token", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewServerError()
+		}
+
+		signedTwoFAToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
+			RequestID: opts.RequestID,
+			Token:     twoFAToken,
+			GetJWKfn: s.buildEncryptedAccountJWKFn(ctx, logger, buildEncryptedAccountJWKFnOptions{
+				requestID: opts.RequestID,
+				keyType:   database.TokenKeyType2faAuthentication,
+				accountID: opts.AccountID,
+			}),
+		})
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to sign two-factor authentication token", "serviceError", serviceErr)
+			return dtos.AuthDTO{}, serviceErr
 		}
 
 		if userDTO.TwoFactorType == database.TwoFactorTypeEmail {
@@ -590,7 +665,7 @@ func (s *Services) LoginUser(
 		}
 
 		return dtos.NewTempAuthDTO(
-			twoFAToken,
+			signedTwoFAToken,
 			"Please provide two factor Code",
 			s.jwt.Get2FATTL(),
 		), nil
@@ -613,7 +688,6 @@ type verifyUserTotpOptions struct {
 	requestID string
 	userID    int32
 	code      string
-	dek       string
 }
 
 func (s *Services) verifyUserTotp(
@@ -625,43 +699,34 @@ func (s *Services) verifyUserTotp(
 	)
 	logger.InfoContext(ctx, "Verifying user TOTP...")
 
-	userTOTP, err := s.database.FindUserTotpByUserID(ctx, opts.userID)
-	if err != nil {
-		serviceErr := exceptions.FromDBError(err)
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "User TOTP not found", "error", err)
-			return false, exceptions.NewForbiddenError()
-		}
+	verified, err := s.crypto.VerifyTotpCode(ctx, crypto.VerifyTotpCodeOptions{
+		RequestID: opts.requestID,
+		Code:      opts.code,
+		OwnerID:   opts.userID,
+		GetSecret: func(ownerID int32) (crypto.EncryptedTOTPSecret, crypto.DEKID, *exceptions.ServiceError) {
+			userTOTP, err := s.database.FindUserTotpByUserID(ctx, opts.userID)
+			if err != nil {
+				serviceErr := exceptions.FromDBError(err)
+				if serviceErr.Code == exceptions.CodeNotFound {
+					logger.WarnContext(ctx, "User TOTP not found", "error", err)
+					return "", "", exceptions.NewForbiddenError()
+				}
 
-		logger.ErrorContext(ctx, "Failed to get user TOTP", "error", err)
-		return false, serviceErr
-	}
+				logger.ErrorContext(ctx, "Failed to get user TOTP", "error", err)
+				return "", "", serviceErr
+			}
 
-	ok, newDEK, err := s.encrypt.VerifyTotpCode(ctx, encryption.VerifyAccountTotpCodeOptions{
-		RequestID:       opts.requestID,
-		EncryptedSecret: userTOTP.Secret,
-		StoredDEK:       opts.dek,
-		Code:            opts.code,
-		TotpType:        encryption.TotpTypeUser,
+			return userTOTP.Secret, userTOTP.DekKid, nil
+		},
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify TOTP Code", "error", err)
 		return false, exceptions.NewServerError()
 	}
 
-	if !ok {
+	if !verified {
 		logger.WarnContext(ctx, "Invalid TOTP Code")
 		return false, exceptions.NewUnauthorizedError()
-	}
-
-	if newDEK != "" {
-		if err := s.database.UpdateUserDEK(ctx, database.UpdateUserDEKParams{
-			Dek: newDEK,
-			ID:  userTOTP.UserID,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to update user TOTP", "error", err)
-			return false, exceptions.NewServerError()
-		}
 	}
 
 	logger.InfoContext(ctx, "User TOTP verified successfully")
@@ -771,7 +836,6 @@ func (s *Services) TwoFactorLoginUser(
 			requestID: opts.RequestID,
 			userID:    userDTO.ID(),
 			code:      opts.Code,
-			dek:       userDTO.DEK(),
 		})
 	case database.TwoFactorTypeEmail:
 		verified, serviceErr = s.verifyUserEmailCode(ctx, verifierUserEmailCodeOptions{
@@ -840,11 +904,13 @@ func (s *Services) LogoutUser(
 	}
 
 	userClaims, appClaims, _, tokenID, exp, err := s.jwt.VerifyUserAuthToken(
-		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
-			RequestID: opts.RequestID,
-			Name:      AppKeyNameRefresh,
-		}),
 		opts.Token,
+		utils.SupportedCryptoSuiteEd25519,
+		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			keyType:   database.TokenKeyTypeRefresh,
+		}),
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify user token", "error", err)
@@ -911,11 +977,13 @@ func (s *Services) RefreshUserAccess(
 	logger.InfoContext(ctx, "Refreshing user access token...")
 
 	userClaims, appClaims, scopes, tokenID, _, err := s.jwt.VerifyUserAuthToken(
-		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
-			RequestID: opts.RequestID,
-			Name:      AppKeyNameRefresh,
-		}),
 		opts.Token,
+		utils.SupportedCryptoSuiteEd25519,
+		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			keyType:   database.TokenKeyTypeRefresh,
+		}),
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify refresh token", "error", err)
@@ -996,7 +1064,7 @@ func (s *Services) RefreshUserAccess(
 	)
 }
 
-type ForgoutUserPasswordOptions struct {
+type ForgotUserPasswordOptions struct {
 	RequestID       string
 	AccountID       int32
 	AccountUsername string
@@ -1005,11 +1073,11 @@ type ForgoutUserPasswordOptions struct {
 	Email           string
 }
 
-func (s *Services) ForgoutUserPassword(
+func (s *Services) ForgotUserPassword(
 	ctx context.Context,
-	opts ForgoutUserPasswordOptions,
+	opts ForgotUserPasswordOptions,
 ) (dtos.MessageDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "ForgoutUserPassword").With(
+	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "ForgotUserPassword").With(
 		"accountId", opts.AccountID,
 		"appClientId", opts.AppClientID,
 	)
@@ -1066,20 +1134,8 @@ func (s *Services) ForgoutUserPassword(
 		return dtos.MessageDTO{}, serviceErr
 	}
 
-	appKeyDTO, serviceErr := s.GetOrCreateAccountKey(ctx, GetOrCreateAccountKeyOptions{
-		RequestID: opts.RequestID,
-		AccountID: opts.AccountID,
-		Name:      AppKeyNameReset,
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get or create app key", "serviceError", serviceErr)
-		return dtos.MessageDTO{}, serviceErr
-	}
-
 	resetToken, err := s.jwt.CreateUserPurposeToken(tokens.UserPurposeTokenOptions{
 		TokenType:       tokens.PurposeTokenTypeReset,
-		PrivateKey:      appKeyDTO.PrivateKey(),
-		KID:             appKeyDTO.PublicKID(),
 		AccountUsername: opts.AccountUsername,
 		UserPublicID:    userDTO.PublicID,
 		UserVersion:     userDTO.Version(),
@@ -1092,11 +1148,25 @@ func (s *Services) ForgoutUserPassword(
 		return dtos.MessageDTO{}, exceptions.NewServerError()
 	}
 
+	signedResetToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
+		RequestID: opts.RequestID,
+		Token:     resetToken,
+		GetJWKfn: s.buildEncryptedAccountJWKFn(ctx, logger, buildEncryptedAccountJWKFnOptions{
+			requestID: opts.RequestID,
+			keyType:   database.TokenKeyTypePasswordReset,
+			accountID: opts.AccountID,
+		}),
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to sign reset token", "serviceError", serviceErr)
+		return dtos.MessageDTO{}, serviceErr
+	}
+
 	if err := s.mail.PublishUserResetEmail(ctx, mailer.UserResetEmailOptions{
 		RequestID:  opts.RequestID,
 		AppName:    appDTO.Name,
 		Email:      userDTO.Email,
-		ResetToken: resetToken,
+		ResetToken: signedResetToken,
 		// TODO: add from app type ResetURI: appDTO.ResetURI,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to publish reset email", "error", err)
@@ -1126,11 +1196,12 @@ func (s *Services) ResetUserPassword(
 	logger.InfoContext(ctx, "Forgout user password...")
 
 	userClaims, appClaims, _, err := s.jwt.VerifyUserPurposeToken(
-		s.GetAccountKeyFn(ctx, GetAccountKeyFnOptions{
-			RequestID: opts.RequestID,
-			Name:      AppKeyNameReset,
-		}),
 		opts.ResetToken,
+		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			keyType:   database.TokenKeyTypePasswordReset,
+		}),
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify refresh token", "error", err)

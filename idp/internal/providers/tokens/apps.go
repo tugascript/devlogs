@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -32,12 +33,12 @@ type AppTokenOptions struct {
 	AccountUsername string
 }
 
-func (t *Tokens) CreateAppToken(opts AppTokenOptions) (string, error) {
+func (t *Tokens) CreateAppToken(opts AppTokenOptions) *jwt.Token {
 	now := time.Now()
 	iat := jwt.NewNumericDate(now)
-	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(t.appsData.ttlSec)))
+	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(t.appsTTL)))
 	audAndIss := fmt.Sprintf("https://%s.%s", opts.AccountUsername, t.backendDomain)
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, appTokenClaims{
+	return jwt.NewWithClaims(jwt.SigningMethodES256, appTokenClaims{
 		AppClaims: AppClaims{
 			ClientID: opts.ClientID,
 			Version:  opts.Version,
@@ -53,49 +54,32 @@ func (t *Tokens) CreateAppToken(opts AppTokenOptions) (string, error) {
 		},
 		Scope: AppScopeAccountUserAuth,
 	})
-	token.Header["kid"] = t.appsData.curKeyPair.kid
-	return token.SignedString(t.appsData.curKeyPair.privateKey)
 }
 
-func (t *Tokens) VerifyAppToken(token string) (AppClaims, string, error) {
+func (t *Tokens) VerifyAppToken(token string, getPublicJWK GetPublicJWK) (AppClaims, error) {
 	claims := new(appTokenClaims)
 
-	if _, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (any, error) {
-		kid, err := extractTokenKID(token)
-		if err != nil {
-			return nil, err
-		}
-
-		if t.appsData.prevPubKey != nil && t.appsData.prevPubKey.kid == kid {
-			return t.appsData.prevPubKey.publicKey, nil
-		}
-		if t.appsData.curKeyPair.kid == kid {
-			return t.appsData.curKeyPair.publicKey, nil
-		}
-
-		return nil, fmt.Errorf("no key found for kid %s", kid)
-	}); err != nil {
-		return AppClaims{}, "", err
+	if _, err := jwt.ParseWithClaims(token, claims, buildVerifyKey(utils.SupportedCryptoSuiteES256, getPublicJWK)); err != nil {
+		return AppClaims{}, err
 	}
 
 	if len(claims.Audience) < 1 {
-		return AppClaims{}, "", errors.New("invalid audience")
+		return AppClaims{}, errors.New("invalid audience")
 	}
 
 	aud := claims.Audience[0]
 	audSlice := strings.Split(aud, ".")
 	if len(audSlice) < 2 {
-		return AppClaims{}, "", errors.New("invalid audience")
+		return AppClaims{}, errors.New("invalid audience")
 	}
 
-	accountUsername := strings.Replace(audSlice[0], "https://", "", 1)
-	if !utils.IsValidSubdomain(accountUsername) {
-		return AppClaims{}, "", errors.New("invalid account username")
+	if !utils.IsValidSubdomain(strings.Replace(audSlice[0], "https://", "", 1)) {
+		return AppClaims{}, errors.New("invalid account username")
 	}
 
-	return claims.AppClaims, accountUsername, nil
+	return claims.AppClaims, nil
 }
 
 func (t *Tokens) GetAppTTL() int64 {
-	return t.appsData.ttlSec
+	return t.appsTTL
 }

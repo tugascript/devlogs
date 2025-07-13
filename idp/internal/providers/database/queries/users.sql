@@ -11,16 +11,14 @@ INSERT INTO "users" (
     "email",
     "username",
     "password",
-    "user_data",
-    "dek"
+    "user_data"
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
     $5,
-    $6,
-    $7
+    $6
 ) RETURNING *;
 
 -- name: FindPaginatedUsersByAccountIDOrderedByID :many
@@ -99,15 +97,13 @@ INSERT INTO "users" (
     "public_id",
     "email",
     "username",
-    "user_data",
-    "dek"
+    "user_data"
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
-    $5,
-    $6
+    $5
 ) RETURNING *;
 
 -- name: CountUsersByUsernameAndAccountID :one
@@ -145,9 +141,3 @@ LIMIT 1;
 SELECT * FROM "users"
 WHERE "email" = $1 AND "account_id" = $2
 LIMIT 1;
-
--- name: UpdateUserDEK :exec
-UPDATE "users" SET
-    "dek" = $1,
-    "updated_at" = now()
-WHERE "id" = $2;

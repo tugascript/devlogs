@@ -125,7 +125,6 @@ func (p *Providers) GetFacebookAuthorizationURL(
 ) (string, string, *exceptions.ServiceError) {
 	return getAuthorizationURL(ctx, getAuthorizationURLOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
-			Layer:     logLayer,
 			Location:  facebookLocation,
 			Method:    "GetFacebookAuthorizationURL",
 			RequestID: opts.RequestID,
@@ -143,7 +142,6 @@ func (p *Providers) GetFacebookAccessToken(
 ) (string, *exceptions.ServiceError) {
 	return getAccessToken(ctx, getAccessTokenOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
-			Layer:     logLayer,
 			Location:  facebookLocation,
 			Method:    "GetFacebookAccessToken",
 			RequestID: opts.RequestID,
@@ -186,7 +184,6 @@ func (p *Providers) GetFacebookUserData(
 	opts UserDataOptions,
 ) (UserData, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  facebookLocation,
 		Method:    "GetFacebookUserData",
 		RequestID: opts.RequestID,
@@ -225,7 +222,6 @@ func (p *Providers) GetFacebookUserMap(
 	opts UserDataOptions,
 ) (string, map[string]any, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  facebookLocation,
 		Method:    "GetFacebookUserMap",
 		RequestID: opts.RequestID,

@@ -7,8 +7,6 @@
 package tokens
 
 import (
-	"errors"
-
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
@@ -20,11 +18,9 @@ type Account2FATokenOptions struct {
 	Version  int32
 }
 
-func (t *Tokens) Create2FAToken(opts Account2FATokenOptions) (string, error) {
+func (t *Tokens) Create2FAToken(opts Account2FATokenOptions) *jwt.Token {
 	return t.createPurposeToken(accountPurposeTokenOptions{
-		privateKey:      t.twoFAData.curKeyPair.privateKey,
-		kid:             t.twoFAData.curKeyPair.kid,
-		ttlSec:          t.twoFAData.ttlSec,
+		ttlSec:          t.twoFATTL,
 		accountPublicID: opts.PublicID,
 		accountVersion:  opts.Version,
 		path:            paths.AuthBase + paths.AuthLogin + paths.Auth2FA,
@@ -32,29 +28,6 @@ func (t *Tokens) Create2FAToken(opts Account2FATokenOptions) (string, error) {
 	})
 }
 
-func (t *Tokens) Verify2FAToken(token string) (AccountClaims, error) {
-	claims, err := verifyPurposeToken(token, func(token *jwt.Token) (any, error) {
-		kid, err := extractTokenKID(token)
-		if err != nil {
-			return nil, err
-		}
-
-		if t.twoFAData.prevPubKey != nil && t.twoFAData.prevPubKey.kid == kid {
-			return t.twoFAData.prevPubKey.publicKey, nil
-		}
-		if t.twoFAData.curKeyPair.kid == kid {
-			return t.twoFAData.curKeyPair.publicKey, nil
-		}
-
-		return nil, errors.New("no key found for kid")
-	})
-	if err != nil {
-		return AccountClaims{}, err
-	}
-
-	return claims.AccountClaims, nil
-}
-
 func (t *Tokens) Get2FATTL() int64 {
-	return t.twoFAData.ttlSec
+	return t.twoFATTL
 }

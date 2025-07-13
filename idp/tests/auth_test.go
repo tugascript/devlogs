@@ -26,8 +26,8 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
+	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
@@ -425,9 +425,9 @@ func TestTwoFactorLogin(t *testing.T) {
 				}
 
 				dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
-					encryption.ProcessTotpDEKOptions{
+					crypto.ProcessTotpDEKOptions{
 						RequestID: uuid.NewString(),
-						TotpType:  encryption.TotpTypeAccount,
+						TotpType:  crypto.TotpTypeAccount,
 						StoredDEK: account.DEK(),
 					},
 				)
@@ -777,10 +777,10 @@ func TestAccount2FARecover(t *testing.T) {
 		testT := GetTestTokens(t)
 		requestID := uuid.NewString()
 
-		totpKey, err := testE.GenerateTotpKey(context.Background(), encryption.GenerateTotpKeyOptions{
+		totpKey, err := testE.GenerateTotpKey(context.Background(), crypto.GenerateTotpKeyOptions{
 			RequestID: requestID,
 			Email:     accountDTO.Email,
-			TotpType:  encryption.TotpTypeAccount,
+			TotpType:  crypto.TotpTypeAccount,
 			StoredDEK: accountDTO.DEK(),
 		})
 		if err != nil {
@@ -1034,9 +1034,9 @@ func TestAccountAuth2FAUpdateConfirm(t *testing.T) {
 		}
 
 		dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
-			encryption.ProcessTotpDEKOptions{
+			crypto.ProcessTotpDEKOptions{
 				RequestID: uuid.NewString(),
-				TotpType:  encryption.TotpTypeAccount,
+				TotpType:  crypto.TotpTypeAccount,
 				StoredDEK: account.DEK(),
 			},
 		)

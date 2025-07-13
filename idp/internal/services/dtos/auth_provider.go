@@ -16,7 +16,7 @@ type AuthProviderDTO struct {
 	Provider     string `json:"provider"`
 	RegisteredAt string `json:"registered_at"`
 
-	id int32 `json:"id"`
+	id int32
 }
 
 func (a *AuthProviderDTO) ID() int32 {

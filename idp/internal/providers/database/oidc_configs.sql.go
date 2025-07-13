@@ -29,26 +29,18 @@ func (q *Queries) CountOIDCConfigsByAccountID(ctx context.Context, accountID int
 
 const createDefaultOIDCConfig = `-- name: CreateDefaultOIDCConfig :one
 INSERT INTO "oidc_configs" (
-    "account_id",
-    "dek"
+    "account_id"
 ) VALUES (
-    $1,
-    $2
-) RETURNING id, account_id, dek, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at
+    $1
+) RETURNING id, account_id, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at
 `
 
-type CreateDefaultOIDCConfigParams struct {
-	AccountID int32
-	Dek       string
-}
-
-func (q *Queries) CreateDefaultOIDCConfig(ctx context.Context, arg CreateDefaultOIDCConfigParams) (OidcConfig, error) {
-	row := q.db.QueryRow(ctx, createDefaultOIDCConfig, arg.AccountID, arg.Dek)
+func (q *Queries) CreateDefaultOIDCConfig(ctx context.Context, accountID int32) (OidcConfig, error) {
+	row := q.db.QueryRow(ctx, createDefaultOIDCConfig, accountID)
 	var i OidcConfig
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
-		&i.Dek,
 		&i.ClaimsSupported,
 		&i.ScopesSupported,
 		&i.UserRolesSupported,
@@ -62,35 +54,26 @@ const createOIDCConfig = `-- name: CreateOIDCConfig :one
 INSERT INTO "oidc_configs" (
     "account_id",
     "claims_supported",
-    "scopes_supported",
-    "dek"
+    "scopes_supported"
 ) VALUES (
     $1,
     $2,
-    $3,
-    $4
-) RETURNING id, account_id, dek, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at
+    $3
+) RETURNING id, account_id, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at
 `
 
 type CreateOIDCConfigParams struct {
 	AccountID       int32
 	ClaimsSupported []Claims
 	ScopesSupported []Scopes
-	Dek             string
 }
 
 func (q *Queries) CreateOIDCConfig(ctx context.Context, arg CreateOIDCConfigParams) (OidcConfig, error) {
-	row := q.db.QueryRow(ctx, createOIDCConfig,
-		arg.AccountID,
-		arg.ClaimsSupported,
-		arg.ScopesSupported,
-		arg.Dek,
-	)
+	row := q.db.QueryRow(ctx, createOIDCConfig, arg.AccountID, arg.ClaimsSupported, arg.ScopesSupported)
 	var i OidcConfig
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
-		&i.Dek,
 		&i.ClaimsSupported,
 		&i.ScopesSupported,
 		&i.UserRolesSupported,
@@ -101,7 +84,7 @@ func (q *Queries) CreateOIDCConfig(ctx context.Context, arg CreateOIDCConfigPara
 }
 
 const findOIDCConfigByAccountID = `-- name: FindOIDCConfigByAccountID :one
-SELECT id, account_id, dek, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at FROM "oidc_configs"
+SELECT id, account_id, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at FROM "oidc_configs"
 WHERE "account_id" = $1
 LIMIT 1
 `
@@ -112,7 +95,6 @@ func (q *Queries) FindOIDCConfigByAccountID(ctx context.Context, accountID int32
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
-		&i.Dek,
 		&i.ClaimsSupported,
 		&i.ScopesSupported,
 		&i.UserRolesSupported,
@@ -129,7 +111,7 @@ UPDATE "oidc_configs" SET
     "user_roles_supported" = $4,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, dek, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at
+RETURNING id, account_id, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at
 `
 
 type UpdateOIDCConfigParams struct {
@@ -150,7 +132,6 @@ func (q *Queries) UpdateOIDCConfig(ctx context.Context, arg UpdateOIDCConfigPara
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
-		&i.Dek,
 		&i.ClaimsSupported,
 		&i.ScopesSupported,
 		&i.UserRolesSupported,
@@ -158,21 +139,4 @@ func (q *Queries) UpdateOIDCConfig(ctx context.Context, arg UpdateOIDCConfigPara
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const updateOIDCConfigDek = `-- name: UpdateOIDCConfigDek :exec
-UPDATE "oidc_configs" SET
-    "dek" = $1,
-    "updated_at" = now()
-WHERE "id" = $2
-`
-
-type UpdateOIDCConfigDekParams struct {
-	Dek string
-	ID  int32
-}
-
-func (q *Queries) UpdateOIDCConfigDek(ctx context.Context, arg UpdateOIDCConfigDekParams) error {
-	_, err := q.db.Exec(ctx, updateOIDCConfigDek, arg.Dek, arg.ID)
-	return err
 }

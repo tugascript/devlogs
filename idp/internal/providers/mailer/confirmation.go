@@ -32,7 +32,7 @@ const confirmationTemplate = `
 <body>
 	<h1>Confirm Confirmation</h1>
 	<br/>
-	<p>Welcome {{.Name}}</p>
+	<p>Welcome {{.KeyType}}</p>
 	<br/>
 	<p>Thank you for signing up to DevLogs. Please click the link below to confirm your email address.</p>
 	<a href="{{.ConfirmationURL}}">Confirm Confirm</a>
@@ -85,7 +85,6 @@ type ConfirmationEmailOptions struct {
 
 func (e *EmailPublisher) PublishConfirmationEmail(ctx context.Context, opts ConfirmationEmailOptions) error {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  "confirmation",
 		Method:    "PublishConfirmationEmail",
 		RequestID: opts.RequestID,
@@ -126,7 +125,6 @@ type UserConfirmationEmailOptions struct {
 
 func (e *EmailPublisher) PublishUserConfirmationEmail(ctx context.Context, opts UserConfirmationEmailOptions) error {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  "confirmation",
 		Method:    "PublishUserConfirmationEmail",
 		RequestID: opts.RequestID,

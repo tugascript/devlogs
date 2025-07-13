@@ -28,7 +28,6 @@ type AddAppIDOptions struct {
 
 func (c *Cache) AddAppID(ctx context.Context, opts AddAppIDOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  appIDLocation,
 		Method:    "AddAppID",
 		RequestID: opts.RequestID,
@@ -48,7 +47,6 @@ type GetAppIDOptions struct {
 
 func (c *Cache) GetAppID(ctx context.Context, opts GetAppIDOptions) (uuid.UUID, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  appIDLocation,
 		Method:    "GetAppID",
 		RequestID: opts.RequestID,

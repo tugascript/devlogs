@@ -7,8 +7,6 @@
 package tokens
 
 import (
-	"errors"
-
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
@@ -20,37 +18,16 @@ type AccountConfirmationTokenOptions struct {
 	Version  int32
 }
 
-func (t *Tokens) CreateConfirmationToken(opts AccountConfirmationTokenOptions) (string, error) {
+func (t *Tokens) CreateConfirmationToken(opts AccountConfirmationTokenOptions) *jwt.Token {
 	return t.createPurposeToken(accountPurposeTokenOptions{
 		accountPublicID: opts.PublicID,
 		accountVersion:  opts.Version,
 		path:            paths.AuthBase + paths.AuthConfirmEmail,
 		purpose:         TokenPurposeConfirmation,
-		ttlSec:          t.confirmationData.ttlSec,
-		privateKey:      t.confirmationData.curKeyPair.privateKey,
-		kid:             t.confirmationData.curKeyPair.kid,
+		ttlSec:          t.confirmationTTL,
 	})
 }
 
-func (t *Tokens) VerifyConfirmationToken(token string) (AccountClaims, error) {
-	claims, err := verifyPurposeToken(token, func(token *jwt.Token) (any, error) {
-		kid, err := extractTokenKID(token)
-		if err != nil {
-			return nil, err
-		}
-
-		if t.confirmationData.prevPubKey != nil && t.confirmationData.prevPubKey.kid == kid {
-			return t.confirmationData.prevPubKey.publicKey, nil
-		}
-		if t.confirmationData.curKeyPair.kid == kid {
-			return t.confirmationData.curKeyPair.publicKey, nil
-		}
-
-		return nil, errors.New("no key found for kid")
-	})
-	if err != nil {
-		return AccountClaims{}, err
-	}
-
-	return claims.AccountClaims, nil
+func (t *Tokens) GetConfirmationTTL() int64 {
+	return t.confirmationTTL
 }

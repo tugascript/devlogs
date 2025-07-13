@@ -113,7 +113,6 @@ func (p *Providers) GetGoogleAuthorizationURL(
 ) (string, string, *exceptions.ServiceError) {
 	return getAuthorizationURL(ctx, getAuthorizationURLOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
-			Layer:     logLayer,
 			Location:  googleLocation,
 			Method:    "GetGoogleAuthorizationURL",
 			RequestID: opts.RequestID,
@@ -131,7 +130,6 @@ func (p *Providers) GetGoogleAccessToken(
 ) (string, *exceptions.ServiceError) {
 	return getAccessToken(ctx, getAccessTokenOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
-			Layer:     logLayer,
 			Location:  googleLocation,
 			Method:    "GetGoogleAccessToken",
 			RequestID: opts.RequestID,
@@ -149,7 +147,6 @@ func (p *Providers) GetGoogleUserData(
 	opts UserDataOptions,
 ) (UserData, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  googleLocation,
 		Method:    "GetGoogleUserData",
 		RequestID: opts.RequestID,
@@ -224,7 +221,6 @@ func (p *Providers) GetGoogleUserMap(
 	opts UserDataOptions,
 ) (string, map[string]any, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  googleLocation,
 		Method:    "GetGoogleUserData",
 		RequestID: opts.RequestID,

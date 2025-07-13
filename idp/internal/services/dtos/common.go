@@ -12,9 +12,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tugascript/devlogs/idp/internal/exceptions"
-	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -108,17 +105,6 @@ func NewPaginationDTO[T any](
 		Next:     newPaginationNextURL(backendDomain, route, limit, offset, count, extraParamsStr),
 		Previous: newPaginationPreviousURL(backendDomain, route, limit, offset, extraParamsStr),
 		Items:    items,
-	}
-}
-
-func GetJwtCryptoSuite(cryptoSuite database.TokenCryptoSuite) (tokens.SupportedCryptoSuite, *exceptions.ServiceError) {
-	switch cryptoSuite {
-	case database.TokenCryptoSuiteEdDSA:
-		return tokens.SupportedCryptoSuiteEd25519, nil
-	case database.TokenCryptoSuiteES256:
-		return tokens.SupportedCryptoSuiteES256, nil
-	default:
-		return "", exceptions.NewServerError()
 	}
 }
 

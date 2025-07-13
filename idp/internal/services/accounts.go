@@ -105,12 +105,6 @@ func (s *Services) CreateAccount(
 		return dtos.AccountDTO{}, exceptions.NewServerError()
 	}
 
-	dek, err := s.encrypt.GenerateAccountDEK(ctx, opts.RequestID)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate account DEK", "error", err)
-		return dtos.AccountDTO{}, exceptions.NewServerError()
-	}
-
 	count, err := s.database.CountAccountsByEmail(ctx, email)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count accounts by email", "error", err)
@@ -153,7 +147,6 @@ func (s *Services) CreateAccount(
 			Username:   username,
 			Email:      email,
 			Password:   password,
-			Dek:        dek,
 		})
 	} else {
 		account, err = qrs.CreateAccountWithoutPassword(ctx, database.CreateAccountWithoutPasswordParams{
@@ -162,7 +155,6 @@ func (s *Services) CreateAccount(
 			FamilyName: familyName,
 			Username:   username,
 			Email:      email,
-			Dek:        dek,
 		})
 	}
 	if err != nil {
@@ -454,6 +446,7 @@ func (s *Services) UpdateAccountEmail(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
 		"Email updated successfully",
@@ -521,6 +514,7 @@ func (s *Services) ConfirmUpdateAccountEmail(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
 		"Email updated successfully",
@@ -649,6 +643,7 @@ func (s *Services) UpdateAccountPassword(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
 		"Password updated successfully",
@@ -716,6 +711,7 @@ func (s *Services) ConfirmUpdateAccountPassword(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
 		"Password updated successfully",
@@ -810,6 +806,7 @@ func (s *Services) CreateAccountPassword(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
 		"Password created successfully",
@@ -973,6 +970,7 @@ func (s *Services) UpdateAccountUsername(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
 		"Username updated successfully",
@@ -1043,6 +1041,7 @@ func (s *Services) ConfirmUpdateAccountUsername(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
 		"Username updated successfully",
@@ -1262,30 +1261,6 @@ func (s *Services) GetAndCacheAccountIDByUsername(
 
 	logger.InfoContext(ctx, "Cached account ID by username successfully")
 	return accountID, nil
-}
-
-type UpdateAccountDEKOptions struct {
-	RequestID string
-	ID        int32
-	DEK       string
-}
-
-func (s *Services) UpdateAccountDEK(ctx context.Context, opts UpdateAccountDEKOptions) *exceptions.ServiceError {
-	logger := s.buildLogger(opts.RequestID, accountsLocation, "UpdateAccountDEK").With(
-		"id", opts.ID,
-	)
-	logger.InfoContext(ctx, "Updating account DEK...")
-
-	if err := s.database.UpdateAccountDEK(ctx, database.UpdateAccountDEKParams{
-		ID:  opts.ID,
-		Dek: opts.DEK,
-	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to update account DEK", "error", err)
-		return exceptions.FromDBError(err)
-	}
-
-	logger.InfoContext(ctx, "Updated account DEK successfully")
-	return nil
 }
 
 type GetAccountIDByPublicIDAndVersionOptions struct {

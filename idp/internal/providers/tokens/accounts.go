@@ -7,7 +7,6 @@
 package tokens
 
 import (
-	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"slices"
@@ -57,9 +56,7 @@ type accountPurposeTokenClaims struct {
 }
 
 type accountAuthTokenOptions struct {
-	method          jwt.SigningMethod
-	privateKey      any
-	kid             string
+	cryptoSuite     utils.SupportedCryptoSuite
 	ttlSec          int64
 	accountPublicID uuid.UUID
 	accountVersion  int32
@@ -89,12 +86,16 @@ func splitAccountScopes(scope string) ([]AccountScope, error) {
 	return strings.Split(scope, " "), nil
 }
 
-func (t *Tokens) createAuthToken(opts accountAuthTokenOptions) (string, error) {
+func (t *Tokens) createAuthToken(opts accountAuthTokenOptions) (*jwt.Token, error) {
 	now := time.Now()
 	iat := jwt.NewNumericDate(now)
 	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(opts.ttlSec)))
+	method, err := getSigningMethod(opts.cryptoSuite)
+	if err != nil {
+		return nil, err
+	}
 
-	token := jwt.NewWithClaims(opts.method, accountAuthTokenClaims{
+	return jwt.NewWithClaims(method, accountAuthTokenClaims{
 		AccountClaims: AccountClaims{
 			AccountID:      opts.accountPublicID,
 			AccountVersion: opts.accountVersion,
@@ -111,9 +112,8 @@ func (t *Tokens) createAuthToken(opts accountAuthTokenOptions) (string, error) {
 			ID:        uuid.NewString(),
 		},
 		Scope: processAccountScopes(opts.scopes),
-	})
-	token.Header["kid"] = opts.kid
-	return token.SignedString(opts.privateKey)
+	}), nil
+
 }
 
 func verifyAuthToken(token string, pubKeyFn func(token *jwt.Token) (any, error)) (accountAuthTokenClaims, error) {
@@ -135,21 +135,19 @@ type AccountPurposeTokenOptions struct {
 }
 
 type accountPurposeTokenOptions struct {
+	ttlSec          int64
 	accountPublicID uuid.UUID
 	accountVersion  int32
 	path            string
 	purpose         TokenPurpose
-	ttlSec          int64
-	privateKey      ed25519.PrivateKey
-	kid             string
 }
 
-func (t *Tokens) createPurposeToken(opts accountPurposeTokenOptions) (string, error) {
+func (t *Tokens) createPurposeToken(opts accountPurposeTokenOptions) *jwt.Token {
 	now := time.Now()
 	iat := jwt.NewNumericDate(now)
 	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(opts.ttlSec)))
 
-	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, accountPurposeTokenClaims{
+	return jwt.NewWithClaims(jwt.SigningMethodEdDSA, accountPurposeTokenClaims{
 		AccountClaims: AccountClaims{
 			AccountID:      opts.accountPublicID,
 			AccountVersion: opts.accountVersion,
@@ -165,11 +163,9 @@ func (t *Tokens) createPurposeToken(opts accountPurposeTokenOptions) (string, er
 		},
 		Purpose: opts.purpose,
 	})
-	token.Header["kid"] = opts.kid
-	return token.SignedString(opts.privateKey)
 }
 
-func verifyPurposeToken(token string, pubKeyFn func(token *jwt.Token) (any, error)) (accountPurposeTokenClaims, error) {
+func parsePurposeToken(token string, pubKeyFn func(token *jwt.Token) (any, error)) (accountPurposeTokenClaims, error) {
 	claims := new(accountPurposeTokenClaims)
 
 	if _, err := jwt.ParseWithClaims(token, claims, pubKeyFn); err != nil {
@@ -177,4 +173,16 @@ func verifyPurposeToken(token string, pubKeyFn func(token *jwt.Token) (any, erro
 	}
 
 	return *claims, nil
+}
+
+func (t *Tokens) VerifyPurposeToken(token string, purpose TokenPurpose, getPublicJWK GetPublicJWK) (AccountClaims, error) {
+	claims, err := parsePurposeToken(token, buildVerifyKey(utils.SupportedCryptoSuiteEd25519, getPublicJWK))
+	if err != nil {
+		return AccountClaims{}, err
+	}
+	if claims.Purpose != purpose {
+		return AccountClaims{}, fmt.Errorf("invalid purpose: %s", claims.Purpose)
+	}
+
+	return claims.AccountClaims, nil
 }

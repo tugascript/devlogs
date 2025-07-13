@@ -34,10 +34,8 @@ type userAuthTokenClaims struct {
 }
 
 type UserAuthTokenOptions struct {
-	CryptoSuite     SupportedCryptoSuite
+	CryptoSuite     utils.SupportedCryptoSuite
 	TokenType       AuthTokenType
-	PrivateKey      any
-	KID             string
 	AccountUsername string
 	UserPublicID    uuid.UUID
 	UserVersion     int32
@@ -49,34 +47,23 @@ type UserAuthTokenOptions struct {
 	Paths           []string
 }
 
-func getUserSigningMethod(cryptoSuite SupportedCryptoSuite) (jwt.SigningMethod, error) {
-	switch cryptoSuite {
-	case SupportedCryptoSuiteES256:
-		return jwt.SigningMethodES256, nil
-	case SupportedCryptoSuiteEd25519:
-		return jwt.SigningMethodEdDSA, nil
-	default:
-		return nil, errors.New("unsupported crypto suite")
-	}
-}
-
 func (t *Tokens) getUserAuthTTL(tokenType AuthTokenType) (int64, error) {
 	switch tokenType {
 	case AuthTokenTypeAccess:
-		return t.accessData.ttlSec, nil
+		return t.accessTTL, nil
 	case AuthTokenTypeRefresh:
-		return t.refreshData.ttlSec, nil
+		return t.refreshTTL, nil
 	case AuthTokenTypeClientCredentials:
-		return t.accountCredentialsData.ttlSec, nil
+		return t.accountCredentialsTTL, nil
 	default:
 		return 0, errors.New("unsupported token type")
 	}
 }
 
-func (t *Tokens) CreateUserAuthToken(opts UserAuthTokenOptions) (string, error) {
+func (t *Tokens) CreateUserAuthToken(opts UserAuthTokenOptions) (*jwt.Token, error) {
 	ttl, err := t.getUserAuthTTL(opts.TokenType)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	now := time.Now()
@@ -88,12 +75,12 @@ func (t *Tokens) CreateUserAuthToken(opts UserAuthTokenOptions) (string, error) 
 		t.backendDomain,
 	)
 
-	method, err := getUserSigningMethod(opts.CryptoSuite)
+	method, err := getSigningMethod(opts.CryptoSuite)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	token := jwt.NewWithClaims(method, userAuthTokenClaims{
+	return jwt.NewWithClaims(method, userAuthTokenClaims{
 		UserAuthClaims: UserAuthClaims{
 			UserID:      opts.UserPublicID,
 			UserVersion: opts.UserVersion,
@@ -117,25 +104,17 @@ func (t *Tokens) CreateUserAuthToken(opts UserAuthTokenOptions) (string, error) 
 			ExpiresAt: exp,
 			ID:        uuid.NewString(),
 		},
-	})
-	token.Header["kid"] = opts.KID
-	return token.SignedString(opts.PrivateKey)
+	}), nil
 }
 
 func (t *Tokens) VerifyUserAuthToken(
-	keyFn func(kid string) (any, error),
 	token string,
+	cryptoSuite utils.SupportedCryptoSuite,
+	getPublicJWK GetPublicJWK,
 ) (UserAuthClaims, AppClaims, []database.Scopes, uuid.UUID, time.Time, error) {
 	claims := new(userAuthTokenClaims)
 
-	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (any, error) {
-		kid, err := extractTokenKID(token)
-		if err != nil {
-			return nil, err
-		}
-
-		return keyFn(kid)
-	})
+	_, err := jwt.ParseWithClaims(token, claims, buildVerifyKey(cryptoSuite, getPublicJWK))
 	if err != nil {
 		return UserAuthClaims{}, AppClaims{}, nil, uuid.Nil, time.Time{}, err
 	}
@@ -164,8 +143,6 @@ type userPurposeTokenClaims struct {
 
 type UserPurposeTokenOptions struct {
 	TokenType       PurposeTokenType
-	PrivateKey      any
-	KID             string
 	AccountUsername string
 	UserPublicID    uuid.UUID
 	UserVersion     int32
@@ -177,22 +154,22 @@ type UserPurposeTokenOptions struct {
 func (t *Tokens) getUserPurposeTTL(tokenType PurposeTokenType) (int64, error) {
 	switch tokenType {
 	case PurposeTokenTypeConfirmation:
-		return t.confirmationData.ttlSec, nil
+		return t.confirmationTTL, nil
 	case PurposeTokenTypeReset:
-		return t.resetData.ttlSec, nil
+		return t.resetTTL, nil
 	case PurposeTokenTypeOAuth:
-		return t.oauthData.ttlSec, nil
+		return t.oauthTTL, nil
 	case PurposeTokenTypeTwoFA:
-		return t.twoFAData.ttlSec, nil
+		return t.twoFATTL, nil
 	default:
 		return 0, errors.New("unsupported token type")
 	}
 }
 
-func (t *Tokens) CreateUserPurposeToken(opts UserPurposeTokenOptions) (string, error) {
+func (t *Tokens) CreateUserPurposeToken(opts UserPurposeTokenOptions) (*jwt.Token, error) {
 	ttl, err := t.getUserPurposeTTL(opts.TokenType)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	now := time.Now()
@@ -204,7 +181,7 @@ func (t *Tokens) CreateUserPurposeToken(opts UserPurposeTokenOptions) (string, e
 		t.backendDomain,
 	)
 
-	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, userPurposeTokenClaims{
+	return jwt.NewWithClaims(jwt.SigningMethodEdDSA, userPurposeTokenClaims{
 		UserPurposeClaims: UserPurposeClaims{
 			UserID:      opts.UserPublicID,
 			UserVersion: opts.UserVersion,
@@ -225,25 +202,16 @@ func (t *Tokens) CreateUserPurposeToken(opts UserPurposeTokenOptions) (string, e
 			ID:        uuid.NewString(),
 		},
 		Purpose: opts.TokenType,
-	})
-	token.Header["kid"] = opts.KID
-	return token.SignedString(opts.PrivateKey)
+	}), nil
 }
 
 func (t *Tokens) VerifyUserPurposeToken(
-	keyFn func(kid string) (any, error),
 	token string,
+	getPublicJWK GetPublicJWK,
 ) (UserPurposeClaims, AppClaims, PurposeTokenType, error) {
 	claims := new(userPurposeTokenClaims)
 
-	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (any, error) {
-		kid, err := extractTokenKID(token)
-		if err != nil {
-			return nil, err
-		}
-
-		return keyFn(kid)
-	})
+	_, err := jwt.ParseWithClaims(token, claims, buildVerifyKey(utils.SupportedCryptoSuiteEd25519, getPublicJWK))
 	if err != nil {
 		return UserPurposeClaims{}, AppClaims{}, "", err
 	}

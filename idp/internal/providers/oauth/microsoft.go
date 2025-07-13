@@ -56,7 +56,6 @@ func (p *Providers) GetMicrosoftAuthorizationURL(
 ) (string, string, *exceptions.ServiceError) {
 	return getAuthorizationURL(ctx, getAuthorizationURLOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
-			Layer:     logLayer,
 			Location:  microsoftLocation,
 			Method:    "GetMicrosoftAuthorizationURL",
 			RequestID: opts.RequestID,
@@ -74,7 +73,6 @@ func (p *Providers) GetMicrosoftAccessToken(
 ) (string, *exceptions.ServiceError) {
 	return getAccessToken(ctx, getAccessTokenOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
-			Layer:     logLayer,
 			Location:  googleLocation,
 			Method:    "GetMicrosoftAccessToken",
 			RequestID: opts.RequestID,
@@ -92,7 +90,6 @@ func (p *Providers) GetMicrosoftUserData(
 	opts UserDataOptions,
 ) (UserData, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  microsoftLocation,
 		Method:    "GetMicrosoftUserData",
 		RequestID: opts.RequestID,
@@ -124,7 +121,6 @@ func (p *Providers) GetMicrosoftUserMap(
 	opts UserDataOptions,
 ) (string, map[string]any, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  microsoftLocation,
 		Method:    "GetMicrosoftUserMap",
 		RequestID: opts.RequestID,

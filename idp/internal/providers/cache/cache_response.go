@@ -29,7 +29,6 @@ func CacheResponse[T any](
 	opts CacheResponseOptions[T],
 ) (string, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  cacheResponseLocation,
 		Method:    "CacheResponse",
 		RequestID: opts.RequestID,
@@ -61,7 +60,6 @@ func GetCachedResponse[T any](
 	opts GetCachedResponseOptions[T],
 ) (T, string, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  cacheResponseLocation,
 		Method:    "GetCachedResponse",
 		RequestID: opts.RequestID,

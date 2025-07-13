@@ -19,86 +19,9 @@ import (
 const (
 	wellKnownLocation string = "well_known"
 
-	wellKnownJWKsPrefix string = "well_known_jwks"
-	wellKnownJWKsTTL    int    = 300
-
 	wellKnownOIDCConfigPrefix string = "well_known_oidc_config"
 	wellKnownOIDCConfigTTL    int    = 3600
 )
-
-type AddWellKnownJWKsOptions struct {
-	RequestID       string
-	AccountUsername string
-	JWKs            *dtos.JWKsDTO
-}
-
-func (c *Cache) AddWellKnownJWKs(
-	ctx context.Context,
-	opts AddWellKnownJWKsOptions,
-) (string, error) {
-	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
-		Location:  wellKnownLocation,
-		Method:    "AddWellKnownJWKs",
-		RequestID: opts.RequestID,
-	}).With("accountUsername", opts.AccountUsername)
-	logger.DebugContext(ctx, "Adding well known JWKs...")
-
-	jwksBytes, err := json.Marshal(opts.JWKs)
-	if err != nil {
-		logger.ErrorContext(ctx, "Error marshalling well known JWKs", "error", err)
-		return "", err
-	}
-
-	if err := c.storage.Set(
-		fmt.Sprintf("%s:%s", wellKnownJWKsPrefix, opts.AccountUsername),
-		jwksBytes,
-		time.Duration(wellKnownJWKsTTL)*time.Second,
-	); err != nil {
-		logger.ErrorContext(ctx, "Error adding well known JWKs", "error", err)
-		return "", err
-	}
-
-	return utils.GenerateETag(jwksBytes), nil
-}
-
-type GetWellKnownJWKsOptions struct {
-	RequestID       string
-	AccountUsername string
-}
-
-func (c *Cache) GetWellKnownJWKs(
-	ctx context.Context,
-	opts GetWellKnownJWKsOptions,
-) (string, *dtos.JWKsDTO, error) {
-	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
-		Location:  wellKnownLocation,
-		Method:    "GetWellKnownJWKs",
-		RequestID: opts.RequestID,
-	}).With("accountUsername", opts.AccountUsername)
-	logger.DebugContext(ctx, "Getting well known JWKs...")
-
-	jwksBytes, err := c.storage.Get(
-		fmt.Sprintf("%s:%s", wellKnownJWKsPrefix, opts.AccountUsername),
-	)
-	if err != nil {
-		logger.ErrorContext(ctx, "Error getting well known JWKs", "error", err)
-		return "", nil, err
-	}
-	if jwksBytes == nil {
-		logger.DebugContext(ctx, "No well known JWKs found")
-		return "", nil, nil
-	}
-
-	var jwksDTO dtos.JWKsDTO
-	if err := json.Unmarshal(jwksBytes, &jwksDTO); err != nil {
-		logger.ErrorContext(ctx, "Error unmarshalling well known JWKs", "error", err)
-		return "", nil, err
-	}
-
-	return utils.GenerateETag(jwksBytes), &jwksDTO, nil
-}
 
 type AddWellKnownOIDCConfigOptions struct {
 	RequestID       string
@@ -111,7 +34,6 @@ func (c *Cache) AddWellKnownOIDCConfig(
 	opts AddWellKnownOIDCConfigOptions,
 ) (string, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  wellKnownLocation,
 		Method:    "AddWellKnownOIDCConfig",
 		RequestID: opts.RequestID,
@@ -146,7 +68,6 @@ func (c *Cache) GetWellKnownOIDCConfig(
 	opts GetWellKnownOIDCConfigOptions,
 ) (string, *dtos.WellKnownOIDCConfigurationDTO, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  wellKnownLocation,
 		Method:    "GetWellKnownOIDCConfig",
 		RequestID: opts.RequestID,

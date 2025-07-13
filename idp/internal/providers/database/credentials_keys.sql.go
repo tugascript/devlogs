@@ -22,7 +22,7 @@ INSERT INTO "credentials_keys" (
     $2,
     $3,
     $4
-) RETURNING id, account_id, public_kid, public_key, jwt_crypto_suite, is_revoked, expires_at, created_at, updated_at
+) RETURNING id, account_id, public_kid, public_key, crypto_suite, is_revoked, expires_at, created_at, updated_at
 `
 
 type CreateCredentialsKeyParams struct {
@@ -50,7 +50,7 @@ func (q *Queries) CreateCredentialsKey(ctx context.Context, arg CreateCredential
 		&i.AccountID,
 		&i.PublicKid,
 		&i.PublicKey,
-		&i.JwtCryptoSuite,
+		&i.CryptoSuite,
 		&i.IsRevoked,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -64,7 +64,7 @@ UPDATE "credentials_keys" SET
     "is_revoked" = true,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, public_kid, public_key, jwt_crypto_suite, is_revoked, expires_at, created_at, updated_at
+RETURNING id, account_id, public_kid, public_key, crypto_suite, is_revoked, expires_at, created_at, updated_at
 `
 
 func (q *Queries) RevokeCredentialsKey(ctx context.Context, id int32) (CredentialsKey, error) {
@@ -75,7 +75,7 @@ func (q *Queries) RevokeCredentialsKey(ctx context.Context, id int32) (Credentia
 		&i.AccountID,
 		&i.PublicKid,
 		&i.PublicKey,
-		&i.JwtCryptoSuite,
+		&i.CryptoSuite,
 		&i.IsRevoked,
 		&i.ExpiresAt,
 		&i.CreatedAt,

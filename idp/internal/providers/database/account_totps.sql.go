@@ -57,7 +57,7 @@ func (q *Queries) DeleteAccountRecoveryKeys(ctx context.Context, accountID int32
 }
 
 const findAccountTotpByAccountID = `-- name: FindAccountTotpByAccountID :one
-SELECT id, account_id, url, secret, recovery_codes, created_at, updated_at FROM "account_totps"
+SELECT id, account_id, dek_kid, url, secret, recovery_codes, created_at, updated_at FROM "account_totps"
 WHERE "account_id" = $1 LIMIT 1
 `
 
@@ -67,6 +67,7 @@ func (q *Queries) FindAccountTotpByAccountID(ctx context.Context, accountID int3
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
+		&i.DekKid,
 		&i.Url,
 		&i.Secret,
 		&i.RecoveryCodes,

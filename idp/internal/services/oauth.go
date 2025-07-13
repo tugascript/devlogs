@@ -9,6 +9,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"log/slog"
 	"net/url"
 	"strconv"
@@ -21,7 +22,6 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const oauthLocation string = "oauth"
@@ -328,19 +328,27 @@ func (s *Services) ExtLoginAccount(
 		return "", serviceErr
 	}
 
-	oauthToken, err := s.jwt.CreateOAuthToken(tokens.AccountOAuthTokenOptions{
-		PublicID: accountDTO.PublicID,
-		Version:  accountDTO.Version(),
+	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
+		RequestID: opts.RequestID,
+		Token: s.jwt.CreateOAuthToken(tokens.AccountOAuthTokenOptions{
+			PublicID: accountDTO.PublicID,
+			Version:  accountDTO.Version(),
+		}),
+		GetJWKfn: s.buildEncryptedJWKFn(ctx, logger, buildEncryptedJWKFnOptions{
+			requestID: opts.RequestID,
+			keyType:   database.TokenKeyTypeOauthAuthorization,
+			ttl:       s.jwt.GetOAuthTTL(),
+		}),
 	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate OAuth Token", "error", err)
-		return "", exceptions.NewServerError()
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to sign OAuth Token", "serviceError", serviceErr)
+		return "", serviceErr
 	}
 
 	return s.generateOAuthQueryParams(ctx, logger, generateOAuthQueryParams{
 		requestID: opts.RequestID,
 		email:     accountDTO.Email,
-		token:     oauthToken,
+		token:     signedToken,
 	})
 }
 
@@ -411,19 +419,27 @@ func (s *Services) AppleLoginAccount(
 		return "", serviceErr
 	}
 
-	oauthToken, err := s.jwt.CreateOAuthToken(tokens.AccountOAuthTokenOptions{
-		PublicID: accountDTO.PublicID,
-		Version:  accountDTO.Version(),
+	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
+		RequestID: opts.RequestID,
+		Token: s.jwt.CreateOAuthToken(tokens.AccountOAuthTokenOptions{
+			PublicID: accountDTO.PublicID,
+			Version:  accountDTO.Version(),
+		}),
+		GetJWKfn: s.buildEncryptedJWKFn(ctx, logger, buildEncryptedJWKFnOptions{
+			requestID: opts.RequestID,
+			keyType:   database.TokenKeyTypeOauthAuthorization,
+			ttl:       s.jwt.GetOAuthTTL(),
+		}),
 	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate OAuth Token", "error", err)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to generate OAuth Token", "serviceError", serviceErr)
 		return "", exceptions.NewServerError()
 	}
 
 	return s.generateOAuthQueryParams(ctx, logger, generateOAuthQueryParams{
 		requestID: opts.RequestID,
 		email:     accountDTO.Email,
-		token:     oauthToken,
+		token:     signedToken,
 	})
 }
 
@@ -482,20 +498,26 @@ func (s *Services) OAuthLoginAccount(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
 		"OAuth logged in successfully",
 	)
 }
 
-func (s *Services) GetAccountPublicJWKs(ctx context.Context, requestID string) dtos.JWKsDTO {
+func (s *Services) GetAccountPublicJWKs(
+	ctx context.Context,
+	requestID string,
+) (string, dtos.JWKsDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(requestID, oauthLocation, "GetAccountPublicKeys")
 	logger.InfoContext(ctx, "Getting account public JWKs...")
 
-	jwks := s.jwt.JWKs()
+	etag, jwks, serviceErr := s.GetAndCacheGlobalDistributedJWK(ctx, requestID)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get distributed JWKs", "error", serviceErr)
+		return "", dtos.JWKsDTO{}, serviceErr
+	}
 
 	logger.InfoContext(ctx, "Got account public JWKs successfully")
-	return dtos.NewJWKsDTO(utils.MapSlice(jwks, func(jwk *utils.ES256JWK) utils.JWK {
-		return jwk
-	}))
+	return etag, dtos.NewJWKsDTO(jwks), nil
 }

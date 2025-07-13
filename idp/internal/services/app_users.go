@@ -93,12 +93,6 @@ func (s *Services) CreateAppUser(
 		return dtos.UserDTO{}, exceptions.NewServerError()
 	}
 
-	dek, err := s.encrypt.GenerateUserDEK(ctx, opts.RequestID)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate user DEK", "error", err)
-		return dtos.UserDTO{}, exceptions.NewServerError()
-	}
-
 	qrs, txn, err := s.database.BeginTx(ctx)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
@@ -119,7 +113,6 @@ func (s *Services) CreateAppUser(
 			Username:  username,
 			Password:  password,
 			UserData:  data,
-			Dek:       dek,
 		})
 	} else {
 		user, err = qrs.CreateUserWithoutPassword(ctx, database.CreateUserWithoutPasswordParams{
@@ -128,7 +121,6 @@ func (s *Services) CreateAppUser(
 			Email:     email,
 			Username:  username,
 			UserData:  data,
-			Dek:       dek,
 		})
 	}
 	if err != nil {

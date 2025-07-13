@@ -302,6 +302,49 @@ func (ns NullClaims) Value() (driver.Value, error) {
 	return string(ns.Claims), nil
 }
 
+type DekUsage string
+
+const (
+	DekUsageGlobal  DekUsage = "global"
+	DekUsageAccount DekUsage = "account"
+	DekUsageUser    DekUsage = "user"
+)
+
+func (e *DekUsage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DekUsage(s)
+	case string:
+		*e = DekUsage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DekUsage: %T", src)
+	}
+	return nil
+}
+
+type NullDekUsage struct {
+	DekUsage DekUsage
+	Valid    bool // Valid is true if DekUsage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDekUsage) Scan(value interface{}) error {
+	if value == nil {
+		ns.DekUsage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DekUsage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDekUsage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DekUsage), nil
+}
+
 type GrantType string
 
 const (
@@ -345,6 +388,48 @@ func (ns NullGrantType) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.GrantType), nil
+}
+
+type KekUsage string
+
+const (
+	KekUsageGlobal  KekUsage = "global"
+	KekUsageAccount KekUsage = "account"
+)
+
+func (e *KekUsage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = KekUsage(s)
+	case string:
+		*e = KekUsage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for KekUsage: %T", src)
+	}
+	return nil
+}
+
+type NullKekUsage struct {
+	KekUsage KekUsage
+	Valid    bool // Valid is true if KekUsage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullKekUsage) Scan(value interface{}) error {
+	if value == nil {
+		ns.KekUsage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.KekUsage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullKekUsage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.KekUsage), nil
 }
 
 type ResponseType string
@@ -481,6 +566,96 @@ func (ns NullTokenCryptoSuite) Value() (driver.Value, error) {
 	return string(ns.TokenCryptoSuite), nil
 }
 
+type TokenKeyType string
+
+const (
+	TokenKeyTypeAccess             TokenKeyType = "access"
+	TokenKeyTypeRefresh            TokenKeyType = "refresh"
+	TokenKeyTypeIDToken            TokenKeyType = "id_token"
+	TokenKeyTypeClientCredentials  TokenKeyType = "client_credentials"
+	TokenKeyTypeEmailVerification  TokenKeyType = "email_verification"
+	TokenKeyTypePasswordReset      TokenKeyType = "password_reset"
+	TokenKeyTypeOauthAuthorization TokenKeyType = "oauth_authorization"
+	TokenKeyType2faAuthentication  TokenKeyType = "2fa_authentication"
+)
+
+func (e *TokenKeyType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TokenKeyType(s)
+	case string:
+		*e = TokenKeyType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TokenKeyType: %T", src)
+	}
+	return nil
+}
+
+type NullTokenKeyType struct {
+	TokenKeyType TokenKeyType
+	Valid        bool // Valid is true if TokenKeyType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTokenKeyType) Scan(value interface{}) error {
+	if value == nil {
+		ns.TokenKeyType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TokenKeyType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTokenKeyType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TokenKeyType), nil
+}
+
+type TokenKeyUsage string
+
+const (
+	TokenKeyUsageGlobal  TokenKeyUsage = "global"
+	TokenKeyUsageAccount TokenKeyUsage = "account"
+)
+
+func (e *TokenKeyUsage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TokenKeyUsage(s)
+	case string:
+		*e = TokenKeyUsage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TokenKeyUsage: %T", src)
+	}
+	return nil
+}
+
+type NullTokenKeyUsage struct {
+	TokenKeyUsage TokenKeyUsage
+	Valid         bool // Valid is true if TokenKeyUsage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTokenKeyUsage) Scan(value interface{}) error {
+	if value == nil {
+		ns.TokenKeyUsage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TokenKeyUsage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTokenKeyUsage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TokenKeyUsage), nil
+}
+
 type TwoFactorType string
 
 const (
@@ -532,7 +707,6 @@ type Account struct {
 	Username      string
 	Email         string
 	Organization  pgtype.Text
-	Dek           string
 	Password      pgtype.Text
 	Version       int32
 	EmailVerified bool
@@ -578,23 +752,28 @@ type AccountCredentialsSecret struct {
 	CreatedAt            time.Time
 }
 
-type AccountKey struct {
-	ID             int32
-	AccountID      int32
-	OidcConfigID   int32
-	Name           string
-	JwtCryptoSuite TokenCryptoSuite
-	PublicKid      string
-	PublicKey      []byte
-	PrivateKey     string
-	IsDistributed  bool
-	ExpiresAt      time.Time
-	CreatedAt      time.Time
+type AccountDataEncryptionKey struct {
+	AccountID           int32
+	DataEncryptionKeyID int32
+	CreatedAt           time.Time
+}
+
+type AccountKeyEncryptionKey struct {
+	AccountID          int32
+	KeyEncryptionKeyID int32
+	CreatedAt          time.Time
+}
+
+type AccountTokenSigningKey struct {
+	AccountID         int32
+	TokenSigningKeyID int32
+	CreatedAt         time.Time
 }
 
 type AccountTotp struct {
 	ID            int32
 	AccountID     int32
+	DekKid        string
 	Url           string
 	Secret        string
 	RecoveryCodes []byte
@@ -698,15 +877,15 @@ type AppServiceAudience struct {
 }
 
 type CredentialsKey struct {
-	ID             int32
-	AccountID      int32
-	PublicKid      string
-	PublicKey      []byte
-	JwtCryptoSuite TokenCryptoSuite
-	IsRevoked      bool
-	ExpiresAt      time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID          int32
+	AccountID   int32
+	PublicKid   string
+	PublicKey   []byte
+	CryptoSuite TokenCryptoSuite
+	IsRevoked   bool
+	ExpiresAt   time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type CredentialsSecret struct {
@@ -720,10 +899,32 @@ type CredentialsSecret struct {
 	UpdatedAt    time.Time
 }
 
+type DataEncryptionKey struct {
+	ID        int32
+	Kid       string
+	Dek       string
+	KekKid    uuid.UUID
+	Usage     DekUsage
+	IsRevoked bool
+	ExpiresAt time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type KeyEncryptionKey struct {
+	ID             int32
+	Kid            uuid.UUID
+	Usage          KekUsage
+	Version        int32
+	RotatedAt      time.Time
+	NextRotationAt time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type OidcConfig struct {
 	ID                 int32
 	AccountID          int32
-	Dek                string
 	ClaimsSupported    []Claims
 	ScopesSupported    []Scopes
 	UserRolesSupported []string
@@ -738,6 +939,22 @@ type RevokedToken struct {
 	CreatedAt time.Time
 }
 
+type TokenSigningKey struct {
+	ID            int32
+	Kid           string
+	KeyType       TokenKeyType
+	PublicKey     []byte
+	PrivateKey    string
+	DekKid        string
+	CryptoSuite   TokenCryptoSuite
+	ExpiresAt     time.Time
+	Usage         TokenKeyUsage
+	IsDistributed bool
+	IsRevoked     bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type User struct {
 	ID            int32
 	PublicID      uuid.UUID
@@ -745,7 +962,6 @@ type User struct {
 	Email         string
 	Username      string
 	Password      pgtype.Text
-	Dek           string
 	Version       int32
 	EmailVerified bool
 	UserRoles     []string
@@ -798,9 +1014,19 @@ type UserCredentialsSecret struct {
 	CreatedAt        time.Time
 }
 
+type UserDataEncryptionKey struct {
+	ID                  int32
+	AccountID           int32
+	UserID              int32
+	UserPublicID        uuid.UUID
+	DataEncryptionKeyID int32
+	CreatedAt           time.Time
+}
+
 type UserTotp struct {
 	ID            int32
 	AccountID     int32
+	DekKid        string
 	UserID        int32
 	Url           string
 	Secret        string

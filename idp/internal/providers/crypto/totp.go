@@ -4,7 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-package encryption
+package crypto
 
 import (
 	"bytes"
@@ -19,16 +19,12 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-type TotpType string
-
 const (
-	totpsManagementLocation string = "totps_management"
-
-	TotpTypeAccount TotpType = "account"
-	TotpTypeUser    TotpType = "user"
+	totpLocation string = "totp"
 
 	recoveryCodeBytesLength int = 10
 	recoveryCodesCount      int = 8
@@ -150,12 +146,9 @@ func isHashCodesFullyUsed(
 }
 
 type TotpKey struct {
-	url             string
-	img             string
-	codes           string
-	hashedCodes     []byte
-	newDEK          string
-	encryptedSecret string
+	url   string
+	img   string
+	codes string
 }
 
 func (t *TotpKey) URL() string {
@@ -170,28 +163,18 @@ func (t *TotpKey) Codes() string {
 	return t.codes
 }
 
-func (t *TotpKey) HashedCodes() []byte {
-	return t.hashedCodes
-}
-
-func (t *TotpKey) EncryptedSecret() string {
-	return t.encryptedSecret
-}
-
-func (t *TotpKey) NewDEK() string {
-	return t.newDEK
-}
+type StoreTOTP = func(encSecret string, hashedCode []byte, url string) *exceptions.ServiceError
 
 type generateTotpKeyOptions struct {
 	requestID   string
-	email       string
 	issuer      string
-	dek         string
-	totpType    TotpType
+	email       string
+	getEncDEKfn GetDEKtoEncrypt
+	storeTOTPfn StoreTOTP
 	hashedCodes map[string]recoveryCode
 }
 
-func (e *Encryption) generateTotpKey(
+func (e *Crypto) generateTotpKey(
 	logger *slog.Logger,
 	ctx context.Context,
 	opts generateTotpKeyOptions,
@@ -208,39 +191,16 @@ func (e *Encryption) generateTotpKey(
 		return TotpKey{}, err
 	}
 
-	var dek []byte
-	var isOld bool
-	var newDEK string
-	switch opts.totpType {
-	case TotpTypeAccount:
-		dek, isOld, err = e.decryptAccountDEK(ctx, opts.requestID, opts.dek)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
-			return TotpKey{}, err
-		}
-		if isOld {
-			newDEK, err = reEncryptDEK(isOld, dek, e.accountSecretKey.key)
-			if err != nil {
-				logger.ErrorContext(ctx, "Failed to re-encrypt StoredDEK", "error", err)
-				return TotpKey{}, err
-			}
-		}
-	case TotpTypeUser:
-		dek, isOld, err = e.decryptUserDEK(ctx, opts.requestID, opts.dek)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
-			return TotpKey{}, err
-		}
-		if isOld {
-			newDEK, err = reEncryptDEK(isOld, dek, e.userSecretKey.key)
-			if err != nil {
-				logger.ErrorContext(ctx, "Failed to re-encrypt StoredDEK", "error", err)
-				return TotpKey{}, err
-			}
-		}
-	default:
-		logger.ErrorContext(ctx, "Invalid TOTP type", "type", opts.totpType)
-		return TotpKey{}, fmt.Errorf("invalid TOTP type: %s", opts.totpType)
+	dekID, encDEK, kekID, serviceErr := opts.getEncDEKfn()
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get DEK", "error", serviceErr)
+		return TotpKey{}, serviceErr
+	}
+
+	dek, serviceErr := e.getDecryptedDEK(ctx, opts.requestID, dekID, encDEK, kekID)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get decrypted DEK", "error", serviceErr)
+		return TotpKey{}, serviceErr
 	}
 
 	secret, err := utils.Encrypt(key.Secret(), dek)
@@ -251,73 +211,56 @@ func (e *Encryption) generateTotpKey(
 
 	if opts.hashedCodes != nil && !isHashCodesFullyUsed(opts.hashedCodes) {
 		logger.DebugContext(ctx, "Using provided hashed codes")
-		hashedCodes, err := json.Marshal(opts.hashedCodes)
+		jsonCodes, err := json.Marshal(opts.hashedCodes)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to marshal hashed codes", "error", err)
 			return TotpKey{}, err
 		}
 
+		if serviceErr := opts.storeTOTPfn(secret, jsonCodes, key.URL()); serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to store TOTP", "error", serviceErr)
+			return TotpKey{}, serviceErr
+		}
+
 		return TotpKey{
-			url:             key.URL(),
-			img:             img64,
-			hashedCodes:     hashedCodes,
-			newDEK:          newDEK,
-			encryptedSecret: secret,
+			url: key.URL(),
+			img: img64,
 		}, nil
 
 	}
 
-	codes, hashedCodes, err := generateRecoveryCodes()
+	codes, jsonCodes, err := generateRecoveryCodes()
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate recovery codes", "error", err)
 		return TotpKey{}, err
 	}
 
+	if serviceErr := opts.storeTOTPfn(secret, jsonCodes, key.URL()); serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to store TOTP with recovery codes", "error", serviceErr)
+		return TotpKey{}, serviceErr
+	}
+
 	return TotpKey{
-		url:             key.URL(),
-		img:             img64,
-		codes:           codes,
-		hashedCodes:     hashedCodes,
-		newDEK:          newDEK,
-		encryptedSecret: secret,
+		url:   key.URL(),
+		img:   img64,
+		codes: codes,
 	}, err
 }
 
-type verifyTotpCodeOptions struct {
-	dek             []byte
-	encryptedSecret string
-	code            string
-}
-
-func verifyTotpCode(
-	logger *slog.Logger,
-	ctx context.Context,
-	opts verifyTotpCodeOptions,
-) (bool, error) {
-	secret, err := utils.Decrypt(opts.encryptedSecret, opts.dek)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to decrypt secret", "error", err)
-		return false, err
-	}
-
-	return totp.Validate(opts.code, secret), nil
-}
-
 type GenerateTotpKeyOptions struct {
-	RequestID string
-	Email     string
-	Issuer    string
-	StoredDEK string
-	TotpType  TotpType
+	RequestID   string
+	Email       string
+	Issuer      string
+	GetDEKfn    GetDEKtoEncrypt
+	StoreTOTPfn StoreTOTP
 }
 
-func (e *Encryption) GenerateTotpKey(
+func (e *Crypto) GenerateTotpKey(
 	ctx context.Context,
 	opts GenerateTotpKeyOptions,
 ) (TotpKey, error) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-		Layer:     logLayer,
-		Location:  totpsManagementLocation,
+		Location:  totpLocation,
 		Method:    "GenerateTotpKey",
 		RequestID: opts.RequestID,
 	})
@@ -329,144 +272,111 @@ func (e *Encryption) GenerateTotpKey(
 	}
 
 	return e.generateTotpKey(logger, ctx, generateTotpKeyOptions{
-		email:    opts.Email,
-		issuer:   issuer,
-		dek:      opts.StoredDEK,
-		totpType: opts.TotpType,
+		requestID:   opts.RequestID,
+		issuer:      issuer,
+		email:       opts.Email,
+		getEncDEKfn: opts.GetDEKfn,
+		storeTOTPfn: opts.StoreTOTPfn,
+		hashedCodes: nil,
 	})
 }
 
-type ProcessTotpDEKOptions struct {
+type EncryptedTOTPSecret = string
+type GetTOTPSecret = func(ownerID int32) (EncryptedTOTPSecret, DEKID, *exceptions.ServiceError)
+
+type VerifyTotpCodeOptions struct {
 	RequestID string
-	TotpType  TotpType
-	StoredDEK string
+	Code      string
+	OwnerID   int32
+	GetSecret GetTOTPSecret
+	GetDEKfn  GetDEKtoDecrypt
 }
 
-func (e *Encryption) ProcessTotpDEK(
+func (e *Crypto) VerifyTotpCode(
 	ctx context.Context,
-	opts ProcessTotpDEKOptions,
-) ([]byte, string, error) {
+	opts VerifyTotpCodeOptions,
+) (bool, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-		Layer:     logLayer,
-		Location:  totpsManagementLocation,
-		Method:    "ProcessTotpDEK",
-		RequestID: opts.RequestID,
-	})
-	logger.DebugContext(ctx, "Processing TOTP DEK...")
-
-	switch opts.TotpType {
-	case TotpTypeAccount:
-		dek, isOldKey, err := e.decryptAccountDEK(ctx, opts.RequestID, opts.StoredDEK)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
-			return nil, "", err
-		}
-		newDEK, err := reEncryptDEK(isOldKey, dek, e.accountSecretKey.key)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to re-encrypt StoredDEK", "error", err)
-			return nil, "", err
-		}
-		return dek, newDEK, nil
-	case TotpTypeUser:
-		dek, isOldKey, err := e.decryptUserDEK(ctx, opts.RequestID, opts.StoredDEK)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to decrypt StoredDEK", "error", err)
-			return nil, "", err
-		}
-		newDEK, err := reEncryptDEK(isOldKey, dek, e.userSecretKey.key)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to re-encrypt StoredDEK", "error", err)
-			return nil, "", err
-		}
-		return dek, newDEK, nil
-	default:
-		logger.ErrorContext(ctx, "Invalid TOTP type", "type", opts.TotpType)
-		return nil, "", fmt.Errorf("invalid TOTP type: %s", opts.TotpType)
-	}
-}
-
-type VerifyAccountTotpCodeOptions struct {
-	RequestID       string
-	EncryptedSecret string
-	StoredDEK       string
-	Code            string
-	TotpType        TotpType
-}
-
-func (e *Encryption) VerifyTotpCode(
-	ctx context.Context,
-	opts VerifyAccountTotpCodeOptions,
-) (bool, string, error) {
-	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-		Layer:     logLayer,
-		Location:  totpsManagementLocation,
+		Location:  totpLocation,
 		Method:    "VerifyTotpCode",
 		RequestID: opts.RequestID,
 	})
 	logger.DebugContext(ctx, "Verifying account TOTP code...")
 
-	dek, newDEK, err := e.ProcessTotpDEK(ctx, ProcessTotpDEKOptions{
-		RequestID: opts.RequestID,
-		TotpType:  opts.TotpType,
-		StoredDEK: opts.StoredDEK,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to process TOTP DEK", "error", err)
-		return false, "", err
+	encSecret, dekID, serviceErr := opts.GetSecret(opts.OwnerID)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get TOTP secret", "error", serviceErr)
+		return false, serviceErr
 	}
 
-	verified, err := verifyTotpCode(logger, ctx, verifyTotpCodeOptions{
-		dek:             dek,
-		encryptedSecret: opts.EncryptedSecret,
-		code:            opts.Code,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to verify TOTP code", "error", err)
-		return false, "", err
+	encDEK, kekID, serviceErr := opts.GetDEKfn(dekID)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get DEK", "error", serviceErr)
+		return false, serviceErr
 	}
 
-	return verified, newDEK, nil
+	dek, serviceErr := e.getDecryptedDEK(ctx, opts.RequestID, dekID, encDEK, kekID)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get decrypted DEK", "error", serviceErr)
+		return false, serviceErr
+	}
+
+	secret, err := utils.Decrypt(encSecret, dek)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to decrypt secret", "error", err)
+		return false, exceptions.NewServerError()
+	}
+
+	return totp.Validate(opts.Code, secret), nil
 }
+
+type GetTOTPRecoveryCodes = func(ownerID int32) ([]byte, *exceptions.ServiceError)
 
 type VerifyTotpRecoveryCodeOptions struct {
-	RequestID   string
-	RecoverCode string
-	HashedCodes []byte
-	StoredDEK   string
-	Issuer      string
-	Email       string
-	TotpType    TotpType
+	RequestID    string
+	Issuer       string
+	Email        string
+	RecoveryCode string
+	OwnerID      int32
+	GetCodes     GetTOTPRecoveryCodes
+	GetDEKfn     GetDEKtoEncrypt
+	StoreTOTPfn  StoreTOTP
 }
 
-func (e *Encryption) VerifyTotpRecoveryCode(
+func (e *Crypto) VerifyTotpRecoveryCode(
 	ctx context.Context,
 	opts VerifyTotpRecoveryCodeOptions,
-) (bool, TotpKey, error) {
+) (bool, TotpKey, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-		Layer:     logLayer,
-		Location:  totpsManagementLocation,
+		Location:  totpLocation,
 		Method:    "VerifyTotpRecoveryCode",
 		RequestID: opts.RequestID,
 	})
 	logger.DebugContext(ctx, "Verifying user TOTP recovery code...")
 
-	hashedCodes := make(map[string]recoveryCode, recoveryCodesCount)
-	if err := json.Unmarshal(opts.HashedCodes, &hashedCodes); err != nil {
-		logger.ErrorContext(ctx, "Failed to unmarshal hashed codes", "error", err)
-		return false, TotpKey{}, err
+	hashedCodesJson, serviceErr := opts.GetCodes(opts.OwnerID)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get TOTP recovery codes", "error", serviceErr)
+		return false, TotpKey{}, serviceErr
 	}
 
-	codeID := getRecoveryCodeID(opts.RecoverCode)
+	hashedCodes := make(map[string]recoveryCode, recoveryCodesCount)
+	if err := json.Unmarshal(hashedCodesJson, &hashedCodes); err != nil {
+		logger.ErrorContext(ctx, "Failed to unmarshal hashed codes", "error", err)
+		return false, TotpKey{}, exceptions.NewServerError()
+	}
+
+	codeID := getRecoveryCodeID(opts.RecoveryCode)
 	hashedCode, ok := hashedCodes[codeID]
 	if !ok {
 		logger.DebugContext(ctx, "Recovery code not found", "code_id", codeID)
 		return false, TotpKey{}, nil
 	}
 
-	ok, err := utils.Argon2CompareHash(opts.RecoverCode, hashedCode.HashedCode)
+	ok, err := utils.Argon2CompareHash(opts.RecoveryCode, hashedCode.HashedCode)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare hash", "error", err)
-		return false, TotpKey{}, err
+		return false, TotpKey{}, exceptions.NewServerError()
 	}
 	if !ok {
 		logger.DebugContext(ctx, "Recovery code does not match")
@@ -486,14 +396,16 @@ func (e *Encryption) VerifyTotpRecoveryCode(
 	}
 
 	totpKey, err := e.generateTotpKey(logger, ctx, generateTotpKeyOptions{
-		email:    opts.Email,
-		issuer:   issuer,
-		dek:      opts.StoredDEK,
-		totpType: opts.TotpType,
+		requestID:   opts.RequestID,
+		issuer:      issuer,
+		email:       opts.Email,
+		getEncDEKfn: opts.GetDEKfn,
+		storeTOTPfn: opts.StoreTOTPfn,
+		hashedCodes: hashedCodes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate TOTP key", "error", err)
-		return false, TotpKey{}, err
+		return false, TotpKey{}, exceptions.NewServerError()
 	}
 
 	return true, totpKey, nil

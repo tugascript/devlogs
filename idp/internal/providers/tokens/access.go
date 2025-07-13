@@ -7,13 +7,11 @@
 package tokens
 
 import (
-	"crypto/ecdsa"
-	"errors"
-
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 var baseAccessPaths = []string{paths.Base}
@@ -25,23 +23,18 @@ type AccountAccessTokenOptions struct {
 	TokenSubject string
 }
 
-func (t *Tokens) getAccessTokenPrivateKeyKIDAndTTL(tokenSubject, publicID string) (*ecdsa.PrivateKey, string, int64) {
+func (t *Tokens) getAccessTokenTTL(tokenSubject, publicID string) int64 {
 	if tokenSubject != publicID {
-		return t.accountCredentialsData.curKeyPair.privateKey,
-			t.accountCredentialsData.curKeyPair.kid,
-			t.accountCredentialsData.ttlSec
+		return t.accountCredentialsTTL
 	}
 
-	return t.accessData.curKeyPair.privateKey, t.accessData.curKeyPair.kid, t.accessData.ttlSec
+	return t.accessTTL
 }
 
-func (t *Tokens) CreateAccessToken(opts AccountAccessTokenOptions) (string, error) {
-	privateKey, kid, ttl := t.getAccessTokenPrivateKeyKIDAndTTL(opts.TokenSubject, opts.PublicID.String())
+func (t *Tokens) CreateAccessToken(opts AccountAccessTokenOptions) (*jwt.Token, error) {
 	return t.createAuthToken(accountAuthTokenOptions{
-		method:          jwt.SigningMethodES256,
-		privateKey:      privateKey,
-		kid:             kid,
-		ttlSec:          ttl,
+		cryptoSuite:     utils.SupportedCryptoSuiteES256,
+		ttlSec:          t.getAccessTokenTTL(opts.TokenSubject, opts.PublicID.String()),
 		accountPublicID: opts.PublicID,
 		accountVersion:  opts.Version,
 		scopes:          opts.Scopes,
@@ -50,28 +43,8 @@ func (t *Tokens) CreateAccessToken(opts AccountAccessTokenOptions) (string, erro
 	})
 }
 
-func (t *Tokens) VerifyAccessToken(token string) (AccountClaims, []AccountScope, error) {
-	claims, err := verifyAuthToken(token, func(token *jwt.Token) (any, error) {
-		kid, err := extractTokenKID(token)
-		if err != nil {
-			return ecdsa.PublicKey{}, err
-		}
-
-		if t.accessData.prevPubKey != nil && t.accessData.prevPubKey.kid == kid {
-			return t.accessData.prevPubKey.publicKey, nil
-		}
-		if t.accountCredentialsData.prevPubKey != nil && t.accountCredentialsData.prevPubKey.kid == kid {
-			return t.accountCredentialsData.prevPubKey.publicKey, nil
-		}
-		if t.accessData.curKeyPair.kid == kid {
-			return t.accessData.curKeyPair.publicKey, nil
-		}
-		if t.accountCredentialsData.curKeyPair.kid == kid {
-			return t.accountCredentialsData.curKeyPair.publicKey, nil
-		}
-
-		return ecdsa.PublicKey{}, errors.New("no key found for kid")
-	})
+func (t *Tokens) VerifyAccessToken(token string, getPublicJWK GetPublicJWK) (AccountClaims, []AccountScope, error) {
+	claims, err := verifyAuthToken(token, buildVerifyKey(utils.SupportedCryptoSuiteES256, getPublicJWK))
 	if err != nil {
 		return AccountClaims{}, nil, err
 	}
@@ -85,9 +58,9 @@ func (t *Tokens) VerifyAccessToken(token string) (AccountClaims, []AccountScope,
 }
 
 func (t *Tokens) GetAccessTTL() int64 {
-	return t.accessData.ttlSec
+	return t.accessTTL
 }
 
 func (t *Tokens) GetAccountCredentialsTTL() int64 {
-	return t.accountCredentialsData.ttlSec
+	return t.accountCredentialsTTL
 }

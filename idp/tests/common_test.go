@@ -29,8 +29,8 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/config"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
+	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
@@ -47,7 +47,7 @@ var _testServer *server.FiberServer
 var _testTokens *tokens.Tokens
 var _testDatabase *database.Database
 var _testCache *cache.Cache
-var _testEncryption *encryption.Encryption
+var _testEncryption *crypto.Crypto
 
 func initTestServicesAndApp(t *testing.T) {
 	logger := server.DefaultLogger()
@@ -132,9 +132,9 @@ func initTestServicesAndApp(t *testing.T) {
 	)
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")
 
-	logger.InfoContext(ctx, "Building encryption...")
-	_testEncryption = encryption.NewEncryption(logger, cfg.EncryptionConfig(), cfg.ServiceName())
-	logger.InfoContext(ctx, "Finished building encryption")
+	logger.InfoContext(ctx, "Building crypto...")
+	_testEncryption = crypto.NewCrypto(logger, cfg.EncryptionConfig(), cfg.ServiceName())
+	logger.InfoContext(ctx, "Finished building crypto")
 
 	logger.InfoContext(ctx, "Building OAuth provider...")
 	oauthProvidersCfg := _testConfig.OAuthProvidersConfig()
@@ -215,7 +215,7 @@ func GetTestTokens(t *testing.T) *tokens.Tokens {
 	return _testTokens
 }
 
-func GetTestEncryption(t *testing.T) *encryption.Encryption {
+func GetTestEncryption(t *testing.T) *crypto.Crypto {
 	if _testEncryption == nil {
 		initTestServicesAndApp(t)
 		_testServer.RegisterFiberRoutes()
