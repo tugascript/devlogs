@@ -11,16 +11,14 @@ INSERT INTO "accounts" (
     "family_name",
     "username",
     "email", 
-    "password",
-    "dek"
+    "password"
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
     $5,
-    $6,
-    $7
+    $6
 ) RETURNING *;
 
 -- name: CreateAccountWithoutPassword :one
@@ -30,7 +28,6 @@ INSERT INTO "accounts" (
     "family_name",
     "username",
     "email",
-    "dek",
     "version",
     "email_verified"
 ) VALUES (
@@ -39,7 +36,6 @@ INSERT INTO "accounts" (
     $3,
     $4,
     $5,
-    $6,
     2,
     true
 ) RETURNING *;
@@ -118,12 +114,6 @@ UPDATE "accounts" SET
     "updated_at" = now()
 WHERE "id" = $3
 RETURNING *;
-
--- name: UpdateAccountDEK :exec
-UPDATE "accounts" SET
-    "dek" = $1,
-    "updated_at" = now()
-WHERE "id" = $2;
 
 -- name: FindAccountIDByUsername :one
 SELECT "id" FROM "accounts"

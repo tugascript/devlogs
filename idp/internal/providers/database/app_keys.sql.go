@@ -10,6 +10,7 @@ import (
 )
 
 const createAppKey = `-- name: CreateAppKey :exec
+
 INSERT INTO "app_keys" (
     "app_id",
     "credentials_key_id",
@@ -27,6 +28,11 @@ type CreateAppKeyParams struct {
 	AccountID        int32
 }
 
+// Copyright (c) 2025 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateAppKey(ctx context.Context, arg CreateAppKeyParams) error {
 	_, err := q.db.Exec(ctx, createAppKey, arg.AppID, arg.CredentialsKeyID, arg.AccountID)
 	return err

@@ -24,7 +24,6 @@ type AccountDTO struct {
 	version       int32
 	emailVerified bool
 	password      string
-	dek           string
 }
 
 func (a *AccountDTO) ID() int32 {
@@ -43,10 +42,6 @@ func (a *AccountDTO) EmailVerified() bool {
 	return a.emailVerified
 }
 
-func (a *AccountDTO) DEK() string {
-	return a.dek
-}
-
 func MapAccountToDTO(account *database.Account) AccountDTO {
 	return AccountDTO{
 		id:            account.ID,
@@ -59,6 +54,5 @@ func MapAccountToDTO(account *database.Account) AccountDTO {
 		Username:      account.Username,
 		emailVerified: account.EmailVerified,
 		password:      account.Password.String,
-		dek:           account.Dek,
 	}
 }

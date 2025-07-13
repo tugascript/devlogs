@@ -30,7 +30,7 @@ const resetTemplate = `
 <body>
 	<h1>Password Reset</h1>
 	<br/>
-	<p>Hello {{.Name}}</p>
+	<p>Hello {{.KeyType}}</p>
 	<br/>
 	<p>We received a request to reset your password. Please click the link below to reset your password.</p>
 	<a href="{{.ResetURL}}">Reset Password</a>
@@ -87,7 +87,6 @@ type ResetEmailOptions struct {
 
 func (e *EmailPublisher) PublishResetEmail(ctx context.Context, opts ResetEmailOptions) error {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  "reset",
 		Method:    "PublishResetEmail",
 		RequestID: opts.RequestID,
@@ -128,7 +127,6 @@ type UserResetEmailOptions struct {
 
 func (e *EmailPublisher) PublishUserResetEmail(ctx context.Context, opts UserResetEmailOptions) error {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  "reset",
 		Method:    "PublishUserResetEmail",
 		RequestID: opts.RequestID,

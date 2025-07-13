@@ -27,7 +27,6 @@ func (c *Controllers) buildLogger(
 	method string,
 ) *slog.Logger {
 	return utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     utils.ControllersLogLayer,
 		Location:  location,
 		Method:    method,
 		RequestID: requestID,

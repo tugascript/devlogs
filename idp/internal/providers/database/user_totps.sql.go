@@ -11,7 +11,7 @@ import (
 
 const findUserTotpByUserID = `-- name: FindUserTotpByUserID :one
 
-SELECT id, account_id, user_id, url, secret, recovery_codes, created_at, updated_at FROM "user_totps"
+SELECT id, account_id, dek_kid, user_id, url, secret, recovery_codes, created_at, updated_at FROM "user_totps"
 WHERE "user_id" = $1 LIMIT 1
 `
 
@@ -26,6 +26,7 @@ func (q *Queries) FindUserTotpByUserID(ctx context.Context, userID int32) (UserT
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
+		&i.DekKid,
 		&i.UserID,
 		&i.Url,
 		&i.Secret,

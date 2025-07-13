@@ -12,6 +12,7 @@ import (
 	"github.com/go-playground/validator/v10"
 
 	"github.com/tugascript/devlogs/idp/internal/services"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type Controllers struct {
@@ -32,7 +33,7 @@ func NewControllers(
 	refreshCookieName string,
 ) *Controllers {
 	return &Controllers{
-		logger:            logger,
+		logger:            logger.With(utils.BaseLayer, utils.ControllersLogLayer),
 		services:          services,
 		validate:          validate,
 		frontendDomain:    frontendDomain,

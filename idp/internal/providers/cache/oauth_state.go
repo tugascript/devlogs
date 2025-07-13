@@ -29,7 +29,6 @@ type AddOAuthStateOptions struct {
 
 func (c *Cache) AddOAuthState(ctx context.Context, opts AddOAuthStateOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  oauthStateLocation,
 		Method:    "AddOAuthState",
 		RequestID: opts.RequestID,
@@ -57,7 +56,6 @@ type AddUserOAuthStateOptions struct {
 
 func (c *Cache) AddUserOAuthState(ctx context.Context, opts AddUserOAuthStateOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  oauthStateLocation,
 		Method:    "AddUserOAuthState",
 		RequestID: opts.RequestID,
@@ -78,7 +76,6 @@ type VerifyOAuthStateOptions struct {
 
 func (c *Cache) VerifyOAuthState(ctx context.Context, opts VerifyOAuthStateOptions) (bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  oauthStateLocation,
 		Method:    "VerifyOAuthState",
 		RequestID: opts.RequestID,
@@ -107,7 +104,6 @@ type GetOAuthStateAppIDOptions struct {
 
 func (c *Cache) GetOAuthStateAppID(ctx context.Context, opts GetOAuthStateAppIDOptions) (int, bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  oauthStateLocation,
 		Method:    "GetOAuthStateAppID",
 		RequestID: opts.RequestID,

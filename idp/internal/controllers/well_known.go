@@ -23,15 +23,14 @@ func (c *Controllers) WellKnownJWKs(ctx *fiber.Ctx) error {
 	logger := c.buildLogger(requestID, wellKnownLocation, "WellKnownJWKs")
 	logRequest(logger, ctx)
 
-	accountUsername, accountID, serviceErr := getHostAccount(ctx)
+	_, accountID, serviceErr := getHostAccount(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	jwksDTO, etag, serviceErr := c.services.WellKnownJWKsWithCache(ctx.UserContext(), services.WellKnownJWKsOptions{
-		RequestID:       requestID,
-		AccountID:       accountID,
-		AccountUsername: accountUsername,
+	etag, jwksDTO, serviceErr := c.services.WellKnownJWKs(ctx.UserContext(), services.WellKnownJWKsOptions{
+		RequestID: requestID,
+		AccountID: accountID,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)

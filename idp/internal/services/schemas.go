@@ -39,7 +39,7 @@ type schemaField struct {
 
 var schemaMapping = map[database.Claims]schemaField{
 	database.ClaimsName: {
-		name:      "Name",
+		name:      "KeyType",
 		fieldType: reflect.TypeOf(""),
 		tag:       reflect.StructTag(`json:"name" validate:"omitempty,min=1,max=150"`),
 	},

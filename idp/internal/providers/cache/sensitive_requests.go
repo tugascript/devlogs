@@ -42,7 +42,6 @@ type SaveUpdateEmailRequestOptions struct {
 
 func (c *Cache) SaveUpdateEmailRequest(ctx context.Context, opts SaveUpdateEmailRequestOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  sensitiveRequestsLocation,
 		Method:    "SaveUpdateEmailRequest",
 		RequestID: opts.RequestID,
@@ -71,7 +70,6 @@ type GetUpdateEmailRequestOptions struct {
 
 func (c *Cache) GetUpdateEmailRequest(ctx context.Context, opts GetUpdateEmailRequestOptions) (string, bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  sensitiveRequestsLocation,
 		Method:    "GetUpdateEmailRequest",
 		RequestID: opts.RequestID,
@@ -105,7 +103,6 @@ type SaveUpdatePasswordRequestOptions struct {
 
 func (c *Cache) SaveUpdatePasswordRequest(ctx context.Context, opts SaveUpdatePasswordRequestOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  sensitiveRequestsLocation,
 		Method:    "SaveUpdatePasswordRequest",
 		RequestID: opts.RequestID,
@@ -140,7 +137,6 @@ type GetUpdatePasswordRequestOptions struct {
 
 func (c *Cache) GetUpdatePasswordRequest(ctx context.Context, opts GetUpdatePasswordRequestOptions) (string, bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  sensitiveRequestsLocation,
 		Method:    "GetUpdatePasswordRequest",
 		RequestID: opts.RequestID,
@@ -173,7 +169,6 @@ type SaveDeleteAccountRequestOptions struct {
 
 func (c *Cache) SaveDeleteAccountRequest(ctx context.Context, opts SaveDeleteAccountRequestOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  sensitiveRequestsLocation,
 		Method:    "SaveDeleteAccountRequest",
 		RequestID: opts.RequestID,
@@ -202,7 +197,6 @@ type GetDeleteAccountRequestOptions struct {
 
 func (c *Cache) GetDeleteAccountRequest(ctx context.Context, opts GetDeleteAccountRequestOptions) (bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  sensitiveRequestsLocation,
 		Method:    "GetDeleteAccountRequest",
 		RequestID: opts.RequestID,
@@ -235,7 +229,6 @@ type SaveTwoFactorUpdateRequestOptions struct {
 
 func (c *Cache) SaveTwoFactorUpdateRequest(ctx context.Context, opts SaveTwoFactorUpdateRequestOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  sensitiveRequestsLocation,
 		Method:    "SaveTwoFactorUpdateRequest",
 		RequestID: opts.RequestID,
@@ -268,7 +261,6 @@ func (c *Cache) GetTwoFactorUpdateRequest(
 	opts GetTwoFactorUpdateRequestOptions,
 ) (database.TwoFactorType, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  sensitiveRequestsLocation,
 		Method:    "GetTwoFactorUpdateRequest",
 		RequestID: opts.RequestID,
@@ -302,7 +294,6 @@ type SaveUpdateUsernameRequestOptions struct {
 
 func (c *Cache) SaveUpdateUsernameRequest(ctx context.Context, opts SaveUpdateUsernameRequestOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  sensitiveRequestsLocation,
 		Method:    "SaveUpdateUsernameRequest",
 		RequestID: opts.RequestID,
@@ -332,7 +323,6 @@ type GetUpdateUsernameRequestOptions struct {
 
 func (c *Cache) GetUpdateUsernameRequest(ctx context.Context, opts GetUpdateUsernameRequestOptions) (string, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  sensitiveRequestsLocation,
 		Method:    "GetUpdateUsernameRequest",
 		RequestID: opts.RequestID,

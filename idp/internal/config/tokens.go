@@ -6,99 +6,60 @@
 
 package config
 
-type SingleJwtConfig struct {
-	publicKey         string
-	privateKey        string
-	previousPublicKey string
-	ttlSec            int64
-}
-
-func NewSingleJwtConfig(publicKey, privateKey, previousPublicKey string, ttlSec int64) SingleJwtConfig {
-	return SingleJwtConfig{
-		publicKey:         publicKey,
-		privateKey:        privateKey,
-		previousPublicKey: previousPublicKey,
-		ttlSec:            ttlSec,
-	}
-}
-
-func (s *SingleJwtConfig) PublicKey() string {
-	return s.publicKey
-}
-
-func (s *SingleJwtConfig) PrivateKey() string {
-	return s.privateKey
-}
-
-func (s *SingleJwtConfig) TtlSec() int64 {
-	return s.ttlSec
-}
-
-func (s *SingleJwtConfig) PreviousPublicKey() string {
-	return s.previousPublicKey
-}
-
 type TokensConfig struct {
-	access             SingleJwtConfig
-	accountCredentials SingleJwtConfig
-	refresh            SingleJwtConfig
-	confirm            SingleJwtConfig
-	reset              SingleJwtConfig
-	oAuth              SingleJwtConfig
-	twoFA              SingleJwtConfig
-	apps               SingleJwtConfig
+	accessTTL             int64
+	accountCredentialsTTL int64
+	refreshTTL            int64
+	confirmTTL            int64
+	resetTTL              int64
+	oAuthTTL              int64
+	twoFATTL              int64
+	appsTTL               int64
 }
 
-func NewTokensConfig(
-	access SingleJwtConfig,
-	accountCredentials SingleJwtConfig,
-	refresh SingleJwtConfig,
-	confirm SingleJwtConfig,
-	reset SingleJwtConfig,
-	oAuth SingleJwtConfig,
-	twoFA SingleJwtConfig,
-	apps SingleJwtConfig,
-) TokensConfig {
+func NewTokensConfig(access, accountCredentials, refresh, confirm, reset, oAuth, twoFA, apps int64) TokensConfig {
 	return TokensConfig{
-		access:             access,
-		accountCredentials: accountCredentials,
-		refresh:            refresh,
-		confirm:            confirm,
-		reset:              reset,
-		oAuth:              oAuth,
-		twoFA:              twoFA,
-		apps:               apps,
+		accessTTL:             access,
+		accountCredentialsTTL: accountCredentials,
+		refreshTTL:            refresh,
+		confirmTTL:            confirm,
+		resetTTL:              reset,
+		oAuthTTL:              oAuth,
+		twoFATTL:              twoFA,
+		appsTTL:               apps,
 	}
 }
 
-func (t *TokensConfig) Access() SingleJwtConfig {
-	return t.access
+// Getters for TokensConfig
+
+func (t TokensConfig) AccessTTL() int64 {
+	return t.accessTTL
 }
 
-func (t *TokensConfig) AccountCredentials() SingleJwtConfig {
-	return t.accountCredentials
+func (t TokensConfig) AccountCredentialsTTL() int64 {
+	return t.accountCredentialsTTL
 }
 
-func (t *TokensConfig) Refresh() SingleJwtConfig {
-	return t.refresh
+func (t TokensConfig) RefreshTTL() int64 {
+	return t.refreshTTL
 }
 
-func (t *TokensConfig) Confirm() SingleJwtConfig {
-	return t.confirm
+func (t TokensConfig) ConfirmTTL() int64 {
+	return t.confirmTTL
 }
 
-func (t *TokensConfig) Reset() SingleJwtConfig {
-	return t.reset
+func (t TokensConfig) ResetTTL() int64 {
+	return t.resetTTL
 }
 
-func (t *TokensConfig) OAuth() SingleJwtConfig {
-	return t.oAuth
+func (t TokensConfig) OAuthTTL() int64 {
+	return t.oAuthTTL
 }
 
-func (t *TokensConfig) TwoFA() SingleJwtConfig {
-	return t.twoFA
+func (t TokensConfig) TwoFATTL() int64 {
+	return t.twoFATTL
 }
 
-func (t *TokensConfig) Apps() SingleJwtConfig {
-	return t.apps
+func (t TokensConfig) AppsTTL() int64 {
+	return t.appsTTL
 }

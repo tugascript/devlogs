@@ -13,7 +13,7 @@ import (
 	"encoding/hex"
 )
 
-func generateRandomBytes(byteLen int) ([]byte, error) {
+func GenerateRandomBytes(byteLen int) ([]byte, error) {
 	b := make([]byte, byteLen)
 
 	if _, err := rand.Read(b); err != nil {
@@ -24,7 +24,7 @@ func generateRandomBytes(byteLen int) ([]byte, error) {
 }
 
 func GenerateBase64Secret(byteLen int) (string, error) {
-	randomBytes, err := generateRandomBytes(byteLen)
+	randomBytes, err := GenerateRandomBytes(byteLen)
 	if err != nil {
 		return "", err
 	}
@@ -42,7 +42,7 @@ func DecodeBase64Secret(secret string) ([]byte, error) {
 }
 
 func GenerateBase32Secret(byteLen int) (string, error) {
-	randomBytes, err := generateRandomBytes(byteLen)
+	randomBytes, err := GenerateRandomBytes(byteLen)
 	if err != nil {
 		return "", err
 	}
@@ -51,7 +51,7 @@ func GenerateBase32Secret(byteLen int) (string, error) {
 }
 
 func GenerateHexSecret(byteLen int) (string, error) {
-	randomBytes, err := generateRandomBytes(byteLen)
+	randomBytes, err := GenerateRandomBytes(byteLen)
 	if err != nil {
 		return "", err
 	}

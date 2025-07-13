@@ -17,72 +17,26 @@ import (
 const wellKnownLocation = "well_known"
 
 type WellKnownJWKsOptions struct {
-	RequestID       string
-	AccountID       int32
-	AccountUsername string
+	RequestID string
+	AccountID int32
 }
 
-func (s *Services) wellKnownJWKs(
+func (s *Services) WellKnownJWKs(
 	ctx context.Context,
 	opts WellKnownJWKsOptions,
-) (dtos.JWKsDTO, *exceptions.ServiceError) {
+) (string, dtos.JWKsDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, wellKnownLocation, "wellKnownJWKs").With(
 		"accountID", opts.AccountID,
 	)
 	logger.InfoContext(ctx, "Getting well known JWKs...")
 
-	jwks, serviceErr := s.GetDistributedJWKs(ctx, GetDistributedJWKsOptions{
-		RequestID: opts.RequestID,
-		AccountID: opts.AccountID,
-	})
+	etag, jwks, serviceErr := s.GetAndCacheAccountDistributedJWK(ctx, GetAndCacheAccountDistributedJWKOptions(opts))
 	if serviceErr != nil {
-		return dtos.JWKsDTO{}, serviceErr
+		return "", dtos.JWKsDTO{}, serviceErr
 	}
 
 	logger.InfoContext(ctx, "Got well known JWKs successfully")
-	return dtos.NewJWKsDTO(jwks), nil
-}
-
-func (s *Services) WellKnownJWKsWithCache(
-	ctx context.Context,
-	opts WellKnownJWKsOptions,
-) (dtos.JWKsDTO, string, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, wellKnownLocation, "WellKnownJWKs").With(
-		"accountID", opts.AccountID,
-		"accountUsername", opts.AccountUsername,
-	)
-	logger.InfoContext(ctx, "Getting well known JWKs with cache...")
-
-	etag, jwksDTO, err := s.cache.GetWellKnownJWKs(ctx, cache.GetWellKnownJWKsOptions{
-		RequestID:       opts.RequestID,
-		AccountUsername: opts.AccountUsername,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Error getting well known JWKs from cache", "error", err)
-		return dtos.JWKsDTO{}, "", exceptions.NewServerError()
-	}
-	if etag != "" && jwksDTO != nil {
-		logger.InfoContext(ctx, "Got well known JWKs from cache successfully")
-		return *jwksDTO, etag, nil
-	}
-
-	jwks, serviceErr := s.wellKnownJWKs(ctx, opts)
-	if serviceErr != nil {
-		return dtos.JWKsDTO{}, "", serviceErr
-	}
-
-	etag, err = s.cache.AddWellKnownJWKs(ctx, cache.AddWellKnownJWKsOptions{
-		RequestID:       opts.RequestID,
-		AccountUsername: opts.AccountUsername,
-		JWKs:            &jwks,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Error adding well known JWKs to cache", "error", err)
-		return dtos.JWKsDTO{}, "", exceptions.NewServerError()
-	}
-
-	logger.InfoContext(ctx, "Added well known JWKs to cache successfully")
-	return jwks, etag, nil
+	return etag, dtos.NewJWKsDTO(jwks), nil
 }
 
 type WellKnownOIDCConfigurationWithCacheOptions struct {

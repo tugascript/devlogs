@@ -1,16 +1,43 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-06-15T13:07:46.315Z
+-- Generated at: 2025-07-13T06:18:37.512Z
 
-CREATE TYPE "two_factor_type" AS ENUM (
-  'none',
-  'totp',
-  'email'
+CREATE TYPE "kek_usage" AS ENUM (
+  'global',
+  'account'
+);
+
+CREATE TYPE "dek_usage" AS ENUM (
+  'global',
+  'account',
+  'user'
 );
 
 CREATE TYPE "token_crypto_suite" AS ENUM (
   'ES256',
   'EdDSA'
+);
+
+CREATE TYPE "token_key_usage" AS ENUM (
+  'global',
+  'account'
+);
+
+CREATE TYPE "token_key_type" AS ENUM (
+  'access',
+  'refresh',
+  'id_token',
+  'client_credentials',
+  'email_verification',
+  'password_reset',
+  'oauth_authorization',
+  '2fa_authentication'
+);
+
+CREATE TYPE "two_factor_type" AS ENUM (
+  'none',
+  'totp',
+  'email'
 );
 
 CREATE TYPE "auth_method" AS ENUM (
@@ -106,6 +133,45 @@ CREATE TYPE "response_type" AS ENUM (
   'code id_token'
 );
 
+CREATE TABLE "key_encryption_keys" (
+  "id" serial PRIMARY KEY,
+  "kid" uuid NOT NULL,
+  "usage" kek_usage NOT NULL,
+  "version" integer NOT NULL DEFAULT 1,
+  "rotated_at" timestamptz NOT NULL DEFAULT (now()),
+  "next_rotation_at" timestamptz NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "data_encryption_keys" (
+  "id" serial PRIMARY KEY,
+  "kid" varchar(22) NOT NULL,
+  "dek" text NOT NULL,
+  "kek_kid" uuid NOT NULL,
+  "usage" dek_usage NOT NULL,
+  "is_revoked" boolean NOT NULL DEFAULT false,
+  "expires_at" timestamptz NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "token_signing_keys" (
+  "id" serial PRIMARY KEY,
+  "kid" varchar(22) NOT NULL,
+  "key_type" token_key_type NOT NULL,
+  "public_key" jsonb NOT NULL,
+  "private_key" text NOT NULL,
+  "dek_kid" varchar(22) NOT NULL,
+  "crypto_suite" token_crypto_suite NOT NULL,
+  "expires_at" timestamptz NOT NULL,
+  "usage" token_key_usage NOT NULL DEFAULT 'account',
+  "is_distributed" boolean NOT NULL DEFAULT false,
+  "is_revoked" boolean NOT NULL DEFAULT false,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
 CREATE TABLE "accounts" (
   "id" serial PRIMARY KEY,
   "public_id" uuid NOT NULL,
@@ -114,7 +180,6 @@ CREATE TABLE "accounts" (
   "username" varchar(63) NOT NULL,
   "email" varchar(250) NOT NULL,
   "organization" varchar(50),
-  "dek" text NOT NULL,
   "password" text,
   "version" integer NOT NULL DEFAULT 1,
   "email_verified" boolean NOT NULL DEFAULT false,
@@ -122,6 +187,20 @@ CREATE TABLE "accounts" (
   "two_factor_type" two_factor_type NOT NULL DEFAULT 'none',
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "account_key_encryption_keys" (
+  "account_id" integer NOT NULL,
+  "key_encryption_key_id" integer NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  PRIMARY KEY ("account_id", "key_encryption_key_id")
+);
+
+CREATE TABLE "account_data_encryption_keys" (
+  "account_id" integer NOT NULL,
+  "data_encryption_key_id" integer NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  PRIMARY KEY ("account_id", "data_encryption_key_id")
 );
 
 CREATE TABLE "credentials_secrets" (
@@ -140,7 +219,7 @@ CREATE TABLE "credentials_keys" (
   "account_id" integer NOT NULL,
   "public_kid" varchar(22) NOT NULL,
   "public_key" jsonb NOT NULL,
-  "jwt_crypto_suite" token_crypto_suite NOT NULL DEFAULT 'ES256',
+  "crypto_suite" token_crypto_suite NOT NULL DEFAULT 'ES256',
   "is_revoked" boolean NOT NULL DEFAULT false,
   "expires_at" timestamptz NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
@@ -150,6 +229,7 @@ CREATE TABLE "credentials_keys" (
 CREATE TABLE "account_totps" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
+  "dek_kid" varchar(22) NOT NULL,
   "url" varchar(250) NOT NULL,
   "secret" text NOT NULL,
   "recovery_codes" jsonb NOT NULL,
@@ -198,7 +278,6 @@ CREATE TABLE "account_auth_providers" (
 CREATE TABLE "oidc_configs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
-  "dek" text NOT NULL,
   "claims_supported" claims[] NOT NULL DEFAULT '{ "sub", "email", "email_verified", "given_name", "family_name" }',
   "scopes_supported" scopes[] NOT NULL DEFAULT '{ "email", "profile" }',
   "user_roles_supported" varchar(50)[] NOT NULL DEFAULT '{ "user", "staff", "admin" }',
@@ -206,18 +285,11 @@ CREATE TABLE "oidc_configs" (
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
-CREATE TABLE "account_keys" (
-  "id" serial PRIMARY KEY,
+CREATE TABLE "account_token_signing_keys" (
   "account_id" integer NOT NULL,
-  "oidc_config_id" integer NOT NULL,
-  "name" varchar(10) NOT NULL,
-  "jwt_crypto_suite" token_crypto_suite NOT NULL,
-  "public_kid" varchar(22) NOT NULL,
-  "public_key" jsonb NOT NULL,
-  "private_key" text NOT NULL,
-  "is_distributed" boolean NOT NULL DEFAULT false,
-  "expires_at" timestamptz NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now())
+  "token_signing_key_id" integer NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  PRIMARY KEY ("account_id", "token_signing_key_id")
 );
 
 CREATE TABLE "users" (
@@ -227,7 +299,6 @@ CREATE TABLE "users" (
   "email" varchar(250) NOT NULL,
   "username" varchar(250) NOT NULL,
   "password" text,
-  "dek" text NOT NULL,
   "version" integer NOT NULL DEFAULT 1,
   "email_verified" boolean NOT NULL DEFAULT false,
   "user_roles" varchar(50)[] NOT NULL DEFAULT '{ "user" }',
@@ -238,9 +309,19 @@ CREATE TABLE "users" (
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
+CREATE TABLE "user_data_encryption_keys" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "user_id" integer NOT NULL,
+  "user_public_id" uuid NOT NULL,
+  "data_encryption_key_id" integer NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now())
+);
+
 CREATE TABLE "user_totps" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
+  "dek_kid" varchar(22) NOT NULL,
   "user_id" integer NOT NULL,
   "url" varchar(250) NOT NULL,
   "secret" text NOT NULL,
@@ -395,6 +476,36 @@ CREATE TABLE "revoked_tokens" (
   "created_at" timestamptz NOT NULL DEFAULT (now())
 );
 
+CREATE UNIQUE INDEX "key_encryption_keys_kid_uidx" ON "key_encryption_keys" ("kid");
+
+CREATE UNIQUE INDEX "key_encryption_keys_usage_uidx" ON "key_encryption_keys" ("usage");
+
+CREATE UNIQUE INDEX "key_encryption_keys_kid_usage_uidx" ON "key_encryption_keys" ("kid", "usage");
+
+CREATE UNIQUE INDEX "data_encryption_keys_kid_uidx" ON "data_encryption_keys" ("kid");
+
+CREATE INDEX "data_encryption_keys_expires_at_idx" ON "data_encryption_keys" ("expires_at");
+
+CREATE INDEX "data_encryption_keys_is_revoked_expires_at_idx" ON "data_encryption_keys" ("is_revoked", "expires_at");
+
+CREATE INDEX "data_encryption_keys_usage_is_revoked_expires_at_idx" ON "data_encryption_keys" ("usage", "is_revoked", "expires_at");
+
+CREATE INDEX "data_encryption_keys_kek_kid_idx" ON "data_encryption_keys" ("kek_kid");
+
+CREATE UNIQUE INDEX "token_signing_keys_kid_uidx" ON "token_signing_keys" ("kid");
+
+CREATE INDEX "token_signing_keys_expires_at_idx" ON "token_signing_keys" ("expires_at");
+
+CREATE INDEX "token_signing_keys_is_distributed_is_revoked_expires_at_idx" ON "token_signing_keys" ("is_distributed", "is_revoked", "expires_at");
+
+CREATE INDEX "token_signing_keys_key_type_usage_is_revoked_expires_at_idx" ON "token_signing_keys" ("key_type", "usage", "is_revoked", "expires_at");
+
+CREATE INDEX "token_signing_keys_usage_is_distributed_is_revoked_expires_at_idx" ON "token_signing_keys" ("usage", "is_distributed", "is_revoked", "expires_at");
+
+CREATE INDEX "token_signing_keys_kid_is_revoked_idx" ON "token_signing_keys" ("kid", "is_revoked");
+
+CREATE INDEX "token_signing_keys_dek_kid_idx" ON "token_signing_keys" ("dek_kid");
+
 CREATE UNIQUE INDEX "accounts_email_uidx" ON "accounts" ("email");
 
 CREATE UNIQUE INDEX "accounts_public_id_uidx" ON "accounts" ("public_id");
@@ -402,6 +513,14 @@ CREATE UNIQUE INDEX "accounts_public_id_uidx" ON "accounts" ("public_id");
 CREATE INDEX "accounts_public_id_version_idx" ON "accounts" ("public_id", "version");
 
 CREATE UNIQUE INDEX "accounts_username_uidx" ON "accounts" ("username");
+
+CREATE INDEX "account_key_encryption_keys_account_id_idx" ON "account_key_encryption_keys" ("account_id");
+
+CREATE UNIQUE INDEX "account_key_encryption_keys_key_encryption_key_id_uidx" ON "account_key_encryption_keys" ("key_encryption_key_id");
+
+CREATE INDEX "account_data_encryption_keys_account_id_idx" ON "account_data_encryption_keys" ("account_id");
+
+CREATE UNIQUE INDEX "account_data_encryption_keys_account_id_data_encryption_key_id_uidx" ON "account_data_encryption_keys" ("data_encryption_key_id");
 
 CREATE INDEX "credential_secrets_account_id_idx" ON "credentials_secrets" ("account_id");
 
@@ -424,6 +543,8 @@ CREATE INDEX "credential_keys_is_revoked_expires_at_idx" ON "credentials_keys" (
 CREATE INDEX "credential_keys_account_id_public_kid_idx" ON "credentials_keys" ("account_id", "public_kid");
 
 CREATE UNIQUE INDEX "accounts_totps_account_id_uidx" ON "account_totps" ("account_id");
+
+CREATE UNIQUE INDEX "accounts_totps_dek_kid_uidx" ON "account_totps" ("dek_kid");
 
 CREATE UNIQUE INDEX "account_credentials_client_id_uidx" ON "account_credentials" ("client_id");
 
@@ -459,17 +580,9 @@ CREATE INDEX "auth_providers_account_public_id_email_idx" ON "account_auth_provi
 
 CREATE UNIQUE INDEX "oidc_configs_account_id_uidx" ON "oidc_configs" ("account_id");
 
-CREATE INDEX "account_keys_account_id_idx" ON "account_keys" ("account_id");
+CREATE INDEX "account_token_signing_keys_account_id_idx" ON "account_token_signing_keys" ("account_id");
 
-CREATE INDEX "account_keys_oidc_config_id_idx" ON "account_keys" ("oidc_config_id");
-
-CREATE UNIQUE INDEX "account_keys_public_kid_uidx" ON "account_keys" ("public_kid");
-
-CREATE INDEX "account_keys_account_id_public_kid_idx" ON "account_keys" ("account_id", "public_kid");
-
-CREATE INDEX "account_keys_name_account_id_expires_at_id_idx" ON "account_keys" ("name", "account_id", "expires_at", "id");
-
-CREATE INDEX "account_keys_account_id_is_distributed_expires_at_idx" ON "account_keys" ("account_id", "is_distributed", "expires_at");
+CREATE UNIQUE INDEX "account_token_signing_keys_token_signing_key_id_uidx" ON "account_token_signing_keys" ("token_signing_key_id");
 
 CREATE UNIQUE INDEX "users_account_id_email_uidx" ON "users" ("account_id", "email");
 
@@ -481,9 +594,19 @@ CREATE UNIQUE INDEX "users_public_id_uidx" ON "users" ("public_id");
 
 CREATE INDEX "users_public_id_version_idx" ON "users" ("public_id", "version");
 
+CREATE INDEX "user_data_encryption_keys_account_id_idx" ON "user_data_encryption_keys" ("account_id");
+
+CREATE INDEX "user_data_encryption_keys_user_id_idx" ON "user_data_encryption_keys" ("user_id");
+
+CREATE INDEX "user_data_encryption_keys_user_public_id_idx" ON "user_data_encryption_keys" ("user_public_id");
+
+CREATE UNIQUE INDEX "user_data_encryption_keys_data_encryption_key_id_uidx" ON "user_data_encryption_keys" ("data_encryption_key_id");
+
 CREATE INDEX "user_totps_account_id_idx" ON "user_totps" ("account_id");
 
 CREATE UNIQUE INDEX "user_totps_user_id_uidx" ON "user_totps" ("user_id");
+
+CREATE INDEX "user_totps_dek_kid_idx" ON "user_totps" ("dek_kid");
 
 CREATE INDEX "user_auth_provider_user_id_idx" ON "user_auth_providers" ("user_id");
 
@@ -569,11 +692,25 @@ CREATE UNIQUE INDEX "user_profiles_user_id_app_id_uidx" ON "app_profiles" ("user
 
 CREATE UNIQUE INDEX "revoked_tokens_token_id_uidx" ON "revoked_tokens" ("token_id");
 
+ALTER TABLE "data_encryption_keys" ADD FOREIGN KEY ("kek_kid") REFERENCES "key_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "token_signing_keys" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "account_key_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_key_encryption_keys" ADD FOREIGN KEY ("key_encryption_key_id") REFERENCES "key_encryption_keys" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_data_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_data_encryption_keys" ADD FOREIGN KEY ("data_encryption_key_id") REFERENCES "data_encryption_keys" ("id") ON DELETE CASCADE;
+
 ALTER TABLE "credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "credentials_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_totps" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "account_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
@@ -593,15 +730,23 @@ ALTER TABLE "account_auth_providers" ADD FOREIGN KEY ("email") REFERENCES "accou
 
 ALTER TABLE "oidc_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "account_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_token_signing_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "account_keys" ADD FOREIGN KEY ("oidc_config_id") REFERENCES "oidc_configs" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_token_signing_keys" ADD FOREIGN KEY ("token_signing_key_id") REFERENCES "token_signing_keys" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "users" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_data_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_data_encryption_keys" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_data_encryption_keys" ADD FOREIGN KEY ("data_encryption_key_id") REFERENCES "data_encryption_keys" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "user_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "user_totps" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_totps" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "user_auth_providers" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

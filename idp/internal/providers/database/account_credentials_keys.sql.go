@@ -63,7 +63,7 @@ func (q *Queries) CreateAccountCredentialKey(ctx context.Context, arg CreateAcco
 }
 
 const findAccountCredentialKeyByAccountCredentialIDAndPublicKID = `-- name: FindAccountCredentialKeyByAccountCredentialIDAndPublicKID :one
-SELECT ckr.id, ckr.account_id, ckr.public_kid, ckr.public_key, ckr.jwt_crypto_suite, ckr.is_revoked, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
+SELECT ckr.id, ckr.account_id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
 LEFT JOIN "account_credentials_keys" "ack" ON "ack"."credentials_key_id" = "ckr"."id"
 WHERE 
     "ack"."account_credentials_id" = $1 AND 
@@ -84,7 +84,7 @@ func (q *Queries) FindAccountCredentialKeyByAccountCredentialIDAndPublicKID(ctx 
 		&i.AccountID,
 		&i.PublicKid,
 		&i.PublicKey,
-		&i.JwtCryptoSuite,
+		&i.CryptoSuite,
 		&i.IsRevoked,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -94,7 +94,7 @@ func (q *Queries) FindAccountCredentialKeyByAccountCredentialIDAndPublicKID(ctx 
 }
 
 const findActiveAccountCredentialKeysByAccountPublicID = `-- name: FindActiveAccountCredentialKeysByAccountPublicID :many
-SELECT ckr.id, ckr.account_id, ckr.public_kid, ckr.public_key, ckr.jwt_crypto_suite, ckr.is_revoked, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
+SELECT ckr.id, ckr.account_id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
 LEFT JOIN "account_credentials_keys" "ack" ON "ack"."credentials_key_id" = "ckr"."id"
 WHERE 
     "ack"."account_public_id" = $1 AND 
@@ -117,7 +117,7 @@ func (q *Queries) FindActiveAccountCredentialKeysByAccountPublicID(ctx context.C
 			&i.AccountID,
 			&i.PublicKid,
 			&i.PublicKey,
-			&i.JwtCryptoSuite,
+			&i.CryptoSuite,
 			&i.IsRevoked,
 			&i.ExpiresAt,
 			&i.CreatedAt,
@@ -134,7 +134,7 @@ func (q *Queries) FindActiveAccountCredentialKeysByAccountPublicID(ctx context.C
 }
 
 const findCurrentAccountCredentialKeyByAccountCredentialID = `-- name: FindCurrentAccountCredentialKeyByAccountCredentialID :one
-SELECT ckr.id, ckr.account_id, ckr.public_kid, ckr.public_key, ckr.jwt_crypto_suite, ckr.is_revoked, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
+SELECT ckr.id, ckr.account_id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
 LEFT JOIN "account_credentials_keys" "ack" ON "ack"."credentials_key_id" = "ckr"."id"
 WHERE 
     "ack"."account_credentials_id" = $1 AND 
@@ -151,7 +151,7 @@ func (q *Queries) FindCurrentAccountCredentialKeyByAccountCredentialID(ctx conte
 		&i.AccountID,
 		&i.PublicKid,
 		&i.PublicKey,
-		&i.JwtCryptoSuite,
+		&i.CryptoSuite,
 		&i.IsRevoked,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -161,7 +161,7 @@ func (q *Queries) FindCurrentAccountCredentialKeyByAccountCredentialID(ctx conte
 }
 
 const findPaginatedAccountCredentialKeysByAccountCredentialID = `-- name: FindPaginatedAccountCredentialKeysByAccountCredentialID :many
-SELECT ckr.id, ckr.account_id, ckr.public_kid, ckr.public_key, ckr.jwt_crypto_suite, ckr.is_revoked, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
+SELECT ckr.id, ckr.account_id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
 LEFT JOIN "account_credentials_keys" "ack" ON "ack"."credentials_key_id" = "ckr"."id"
 WHERE "ack"."account_credentials_id" = $1
 ORDER BY "ckr"."expires_at" DESC
@@ -188,7 +188,7 @@ func (q *Queries) FindPaginatedAccountCredentialKeysByAccountCredentialID(ctx co
 			&i.AccountID,
 			&i.PublicKid,
 			&i.PublicKey,
-			&i.JwtCryptoSuite,
+			&i.CryptoSuite,
 			&i.IsRevoked,
 			&i.ExpiresAt,
 			&i.CreatedAt,

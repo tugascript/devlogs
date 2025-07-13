@@ -1069,7 +1069,7 @@ func (s *Services) listActiveAccountCredentialsKeys(
 	}
 
 	jwks, serviceErr := utils.MapSliceWithErr(keys, func(k *database.CredentialsKey) (utils.JWK, *exceptions.ServiceError) {
-		jwk, err := dtos.DecodePublicKeyJSON(k.JwtCryptoSuite, k.PublicKey)
+		jwk, err := utils.JsonToJWK(k.PublicKey)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to decode public key", "error", err)
 			return nil, exceptions.NewServerError()

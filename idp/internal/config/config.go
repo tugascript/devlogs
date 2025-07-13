@@ -18,6 +18,7 @@ import (
 
 type Config struct {
 	port                 int64
+	env                  string
 	maxProcs             int64
 	databaseURL          string
 	redisURL             string
@@ -34,11 +35,20 @@ type Config struct {
 	tokensConfig         TokensConfig
 	oAuthProvidersConfig OAuthProvidersConfig
 	rateLimiterConfig    RateLimiterConfig
+	localCacheConfig     LocalCacheConfig
+	openBaoConfig        OpenBaoConfig
 	encryptionConfig     EncryptionConfig
+	kekExpirationDays    int64
+	dekExpirationDays    int64
+	jwkExpirationDays    int64
 }
 
 func (c *Config) Port() int64 {
 	return c.port
+}
+
+func (c *Config) Env() string {
+	return c.env
 }
 
 func (c *Config) MaxProcs() int64 {
@@ -105,11 +115,31 @@ func (c *Config) RateLimiterConfig() RateLimiterConfig {
 	return c.rateLimiterConfig
 }
 
+func (c *Config) LocalCacheConfig() LocalCacheConfig {
+	return c.localCacheConfig
+}
+
+func (c *Config) OpenBaoConfig() OpenBaoConfig {
+	return c.openBaoConfig
+}
+
 func (c *Config) EncryptionConfig() EncryptionConfig {
 	return c.encryptionConfig
 }
 
-var variables = [44]string{
+func (c *Config) KEKExpirationDays() int64 {
+	return c.kekExpirationDays
+}
+
+func (c *Config) DEKExpirationDays() int64 {
+	return c.dekExpirationDays
+}
+
+func (c *Config) JWKExpirationDays() int64 {
+	return c.jwkExpirationDays
+}
+
+var variables = [38]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -126,37 +156,31 @@ var variables = [44]string{
 	"RATE_LIMITER_MAX",
 	"RATE_LIMITER_EXP_SEC",
 	"EMAIL_PUB_CHANNEL",
-	"JWT_ACCESS_PUBLIC_KEY",
-	"JWT_ACCESS_PRIVATE_KEY",
 	"JWT_ACCESS_TTL_SEC",
-	"JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY",
-	"JWT_ACCOUNT_CREDENTIALS_PRIVATE_KEY",
 	"JWT_ACCOUNT_CREDENTIALS_TTL_SEC",
-	"JWT_REFRESH_PUBLIC_KEY",
-	"JWT_REFRESH_PRIVATE_KEY",
 	"JWT_REFRESH_TTL_SEC",
-	"JWT_CONFIRM_PUBLIC_KEY",
-	"JWT_CONFIRM_PRIVATE_KEY",
 	"JWT_CONFIRM_TTL_SEC",
-	"JWT_RESET_PUBLIC_KEY",
-	"JWT_RESET_PRIVATE_KEY",
 	"JWT_RESET_TTL_SEC",
-	"JWT_OAUTH_PUBLIC_KEY",
-	"JWT_OAUTH_PRIVATE_KEY",
 	"JWT_OAUTH_TTL_SEC",
-	"JWT_2FA_PUBLIC_KEY",
-	"JWT_2FA_PRIVATE_KEY",
 	"JWT_2FA_TTL_SEC",
-	"JWT_APPS_PUBLIC_KEY",
-	"JWT_APPS_PRIVATE_KEY",
 	"JWT_APPS_TTL_SEC",
-	"ACCOUNT_SECRET",
-	"OIDC_SECRET",
-	"USER_SECRET",
-	"OLD_SECRETS",
+	"CACHE_COUNTER",
+	"CACHE_SIZE_KB",
+	"CACHE_BUFFER_ITEMS",
+	"CACHE_TTL_TICKER_SEC",
+	"OPEN_BAO_URL_ADDRESS",
+	"OPEN_BAO_DEV_TOKEN",
+	"OPEN_BAO_ROLE_ID",
+	"OPEN_BAO_SECRET_ID",
+	"KEK_PATH",
+	"DEK_TTL_SEC",
+	"JWK_TTL_SEC",
+	"KEK_EXPIRATION_DAYS",
+	"DEK_EXPIRATION_DAYS",
+	"JWK_EXPIRATION_DAYS",
 }
 
-var optionalVariables = [18]string{
+var optionalVariables = [10]string{
 	"GITHUB_CLIENT_ID",
 	"GITHUB_CLIENT_SECRET",
 	"GOOGLE_CLIENT_ID",
@@ -167,17 +191,9 @@ var optionalVariables = [18]string{
 	"APPLE_CLIENT_SECRET",
 	"MICROSOFT_CLIENT_ID",
 	"MICROSOFT_CLIENT_SECRET",
-	"OLD_JWT_ACCESS_PUBLIC_KEY",
-	"OLD_JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY",
-	"OLD_JWT_REFRESH_PUBLIC_KEY",
-	"OLD_JWT_CONFIRM_PUBLIC_KEY",
-	"OLD_JWT_RESET_PUBLIC_KEY",
-	"OLD_JWT_OAUTH_PUBLIC_KEY",
-	"OLD_JWT_2FA_PUBLIC_KEY",
-	"OLD_JWT_APPS_PUBLIC_KEY",
 }
 
-var numerics = [13]string{
+var numerics = [22]string{
 	"PORT",
 	"MAX_PROCS",
 	"ACCOUNT_USERNAME_TTL",
@@ -191,6 +207,15 @@ var numerics = [13]string{
 	"JWT_APPS_TTL_SEC",
 	"RATE_LIMITER_MAX",
 	"RATE_LIMITER_EXP_SEC",
+	"CACHE_COUNTER",
+	"CACHE_SIZE_KB",
+	"CACHE_BUFFER_ITEMS",
+	"CACHE_TTL_TICKER_SEC",
+	"DEK_TTL_SEC",
+	"JWK_TTL_SEC",
+	"KEK_EXPIRATION_DAYS",
+	"DEK_EXPIRATION_DAYS",
+	"JWK_EXPIRATION_DAYS",
 }
 
 func NewConfig(logger *slog.Logger, envPath string) Config {
@@ -224,9 +249,9 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 		intMap[numeric] = value
 	}
 
-	env := variablesMap["ENV"]
 	return Config{
 		port:               intMap["PORT"],
+		env:                variablesMap["ENV"],
 		maxProcs:           intMap["MAX_PROCS"],
 		databaseURL:        variablesMap["DATABASE_URL"],
 		redisURL:           variablesMap["REDIS_URL"],
@@ -240,58 +265,18 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 		serviceName:        variablesMap["SERVICE_NAME"],
 		loggerConfig: NewLoggerConfig(
 			strings.ToLower(variablesMap["DEBUG"]) == "true",
-			env,
+			variablesMap["ENV"],
 			variablesMap["SERVICE_NAME"],
 		),
 		tokensConfig: NewTokensConfig(
-			NewSingleJwtConfig(
-				variablesMap["JWT_ACCESS_PUBLIC_KEY"],
-				variablesMap["JWT_ACCESS_PRIVATE_KEY"],
-				variablesMap["OLD_JWT_ACCESS_PUBLIC_KEY"],
-				intMap["JWT_ACCESS_TTL_SEC"],
-			),
-			NewSingleJwtConfig(
-				variablesMap["JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY"],
-				variablesMap["JWT_ACCOUNT_CREDENTIALS_PRIVATE_KEY"],
-				variablesMap["OLD_JWT_ACCOUNT_CREDENTIALS_PUBLIC_KEY"],
-				intMap["JWT_ACCOUNT_CREDENTIALS_TTL_SEC"],
-			),
-			NewSingleJwtConfig(
-				variablesMap["JWT_REFRESH_PUBLIC_KEY"],
-				variablesMap["JWT_REFRESH_PRIVATE_KEY"],
-				variablesMap["OLD_JWT_REFRESH_PUBLIC_KEY"],
-				intMap["JWT_REFRESH_TTL_SEC"],
-			),
-			NewSingleJwtConfig(
-				variablesMap["JWT_CONFIRM_PUBLIC_KEY"],
-				variablesMap["JWT_CONFIRM_PRIVATE_KEY"],
-				variablesMap["OLD_JWT_CONFIRM_PUBLIC_KEY"],
-				intMap["JWT_CONFIRM_TTL_SEC"],
-			),
-			NewSingleJwtConfig(
-				variablesMap["JWT_RESET_PUBLIC_KEY"],
-				variablesMap["JWT_RESET_PRIVATE_KEY"],
-				variablesMap["OLD_JWT_RESET_PUBLIC_KEY"],
-				intMap["JWT_RESET_TTL_SEC"],
-			),
-			NewSingleJwtConfig(
-				variablesMap["JWT_OAUTH_PUBLIC_KEY"],
-				variablesMap["JWT_OAUTH_PRIVATE_KEY"],
-				variablesMap["OLD_JWT_OAUTH_PUBLIC_KEY"],
-				intMap["JWT_OAUTH_TTL_SEC"],
-			),
-			NewSingleJwtConfig(
-				variablesMap["JWT_2FA_PUBLIC_KEY"],
-				variablesMap["JWT_2FA_PRIVATE_KEY"],
-				variablesMap["OLD_JWT_2FA_PUBLIC_KEY"],
-				intMap["JWT_2FA_TTL_SEC"],
-			),
-			NewSingleJwtConfig(
-				variablesMap["JWT_APPS_PUBLIC_KEY"],
-				variablesMap["JWT_APPS_PRIVATE_KEY"],
-				variablesMap["OLD_JWT_APPS_PUBLIC_KEY"],
-				intMap["JWT_APPS_TTL_SEC"],
-			),
+			intMap["JWT_ACCESS_TTL_SEC"],
+			intMap["JWT_ACCOUNT_CREDENTIALS_TTL_SEC"],
+			intMap["JWT_REFRESH_TTL_SEC"],
+			intMap["JWT_CONFIRM_TTL_SEC"],
+			intMap["JWT_RESET_TTL_SEC"],
+			intMap["JWT_OAUTH_TTL_SEC"],
+			intMap["JWT_2FA_TTL_SEC"],
+			intMap["JWT_APPS_TTL_SEC"],
 		),
 		oAuthProvidersConfig: NewOAuthProviders(
 			NewOAuthProvider(variablesMap["GITHUB_CLIENT_ID"], variablesMap["GITHUB_CLIENT_SECRET"]),
@@ -304,11 +289,25 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 			intMap["RATE_LIMITER_MAX"],
 			intMap["RATE_LIMITER_EXP_SEC"],
 		),
-		encryptionConfig: NewEncryptionConfig(
-			variablesMap["ACCOUNT_SECRET"],
-			variablesMap["OIDC_SECRET"],
-			variablesMap["USER_SECRET"],
-			variablesMap["OLD_SECRETS"],
+		localCacheConfig: NewLocalCacheConfig(
+			intMap["CACHE_COUNTER"],
+			intMap["CACHE_SIZE_KB"],
+			intMap["CACHE_BUFFER_ITEMS"],
+			intMap["CACHE_TTL_TICKER_SEC"],
 		),
+		openBaoConfig: NewOpenBaoConfig(
+			variablesMap["OPEN_BAO_URL_ADDRESS"],
+			variablesMap["OPEN_BAO_DEV_TOKEN"],
+			variablesMap["OPEN_BAO_ROLE_ID"],
+			variablesMap["OPEN_BAO_SECRET_ID"],
+		),
+		encryptionConfig: NewEncryptionConfig(
+			variablesMap["KEK_PATH"],
+			intMap["DEK_TTL_SEC"],
+			intMap["JWK_TTL_SEC"],
+		),
+		kekExpirationDays: intMap["KEK_EXPIRATION_DAYS"],
+		dekExpirationDays: intMap["DEK_EXPIRATION_DAYS"],
+		jwkExpirationDays: intMap["JWK_EXPIRATION_DAYS"],
 	}
 }

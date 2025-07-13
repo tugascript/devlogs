@@ -11,7 +11,6 @@ import (
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -43,7 +42,7 @@ type WellKnownOIDCConfigurationDTO struct {
 	// Required
 	SubjectTypesSupported []string `json:"subject_types_supported"`
 	// Required
-	IDTokenSigningAlgValuesSupported []tokens.SupportedCryptoSuite `json:"id_token_signing_alg_values_supported"`
+	IDTokenSigningAlgValuesSupported []utils.SupportedCryptoSuite `json:"id_token_signing_alg_values_supported"`
 
 	// Recommended
 	ScopesSupported []database.Scopes `json:"scopes_supported,omitempty"`
@@ -83,7 +82,7 @@ func MapOIDCConfigDTOToWellKnownOIDCConfigurationDTO(configDTO *OIDCConfigDTO, b
 		TokenEndpointAuthMethodsSupported: AuthMethodsSupported,
 		ResponseTypesSupported:            ResponseTypesSupported,
 		SubjectTypesSupported:             SubjectTypesSupported,
-		IDTokenSigningAlgValuesSupported:  []tokens.SupportedCryptoSuite{tokens.SupportedCryptoSuiteES256},
+		IDTokenSigningAlgValuesSupported:  []utils.SupportedCryptoSuite{utils.SupportedCryptoSuiteES256},
 		ScopesSupported:                   append(DefaultScopes, configDTO.ScopesSupported...),
 		ClaimsSupported:                   configDTO.ClaimsSupported,
 		CodeChallengeMethodsSupported:     CodeChallengeMethodsSupported,

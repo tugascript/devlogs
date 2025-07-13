@@ -9,9 +9,11 @@ package services
 import (
 	"log/slog"
 
+	"github.com/tugascript/devlogs/idp/internal/utils"
+
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
+	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
@@ -23,8 +25,11 @@ type Services struct {
 	cache          *cache.Cache
 	mail           *mailer.EmailPublisher
 	jwt            *tokens.Tokens
-	encrypt        *encryption.Encryption
+	crypto         *crypto.Crypto
 	oauthProviders *oauth.Providers
+	kekExpDays     int64
+	dekExpDays     int64
+	jwkExpDays     int64
 }
 
 func NewServices(
@@ -33,16 +38,22 @@ func NewServices(
 	cache *cache.Cache,
 	mail *mailer.EmailPublisher,
 	jwt *tokens.Tokens,
-	encrypt *encryption.Encryption,
+	encrypt *crypto.Crypto,
 	oauthProv *oauth.Providers,
+	kekExpDays int64,
+	dekExpDays int64,
+	jwkExpDays int64,
 ) *Services {
 	return &Services{
-		logger:         logger,
+		logger:         logger.With(utils.BaseLayer, utils.ServicesLogLayer),
 		database:       database,
 		cache:          cache,
 		mail:           mail,
 		jwt:            jwt,
-		encrypt:        encrypt,
+		crypto:         encrypt,
 		oauthProviders: oauthProv,
+		kekExpDays:     kekExpDays,
+		dekExpDays:     dekExpDays,
+		jwkExpDays:     jwkExpDays,
 	}
 }

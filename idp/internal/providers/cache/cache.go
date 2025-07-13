@@ -26,7 +26,7 @@ type Cache struct {
 
 func NewCache(logger *slog.Logger, storage *fiberRedis.Storage, usernameTTL int64) *Cache {
 	return &Cache{
-		logger:      logger,
+		logger:      logger.With(utils.BaseLayer, logLayer),
 		storage:     storage,
 		usernameTTL: int(usernameTTL),
 	}

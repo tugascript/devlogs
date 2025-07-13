@@ -8,10 +8,12 @@ package server
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 	"log/slog"
 	"time"
+
+	"github.com/dgraph-io/ristretto/v2"
+	"github.com/jackc/pgx/v5"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -22,12 +24,14 @@ import (
 	fiberRedis "github.com/gofiber/storage/redis/v3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	obAuth "github.com/openbao/openbao/api/auth/approle/v2"
+	openbao "github.com/openbao/openbao/api/v2"
 
 	"github.com/tugascript/devlogs/idp/internal/config"
 	"github.com/tugascript/devlogs/idp/internal/controllers"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
+	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
@@ -42,8 +46,12 @@ type FiberServer struct {
 }
 
 const (
-	PgTypeTwoFactorType           = "two_factor_type"
+	PgTypeKekUsage                = "kek_usage"
+	PgTypeDekUsage                = "dek_usage"
 	PgTypeTokenCryptoSuite        = "token_crypto_suite"
+	PgTypeTokenKeyUsage           = "token_key_usage"
+	PgTypeTokenKeyType            = "token_key_type"
+	PgTypeTwoFactorType           = "two_factor_type"
 	PgTypeAuthMethod              = "auth_method"
 	PgTypeAccountCredentialsScope = "account_credentials_scope"
 	PgTypeAuthProvider            = "auth_provider"
@@ -55,9 +63,13 @@ const (
 	PgTypeResponseType            = "response_type"
 )
 
-var PgTypes = [11]string{
-	PgTypeTwoFactorType,
+var PgTypes = [15]string{
+	PgTypeKekUsage,
+	PgTypeDekUsage,
 	PgTypeTokenCryptoSuite,
+	PgTypeTokenKeyUsage,
+	PgTypeTokenKeyType,
+	PgTypeTwoFactorType,
 	PgTypeAuthMethod,
 	PgTypeAccountCredentialsScope,
 	PgTypeAuthProvider,
@@ -136,21 +148,76 @@ func New(
 	logger.InfoContext(ctx, "Building JWT token keys...")
 	tokensCfg := cfg.TokensConfig()
 	jwts := tokens.NewTokens(
-		tokensCfg.Access(),
-		tokensCfg.AccountCredentials(),
-		tokensCfg.Refresh(),
-		tokensCfg.Confirm(),
-		tokensCfg.Reset(),
-		tokensCfg.OAuth(),
-		tokensCfg.TwoFA(),
-		tokensCfg.Apps(),
+		logger,
 		cfg.BackendDomain(),
+		tokensCfg.AccessTTL(),
+		tokensCfg.AccountCredentialsTTL(),
+		tokensCfg.AppsTTL(),
+		tokensCfg.RefreshTTL(),
+		tokensCfg.ConfirmTTL(),
+		tokensCfg.ResetTTL(),
+		tokensCfg.OAuthTTL(),
+		tokensCfg.TwoFATTL(),
 	)
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")
 
-	logger.InfoContext(ctx, "Building encryption...")
-	encryp := encryption.NewEncryption(logger, cfg.EncryptionConfig(), cfg.ServiceName())
-	logger.InfoContext(ctx, "Finished encryption")
+	logger.InfoContext(ctx, "Building crypto...")
+	logger.InfoContext(ctx, "Building OpenBao client...")
+	obCfg := cfg.OpenBaoConfig()
+	obc := openbao.DefaultConfig()
+	obc.Address = obCfg.URLAddress()
+	obClient, err := openbao.NewClient(obc)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to initialize OpenBao client", "error", err)
+		panic(err)
+	}
+
+	if cfg.Env() == "production" {
+		secretID := &obAuth.SecretID{FromString: obCfg.SecretID()}
+		appRoleAuth, err := obAuth.NewAppRoleAuth(
+			obCfg.RoleID(),
+			secretID,
+		)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to initialize OpenBao AppRole auth", "error", err)
+			panic(err)
+		}
+		authInfo, err := obClient.Auth().Login(context.Background(), appRoleAuth)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to login to OpenBao AppRole auth", "error", err)
+			panic(err)
+		}
+		if authInfo == nil {
+			logger.ErrorContext(ctx, "No auth info was returned after login")
+			panic("no auth info was returned after login")
+		}
+	} else {
+		obClient.SetToken(obCfg.DevToken())
+	}
+	logger.InfoContext(ctx, "Finished building OpenBao client")
+
+	logger.InfoContext(ctx, "Building local cache...")
+	localCacheCfg := cfg.LocalCacheConfig()
+	localCache, err := ristretto.NewCache(&ristretto.Config[string, []byte]{
+		NumCounters:            localCacheCfg.Counter(),
+		MaxCost:                localCacheCfg.MaxCost(),
+		BufferItems:            localCacheCfg.BufferItems(),
+		TtlTickerDurationInSec: localCacheCfg.DefaultTTL(),
+	})
+	if err != nil {
+		logger.Error("Failed to create local cache", "error", err)
+		panic(err)
+	}
+	logger.InfoContext(ctx, "Finished building local cache")
+
+	encryp := crypto.NewCrypto(
+		logger,
+		obClient,
+		localCache,
+		cfg.ServiceName(),
+		cfg.EncryptionConfig(),
+	)
+	logger.InfoContext(ctx, "Finished crypto")
 
 	logger.InfoContext(ctx, "Building OAuth provider...")
 	oauthProvidersCfg := cfg.OAuthProvidersConfig()
@@ -173,6 +240,9 @@ func New(
 		jwts,
 		encryp,
 		oauthProviders,
+		cfg.KEKExpirationDays(),
+		cfg.DEKExpirationDays(),
+		cfg.JWKExpirationDays(),
 	)
 	logger.InfoContext(ctx, "Finished building services")
 

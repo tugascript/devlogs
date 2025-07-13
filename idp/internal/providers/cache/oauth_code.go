@@ -27,7 +27,6 @@ type GenerateOAuthOptions struct {
 
 func (c *Cache) GenerateOAuthCode(ctx context.Context, opts GenerateOAuthOptions) (string, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  oauthCodeLocation,
 		Method:    "GenerateOAuthCode",
 		RequestID: opts.RequestID,
@@ -60,7 +59,6 @@ type VerifyOAuthCodeOptions struct {
 
 func (c *Cache) VerifyOAuthCode(ctx context.Context, opts VerifyOAuthCodeOptions) (bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  oauthCodeLocation,
 		Method:    "VerifyOAuthCode",
 		RequestID: opts.RequestID,

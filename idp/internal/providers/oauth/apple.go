@@ -51,7 +51,6 @@ func (p *Providers) GetAppleAuthorizationURL(
 ) (string, string, *exceptions.ServiceError) {
 	return getAuthorizationURL(ctx, getAuthorizationURLOptions{
 		logger: utils.BuildLogger(p.logger, utils.LoggerOptions{
-			Layer:     logLayer,
 			Location:  appleLocation,
 			Method:    "GetAppleAuthorizationURL",
 			RequestID: opts.RequestID,
@@ -65,7 +64,6 @@ func (p *Providers) GetAppleAuthorizationURL(
 
 func (p *Providers) GetAppleIDToken(ctx context.Context, opts AccessTokenOptions) (string, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  appleLocation,
 		Method:    "GetAppleIDToken",
 		RequestID: opts.RequestID,
@@ -121,7 +119,6 @@ func (p *Providers) ValidateAppleIDToken(
 	opts ValidateAppleIDTokenOptions,
 ) (bool, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(p.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  appleLocation,
 		Method:    "ValidateAppleIDToken",
 		RequestID: opts.RequestID,
@@ -195,7 +192,7 @@ func (p *Providers) ValidateAppleIDToken(
 			return nil, errors.New("key for AccountID token KID not found")
 		}
 
-		pubKey, err := utils.DecodeRS256Jwk(jwksRes.Keys[keyIdx])
+		pubKey, err := utils.DecodeRS256Jwk(&jwksRes.Keys[keyIdx])
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to decode public key", "error", err)
 			return nil, err

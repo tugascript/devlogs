@@ -10,16 +10,11 @@ type OIDCConfigDTO struct {
 	ScopesSupported    []database.Scopes `json:"scopes_supported"`
 	UserRolesSupported []string          `json:"user_roles_supported"`
 
-	id  int32
-	dek string
+	id int32
 }
 
 func (u *OIDCConfigDTO) ID() int32 {
 	return u.id
-}
-
-func (u *OIDCConfigDTO) DEK() string {
-	return u.dek
 }
 
 func MapOIDCConfigToDTO(oidcConfig *database.OidcConfig) (OIDCConfigDTO, *exceptions.ServiceError) {
@@ -28,6 +23,5 @@ func MapOIDCConfigToDTO(oidcConfig *database.OidcConfig) (OIDCConfigDTO, *except
 		ScopesSupported:    oidcConfig.ScopesSupported,
 		UserRolesSupported: oidcConfig.UserRolesSupported,
 		id:                 oidcConfig.ID,
-		dek:                oidcConfig.Dek,
 	}, nil
 }

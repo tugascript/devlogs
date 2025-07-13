@@ -11,6 +11,7 @@ import (
 	"reflect"
 
 	"github.com/google/uuid"
+
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
@@ -71,57 +72,14 @@ func (s *Services) CreateOIDCConfig(
 		return dtos.OIDCConfigDTO{}, exceptions.NewConflictError("User schema already exists")
 	}
 
-	encryptedDek, newAccountDEK, err := s.encrypt.GenerateOIDCDEK(ctx, opts.RequestID, accountDTO.DEK())
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate OIDC StoredDEK", "error", err)
-		return dtos.OIDCConfigDTO{}, exceptions.NewServerError()
-	}
-
-	if newAccountDEK == "" {
-		config, err := s.database.CreateOIDCConfig(ctx, database.CreateOIDCConfigParams{
-			AccountID:       accountDTO.ID(),
-			ClaimsSupported: claimsSupported,
-			ScopesSupported: scopesSupported,
-			Dek:             encryptedDek,
-		})
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create OIDC config", "error", err)
-			return dtos.OIDCConfigDTO{}, exceptions.FromDBError(err)
-		}
-
-		logger.InfoContext(ctx, "OIDC config created successfully")
-		return dtos.MapOIDCConfigToDTO(&config)
-	}
-
-	qrs, txn, err := s.database.BeginTx(ctx)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-		return dtos.OIDCConfigDTO{}, exceptions.FromDBError(err)
-	}
-	defer func() {
-		logger.DebugContext(ctx, "Finalizing transaction")
-		s.database.FinalizeTx(ctx, txn, err, serviceErr)
-	}()
-
-	config, err := qrs.CreateOIDCConfig(ctx, database.CreateOIDCConfigParams{
+	config, err := s.database.CreateOIDCConfig(ctx, database.CreateOIDCConfigParams{
 		AccountID:       accountDTO.ID(),
 		ClaimsSupported: claimsSupported,
 		ScopesSupported: scopesSupported,
-		Dek:             encryptedDek,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create OIDC config", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.OIDCConfigDTO{}, serviceErr
-	}
-
-	if err := qrs.UpdateAccountDEK(ctx, database.UpdateAccountDEKParams{
-		ID:  accountDTO.ID(),
-		Dek: newAccountDEK,
-	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to update account DEK", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.OIDCConfigDTO{}, serviceErr
+		return dtos.OIDCConfigDTO{}, exceptions.FromDBError(err)
 	}
 
 	logger.InfoContext(ctx, "OIDC config created successfully")
@@ -174,51 +132,9 @@ func (s *Services) createDefaultOIDCConfig(
 		return dtos.OIDCConfigDTO{}, serviceErr
 	}
 
-	encryptedDek, newAccountDEK, err := s.encrypt.GenerateOIDCDEK(ctx, opts.requestID, accountDTO.DEK())
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate OIDC StoredDEK", "error", err)
-		return dtos.OIDCConfigDTO{}, exceptions.NewServerError()
-	}
-
-	if newAccountDEK == "" {
-		config, err := s.database.CreateDefaultOIDCConfig(ctx, database.CreateDefaultOIDCConfigParams{
-			AccountID: opts.accountID,
-			Dek:       encryptedDek,
-		})
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create default OIDC config", "error", err)
-			return dtos.OIDCConfigDTO{}, exceptions.FromDBError(err)
-		}
-
-		logger.InfoContext(ctx, "Default OIDC config created successfully")
-		return dtos.MapOIDCConfigToDTO(&config)
-	}
-
-	qrs, txn, err := s.database.BeginTx(ctx)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-		return dtos.OIDCConfigDTO{}, exceptions.FromDBError(err)
-	}
-	defer func() {
-		logger.DebugContext(ctx, "Finalizing transaction")
-		s.database.FinalizeTx(ctx, txn, err, serviceErr)
-	}()
-
-	config, err := qrs.CreateDefaultOIDCConfig(ctx, database.CreateDefaultOIDCConfigParams{
-		AccountID: opts.accountID,
-		Dek:       encryptedDek,
-	})
+	config, err := s.database.CreateDefaultOIDCConfig(ctx, accountDTO.ID())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create default OIDC config", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.OIDCConfigDTO{}, serviceErr
-	}
-
-	if err := qrs.UpdateAccountDEK(ctx, database.UpdateAccountDEKParams{
-		Dek: newAccountDEK,
-		ID:  opts.accountID,
-	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to update account DEK", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.OIDCConfigDTO{}, serviceErr
 	}

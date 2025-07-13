@@ -41,7 +41,7 @@ func NewEmailPublisher(
 		client:         client,
 		pubChannel:     pubChannel,
 		frontendDomain: frontendDomain,
-		logger:         logger,
+		logger:         logger.With(utils.BaseLayer, logLayer),
 	}
 }
 
@@ -54,7 +54,6 @@ type PublishEmailOptions struct {
 
 func (e *EmailPublisher) publishEmail(ctx context.Context, opts PublishEmailOptions) error {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  "mailer",
 		Method:    "PublishEmail",
 		RequestID: opts.RequestID,

@@ -23,7 +23,6 @@ type AddAccountUsernameOptions struct {
 
 func (c *Cache) AddAccountUsername(ctx context.Context, opts AddAccountUsernameOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  accountUsernameLocation,
 		Method:    "AddAccountUsername",
 		RequestID: opts.RequestID,
@@ -47,7 +46,6 @@ func (c *Cache) GetAccountIDByUsername(
 	opts GetAccountIDByUsernameOptions,
 ) (int32, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  accountUsernameLocation,
 		Method:    "GetAccountIDByUsername",
 		RequestID: opts.RequestID,

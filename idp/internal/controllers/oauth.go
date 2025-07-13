@@ -25,6 +25,8 @@ const (
 	grantTypeRefresh           string = "refresh_token"
 	grantTypeAuthorization     string = "authorization_code"
 	grantTypeClientCredentials string = "client_credentials"
+
+	publicJWKsCacheControl string = "public, max-age=300, must-revalidate"
 )
 
 func formatAccountRedirectURL(backendDomain, provider string) string {
@@ -170,7 +172,13 @@ func (c *Controllers) processAccountOAuthHeader(ctx *fiber.Ctx) *exceptions.Serv
 		return exceptions.NewUnauthorizedError()
 	}
 
-	accountClaims, serviceErr := c.services.ProcessOAuthHeader(authHeader)
+	accountClaims, serviceErr := c.services.ProcessOAuthHeader(
+		ctx.UserContext(),
+		services.ProcessAuthHeaderOptions{
+			RequestID:  getRequestID(ctx),
+			AuthHeader: authHeader,
+		},
+	)
 	if serviceErr != nil {
 		return serviceErr
 	}
@@ -327,8 +335,19 @@ func (c *Controllers) AccountOAuthPublicJWKs(ctx *fiber.Ctx) error {
 	logger := c.buildLogger(requestID, oauthLocation, "AccountOAuthPublicJWKs")
 	logRequest(logger, ctx)
 
-	jwksDTO := c.services.GetAccountPublicJWKs(ctx.UserContext(), requestID)
+	etag, jwksDTO, serviceErr := c.services.GetAccountPublicJWKs(ctx.UserContext(), requestID)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
 
+	if match := ctx.Get(fiber.HeaderIfNoneMatch); match == etag {
+		logResponse(logger, ctx, fiber.StatusNotModified)
+		return ctx.SendStatus(fiber.StatusNotModified)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	ctx.Set(fiber.HeaderCacheControl, publicJWKsCacheControl)
+	ctx.Set(fiber.HeaderETag, etag)
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&jwksDTO)
 }

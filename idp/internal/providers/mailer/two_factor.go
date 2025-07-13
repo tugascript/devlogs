@@ -27,7 +27,7 @@ const twoFactorTemplate = `
 <body>
 	<h1>Access Code</h1>
 	<br/>
-	<p>Hello {{.Name}}</p>
+	<p>Hello {{.KeyType}}</p>
 	<br/>
 	<p>Your access code is: <strong>{{.Code}}</strong></p>
 	<br/>
@@ -76,7 +76,6 @@ type TwoFactorEmailOptions struct {
 
 func (e *EmailPublisher) Publish2FAEmail(ctx context.Context, opts TwoFactorEmailOptions) error {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  "two_factor",
 		Method:    "Publish2FAEmail",
 		RequestID: opts.RequestID,
@@ -116,7 +115,6 @@ type User2FAEmailOptions struct {
 
 func (e *EmailPublisher) PublishUser2FAEmail(ctx context.Context, opts User2FAEmailOptions) error {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  "two_factor",
 		Method:    "PublishUser2FAEmail",
 		RequestID: opts.RequestID,

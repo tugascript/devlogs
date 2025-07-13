@@ -7,13 +7,13 @@
 package tokens
 
 import (
-	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 var baseRefreshPaths = []string{paths.AuthBase + paths.AuthRefresh, paths.OAuthBase + paths.OAuthToken}
@@ -24,12 +24,10 @@ type AccountRefreshTokenOptions struct {
 	Scopes   []AccountScope
 }
 
-func (t *Tokens) CreateRefreshToken(opts AccountRefreshTokenOptions) (string, error) {
+func (t *Tokens) CreateRefreshToken(opts AccountRefreshTokenOptions) (*jwt.Token, error) {
 	return t.createAuthToken(accountAuthTokenOptions{
-		method:          jwt.SigningMethodEdDSA,
-		privateKey:      t.refreshData.curKeyPair.privateKey,
-		kid:             t.refreshData.curKeyPair.kid,
-		ttlSec:          t.refreshData.ttlSec,
+		cryptoSuite:     utils.SupportedCryptoSuiteEd25519,
+		ttlSec:          t.refreshTTL,
 		accountPublicID: opts.PublicID,
 		accountVersion:  opts.Version,
 		scopes:          opts.Scopes,
@@ -38,22 +36,8 @@ func (t *Tokens) CreateRefreshToken(opts AccountRefreshTokenOptions) (string, er
 	})
 }
 
-func (t *Tokens) VerifyRefreshToken(token string) (AccountClaims, []AccountScope, uuid.UUID, time.Time, error) {
-	claims, err := verifyAuthToken(token, func(token *jwt.Token) (any, error) {
-		kid, err := extractTokenKID(token)
-		if err != nil {
-			return nil, err
-		}
-
-		if t.refreshData.prevPubKey != nil && t.refreshData.prevPubKey.kid == kid {
-			return t.refreshData.prevPubKey.publicKey, nil
-		}
-		if t.refreshData.curKeyPair.kid == kid {
-			return t.refreshData.curKeyPair.publicKey, nil
-		}
-
-		return nil, errors.New("no key found for kid")
-	})
+func (t *Tokens) VerifyRefreshToken(token string, getPublicJWK GetPublicJWK) (AccountClaims, []AccountScope, uuid.UUID, time.Time, error) {
+	claims, err := verifyAuthToken(token, buildVerifyKey(utils.SupportedCryptoSuiteEd25519, getPublicJWK))
 	if err != nil {
 		return AccountClaims{}, nil, uuid.Nil, time.Time{}, err
 	}
@@ -72,5 +56,5 @@ func (t *Tokens) VerifyRefreshToken(token string) (AccountClaims, []AccountScope
 }
 
 func (t *Tokens) GetRefreshTTL() int64 {
-	return t.refreshData.ttlSec
+	return t.refreshTTL
 }

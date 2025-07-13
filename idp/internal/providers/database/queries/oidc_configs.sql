@@ -12,22 +12,18 @@ WHERE "account_id" = $1;
 INSERT INTO "oidc_configs" (
     "account_id",
     "claims_supported",
-    "scopes_supported",
-    "dek"
+    "scopes_supported"
 ) VALUES (
     $1,
     $2,
-    $3,
-    $4
+    $3
 ) RETURNING *;
 
 -- name: CreateDefaultOIDCConfig :one
 INSERT INTO "oidc_configs" (
-    "account_id",
-    "dek"
+    "account_id"
 ) VALUES (
-    $1,
-    $2
+    $1
 ) RETURNING *;
 
 -- name: FindOIDCConfigByAccountID :one
@@ -43,9 +39,3 @@ UPDATE "oidc_configs" SET
     "updated_at" = now()
 WHERE "id" = $1
 RETURNING *;
-
--- name: UpdateOIDCConfigDek :exec
-UPDATE "oidc_configs" SET
-    "dek" = $1,
-    "updated_at" = now()
-WHERE "id" = $2;

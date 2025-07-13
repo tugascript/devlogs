@@ -56,7 +56,6 @@ type AddTwoFactorCodeOptions struct {
 
 func (c *Cache) AddTwoFactorCode(ctx context.Context, opts AddTwoFactorCodeOptions) (string, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  twoFactorLocation,
 		Method:    "AddTwoFactorCode",
 		RequestID: opts.RequestID,
@@ -98,7 +97,6 @@ type VerifyTwoFactorCodeOptions struct {
 
 func (c *Cache) VerifyTwoFactorCode(ctx context.Context, opts VerifyTwoFactorCodeOptions) (bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Layer:     logLayer,
 		Location:  twoFactorLocation,
 		Method:    "VerifyTwoFactorCode",
 		RequestID: opts.RequestID,

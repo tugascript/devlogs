@@ -13,13 +13,14 @@ import (
 type LogLayer = string
 
 const (
+	BaseLayer string = "layer"
+
 	ControllersLogLayer LogLayer = "controllers"
 	ServicesLogLayer    LogLayer = "services"
 	ProvidersLogLayer   LogLayer = "providers"
 )
 
 type LoggerOptions struct {
-	Layer     string
 	Location  string
 	Method    string
 	RequestID string
@@ -27,7 +28,6 @@ type LoggerOptions struct {
 
 func BuildLogger(logger *slog.Logger, opts LoggerOptions) *slog.Logger {
 	return logger.With(
-		"layer", opts.Layer,
 		"location", opts.Location,
 		"method", opts.Method,
 		"requestId", opts.RequestID,

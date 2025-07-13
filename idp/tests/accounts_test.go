@@ -19,7 +19,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
-	"github.com/tugascript/devlogs/idp/internal/providers/encryption"
+	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"github.com/tugascript/devlogs/idp/internal/utils"
@@ -310,9 +310,9 @@ func TestConfirmUpdateAccountPassword(t *testing.T) {
 				}
 
 				dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
-					encryption.ProcessTotpDEKOptions{
+					crypto.ProcessTotpDEKOptions{
 						RequestID: uuid.NewString(),
-						TotpType:  encryption.TotpTypeAccount,
+						TotpType:  crypto.TotpTypeAccount,
 						StoredDEK: account.DEK(),
 					},
 				)
@@ -751,9 +751,9 @@ func TestConfirmUpdateAccountEmail(t *testing.T) {
 				}
 
 				dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
-					encryption.ProcessTotpDEKOptions{
+					crypto.ProcessTotpDEKOptions{
 						RequestID: uuid.NewString(),
-						TotpType:  encryption.TotpTypeAccount,
+						TotpType:  crypto.TotpTypeAccount,
 						StoredDEK: account.DEK(),
 					},
 				)
@@ -1123,9 +1123,9 @@ func TestConfirmUpdateAccountUsername(t *testing.T) {
 				}
 
 				dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
-					encryption.ProcessTotpDEKOptions{
+					crypto.ProcessTotpDEKOptions{
 						RequestID: uuid.NewString(),
-						TotpType:  encryption.TotpTypeAccount,
+						TotpType:  crypto.TotpTypeAccount,
 						StoredDEK: account.DEK(),
 					},
 				)
