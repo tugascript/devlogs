@@ -22,6 +22,22 @@ services:
     networks:
       - provider_net
 
+  openbao:
+    container_name: openbao
+    image: "openbao/openbao:latest"
+    ports:
+      - "8200:8200"
+    environment:
+      OPENBAO_DEV_ROOT_TOKEN_ID: "root"
+      OPENBAO_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - ./openbao_data:/openbao/data
+    networks:
+      - provider_net
+    command: "server -dev"
+
   mailhog:
     image: mailhog/mailhog
     platform: linux/amd64

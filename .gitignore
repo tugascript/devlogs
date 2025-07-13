@@ -36,3 +36,4 @@ keys
 
 # Docker data
 postgres_data/
+openbao_data/
