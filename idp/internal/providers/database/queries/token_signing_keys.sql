@@ -27,7 +27,7 @@ INSERT INTO "token_signing_keys" (
     $9
 ) RETURNING "id";
 
--- name: GetGlobalTokenSigningKey :one
+-- name: FindGlobalTokenSigningKey :one
 SELECT * FROM "token_signing_keys"
 WHERE 
     "key_type" = $1 AND 

@@ -455,13 +455,12 @@ func (q *Queries) UpdateAccountPassword(ctx context.Context, arg UpdateAccountPa
 	return i, err
 }
 
-const updateAccountTwoFactorType = `-- name: UpdateAccountTwoFactorType :one
+const updateAccountTwoFactorType = `-- name: UpdateAccountTwoFactorType :exec
 UPDATE "accounts" SET
     "two_factor_type" = $1,
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $2
-RETURNING id, public_id, given_name, family_name, username, email, organization, password, version, email_verified, is_active, two_factor_type, created_at, updated_at
 `
 
 type UpdateAccountTwoFactorTypeParams struct {
@@ -469,26 +468,9 @@ type UpdateAccountTwoFactorTypeParams struct {
 	ID            int32
 }
 
-func (q *Queries) UpdateAccountTwoFactorType(ctx context.Context, arg UpdateAccountTwoFactorTypeParams) (Account, error) {
-	row := q.db.QueryRow(ctx, updateAccountTwoFactorType, arg.TwoFactorType, arg.ID)
-	var i Account
-	err := row.Scan(
-		&i.ID,
-		&i.PublicID,
-		&i.GivenName,
-		&i.FamilyName,
-		&i.Username,
-		&i.Email,
-		&i.Organization,
-		&i.Password,
-		&i.Version,
-		&i.EmailVerified,
-		&i.IsActive,
-		&i.TwoFactorType,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) UpdateAccountTwoFactorType(ctx context.Context, arg UpdateAccountTwoFactorTypeParams) error {
+	_, err := q.db.Exec(ctx, updateAccountTwoFactorType, arg.TwoFactorType, arg.ID)
+	return err
 }
 
 const updateAccountUsername = `-- name: UpdateAccountUsername :one

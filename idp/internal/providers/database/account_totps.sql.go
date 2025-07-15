@@ -9,25 +9,28 @@ import (
 	"context"
 )
 
-const createAccountTotps = `-- name: CreateAccountTotps :exec
+const createAccountTotp = `-- name: CreateAccountTotp :exec
 
 INSERT INTO "account_totps" (
   "account_id",
   "url",
   "secret",
+  "dek_kid",
   "recovery_codes"
 ) VALUES (
   $1,
   $2,
   $3,
-  $4
+  $4,
+  $5
 )
 `
 
-type CreateAccountTotpsParams struct {
+type CreateAccountTotpParams struct {
 	AccountID     int32
 	Url           string
 	Secret        string
+	DekKid        string
 	RecoveryCodes []byte
 }
 
@@ -36,11 +39,12 @@ type CreateAccountTotpsParams struct {
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) CreateAccountTotps(ctx context.Context, arg CreateAccountTotpsParams) error {
-	_, err := q.db.Exec(ctx, createAccountTotps,
+func (q *Queries) CreateAccountTotp(ctx context.Context, arg CreateAccountTotpParams) error {
+	_, err := q.db.Exec(ctx, createAccountTotp,
 		arg.AccountID,
 		arg.Url,
 		arg.Secret,
+		arg.DekKid,
 		arg.RecoveryCodes,
 	)
 	return err
@@ -81,7 +85,8 @@ const updateAccountTotp = `-- name: UpdateAccountTotp :exec
 UPDATE "account_totps" SET
   "url" = $2,
   "secret" = $3,
-  "recovery_codes" = $4
+  "dek_kid" = $4,
+  "recovery_codes" = $5
 WHERE "id" = $1
 `
 
@@ -89,6 +94,7 @@ type UpdateAccountTotpParams struct {
 	ID            int32
 	Url           string
 	Secret        string
+	DekKid        string
 	RecoveryCodes []byte
 }
 
@@ -97,6 +103,7 @@ func (q *Queries) UpdateAccountTotp(ctx context.Context, arg UpdateAccountTotpPa
 		arg.ID,
 		arg.Url,
 		arg.Secret,
+		arg.DekKid,
 		arg.RecoveryCodes,
 	)
 	return err

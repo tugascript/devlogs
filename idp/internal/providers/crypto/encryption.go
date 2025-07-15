@@ -34,7 +34,7 @@ func NewCrypto(
 	op *openbao.Client,
 	cache *ristretto.Cache[string, []byte],
 	serviceName string,
-	encCfg config.EncryptionConfig,
+	encCfg config.CryptoConfig,
 ) *Crypto {
 	return &Crypto{
 		logger:      logger.With(utils.BaseLayer, logLayer),

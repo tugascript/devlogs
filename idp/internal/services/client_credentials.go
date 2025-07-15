@@ -33,7 +33,7 @@ func (s *Services) clientCredentialsSecret(
 	opts clientCredentialsSecretOptions,
 ) (database.CreateCredentialsSecretParams, string, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, clientCredentialsLocation, "clientCredentialsSecret").With(
-		"accountID", opts.accountID,
+		"AccountID", opts.accountID,
 		"prefix", opts.prefix,
 	)
 	logger.InfoContext(ctx, "Generating client credentials secret...")
@@ -75,7 +75,7 @@ func (s *Services) clientCredentialsKey(
 	opts clientCredentialsKeyOptions,
 ) (database.CreateCredentialsKeyParams, utils.ES256JWK, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, clientCredentialsLocation, "clientCredentialsKey").With(
-		"accountID", opts.accountID,
+		"AccountID", opts.accountID,
 	)
 	logger.InfoContext(ctx, "Generating client credentials key...")
 

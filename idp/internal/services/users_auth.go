@@ -190,9 +190,13 @@ func (s *Services) sendUserConfirmationEmail(
 	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: opts.requestID,
 		Token:     token,
-		GetJWKfn: s.buildEncryptedAccountJWKFn(ctx, logger, buildEncryptedAccountJWKFnOptions{
+		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, logger, BuildGetEncryptedAccountJWKFnOptions{
+			RequestID: opts.requestID,
+			KeyType:   database.TokenKeyTypeEmailVerification,
+			AccountID: opts.accountID,
+		}),
+		GetDEKfn: s.buildGetDecAccountDEKFn(ctx, logger, buildGetDecAccountDEKFnOptions{
 			requestID: opts.requestID,
-			keyType:   database.TokenKeyTypeEmailVerification,
 			accountID: opts.accountID,
 		}),
 	})
@@ -315,9 +319,13 @@ func (s *Services) generateFullUserAuthDTO(
 	signedAccessToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: requestID,
 		Token:     accessToken,
-		GetJWKfn: s.buildEncryptedAccountJWKFn(ctx, logger, buildEncryptedAccountJWKFnOptions{
+		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, logger, BuildGetEncryptedAccountJWKFnOptions{
+			RequestID: requestID,
+			KeyType:   database.TokenKeyTypeAccess,
+			AccountID: accountID,
+		}),
+		GetDEKfn: s.buildGetDecAccountDEKFn(ctx, logger, buildGetDecAccountDEKFnOptions{
 			requestID: requestID,
-			keyType:   database.TokenKeyTypeAccess,
 			accountID: accountID,
 		}),
 	})
@@ -346,9 +354,13 @@ func (s *Services) generateFullUserAuthDTO(
 	signedRefreshToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: requestID,
 		Token:     refreshToken,
-		GetJWKfn: s.buildEncryptedAccountJWKFn(ctx, logger, buildEncryptedAccountJWKFnOptions{
+		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, logger, BuildGetEncryptedAccountJWKFnOptions{
+			RequestID: requestID,
+			KeyType:   database.TokenKeyTypeRefresh,
+			AccountID: accountID,
+		}),
+		GetDEKfn: s.buildGetDecAccountDEKFn(ctx, logger, buildGetDecAccountDEKFnOptions{
 			requestID: requestID,
-			keyType:   database.TokenKeyTypeRefresh,
 			accountID: accountID,
 		}),
 	})
@@ -630,9 +642,13 @@ func (s *Services) LoginUser(
 		signedTwoFAToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 			RequestID: opts.RequestID,
 			Token:     twoFAToken,
-			GetJWKfn: s.buildEncryptedAccountJWKFn(ctx, logger, buildEncryptedAccountJWKFnOptions{
+			GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, logger, BuildGetEncryptedAccountJWKFnOptions{
+				RequestID: opts.RequestID,
+				KeyType:   database.TokenKeyType2faAuthentication,
+				AccountID: opts.AccountID,
+			}),
+			GetDEKfn: s.buildGetDecAccountDEKFn(ctx, logger, buildGetDecAccountDEKFnOptions{
 				requestID: opts.RequestID,
-				keyType:   database.TokenKeyType2faAuthentication,
 				accountID: opts.AccountID,
 			}),
 		})
@@ -703,20 +719,20 @@ func (s *Services) verifyUserTotp(
 		RequestID: opts.requestID,
 		Code:      opts.code,
 		OwnerID:   opts.userID,
-		GetSecret: func(ownerID int32) (crypto.EncryptedTOTPSecret, crypto.DEKID, *exceptions.ServiceError) {
+		GetSecret: func(ownerID int32) (crypto.DEKCiphertext, *exceptions.ServiceError) {
 			userTOTP, err := s.database.FindUserTotpByUserID(ctx, opts.userID)
 			if err != nil {
 				serviceErr := exceptions.FromDBError(err)
 				if serviceErr.Code == exceptions.CodeNotFound {
 					logger.WarnContext(ctx, "User TOTP not found", "error", err)
-					return "", "", exceptions.NewForbiddenError()
+					return "", exceptions.NewForbiddenError()
 				}
 
 				logger.ErrorContext(ctx, "Failed to get user TOTP", "error", err)
-				return "", "", serviceErr
+				return "", serviceErr
 			}
 
-			return userTOTP.Secret, userTOTP.DekKid, nil
+			return userTOTP.Secret, nil
 		},
 	})
 	if err != nil {
@@ -1151,9 +1167,13 @@ func (s *Services) ForgotUserPassword(
 	signedResetToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: opts.RequestID,
 		Token:     resetToken,
-		GetJWKfn: s.buildEncryptedAccountJWKFn(ctx, logger, buildEncryptedAccountJWKFnOptions{
+		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, logger, BuildGetEncryptedAccountJWKFnOptions{
+			RequestID: opts.RequestID,
+			KeyType:   database.TokenKeyTypePasswordReset,
+			AccountID: opts.AccountID,
+		}),
+		GetDEKfn: s.buildGetDecAccountDEKFn(ctx, logger, buildGetDecAccountDEKFnOptions{
 			requestID: opts.RequestID,
-			keyType:   database.TokenKeyTypePasswordReset,
 			accountID: opts.AccountID,
 		}),
 	})

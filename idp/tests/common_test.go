@@ -10,8 +10,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/jackc/pgx/v5"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,11 +17,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dgraph-io/ristretto/v2"
 	"github.com/go-faker/faker/v4"
 	"github.com/gofiber/fiber/v2"
 	fiberRedis "github.com/gofiber/storage/redis/v3"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	openbao "github.com/openbao/openbao/api/v2"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/tugascript/devlogs/idp/internal/config"
@@ -37,6 +38,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/server"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const v1Path string = "/v1"
@@ -47,11 +49,12 @@ var _testServer *server.FiberServer
 var _testTokens *tokens.Tokens
 var _testDatabase *database.Database
 var _testCache *cache.Cache
-var _testEncryption *crypto.Crypto
+var _testCrypto *crypto.Crypto
 
 func initTestServicesAndApp(t *testing.T) {
 	logger := server.DefaultLogger()
 	cfg := config.NewConfig(logger, "../.env")
+	logger = server.ConfigLogger(cfg.LoggerConfig())
 	_testConfig = &cfg
 	ctx := context.Background()
 
@@ -107,7 +110,7 @@ func initTestServicesAndApp(t *testing.T) {
 	redisCfg, err := redis.ParseURL(_testConfig.RedisURL())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to parse redis url", "error", err)
-		panic(err)
+		t.Fatal("Failed to parse redis url", err)
 	}
 	mail := mailer.NewEmailPublisher(
 		redis.NewClient(redisCfg),
@@ -120,20 +123,66 @@ func initTestServicesAndApp(t *testing.T) {
 	logger.InfoContext(ctx, "Building JWT token keys...")
 	tokensCfg := _testConfig.TokensConfig()
 	_testTokens = tokens.NewTokens(
-		tokensCfg.Access(),
-		tokensCfg.AccountCredentials(),
-		tokensCfg.Refresh(),
-		tokensCfg.Confirm(),
-		tokensCfg.Reset(),
-		tokensCfg.OAuth(),
-		tokensCfg.TwoFA(),
-		tokensCfg.Apps(),
-		_testConfig.BackendDomain(),
+		logger,
+		cfg.BackendDomain(),
+		tokensCfg.AccessTTL(),
+		tokensCfg.AccountCredentialsTTL(),
+		tokensCfg.AppsTTL(),
+		tokensCfg.RefreshTTL(),
+		tokensCfg.ConfirmTTL(),
+		tokensCfg.ResetTTL(),
+		tokensCfg.OAuthTTL(),
+		tokensCfg.TwoFATTL(),
 	)
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")
 
 	logger.InfoContext(ctx, "Building crypto...")
-	_testEncryption = crypto.NewCrypto(logger, cfg.EncryptionConfig(), cfg.ServiceName())
+	cryptCfg := cfg.CryptoConfig()
+
+	logger.InfoContext(ctx, "Building OpenBao client...")
+	obCfg := cfg.OpenBaoConfig()
+	obc := openbao.DefaultConfig()
+	obc.Address = obCfg.URLAddress()
+	obClient, err := openbao.NewClient(obc)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to initialize OpenBao client", "error", err)
+		t.Fatal("Failed to initialize OpenBao client", err)
+	}
+
+	obClient.SetToken(obCfg.DevToken())
+	mount, err := obClient.Sys().MountInfo(cryptCfg.KEKPath() + "/")
+	if err != nil {
+		if err = obClient.Sys().Mount(cryptCfg.KEKPath(), &openbao.MountInput{
+			Type: "transit",
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to mount KEK path in OpenBao", "error", err)
+			t.Fatal("Failed to mount KEK path in OpenBao", err)
+		}
+	} else {
+		logger.InfoContext(ctx, "KEK path already mounted in OpenBao", "mountID", mount.UUID, "type", mount.Type)
+	}
+
+	logger.InfoContext(ctx, "Building local cache...")
+	localCacheCfg := cfg.LocalCacheConfig()
+	localCache, err := ristretto.NewCache(&ristretto.Config[string, []byte]{
+		NumCounters:            localCacheCfg.Counter(),
+		MaxCost:                localCacheCfg.MaxCost(),
+		BufferItems:            localCacheCfg.BufferItems(),
+		TtlTickerDurationInSec: localCacheCfg.DefaultTTL(),
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to initialize local cache", "error", err)
+		t.Fatal("Failed to initialize local cache", err)
+	}
+	logger.InfoContext(ctx, "Finished building local cache")
+
+	_testCrypto = crypto.NewCrypto(
+		logger,
+		obClient,
+		localCache,
+		cfg.ServiceName(),
+		cryptCfg,
+	)
 	logger.InfoContext(ctx, "Finished building crypto")
 
 	logger.InfoContext(ctx, "Building OAuth provider...")
@@ -154,8 +203,11 @@ func initTestServicesAndApp(t *testing.T) {
 		_testCache,
 		mail,
 		_testTokens,
-		_testEncryption,
+		_testCrypto,
 		oauthProviders,
+		cfg.KEKExpirationDays(),
+		cfg.DEKExpirationDays(),
+		cfg.JWKExpirationDays(),
 	)
 
 	_testServer = server.New(ctx, logger, *_testConfig)
@@ -215,13 +267,13 @@ func GetTestTokens(t *testing.T) *tokens.Tokens {
 	return _testTokens
 }
 
-func GetTestEncryption(t *testing.T) *crypto.Crypto {
-	if _testEncryption == nil {
+func GetTestCrypto(t *testing.T) *crypto.Crypto {
+	if _testCrypto == nil {
 		initTestServicesAndApp(t)
 		_testServer.RegisterFiberRoutes()
 	}
 
-	return _testEncryption
+	return _testCrypto
 }
 
 func CreateTestJSONRequestBody(t *testing.T, reqBody any) *bytes.Reader {
@@ -437,6 +489,11 @@ func CreateTestAccount(t *testing.T, userData services.CreateAccountOptions) dto
 
 func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (string, string) {
 	tks := GetTestTokens(t)
+	cpt := GetTestCrypto(t)
+	s := GetTestServices(t)
+	requestID := uuid.NewString()
+	ctx := context.Background()
+
 	accessToken, err := tks.CreateAccessToken(tokens.AccountAccessTokenOptions{
 		PublicID:     account.PublicID,
 		Version:      account.Version(),
@@ -447,6 +504,23 @@ func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (stri
 		t.Fatal("Failed to create access token", err)
 	}
 
+	sAccessToken, serviceErr := cpt.SignToken(ctx, crypto.SignTokenOptions{
+		RequestID: requestID,
+		Token:     accessToken,
+		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(
+			ctx,
+			services.BuildEncryptedJWKFnOptions{
+				RequestID: requestID,
+				KeyType:   database.TokenKeyTypeAccess,
+				TTL:       tks.GetAccessTTL(),
+			},
+		),
+		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+	})
+	if serviceErr != nil {
+		t.Fatal("Failed to sign access token", serviceErr)
+	}
+
 	refreshToken, err := tks.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
 		PublicID: account.PublicID,
 		Version:  account.Version(),
@@ -455,11 +529,36 @@ func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (stri
 	if err != nil {
 		t.Fatal("Failed to create refresh token", err)
 	}
-	return accessToken, refreshToken
+
+	sRefreshToken, serviceErr := cpt.SignToken(
+		ctx,
+		crypto.SignTokenOptions{
+			RequestID: requestID,
+			Token:     refreshToken,
+			GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(
+				ctx,
+				services.BuildEncryptedJWKFnOptions{
+					RequestID: requestID,
+					KeyType:   database.TokenKeyTypeRefresh,
+					TTL:       tks.GetRefreshTTL(),
+				},
+			),
+			GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		},
+	)
+	if serviceErr != nil {
+		t.Fatal("Failed to sign refresh token", serviceErr)
+	}
+
+	return sAccessToken, sRefreshToken
 }
 
 func GenerateScopedAccountAccessToken(t *testing.T, account *dtos.AccountDTO, scopes []tokens.AccountScope) string {
 	tks := GetTestTokens(t)
+	s := GetTestServices(t)
+	requestID := uuid.NewString()
+	ctx := context.Background()
+
 	accessToken, err := tks.CreateAccessToken(tokens.AccountAccessTokenOptions{
 		PublicID:     account.PublicID,
 		Version:      account.Version(),
@@ -469,7 +568,25 @@ func GenerateScopedAccountAccessToken(t *testing.T, account *dtos.AccountDTO, sc
 	if err != nil {
 		t.Fatal("Failed to create access token", err)
 	}
-	return accessToken
+
+	sAccessToken, serviceErr := GetTestCrypto(t).SignToken(ctx, crypto.SignTokenOptions{
+		RequestID: requestID,
+		Token:     accessToken,
+		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(
+			ctx,
+			services.BuildEncryptedJWKFnOptions{
+				RequestID: requestID,
+				KeyType:   database.TokenKeyTypeAccess,
+				TTL:       tks.GetAccessTTL(),
+			},
+		),
+		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+	})
+	if serviceErr != nil {
+		t.Fatal("Failed to sign access token", serviceErr)
+	}
+
+	return sAccessToken
 }
 
 func assertErrorResponse(t *testing.T, res *http.Response, code, message string) {

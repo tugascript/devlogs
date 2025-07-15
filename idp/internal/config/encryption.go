@@ -6,26 +6,26 @@
 
 package config
 
-type EncryptionConfig struct {
+type CryptoConfig struct {
 	kekPath string
 	dekTTL  int64
 	jwkTTL  int64
 }
 
-func (ec *EncryptionConfig) KEKPath() string {
-	return ec.kekPath
+func (cc *CryptoConfig) KEKPath() string {
+	return cc.kekPath
 }
 
-func (ec *EncryptionConfig) DEKTTL() int64 {
-	return ec.dekTTL
+func (cc *CryptoConfig) DEKTTL() int64 {
+	return cc.dekTTL
 }
 
-func (ec *EncryptionConfig) JWKTTL() int64 {
-	return ec.jwkTTL
+func (cc *CryptoConfig) JWKTTL() int64 {
+	return cc.jwkTTL
 }
 
-func NewEncryptionConfig(kekPath string, dekTTL, jwkTTL int64) EncryptionConfig {
-	return EncryptionConfig{
+func NewEncryptionConfig(kekPath string, dekTTL, jwkTTL int64) CryptoConfig {
+	return CryptoConfig{
 		kekPath: kekPath,
 		dekTTL:  dekTTL,
 		jwkTTL:  jwkTTL,

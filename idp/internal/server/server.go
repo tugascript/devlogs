@@ -162,6 +162,8 @@ func New(
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")
 
 	logger.InfoContext(ctx, "Building crypto...")
+	cryptCfg := cfg.CryptoConfig()
+
 	logger.InfoContext(ctx, "Building OpenBao client...")
 	obCfg := cfg.OpenBaoConfig()
 	obc := openbao.DefaultConfig()
@@ -172,6 +174,7 @@ func New(
 		panic(err)
 	}
 
+	logger.InfoContext(ctx, "Authenticating OpenBao client...")
 	if cfg.Env() == "production" {
 		secretID := &obAuth.SecretID{FromString: obCfg.SecretID()}
 		appRoleAuth, err := obAuth.NewAppRoleAuth(
@@ -194,6 +197,22 @@ func New(
 	} else {
 		obClient.SetToken(obCfg.DevToken())
 	}
+	logger.InfoContext(ctx, "Finished authenticating OpenBao client")
+
+	logger.InfoContext(ctx, "Mounting KEK path to OpenBao...")
+	mount, err := obClient.Sys().MountInfo(cryptCfg.KEKPath() + "/")
+	if err != nil {
+		if err = obClient.Sys().Mount(cryptCfg.KEKPath(), &openbao.MountInput{
+			Type: "transit",
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to mount KEK path in OpenBao", "error", err)
+			panic(err)
+		}
+		logger.InfoContext(ctx, "Mounted KEK path in OpenBao")
+	} else {
+		logger.InfoContext(ctx, "KEK path already mounted in OpenBao", "mountID", mount.UUID, "type", mount.Type)
+	}
+
 	logger.InfoContext(ctx, "Finished building OpenBao client")
 
 	logger.InfoContext(ctx, "Building local cache...")
@@ -210,12 +229,12 @@ func New(
 	}
 	logger.InfoContext(ctx, "Finished building local cache")
 
-	encryp := crypto.NewCrypto(
+	cryp := crypto.NewCrypto(
 		logger,
 		obClient,
 		localCache,
 		cfg.ServiceName(),
-		cfg.EncryptionConfig(),
+		cryptCfg,
 	)
 	logger.InfoContext(ctx, "Finished crypto")
 
@@ -238,7 +257,7 @@ func New(
 		cc,
 		mail,
 		jwts,
-		encryp,
+		cryp,
 		oauthProviders,
 		cfg.KEKExpirationDays(),
 		cfg.DEKExpirationDays(),

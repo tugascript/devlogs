@@ -163,7 +163,7 @@ func (t *TotpKey) Codes() string {
 	return t.codes
 }
 
-type StoreTOTP = func(encSecret string, hashedCode []byte, url string) *exceptions.ServiceError
+type StoreTOTP = func(dekKID, encSecret string, hashedCode []byte, url string) *exceptions.ServiceError
 
 type generateTotpKeyOptions struct {
 	requestID   string
@@ -191,22 +191,17 @@ func (e *Crypto) generateTotpKey(
 		return TotpKey{}, err
 	}
 
-	dekID, encDEK, kekID, serviceErr := opts.getEncDEKfn()
+	dekID, secret, serviceErr := e.EncryptWithDEK(
+		ctx,
+		EncryptWithDEKOptions{
+			RequestID: opts.requestID,
+			GetDEKfn:  opts.getEncDEKfn,
+			PlainText: key.Secret(),
+		},
+	)
 	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get DEK", "error", serviceErr)
+		logger.ErrorContext(ctx, "Failed to encrypt TOTP secret", "error", serviceErr)
 		return TotpKey{}, serviceErr
-	}
-
-	dek, serviceErr := e.getDecryptedDEK(ctx, opts.requestID, dekID, encDEK, kekID)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get decrypted DEK", "error", serviceErr)
-		return TotpKey{}, serviceErr
-	}
-
-	secret, err := utils.Encrypt(key.Secret(), dek)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to encrypt secret", "error", err)
-		return TotpKey{}, err
 	}
 
 	if opts.hashedCodes != nil && !isHashCodesFullyUsed(opts.hashedCodes) {
@@ -217,7 +212,7 @@ func (e *Crypto) generateTotpKey(
 			return TotpKey{}, err
 		}
 
-		if serviceErr := opts.storeTOTPfn(secret, jsonCodes, key.URL()); serviceErr != nil {
+		if serviceErr := opts.storeTOTPfn(dekID, secret, jsonCodes, key.URL()); serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to store TOTP", "error", serviceErr)
 			return TotpKey{}, serviceErr
 		}
@@ -235,7 +230,7 @@ func (e *Crypto) generateTotpKey(
 		return TotpKey{}, err
 	}
 
-	if serviceErr := opts.storeTOTPfn(secret, jsonCodes, key.URL()); serviceErr != nil {
+	if serviceErr := opts.storeTOTPfn(dekID, secret, jsonCodes, key.URL()); serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to store TOTP with recovery codes", "error", serviceErr)
 		return TotpKey{}, serviceErr
 	}
@@ -281,8 +276,7 @@ func (e *Crypto) GenerateTotpKey(
 	})
 }
 
-type EncryptedTOTPSecret = string
-type GetTOTPSecret = func(ownerID int32) (EncryptedTOTPSecret, DEKID, *exceptions.ServiceError)
+type GetTOTPSecret = func(ownerID int32) (DEKCiphertext, *exceptions.ServiceError)
 
 type VerifyTotpCodeOptions struct {
 	RequestID string
@@ -303,29 +297,20 @@ func (e *Crypto) VerifyTotpCode(
 	})
 	logger.DebugContext(ctx, "Verifying account TOTP code...")
 
-	encSecret, dekID, serviceErr := opts.GetSecret(opts.OwnerID)
+	encSecret, serviceErr := opts.GetSecret(opts.OwnerID)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get TOTP secret", "error", serviceErr)
 		return false, serviceErr
 	}
 
-	encDEK, kekID, serviceErr := opts.GetDEKfn(dekID)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get DEK", "error", serviceErr)
-		return false, serviceErr
-	}
-
-	dek, serviceErr := e.getDecryptedDEK(ctx, opts.RequestID, dekID, encDEK, kekID)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get decrypted DEK", "error", serviceErr)
-		return false, serviceErr
-	}
-
-	secret, err := utils.Decrypt(encSecret, dek)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to decrypt secret", "error", err)
-		return false, exceptions.NewServerError()
-	}
+	secret, serviceErr := e.DecryptWithDEK(
+		ctx,
+		DecryptWithDEKOptions{
+			RequestID:  opts.RequestID,
+			GetDEKfn:   opts.GetDEKfn,
+			Ciphertext: encSecret,
+		},
+	)
 
 	return totp.Validate(opts.Code, secret), nil
 }

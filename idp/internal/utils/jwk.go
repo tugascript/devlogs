@@ -66,7 +66,7 @@ func (j *Ed25519JWK) ToUsableKey() (any, error) {
 }
 
 func (j *Ed25519JWK) MarshalJSON() ([]byte, error) {
-	return json.Marshal(j)
+	return json.Marshal(*j)
 }
 
 type ES256JWK struct {
@@ -94,7 +94,7 @@ func (j *ES256JWK) ToUsableKey() (any, error) {
 }
 
 func (j *ES256JWK) MarshalJSON() ([]byte, error) {
-	return json.Marshal(j)
+	return json.Marshal(*j)
 }
 
 type RS256JWK struct {

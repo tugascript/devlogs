@@ -99,17 +99,24 @@ func (q *Queries) FindGlobalDistributedTokenSigningKeyPublicKeys(ctx context.Con
 	return items, nil
 }
 
-const findTokenSigningKeyByKID = `-- name: FindTokenSigningKeyByKID :one
+const findGlobalTokenSigningKey = `-- name: FindGlobalTokenSigningKey :one
 SELECT id, kid, key_type, public_key, private_key, dek_kid, crypto_suite, expires_at, usage, is_distributed, is_revoked, created_at, updated_at FROM "token_signing_keys"
 WHERE 
-    "kid" = $1 AND
-    "is_revoked" = false
+    "key_type" = $1 AND 
+    "usage" = 'global' AND
+    "is_revoked" = false AND
+    "expires_at" > $2
 ORDER BY "id" DESC
 LIMIT 1
 `
 
-func (q *Queries) FindTokenSigningKeyByKID(ctx context.Context, kid string) (TokenSigningKey, error) {
-	row := q.db.QueryRow(ctx, findTokenSigningKeyByKID, kid)
+type FindGlobalTokenSigningKeyParams struct {
+	KeyType   TokenKeyType
+	ExpiresAt time.Time
+}
+
+func (q *Queries) FindGlobalTokenSigningKey(ctx context.Context, arg FindGlobalTokenSigningKeyParams) (TokenSigningKey, error) {
+	row := q.db.QueryRow(ctx, findGlobalTokenSigningKey, arg.KeyType, arg.ExpiresAt)
 	var i TokenSigningKey
 	err := row.Scan(
 		&i.ID,
@@ -129,24 +136,17 @@ func (q *Queries) FindTokenSigningKeyByKID(ctx context.Context, kid string) (Tok
 	return i, err
 }
 
-const getGlobalTokenSigningKey = `-- name: GetGlobalTokenSigningKey :one
+const findTokenSigningKeyByKID = `-- name: FindTokenSigningKeyByKID :one
 SELECT id, kid, key_type, public_key, private_key, dek_kid, crypto_suite, expires_at, usage, is_distributed, is_revoked, created_at, updated_at FROM "token_signing_keys"
 WHERE 
-    "key_type" = $1 AND 
-    "usage" = 'global' AND
-    "is_revoked" = false AND
-    "expires_at" > $2
+    "kid" = $1 AND
+    "is_revoked" = false
 ORDER BY "id" DESC
 LIMIT 1
 `
 
-type GetGlobalTokenSigningKeyParams struct {
-	KeyType   TokenKeyType
-	ExpiresAt time.Time
-}
-
-func (q *Queries) GetGlobalTokenSigningKey(ctx context.Context, arg GetGlobalTokenSigningKeyParams) (TokenSigningKey, error) {
-	row := q.db.QueryRow(ctx, getGlobalTokenSigningKey, arg.KeyType, arg.ExpiresAt)
+func (q *Queries) FindTokenSigningKeyByKID(ctx context.Context, kid string) (TokenSigningKey, error) {
+	row := q.db.QueryRow(ctx, findTokenSigningKeyByKID, kid)
 	var i TokenSigningKey
 	err := row.Scan(
 		&i.ID,

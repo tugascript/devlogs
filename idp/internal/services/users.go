@@ -163,7 +163,7 @@ func (s *Services) ListUsers(
 	opts ListUsersOptions,
 ) ([]dtos.UserDTO, int64, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, usersLocation, "ListUsers").With(
-		"accountID", opts.AccountID,
+		"AccountID", opts.AccountID,
 		"offset", opts.Offset,
 		"limit", opts.Limit,
 		"order", opts.Order,

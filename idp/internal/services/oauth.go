@@ -334,11 +334,12 @@ func (s *Services) ExtLoginAccount(
 			PublicID: accountDTO.PublicID,
 			Version:  accountDTO.Version(),
 		}),
-		GetJWKfn: s.buildEncryptedJWKFn(ctx, logger, buildEncryptedJWKFnOptions{
-			requestID: opts.RequestID,
-			keyType:   database.TokenKeyTypeOauthAuthorization,
-			ttl:       s.jwt.GetOAuthTTL(),
+		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
+			RequestID: opts.RequestID,
+			KeyType:   database.TokenKeyTypeOauthAuthorization,
+			TTL:       s.jwt.GetOAuthTTL(),
 		}),
+		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign OAuth Token", "serviceError", serviceErr)
@@ -425,11 +426,12 @@ func (s *Services) AppleLoginAccount(
 			PublicID: accountDTO.PublicID,
 			Version:  accountDTO.Version(),
 		}),
-		GetJWKfn: s.buildEncryptedJWKFn(ctx, logger, buildEncryptedJWKFnOptions{
-			requestID: opts.RequestID,
-			keyType:   database.TokenKeyTypeOauthAuthorization,
-			ttl:       s.jwt.GetOAuthTTL(),
+		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
+			RequestID: opts.RequestID,
+			KeyType:   database.TokenKeyTypeOauthAuthorization,
+			TTL:       s.jwt.GetOAuthTTL(),
 		}),
+		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to generate OAuth Token", "serviceError", serviceErr)

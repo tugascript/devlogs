@@ -59,31 +59,26 @@ func (e *Crypto) GenerateEd25519KeyPair(
 	})
 	logger.DebugContext(ctx, "Generating Ed25519 key pair...")
 
-	dekID, encryptedDEK, kekID, serviceErr := opts.GetDEKfn()
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get encrypted DEK", "serviceError", serviceErr)
-		return KeyPair{}, serviceErr
-	}
-
-	dek, serviceErr := e.getDecryptedDEK(ctx, opts.RequestID, dekID, encryptedDEK, kekID)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get decrypted DEK", "serviceError", serviceErr)
-		return KeyPair{}, serviceErr
-	}
-
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate key pair", "error", err)
 		return KeyPair{}, exceptions.NewServerError()
 	}
 
-	kid := utils.ExtractEd25519KeyID(pub)
-	encryptedKey, err := utils.Encrypt(encodeEd25519PrivateKeyBytes(priv), dek)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to encrypt private key", "error", err)
-		return KeyPair{}, exceptions.NewServerError()
+	dekID, encryptedKey, serviceErr := e.EncryptWithDEK(
+		ctx,
+		EncryptWithDEKOptions{
+			RequestID: opts.RequestID,
+			GetDEKfn:  opts.GetDEKfn,
+			PlainText: encodeEd25519PrivateKeyBytes(priv),
+		},
+	)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to encrypt private key", "serviceError", serviceErr)
+		return KeyPair{}, serviceErr
 	}
 
+	kid := utils.ExtractEd25519KeyID(pub)
 	publicJwk := utils.EncodeEd25519Jwk(pub, kid)
 	if _, err := opts.StoreFN(dekID, utils.SupportedCryptoSuiteEd25519, kid, encryptedKey, &publicJwk); err != nil {
 		logger.ErrorContext(ctx, "Failed to store private key", "error", err)
@@ -128,54 +123,53 @@ func decodeEd25519PrivateKeyBytes(
 func (e *Crypto) getDecryptedEd25519PrivateKey(
 	ctx context.Context,
 	requestID string,
-	dekID string,
-	encDEK string,
-	kekID KEKID,
 	jwkKID string,
 	encPrivKey string,
+	getDEKfn GetDEKtoDecrypt,
 ) (ed25519.PrivateKey, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Location:  jwkLocation,
 		Method:    "getDecryptedEd25519PrivateKey",
 		RequestID: requestID,
-	})
+	}).With("jwkKid", jwkKID)
 	logger.DebugContext(ctx, "Getting decrypted Ed25519 private key...")
 
 	cachedKey, found := e.localCache.Get(buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteEd25519, jwkKID))
 	if found {
-		logger.DebugContext(ctx, "Ed25519 private key found in cache", "jwkKID", jwkKID)
+		logger.DebugContext(ctx, "Ed25519 private key found in cache")
 		return cachedKey, nil
 	}
 
-	dek, serviceErr := e.getDecryptedDEK(ctx, requestID, dekID, encDEK, kekID)
+	base64PrivKey, serviceErr := e.DecryptWithDEK(
+		ctx,
+		DecryptWithDEKOptions{
+			RequestID:  requestID,
+			GetDEKfn:   getDEKfn,
+			Ciphertext: encPrivKey,
+		},
+	)
 	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get decrypted DEK", "serviceError", serviceErr)
+		logger.ErrorContext(ctx, "Failed to decrypt private key", "serviceError", serviceErr)
 		return nil, serviceErr
 	}
 
-	base64privKey, err := utils.Decrypt(encPrivKey, dek)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to decrypt private key", "error", err)
-		return nil, exceptions.NewServerError()
-	}
-
-	privKey, err := decodeEd25519PrivateKeyBytes(base64privKey)
+	privKey, err := decodeEd25519PrivateKeyBytes(base64PrivKey)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decode private key", "error", err)
 		return nil, exceptions.NewServerError()
 	}
 
 	if ok := e.localCache.SetWithTTL(
-		buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteEd25519, dekID),
+		buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteEd25519, jwkKID),
 		privKey,
 		0,
 		e.jwkTTL,
 	); !ok {
-		logger.ErrorContext(ctx, "Failed to cache private key", "dekID", dekID)
+		logger.ErrorContext(ctx, "Failed to cache private key")
 		return nil, exceptions.NewServerError()
 	}
 
-	logger.DebugContext(ctx, "Ed25519 private key decrypted and cached", "dekID", dekID)
+	logger.DebugContext(ctx, "Ed25519 private key decrypted and cached")
 	return privKey, nil
 }
 
@@ -199,32 +193,27 @@ func (e *Crypto) GenerateES256KeyPair(
 	})
 	logger.DebugContext(ctx, "Generating ES256 key pair...")
 
-	dekID, encryptedDEK, kekID, serviceErr := opts.GetDEKfn()
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get decrypted DEK", "serviceError", serviceErr)
-		return KeyPair{}, serviceErr
-	}
-
-	dek, serviceErr := e.getDecryptedDEK(ctx, opts.RequestID, dekID, encryptedDEK, kekID)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get decrypted DEK", "serviceError", serviceErr)
-		return KeyPair{}, serviceErr
-	}
-
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate ES256 private key", "error", err)
 		return KeyPair{}, exceptions.NewServerError()
 	}
 
-	kid := utils.ExtractECDSAKeyID(priv.Public().(*ecdsa.PublicKey))
 	encodedPrivateKey := encodeES256PrivateKeyBytes(priv)
-	encryptedPrivateKey, err := utils.Encrypt(encodedPrivateKey, dek)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to encrypt private key", "error", err)
-		return KeyPair{}, exceptions.NewServerError()
+	dekID, encryptedPrivateKey, serviceErr := e.EncryptWithDEK(
+		ctx,
+		EncryptWithDEKOptions{
+			RequestID: opts.RequestID,
+			GetDEKfn:  opts.GetDEKfn,
+			PlainText: encodedPrivateKey,
+		},
+	)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to encrypt private key", "serviceError", serviceErr)
+		return KeyPair{}, serviceErr
 	}
 
+	kid := utils.ExtractECDSAKeyID(priv.Public().(*ecdsa.PublicKey))
 	publicJwk := utils.EncodeP256Jwk(&priv.PublicKey, kid)
 	if _, err := opts.StoreFN(dekID, utils.SupportedCryptoSuiteES256, kid, encryptedPrivateKey, &publicJwk); err != nil {
 		logger.ErrorContext(ctx, "Failed to store private key", "error", err)
@@ -291,22 +280,20 @@ func decodeES256PrivateKeyBytes(bytes string) (ecdsa.PrivateKey, error) {
 func (e *Crypto) getDecryptedES256PrivateKey(
 	ctx context.Context,
 	requestID string,
-	dekID string,
-	encDEK string,
-	kekID KEKID,
 	jwkKID string,
 	encPrivKey string,
+	getDEKfn GetDEKtoDecrypt,
 ) (ecdsa.PrivateKey, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Location:  jwkLocation,
 		Method:    "getDecryptedES256PrivateKey",
 		RequestID: requestID,
-	})
+	}).With("jwkKID", jwkKID)
 	logger.DebugContext(ctx, "Getting decrypted ES256 private key...")
 
-	cachedKey, found := e.localCache.Get(buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteES256, dekID))
+	cachedKey, found := e.localCache.Get(buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteES256, jwkKID))
 	if found {
-		logger.DebugContext(ctx, "ES256 private key found in cache", "dekID", dekID)
+		logger.DebugContext(ctx, "ES256 private key found in cache")
 		privKey, err := decodeES256PrivateKeyBytes(string(cachedKey))
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to decode private key", "error", err)
@@ -316,46 +303,47 @@ func (e *Crypto) getDecryptedES256PrivateKey(
 		return privKey, nil
 	}
 
-	dek, serviceErr := e.getDecryptedDEK(ctx, requestID, dekID, encDEK, kekID)
+	base64PrivKey, serviceErr := e.DecryptWithDEK(
+		ctx,
+		DecryptWithDEKOptions{
+			RequestID:  requestID,
+			GetDEKfn:   getDEKfn,
+			Ciphertext: encPrivKey,
+		},
+	)
 	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get decrypted DEK", "serviceError", serviceErr)
+		logger.ErrorContext(ctx, "Failed to decrypt private key", "serviceError", serviceErr)
 		return ecdsa.PrivateKey{}, serviceErr
 	}
 
-	base64privKey, err := utils.Decrypt(encPrivKey, dek)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to decrypt private key", "error", err)
-		return ecdsa.PrivateKey{}, exceptions.NewServerError()
-	}
-
-	privKey, err := decodeES256PrivateKeyBytes(base64privKey)
+	privKey, err := decodeES256PrivateKeyBytes(base64PrivKey)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decode private key", "error", err)
 		return ecdsa.PrivateKey{}, exceptions.NewServerError()
 	}
 
 	if ok := e.localCache.SetWithTTL(
-		buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteES256, dekID),
-		[]byte(base64privKey),
+		buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteES256, jwkKID),
+		[]byte(base64PrivKey),
 		0,
 		e.jwkTTL,
 	); !ok {
-		logger.ErrorContext(ctx, "Failed to cache private key", "dekID", dekID)
+		logger.ErrorContext(ctx, "Failed to cache private key")
 		return ecdsa.PrivateKey{}, exceptions.NewServerError()
 	}
 
-	logger.DebugContext(ctx, "ES256 private key decrypted and cached", "dekID", dekID)
+	logger.DebugContext(ctx, "ES256 private key decrypted and cached")
 	return privKey, nil
 }
 
 type JWKkid = string
-type EncryptedJWKPrivKey = string
-type GetEncryptedJWK = func(cryptoSuite utils.SupportedCryptoSuite) (JWKkid, EncryptedJWKPrivKey, DEKID, EncryptedDEK, KEKID, *exceptions.ServiceError)
+type GetEncryptedJWK = func(cryptoSuite utils.SupportedCryptoSuite) (JWKkid, DEKCiphertext, *exceptions.ServiceError)
 
 type SignTokenOptions struct {
 	RequestID string
 	Token     *jwt.Token
 	GetJWKfn  GetEncryptedJWK
+	GetDEKfn  GetDEKtoDecrypt
 }
 
 func (e *Crypto) SignToken(
@@ -371,13 +359,13 @@ func (e *Crypto) SignToken(
 
 	switch opts.Token.Method.Alg() {
 	case string(utils.SupportedCryptoSuiteEd25519):
-		kid, encPrivKey, dekID, encDek, kekID, serviceErr := opts.GetJWKfn(utils.SupportedCryptoSuiteEd25519)
+		kid, encPrivKey, serviceErr := opts.GetJWKfn(utils.SupportedCryptoSuiteEd25519)
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to get encrypted ed25519 private key", "serviceError", serviceErr)
 			return "", serviceErr
 		}
 
-		privKey, serviceErr := e.getDecryptedEd25519PrivateKey(ctx, opts.RequestID, dekID, encDek, kekID, kid, encPrivKey)
+		privKey, serviceErr := e.getDecryptedEd25519PrivateKey(ctx, opts.RequestID, kid, encPrivKey, opts.GetDEKfn)
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to get decrypted ed25519 private key", "serviceError", serviceErr)
 			return "", serviceErr
@@ -392,13 +380,13 @@ func (e *Crypto) SignToken(
 
 		return signedToken, nil
 	case string(utils.SupportedCryptoSuiteES256):
-		kid, encPrivKey, dekID, encDek, kekID, serviceErr := opts.GetJWKfn(utils.SupportedCryptoSuiteES256)
+		kid, encPrivKey, serviceErr := opts.GetJWKfn(utils.SupportedCryptoSuiteES256)
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to get encrypted ES256 private key", "serviceError", serviceErr)
 			return "", serviceErr
 		}
 
-		privKey, serviceErr := e.getDecryptedES256PrivateKey(ctx, opts.RequestID, dekID, encDek, kekID, kid, encPrivKey)
+		privKey, serviceErr := e.getDecryptedES256PrivateKey(ctx, opts.RequestID, kid, encPrivKey, opts.GetDEKfn)
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to get decrypted ES256 private key", "serviceError", serviceErr)
 			return "", serviceErr

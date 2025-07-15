@@ -22,7 +22,6 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 func TestGetCurrentAccount(t *testing.T) {
@@ -309,20 +308,16 @@ func TestConfirmUpdateAccountPassword(t *testing.T) {
 					t.Fatal("Failed to find account TOTP", err)
 				}
 
-				dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
-					crypto.ProcessTotpDEKOptions{
-						RequestID: uuid.NewString(),
-						TotpType:  crypto.TotpTypeAccount,
-						StoredDEK: account.DEK(),
-					},
-				)
-				if err != nil {
-					t.Fatal("Failed to decrypt account DEK", err)
-				}
-
-				secret, err := utils.Decrypt(accountTOTP.Secret, dek)
-				if err != nil {
-					t.Fatal("Failed to decrypt secret", err)
+				secret, serviceErr := GetTestCrypto(t).DecryptWithDEK(context.Background(), crypto.DecryptWithDEKOptions{
+					RequestID: requestID,
+					GetDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
+						context.Background(),
+						requestID,
+					),
+					Ciphertext: accountTOTP.Secret,
+				})
+				if serviceErr != nil {
+					t.Fatal("Failed to decrypt account TOTP", serviceErr)
 				}
 
 				code, err := totp.GenerateCode(secret, time.Now().UTC())
@@ -750,20 +745,16 @@ func TestConfirmUpdateAccountEmail(t *testing.T) {
 					t.Fatal("Failed to find account TOTP", err)
 				}
 
-				dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
-					crypto.ProcessTotpDEKOptions{
-						RequestID: uuid.NewString(),
-						TotpType:  crypto.TotpTypeAccount,
-						StoredDEK: account.DEK(),
-					},
-				)
-				if err != nil {
-					t.Fatal("Failed to decrypt account DEK", err)
-				}
-
-				secret, err := utils.Decrypt(accountTOTP.Secret, dek)
-				if err != nil {
-					t.Fatal("Failed to decrypt secret", err)
+				secret, serviceErr := GetTestCrypto(t).DecryptWithDEK(context.Background(), crypto.DecryptWithDEKOptions{
+					RequestID: requestID,
+					GetDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
+						context.Background(),
+						requestID,
+					),
+					Ciphertext: accountTOTP.Secret,
+				})
+				if serviceErr != nil {
+					t.Fatal("Failed to decrypt account DEK", serviceErr)
 				}
 
 				code, err := totp.GenerateCode(secret, time.Now().UTC())
@@ -1122,20 +1113,16 @@ func TestConfirmUpdateAccountUsername(t *testing.T) {
 					t.Fatal("Failed to find account TOTP", err)
 				}
 
-				dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
-					crypto.ProcessTotpDEKOptions{
-						RequestID: uuid.NewString(),
-						TotpType:  crypto.TotpTypeAccount,
-						StoredDEK: account.DEK(),
-					},
-				)
-				if err != nil {
-					t.Fatal("Failed to decrypt account DEK", err)
-				}
-
-				secret, err := utils.Decrypt(accountTOTP.Secret, dek)
-				if err != nil {
-					t.Fatal("Failed to decrypt secret", err)
+				secret, serviceErr := GetTestCrypto(t).DecryptWithDEK(context.Background(), crypto.DecryptWithDEKOptions{
+					RequestID: requestID,
+					GetDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
+						context.Background(),
+						requestID,
+					),
+					Ciphertext: accountTOTP.Secret,
+				})
+				if serviceErr != nil {
+					t.Fatal("Failed to decrypt account DEK", serviceErr)
 				}
 
 				code, err := totp.GenerateCode(secret, time.Now().UTC())

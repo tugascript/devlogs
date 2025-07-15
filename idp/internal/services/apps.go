@@ -74,7 +74,7 @@ func (s *Services) GetAppByClientIDAndAccountID(
 	opts GetAppByClientIDAndAccountIDOptions,
 ) (dtos.AppDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "GetAppByClientIDAndAccountID").With(
-		"accountID", opts.AccountID,
+		"AccountID", opts.AccountID,
 		"clientId", opts.ClientID,
 	)
 	logger.InfoContext(ctx, "Getting app by client id...")
