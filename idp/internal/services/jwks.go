@@ -12,8 +12,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
@@ -52,7 +50,7 @@ func mapDBCryptoSuite(cryptoSuite database.TokenCryptoSuite) (utils.SupportedCry
 	}
 }
 
-type createAndCacheJWKOptions struct {
+type createJWKOptions struct {
 	requestID   string
 	keyType     database.TokenKeyType
 	storeFN     crypto.StorePrivateKey
@@ -60,11 +58,11 @@ type createAndCacheJWKOptions struct {
 	cryptoSuite utils.SupportedCryptoSuite
 }
 
-func (s *Services) createAndCacheJWK(
+func (s *Services) createJWK(
 	ctx context.Context,
-	opts createAndCacheJWKOptions,
+	opts createJWKOptions,
 ) *exceptions.ServiceError {
-	logger := s.buildLogger(opts.requestID, jwkLocation, "createAndCacheGlobalJWK")
+	logger := s.buildLogger(opts.requestID, jwkLocation, "createJWK")
 	logger.InfoContext(ctx, "Creating and caching global JWK...")
 
 	encOpts := crypto.GenerateKeyPairOptions{
@@ -89,136 +87,144 @@ func (s *Services) createAndCacheJWK(
 	return nil
 }
 
-type buildEncryptedJWKFnOptions struct {
+type buildStoreGlobalJWKfnOptions struct {
 	requestID string
 	keyType   database.TokenKeyType
-	ttl       int64
+	data      map[string]string
 }
 
-func (s *Services) buildEncryptedJWKFn(
+func (s *Services) buildStoreGlobalJWKfn(
 	ctx context.Context,
-	logger *slog.Logger,
-	opts buildEncryptedJWKFnOptions,
-) crypto.GetEncryptedJWK {
-	return func(
-		cryptoSuite utils.SupportedCryptoSuite,
-	) (crypto.JWKkid, crypto.EncryptedJWKPrivKey, crypto.DEKID,
-		crypto.EncryptedDEK, crypto.KEKID, *exceptions.ServiceError) {
-		jwkKID, encPrivKey, dekID, found, err := s.cache.GetJWKPrivateKey(ctx, cache.GetJWKPrivateKeyOptions{
+	opts buildStoreGlobalJWKfnOptions,
+) crypto.StorePrivateKey {
+	logger := s.buildLogger(opts.requestID, jwkLocation, "buildStoreGlobalJWKfn")
+	logger.InfoContext(ctx, "Building store global JWK function...")
+	return func(dekKid string, cryptoSuite utils.SupportedCryptoSuite, kid, encryptedKey string, pubKey utils.JWK) (int32, *exceptions.ServiceError) {
+		dbCryptoSuite, err := mapCryptoSuite(cryptoSuite)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
+			return 0, exceptions.NewServerError()
+		}
+
+		logger.InfoContext(ctx, "What is the pub key type?", "pubKeyType", pubKey)
+		pubKeyBytes, err := pubKey.MarshalJSON()
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to encode public key to JSON", "error", err)
+			return 0, exceptions.NewServerError()
+		}
+
+		logger.InfoContext(ctx, "Storing global JWK", "kid", kid, "cryptoSuite", dbCryptoSuite)
+		id, err := s.database.CreateTokenSigningKey(ctx, database.CreateTokenSigningKeyParams{
+			Kid:           kid,
+			KeyType:       opts.keyType,
+			PublicKey:     pubKeyBytes,
+			PrivateKey:    encryptedKey,
+			DekKid:        dekKid,
+			CryptoSuite:   dbCryptoSuite,
+			Usage:         database.TokenKeyUsageGlobal,
+			ExpiresAt:     time.Now().Add(time.Duration(s.jwkExpDays) * time.Hour * 24),
+			IsDistributed: isDistributedJWK(opts.keyType),
+		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create token signing key", "error", err)
+			return 0, exceptions.FromDBError(err)
+		}
+
+		if err := s.cache.SaveJWKPrivateKey(ctx, cache.SaveJWKPrivateKeyOptions{
 			RequestID:   opts.requestID,
+			Suffix:      "global",
+			CryptoSuite: cryptoSuite,
+			KID:         kid,
+			EncPrivKey:  encryptedKey,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to save JWK private key to cache", "error", err)
+			return 0, exceptions.NewServerError()
+		}
+
+		logger.InfoContext(ctx, "JWK saved and cached successfully", "kid", kid, "cryptoSuite", dbCryptoSuite)
+		opts.data["kid"] = kid
+		opts.data["encryptedKey"] = encryptedKey
+		return id, nil
+	}
+}
+
+type BuildEncryptedJWKFnOptions struct {
+	RequestID string
+	KeyType   database.TokenKeyType
+	TTL       int64
+}
+
+func (s *Services) BuildGetGlobalEncryptedJWKFn(
+	ctx context.Context,
+	opts BuildEncryptedJWKFnOptions,
+) crypto.GetEncryptedJWK {
+	logger := s.buildLogger(opts.RequestID, jwkLocation, "BuildGetGlobalEncryptedJWKFn")
+	logger.InfoContext(ctx, "Building encrypted JWK function...")
+
+	return func(cryptoSuite utils.SupportedCryptoSuite) (crypto.JWKkid, crypto.DEKCiphertext, *exceptions.ServiceError) {
+		jwkKID, encPrivKey, found, err := s.cache.GetJWKPrivateKey(ctx, cache.GetJWKPrivateKeyOptions{
+			RequestID:   opts.RequestID,
 			Suffix:      "global",
 			CryptoSuite: cryptoSuite,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get JWK private key from cache", "error", err)
-			return "", "", "", "", uuid.Nil, exceptions.NewServerError()
+			return "", "", exceptions.NewServerError()
 		}
 
-		getDecDEK := s.buildGetGlobalDecDEKFn(ctx, logger, opts.requestID)
 		if found {
-			logger.InfoContext(ctx, "JWK private key found in cache", "kid", jwkKID)
-
-			dek, kekKID, serviceErr := getDecDEK(dekID)
-			if serviceErr != nil {
-				logger.ErrorContext(ctx, "Failed to get DEK for decryption", "serviceError", serviceErr)
-				return "", "", "", "", uuid.Nil, serviceErr
-			}
-
-			logger.InfoContext(ctx, "DEK not found in cache, getting from database", "dekKID", dekID)
-			return jwkKID, encPrivKey, dekID, dek, kekKID, nil
+			logger.InfoContext(ctx, "DEK found in cache", "jwkKID", jwkKID)
+			return jwkKID, encPrivKey, nil
 		}
 
-		jwkEnt, err := s.database.GetGlobalTokenSigningKey(ctx, database.GetGlobalTokenSigningKeyParams{
-			KeyType:   opts.keyType,
-			ExpiresAt: time.Now().Add(-1 * (time.Hour + time.Duration(opts.ttl)*time.Second)),
+		jwkEnt, err := s.database.FindGlobalTokenSigningKey(ctx, database.FindGlobalTokenSigningKeyParams{
+			KeyType:   opts.KeyType,
+			ExpiresAt: time.Now().Add(-1 * (time.Hour + time.Duration(opts.TTL)*time.Second)),
 		})
 		if err != nil {
 			serviceErr := exceptions.FromDBError(err)
 			if serviceErr.Code != exceptions.CodeNotFound {
 				logger.ErrorContext(ctx, "Failed to get global token signing key", "error", err)
-				return "", "", "", "", uuid.Nil, serviceErr
+				return "", "", serviceErr
 			}
 
 			logger.InfoContext(ctx, "JWK not found creating and caching global JWK...")
-			if serviceErr := s.createAndCacheJWK(ctx, createAndCacheJWKOptions{
-				requestID:   opts.requestID,
-				keyType:     opts.keyType,
+			data := make(map[string]string)
+			if serviceErr := s.createJWK(ctx, createJWKOptions{
+				requestID:   opts.RequestID,
+				keyType:     opts.KeyType,
 				cryptoSuite: cryptoSuite,
-				getDEKfn:    s.buildGetEncGlobalDEK(ctx, logger, opts.requestID),
-				storeFN: func(dekKid string, cryptoSuite utils.SupportedCryptoSuite, kid, encryptedKey string, pubKey utils.JWK) (int32, *exceptions.ServiceError) {
-					dbCryptoSuite, err := mapCryptoSuite(cryptoSuite)
-					if err != nil {
-						logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
-						return 0, exceptions.NewServerError()
-					}
-
-					pubKeyBytes, err := pubKey.MarshalJSON()
-					if err != nil {
-						logger.ErrorContext(ctx, "Failed to encode public key to JSON", "error", err)
-						return 0, exceptions.NewServerError()
-					}
-
-					id, err := s.database.CreateTokenSigningKey(ctx, database.CreateTokenSigningKeyParams{
-						Kid:           kid,
-						KeyType:       opts.keyType,
-						PublicKey:     pubKeyBytes,
-						PrivateKey:    encryptedKey,
-						DekKid:        dekKid,
-						CryptoSuite:   dbCryptoSuite,
-						Usage:         database.TokenKeyUsageGlobal,
-						ExpiresAt:     time.Now().Add(time.Duration(s.jwkExpDays) * time.Hour * 24),
-						IsDistributed: isDistributedJWK(opts.keyType),
-					})
-					if err != nil {
-						logger.ErrorContext(ctx, "Failed to create token signing key", "error", err)
-						return 0, exceptions.FromDBError(err)
-					}
-
-					if err := s.cache.SaveJWK(ctx, cache.SaveJWKOptions{
-						RequestID:   opts.requestID,
-						Prefix:      "global",
-						CryptoSuite: cryptoSuite,
-						KeyID:       kid,
-						PublicKey:   pubKeyBytes,
-					}); err != nil {
-						logger.ErrorContext(ctx, "Failed to save JWK to cache", "error", err)
-						return 0, exceptions.NewServerError()
-					}
-					if err := s.cache.SaveJWKPrivateKey(ctx, cache.SaveJWKPrivateKeyOptions{
-						RequestID:   opts.requestID,
-						Suffix:      "global",
-						CryptoSuite: cryptoSuite,
-						KID:         kid,
-						EncPrivKey:  encryptedKey,
-					}); err != nil {
-						logger.ErrorContext(ctx, "Failed to save JWK private key to cache", "error", err)
-						return 0, exceptions.NewServerError()
-					}
-
-					jwkKID = kid
-					encPrivKey = encryptedKey
-					dekID = dekKid
-					return id, nil
-				},
+				getDEKfn:    s.BuildGetEncGlobalDEK(ctx, opts.RequestID),
+				storeFN: s.buildStoreGlobalJWKfn(ctx, buildStoreGlobalJWKfnOptions{
+					requestID: opts.RequestID,
+					keyType:   opts.KeyType,
+					data:      data,
+				}),
 			}); serviceErr != nil {
 				logger.ErrorContext(ctx, "Failed to create JWK", "serviceError", serviceErr)
-				return "", "", "", "", uuid.Nil, serviceErr
+				return "", "", serviceErr
 			}
 
-			dek, kekKID, serviceErr := getDecDEK(dekID)
-			if serviceErr != nil {
-				logger.ErrorContext(ctx, "Failed to get DEK for decryption", "serviceError", serviceErr)
-				return "", "", "", "", uuid.Nil, serviceErr
+			jwkKID, ok := data["kid"]
+			if !ok {
+				logger.ErrorContext(ctx, "Failed to get JWK KID from data map")
+				return "", "", exceptions.NewServerError()
 			}
 
-			logger.InfoContext(ctx, "DEK not found in cache, getting from database", "dekKID", dekID)
-			return jwkKID, encPrivKey, dekID, dek, kekKID, nil
+			encPrivKey, ok := data["encryptedKey"]
+			if !ok {
+				logger.ErrorContext(ctx, "Failed to get encrypted private key from data map")
+				return "", "", exceptions.NewServerError()
+			}
+
+			logger.InfoContext(ctx, "JWK private key cached successfully", "kid", jwkKID)
+			return jwkKID, encPrivKey, nil
 		}
 
 		dbCryptoSuite, err := mapDBCryptoSuite(jwkEnt.CryptoSuite)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
-			return "", "", "", "", uuid.Nil, exceptions.NewServerError()
+			return "", "", exceptions.NewServerError()
 		}
 
 		if dbCryptoSuite != cryptoSuite {
@@ -226,40 +232,38 @@ func (s *Services) buildEncryptedJWKFn(
 				"entityCryptoSuite", dbCryptoSuite,
 				"cryptoSuite", cryptoSuite,
 			)
-			return "", "", "", "", uuid.Nil, exceptions.NewServerError()
-		}
-
-		dek, kekKID, serviceErr := getDecDEK(dekID)
-		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to get DEK for decryption", "serviceError", serviceErr)
-			return "", "", "", "", uuid.Nil, serviceErr
+			return "", "", exceptions.NewServerError()
 		}
 
 		if err := s.cache.SaveJWKPrivateKey(ctx, cache.SaveJWKPrivateKeyOptions{
-			RequestID:   opts.requestID,
+			RequestID:   opts.RequestID,
 			Suffix:      "global",
 			CryptoSuite: cryptoSuite,
 			KID:         jwkKID,
 			EncPrivKey:  jwkEnt.PrivateKey,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to save JWK private key to cache", "error", err)
-			return "", "", "", "", uuid.Nil, exceptions.NewServerError()
+			return "", "", exceptions.NewServerError()
 		}
 
 		logger.InfoContext(ctx, "JWK cached successfully", "kid", jwkEnt.Kid, "crypto_suite", dbCryptoSuite)
-		return jwkEnt.Kid, jwkEnt.PrivateKey, dekID, dek, kekKID, nil
+		return jwkEnt.Kid, jwkEnt.PrivateKey, nil
 	}
 }
 
-func (s *Services) buildGetVerifyKeyFn(
+type BuildGetGlobalVerifyKeyFnOptions struct {
+	RequestID string
+	KeyType   database.TokenKeyType
+}
+
+func (s *Services) BuildGetGlobalVerifyKeyFn(
 	ctx context.Context,
 	logger *slog.Logger,
-	requestID string,
-	keyType database.TokenKeyType,
+	opts BuildGetGlobalVerifyKeyFnOptions,
 ) tokens.GetPublicJWK {
 	return func(kid string, cryptoSuite utils.SupportedCryptoSuite) (utils.JWK, error) {
 		jwk, found, err := s.cache.GetJWK(ctx, cache.GetJWKOptions{
-			RequestID:   requestID,
+			RequestID:   opts.RequestID,
 			Prefix:      "global",
 			CryptoSuite: cryptoSuite,
 			KeyID:       kid,
@@ -288,8 +292,8 @@ func (s *Services) buildGetVerifyKeyFn(
 			logger.ErrorContext(ctx, "JWK is not a global JWK", "kid", kid)
 			return nil, exceptions.NewUnauthorizedError()
 		}
-		if jwkEnt.KeyType != keyType {
-			logger.ErrorContext(ctx, "JWK is not the expected key type", "kid", kid, "expectedKeyType", keyType, "actualKeyType", jwkEnt.KeyType)
+		if jwkEnt.KeyType != opts.KeyType {
+			logger.ErrorContext(ctx, "JWK is not the expected key type", "kid", kid, "expectedKeyType", opts.KeyType, "actualKeyType", jwkEnt.KeyType)
 			return nil, exceptions.NewUnauthorizedError()
 		}
 		if dbCryptoSuite != jwkEnt.CryptoSuite {
@@ -306,7 +310,7 @@ func (s *Services) buildGetVerifyKeyFn(
 			return nil, err
 		}
 		if err := s.cache.SaveJWK(ctx, cache.SaveJWKOptions{
-			RequestID:   requestID,
+			RequestID:   opts.RequestID,
 			Prefix:      "global",
 			CryptoSuite: cryptoSuite,
 			KeyID:       jwkEnt.Kid,
@@ -368,155 +372,181 @@ func (s *Services) GetAndCacheGlobalDistributedJWK(
 	return etag, jwks, nil
 }
 
-type buildEncryptedAccountJWKFnOptions struct {
+type buildStoreAccountJWKfnOptions struct {
 	requestID string
-	keyType   database.TokenKeyType
 	accountID int32
+	keyType   database.TokenKeyType
+	data      map[string]string
 }
 
-func (s *Services) buildEncryptedAccountJWKFn(
+func (s *Services) buildStoreAccountJWKfn(
+	ctx context.Context,
+	opts buildStoreAccountJWKfnOptions,
+) crypto.StorePrivateKey {
+	logger := s.buildLogger(opts.requestID, jwkLocation, "buildStoreAccountJWKfn")
+	logger.InfoContext(ctx, "Building store account JWK function...")
+
+	return func(
+		dekKid string,
+		cryptoSuite utils.SupportedCryptoSuite,
+		kid, encryptedKey string,
+		pubKey utils.JWK,
+	) (int32, *exceptions.ServiceError) {
+		dbCryptoSuite, err := mapCryptoSuite(cryptoSuite)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
+			return 0, exceptions.NewServerError()
+		}
+
+		pubKeyBytes, err := pubKey.MarshalJSON()
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to encode public key to JSON", "error", err)
+			return 0, exceptions.NewServerError()
+		}
+
+		var serviceErr *exceptions.ServiceError
+		qrs, txn, err := s.database.BeginTx(ctx)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+			return 0, exceptions.FromDBError(err)
+		}
+		defer func() {
+			logger.DebugContext(ctx, "Finalizing transaction")
+			s.database.FinalizeTx(ctx, txn, err, serviceErr)
+		}()
+
+		id, err := qrs.CreateTokenSigningKey(ctx, database.CreateTokenSigningKeyParams{
+			Kid:           kid,
+			KeyType:       opts.keyType,
+			PublicKey:     pubKeyBytes,
+			PrivateKey:    encryptedKey,
+			DekKid:        dekKid,
+			CryptoSuite:   dbCryptoSuite,
+			ExpiresAt:     time.Now().Add(time.Duration(s.jwkExpDays) * time.Hour * 24),
+			Usage:         database.TokenKeyUsageAccount,
+			IsDistributed: isDistributedJWK(opts.keyType),
+		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create token signing key", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return 0, serviceErr
+		}
+
+		if err = qrs.CreateAccountTokenSigningKey(ctx, database.CreateAccountTokenSigningKeyParams{
+			AccountID:         opts.accountID,
+			TokenSigningKeyID: id,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create account token signing key", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return 0, serviceErr
+		}
+		if err = s.cache.SaveJWKPrivateKey(ctx, cache.SaveJWKPrivateKeyOptions{
+			RequestID:   opts.requestID,
+			Suffix:      fmt.Sprintf("account:%d", opts.accountID),
+			CryptoSuite: cryptoSuite,
+			KID:         kid,
+			EncPrivKey:  encryptedKey,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to save JWK private key to cache", "error", err)
+			serviceErr = exceptions.NewServerError()
+			return 0, serviceErr
+		}
+
+		logger.InfoContext(ctx, "JWK cached successfully", "kid", kid, "crypto_suite", dbCryptoSuite)
+		opts.data["kid"] = kid
+		opts.data["encryptedKey"] = encryptedKey
+		return id, nil
+	}
+}
+
+type BuildGetEncryptedAccountJWKFnOptions struct {
+	RequestID string
+	KeyType   database.TokenKeyType
+	AccountID int32
+}
+
+func (s *Services) BuildGetEncryptedAccountJWKFn(
 	ctx context.Context,
 	logger *slog.Logger,
-	opts buildEncryptedAccountJWKFnOptions,
+	opts BuildGetEncryptedAccountJWKFnOptions,
 ) crypto.GetEncryptedJWK {
 	return func(
 		cryptoSuite utils.SupportedCryptoSuite,
-	) (crypto.JWKkid, crypto.EncryptedJWKPrivKey, crypto.DEKID,
-		crypto.EncryptedDEK, crypto.KEKID, *exceptions.ServiceError) {
-		suffix := fmt.Sprintf("account:%d", opts.accountID)
-		kid, encPrivKey, dekID, found, err := s.cache.GetJWKPrivateKey(ctx, cache.GetJWKPrivateKeyOptions{
-			RequestID:   opts.requestID,
+	) (crypto.JWKkid, crypto.DEKCiphertext, *exceptions.ServiceError) {
+		suffix := fmt.Sprintf("account:%d", opts.AccountID)
+		kid, encPrivKey, found, err := s.cache.GetJWKPrivateKey(ctx, cache.GetJWKPrivateKeyOptions{
+			RequestID:   opts.RequestID,
 			Suffix:      suffix,
 			CryptoSuite: cryptoSuite,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get JWK from cache", "error", err)
-			return "", "", "", "", uuid.Nil, exceptions.NewServerError()
+			return "", "", exceptions.NewServerError()
 		}
 
-		getDEKfn := s.buildGetDecAccountDEKFn(ctx, logger, buildGetDecAccountDEKFnOptions{
-			requestID: opts.requestID,
-			accountID: opts.accountID,
-		})
 		if found {
 			logger.InfoContext(ctx, "JWK private key found in cache", "kid", kid)
-
-			dek, kekKID, serviceErr := getDEKfn(dekID)
-			if serviceErr != nil {
-				logger.ErrorContext(ctx, "Failed to get DEK for decryption", "serviceError", serviceErr)
-				return "", "", "", "", uuid.Nil, serviceErr
-			}
-
-			logger.InfoContext(ctx, "DEK not found in cache, getting from database", "dekKID", dekID)
-			return kid, encPrivKey, dekID, dek, kekKID, nil
+			return kid, encPrivKey, nil
 		}
 
 		jwkEnt, err := s.database.FindAccountTokenSigningKeyByAccountID(
 			ctx,
 			database.FindAccountTokenSigningKeyByAccountIDParams{
-				AccountID: opts.accountID,
-				KeyType:   opts.keyType,
+				AccountID: opts.AccountID,
+				KeyType:   opts.KeyType,
 			},
 		)
 		if err != nil {
 			serviceErr := exceptions.FromDBError(err)
 			if serviceErr.Code != exceptions.CodeNotFound {
 				logger.ErrorContext(ctx, "Failed to get JWK from database", "error", err)
-				return "", "", "", "", uuid.Nil, serviceErr
+				return "", "", serviceErr
 			}
 
-			if serviceErr := s.createAndCacheJWK(ctx, createAndCacheJWKOptions{
-				requestID: opts.requestID,
-				keyType:   opts.keyType,
-				storeFN: func(
-					dekKid string,
-					cryptoSuite utils.SupportedCryptoSuite,
-					kid, encryptedKey string,
-					pubKey utils.JWK,
-				) (int32, *exceptions.ServiceError) {
-					dbCryptoSuite, err := mapCryptoSuite(cryptoSuite)
-					if err != nil {
-						logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
-						return 0, exceptions.NewServerError()
-					}
-
-					pubKeyBytes, err := pubKey.MarshalJSON()
-					if err != nil {
-						logger.ErrorContext(ctx, "Failed to encode public key to JSON", "error", err)
-						return 0, exceptions.NewServerError()
-					}
-
-					var serviceErr *exceptions.ServiceError
-					qrs, txn, err := s.database.BeginTx(ctx)
-					if err != nil {
-						logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-						return 0, exceptions.FromDBError(err)
-					}
-					defer func() {
-						logger.DebugContext(ctx, "Finalizing transaction")
-						s.database.FinalizeTx(ctx, txn, err, serviceErr)
-					}()
-
-					id, err := qrs.CreateTokenSigningKey(ctx, database.CreateTokenSigningKeyParams{
-						Kid:           kid,
-						KeyType:       opts.keyType,
-						PublicKey:     pubKeyBytes,
-						PrivateKey:    encryptedKey,
-						DekKid:        dekKid,
-						CryptoSuite:   dbCryptoSuite,
-						ExpiresAt:     time.Now().Add(time.Duration(s.jwkExpDays) * time.Hour * 24),
-						Usage:         database.TokenKeyUsageAccount,
-						IsDistributed: isDistributedJWK(opts.keyType),
-					})
-					if err != nil {
-						logger.ErrorContext(ctx, "Failed to create token signing key", "error", err)
-						serviceErr = exceptions.FromDBError(err)
-						return 0, serviceErr
-					}
-
-					if err = qrs.CreateAccountTokenSigningKey(ctx, database.CreateAccountTokenSigningKeyParams{
-						AccountID:         opts.accountID,
-						TokenSigningKeyID: id,
-					}); err != nil {
-						logger.ErrorContext(ctx, "Failed to create account token signing key", "error", err)
-						serviceErr = exceptions.FromDBError(err)
-						return 0, serviceErr
-					}
-					if err = s.cache.SaveJWKPrivateKey(ctx, cache.SaveJWKPrivateKeyOptions{
-						RequestID:   opts.requestID,
-						Suffix:      suffix,
-						CryptoSuite: cryptoSuite,
-						DEKID:       dekKid,
-						KID:         kid,
-						EncPrivKey:  encryptedKey,
-					}); err != nil {
-						logger.ErrorContext(ctx, "Failed to save JWK private key to cache", "error", err)
-						serviceErr = exceptions.NewServerError()
-						return 0, serviceErr
-					}
-
-					logger.InfoContext(ctx, "JWK cached successfully", "kid", kid, "crypto_suite", dbCryptoSuite)
-					return id, nil
-				},
+			data := make(map[string]string)
+			if serviceErr := s.createJWK(ctx, createJWKOptions{
+				requestID: opts.RequestID,
+				keyType:   opts.KeyType,
+				storeFN: s.buildStoreAccountJWKfn(ctx, buildStoreAccountJWKfnOptions{
+					requestID: opts.RequestID,
+					accountID: opts.AccountID,
+					keyType:   opts.KeyType,
+					data:      data,
+				}),
 				getDEKfn: s.buildGetEncAccountDEK(
 					ctx,
 					logger,
 					getEncAccountDEKOptions{
-						requestID: opts.requestID,
-						accountID: opts.accountID,
+						requestID: opts.RequestID,
+						accountID: opts.AccountID,
 					},
 				),
 				cryptoSuite: cryptoSuite,
 			}); serviceErr != nil {
 				logger.ErrorContext(ctx, "Failed to create and cache JWK", "serviceError", serviceErr)
-				return "", "", "", "", uuid.Nil, serviceErr
+				return "", "", serviceErr
 			}
+
+			kid, ok := data["kid"]
+			if !ok {
+				logger.ErrorContext(ctx, "Failed to get JWK KID from data map")
+				return "", "", exceptions.NewServerError()
+			}
+
+			encPrivKey, ok := data["encryptedKey"]
+			if !ok {
+				logger.ErrorContext(ctx, "Failed to get encrypted private key from data map")
+				return "", "", exceptions.NewServerError()
+			}
+
+			logger.InfoContext(ctx, "JWK private key cached successfully", "kid", kid)
+			return kid, encPrivKey, nil
 		}
 
 		dbCryptoSuite, err := mapDBCryptoSuite(jwkEnt.CryptoSuite)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
-			return "", "", "", "", uuid.Nil, exceptions.NewServerError()
+			return "", "", exceptions.NewServerError()
 		}
 
 		if dbCryptoSuite != cryptoSuite {
@@ -524,37 +554,21 @@ func (s *Services) buildEncryptedAccountJWKFn(
 				"entityCryptoSuite", dbCryptoSuite,
 				"cryptoSuite", cryptoSuite,
 			)
-			return "", "", "", "", uuid.Nil, exceptions.NewServerError()
+			return "", "", exceptions.NewServerError()
 		}
 
-		dek, kekKID, serviceErr := getDEKfn(dekID)
-		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to get DEK for decryption", "serviceError", serviceErr)
-			return "", "", "", "", uuid.Nil, serviceErr
-		}
-
-		if err := s.cache.SaveJWK(ctx, cache.SaveJWKOptions{
-			RequestID:   opts.requestID,
-			Prefix:      suffix,
-			CryptoSuite: cryptoSuite,
-			KeyID:       jwkEnt.Kid,
-			PublicKey:   jwkEnt.PublicKey,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to save JWK to cache", "error", err)
-			return "", "", "", "", uuid.Nil, exceptions.NewServerError()
-		}
 		if err := s.cache.SaveJWKPrivateKey(ctx, cache.SaveJWKPrivateKeyOptions{
-			RequestID:   opts.requestID,
+			RequestID:   opts.RequestID,
 			Suffix:      suffix,
 			CryptoSuite: cryptoSuite,
 			KID:         jwkEnt.Kid,
 			EncPrivKey:  jwkEnt.PrivateKey,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to save JWK private key to cache", "error", err)
-			return "", "", "", "", uuid.Nil, exceptions.NewServerError()
+			return "", "", exceptions.NewServerError()
 		}
 
-		return jwkEnt.Kid, jwkEnt.PrivateKey, dekID, dek, kekKID, nil
+		return jwkEnt.Kid, jwkEnt.PrivateKey, nil
 	}
 }
 
@@ -649,7 +663,7 @@ func (s *Services) GetAndCacheAccountDistributedJWK(
 	opts GetAndCacheAccountDistributedJWKOptions,
 ) (string, []utils.JWK, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, jwkLocation, "GetAndCacheAccountDistributedJWK")
-	logger.InfoContext(ctx, "Getting and caching account distributed JWKs...", "accountID", opts.AccountID)
+	logger.InfoContext(ctx, "Getting and caching account distributed JWKs...", "AccountID", opts.AccountID)
 
 	suffix := fmt.Sprintf("account:%d", opts.AccountID)
 	etag, jwks, found, err := s.cache.GetPublicJWKs(ctx, cache.GetPublicJWKsOptions{

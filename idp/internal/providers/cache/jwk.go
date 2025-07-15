@@ -98,14 +98,12 @@ func buildJWKPrivateKeyKey(cryptoSuite utils.SupportedCryptoSuite, suffix string
 type privateKetData struct {
 	KID        string `json:"kid"`
 	EncPrivKey string `json:"private_key"`
-	DEKID      string `json:"dek_id"`
 }
 
 type SaveJWKPrivateKeyOptions struct {
 	RequestID   string
 	Suffix      string
 	CryptoSuite utils.SupportedCryptoSuite
-	DEKID       string
 	KID         string
 	EncPrivKey  string
 }
@@ -121,7 +119,6 @@ func (c *Cache) SaveJWKPrivateKey(ctx context.Context, opts SaveJWKPrivateKeyOpt
 	data := privateKetData{
 		KID:        opts.KID,
 		EncPrivKey: opts.EncPrivKey,
-		DEKID:      opts.DEKID,
 	}
 	json, err := json.Marshal(data)
 	if err != nil {
@@ -146,7 +143,7 @@ type GetJWKPrivateKeyOptions struct {
 func (c *Cache) GetJWKPrivateKey(
 	ctx context.Context,
 	opts GetJWKPrivateKeyOptions,
-) (string, string, string, bool, error) {
+) (string, string, bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  jwkLocation,
 		Method:    "GetJWKPrivateKey",
@@ -158,20 +155,20 @@ func (c *Cache) GetJWKPrivateKey(
 	val, err := c.storage.Get(key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting JWK private key", "error", err)
-		return "", "", "", false, err
+		return "", "", false, err
 	}
 	if val == nil {
 		logger.DebugContext(ctx, "JWK private key not found in cache")
-		return "", "", "", false, nil
+		return "", "", false, nil
 	}
 
 	var data privateKetData
 	if err := json.Unmarshal(val, &data); err != nil {
 		logger.ErrorContext(ctx, "Error unmarshalling JWK private key", "error", err)
-		return "", "", "", false, err
+		return "", "", false, err
 	}
 
-	return data.KID, data.EncPrivKey, data.DEKID, true, nil
+	return data.KID, data.EncPrivKey, true, nil
 }
 
 type SavePublicJWKsOptions struct {

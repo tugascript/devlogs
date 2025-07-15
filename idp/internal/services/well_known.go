@@ -26,7 +26,7 @@ func (s *Services) WellKnownJWKs(
 	opts WellKnownJWKsOptions,
 ) (string, dtos.JWKsDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, wellKnownLocation, "wellKnownJWKs").With(
-		"accountID", opts.AccountID,
+		"AccountID", opts.AccountID,
 	)
 	logger.InfoContext(ctx, "Getting well known JWKs...")
 
@@ -51,7 +51,7 @@ func (s *Services) wellKnownOIDCConfiguration(
 	opts WellKnownOIDCConfigurationWithCacheOptions,
 ) (dtos.WellKnownOIDCConfigurationDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, wellKnownLocation, "wellKnownOIDCConfiguration").With(
-		"accountID", opts.AccountID,
+		"AccountID", opts.AccountID,
 		"accountUsername", opts.AccountUsername,
 	)
 	logger.InfoContext(ctx, "Getting well known OIDC configuration...")
@@ -73,7 +73,7 @@ func (s *Services) WellKnownOIDCConfigurationWithCache(
 	opts WellKnownOIDCConfigurationWithCacheOptions,
 ) (dtos.WellKnownOIDCConfigurationDTO, string, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, wellKnownLocation, "WellKnownOIDCConfiguration").With(
-		"accountID", opts.AccountID,
+		"AccountID", opts.AccountID,
 		"accountUsername", opts.AccountUsername,
 	)
 	logger.InfoContext(ctx, "Getting well known OIDC configuration with cache...")

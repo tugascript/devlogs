@@ -219,7 +219,7 @@ func (s *Services) getAndCacheAccountKEK(
 	ctx context.Context,
 	opts getAndCacheAccountKEKOptions,
 ) (uuid.UUID, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.requestID, keksLocation, "getAndCacheAccountKEK").With("accountID", opts.accountID)
+	logger := s.buildLogger(opts.requestID, keksLocation, "getAndCacheAccountKEK").With("AccountID", opts.accountID)
 	logger.InfoContext(ctx, "Getting and caching account KEK...")
 
 	prefix := fmt.Sprintf("%s:%d", database.KekUsageAccount, opts.accountID)

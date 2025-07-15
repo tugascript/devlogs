@@ -29,6 +29,8 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
+	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/utils"
@@ -683,7 +685,7 @@ func TestOAuthToken(t *testing.T) {
 			t.Fatal("Failed to generate OAuth code", err)
 		}
 
-		accessToken, err := testTokens.CreateOAuthToken(tokens.AccountOAuthTokenOptions{
+		accessToken := testTokens.CreateOAuthToken(tokens.AccountOAuthTokenOptions{
 			PublicID: account.PublicID,
 			Version:  account.Version(),
 		})
@@ -691,12 +693,32 @@ func TestOAuthToken(t *testing.T) {
 			t.Fatal("Failed to create OAuth token", err)
 		}
 
-		return code, accessToken
+		sAccessToken, serviceErr := GetTestCrypto(t).SignToken(
+			context.Background(),
+			crypto.SignTokenOptions{
+				RequestID: requestID,
+				Token:     accessToken,
+				GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+					context.Background(),
+					services.BuildEncryptedJWKFnOptions{
+						RequestID: requestID,
+						KeyType:   database.TokenKeyTypeOauthAuthorization,
+						TTL:       testTokens.GetOAuthTTL(),
+					},
+				),
+			},
+		)
+		if serviceErr != nil {
+			t.Fatal("Failed to sign access token", serviceErr)
+		}
+
+		return code, sAccessToken
 	}
 
 	beforeEachRefresh := func(t *testing.T) string {
 		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 		testTokens := GetTestTokens(t)
+		requestID := uuid.NewString()
 
 		refreshToken, err := testTokens.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
 			PublicID: account.PublicID,
@@ -707,7 +729,26 @@ func TestOAuthToken(t *testing.T) {
 			t.Fatal("Failed to create refresh token", err)
 		}
 
-		return refreshToken
+		sRefreshToken, serviceErr := GetTestCrypto(t).SignToken(
+			context.Background(),
+			crypto.SignTokenOptions{
+				RequestID: requestID,
+				Token:     refreshToken,
+				GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+					context.Background(),
+					services.BuildEncryptedJWKFnOptions{
+						RequestID: requestID,
+						KeyType:   database.TokenKeyTypeRefresh,
+						TTL:       testTokens.GetRefreshTTL(),
+					},
+				),
+			},
+		)
+		if serviceErr != nil {
+			t.Fatal("Failed to sign refresh token", serviceErr)
+		}
+
+		return sRefreshToken
 	}
 
 	createAuthorizationBody := func(code string) string {
@@ -784,6 +825,8 @@ func TestOAuthToken(t *testing.T) {
 			ReqFn: func(t *testing.T) (string, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				testTokens := GetTestTokens(t)
+				requestID := uuid.NewString()
+
 				refreshToken, err := testTokens.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
 					PublicID: account.PublicID,
 					Version:  account.Version() + 2,
@@ -793,7 +836,26 @@ func TestOAuthToken(t *testing.T) {
 					t.Fatal("Failed to create refresh token", err)
 				}
 
-				return createRefreshBody(refreshToken), ""
+				sRefreshToken, serviceErr := GetTestCrypto(t).SignToken(
+					context.Background(),
+					crypto.SignTokenOptions{
+						RequestID: requestID,
+						Token:     refreshToken,
+						GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+							context.Background(),
+							services.BuildEncryptedJWKFnOptions{
+								RequestID: requestID,
+								KeyType:   database.TokenKeyTypeRefresh,
+								TTL:       testTokens.GetRefreshTTL(),
+							},
+						),
+					},
+				)
+				if serviceErr != nil {
+					t.Fatal("Failed to sign refresh token", serviceErr)
+				}
+
+				return createRefreshBody(sRefreshToken), ""
 			},
 			ExpStatus: http.StatusBadRequest,
 			AssertFn: func(t *testing.T, req string, res *http.Response) {

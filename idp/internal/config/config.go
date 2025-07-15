@@ -37,7 +37,7 @@ type Config struct {
 	rateLimiterConfig    RateLimiterConfig
 	localCacheConfig     LocalCacheConfig
 	openBaoConfig        OpenBaoConfig
-	encryptionConfig     EncryptionConfig
+	cryptoConfig         CryptoConfig
 	kekExpirationDays    int64
 	dekExpirationDays    int64
 	jwkExpirationDays    int64
@@ -123,8 +123,8 @@ func (c *Config) OpenBaoConfig() OpenBaoConfig {
 	return c.openBaoConfig
 }
 
-func (c *Config) EncryptionConfig() EncryptionConfig {
-	return c.encryptionConfig
+func (c *Config) CryptoConfig() CryptoConfig {
+	return c.cryptoConfig
 }
 
 func (c *Config) KEKExpirationDays() int64 {
@@ -168,10 +168,10 @@ var variables = [38]string{
 	"CACHE_SIZE_KB",
 	"CACHE_BUFFER_ITEMS",
 	"CACHE_TTL_TICKER_SEC",
-	"OPEN_BAO_URL_ADDRESS",
-	"OPEN_BAO_DEV_TOKEN",
-	"OPEN_BAO_ROLE_ID",
-	"OPEN_BAO_SECRET_ID",
+	"OPENBAO_URL",
+	"OPENBAO_DEV_TOKEN",
+	"OPENBAO_ROLE_ID",
+	"OPENBAO_SECRET_ID",
 	"KEK_PATH",
 	"DEK_TTL_SEC",
 	"JWK_TTL_SEC",
@@ -296,12 +296,12 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 			intMap["CACHE_TTL_TICKER_SEC"],
 		),
 		openBaoConfig: NewOpenBaoConfig(
-			variablesMap["OPEN_BAO_URL_ADDRESS"],
-			variablesMap["OPEN_BAO_DEV_TOKEN"],
-			variablesMap["OPEN_BAO_ROLE_ID"],
-			variablesMap["OPEN_BAO_SECRET_ID"],
+			variablesMap["OPENBAO_URL"],
+			variablesMap["OPENBAO_DEV_TOKEN"],
+			variablesMap["OPENBAO_ROLE_ID"],
+			variablesMap["OPENBAO_SECRET_ID"],
 		),
-		encryptionConfig: NewEncryptionConfig(
+		cryptoConfig: NewEncryptionConfig(
 			variablesMap["KEK_PATH"],
 			intMap["DEK_TTL_SEC"],
 			intMap["JWK_TTL_SEC"],

@@ -29,6 +29,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
+	"github.com/tugascript/devlogs/idp/internal/server"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"github.com/tugascript/devlogs/idp/internal/utils"
@@ -215,15 +216,31 @@ func TestConfirm(t *testing.T) {
 
 	generateConfirmationToken := func(t *testing.T, accountDTO dtos.AccountDTO) bodies.ConfirmationTokenBody {
 		testTokens := GetTestTokens(t)
-		token, err := testTokens.CreateConfirmationToken(tokens.AccountConfirmationTokenOptions{
+		token := testTokens.CreateConfirmationToken(tokens.AccountConfirmationTokenOptions{
 			PublicID: accountDTO.PublicID,
 			Version:  accountDTO.Version(),
 		})
-		if err != nil {
-			t.Fatal("Failed to create confirmation token", err)
+
+		sToken, serviceErr := GetTestCrypto(t).SignToken(
+			context.Background(),
+			crypto.SignTokenOptions{
+				RequestID: uuid.NewString(),
+				Token:     token,
+				GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+					context.Background(),
+					services.BuildEncryptedJWKFnOptions{
+						RequestID: uuid.NewString(),
+						KeyType:   database.TokenKeyTypeEmailVerification,
+						TTL:       testTokens.GetConfirmationTTL(),
+					},
+				),
+			},
+		)
+		if serviceErr != nil {
+			t.Fatal("Failed to build encrypted JWK function", serviceErr)
 		}
 
-		return bodies.ConfirmationTokenBody{ConfirmationToken: token}
+		return bodies.ConfirmationTokenBody{ConfirmationToken: sToken}
 	}
 
 	testCases := []TestRequestCase[bodies.ConfirmationTokenBody]{
@@ -419,25 +436,24 @@ func TestTwoFactorLogin(t *testing.T) {
 			Name: "Should return 200 OK with access and refresh tokens for TOTP 2FA",
 			ReqFn: func(t *testing.T) (bodies.TwoFactorLoginBody, string) {
 				account, token := genTwoFactorAccount(t, services.TwoFactorTotp)
-				accountTOTP, err := GetTestDatabase(t).FindAccountTotpByAccountID(context.Background(), account.ID())
+				requestID := uuid.NewString()
+				ctx := context.Background()
+
+				accountTOTP, err := GetTestDatabase(t).FindAccountTotpByAccountID(ctx, account.ID())
 				if err != nil {
 					t.Fatal("Failed to find account TOTP", err)
 				}
 
-				dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
-					crypto.ProcessTotpDEKOptions{
-						RequestID: uuid.NewString(),
-						TotpType:  crypto.TotpTypeAccount,
-						StoredDEK: account.DEK(),
-					},
-				)
-				if err != nil {
-					t.Fatal("Failed to decrypt account DEK", err)
-				}
-
-				secret, err := utils.Decrypt(accountTOTP.Secret, dek)
-				if err != nil {
-					t.Fatal("Failed to decrypt secret", err)
+				secret, serviceErr := GetTestCrypto(t).DecryptWithDEK(ctx, crypto.DecryptWithDEKOptions{
+					RequestID: requestID,
+					GetDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
+						ctx,
+						requestID,
+					),
+					Ciphertext: accountTOTP.Secret,
+				})
+				if serviceErr != nil {
+					t.Fatal("Failed to decrypt TOTP secret", serviceErr)
 				}
 
 				code, err := totp.GenerateCode(secret, time.Now().UTC())
@@ -633,9 +649,9 @@ func TestLogoutAccount(t *testing.T) {
 	for _, tc := range cookieTestCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			accessToken, refreshToken := tc.TokenFn(t)
-			server := GetTestServer(t)
+			testServer := GetTestServer(t)
 
-			resp := performCookieRequest(t, server.App, logoutPath, accessToken, refreshToken)
+			resp := performCookieRequest(t, testServer.App, logoutPath, accessToken, refreshToken)
 			defer func() {
 				if err := resp.Body.Close(); err != nil {
 					t.Fatal(err)
@@ -658,7 +674,14 @@ func TestRefreshToken(t *testing.T) {
 		_, refreshToken := GenerateTestAccountAuthTokens(t, &account)
 		testDb := GetTestDatabase(t)
 		testTokens := GetTestTokens(t)
-		_, _, id, exp, err := testTokens.VerifyRefreshToken(refreshToken)
+		_, _, id, exp, err := testTokens.VerifyRefreshToken(refreshToken, GetTestServices(t).BuildGetGlobalVerifyKeyFn(
+			context.Background(),
+			server.DefaultLogger(),
+			services.BuildGetGlobalVerifyKeyFnOptions{
+				RequestID: uuid.NewString(),
+				KeyType:   database.TokenKeyTypeRefresh,
+			},
+		))
 		if err != nil {
 			t.Fatal("Failed to verify refresh token", err)
 		}
@@ -745,9 +768,9 @@ func TestRefreshToken(t *testing.T) {
 	for _, tc := range cookieTestCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			accessToken, refreshToken := tc.TokenFn(t)
-			server := GetTestServer(t)
+			testServer := GetTestServer(t)
 
-			resp := performCookieRequest(t, server.App, refreshPath, accessToken, refreshToken)
+			resp := performCookieRequest(t, testServer.App, refreshPath, accessToken, refreshToken)
 			defer func() {
 				if err := resp.Body.Close(); err != nil {
 					t.Fatal(err)
@@ -772,48 +795,72 @@ func TestAccount2FARecover(t *testing.T) {
 	gen2FAAccount := func(t *testing.T) (dtos.AccountDTO, string, string) {
 		data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
 		accountDTO := CreateTestAccount(t, data)
-		testE := GetTestEncryption(t)
+		testE := GetTestCrypto(t)
 		testD := GetTestDatabase(t)
 		testT := GetTestTokens(t)
 		requestID := uuid.NewString()
+		ctx := context.Background()
 
-		totpKey, err := testE.GenerateTotpKey(context.Background(), crypto.GenerateTotpKeyOptions{
+		totpKey, err := testE.GenerateTotpKey(ctx, crypto.GenerateTotpKeyOptions{
 			RequestID: requestID,
 			Email:     accountDTO.Email,
-			TotpType:  crypto.TotpTypeAccount,
-			StoredDEK: accountDTO.DEK(),
+			GetDEKfn:  GetTestServices(t).BuildGetEncGlobalDEK(ctx, requestID),
+			StoreTOTPfn: func(dekKID, encSecret string, hashedCode []byte, url string) *exceptions.ServiceError {
+				if err := testD.CreateAccountTotp(ctx, database.CreateAccountTotpParams{
+					AccountID:     accountDTO.ID(),
+					Url:           url,
+					Secret:        encSecret,
+					DekKid:        dekKID,
+					RecoveryCodes: hashedCode,
+				}); err != nil {
+					return exceptions.FromDBError(err)
+				}
+
+				if err := testD.UpdateAccountTwoFactorType(context.Background(), database.UpdateAccountTwoFactorTypeParams{
+					TwoFactorType: database.TwoFactorTypeTotp,
+					ID:            accountDTO.ID(),
+				}); err != nil {
+					t.Fatal("Failed to update account two factor type", err)
+				}
+
+				return nil
+			},
 		})
 		if err != nil {
 			t.Fatal("Failed to generate TOTP key", err)
 		}
 
-		account, err := testD.UpdateAccountTwoFactorType(context.Background(), database.UpdateAccountTwoFactorTypeParams{
-			TwoFactorType: database.TwoFactorTypeTotp,
-			ID:            accountDTO.ID(),
-		})
+		account, err := testD.FindAccountById(ctx, accountDTO.ID())
 		if err != nil {
-			t.Fatal("Failed to update account two factor type", err)
+			t.Fatal("Failed to find account by ID", err)
 		}
 
-		if err := testD.CreateAccountTotps(context.Background(), database.CreateAccountTotpsParams{
-			AccountID:     account.ID,
-			Url:           totpKey.URL(),
-			Secret:        totpKey.EncryptedSecret(),
-			RecoveryCodes: totpKey.HashedCodes(),
-		}); err != nil {
-			t.Fatal("Failed to create account TOTP", err)
-		}
-
-		twoFAToken, err := testT.Create2FAToken(tokens.Account2FATokenOptions{
+		token := testT.Create2FAToken(tokens.Account2FATokenOptions{
 			PublicID: account.PublicID,
 			Version:  account.Version,
 		})
-		if err != nil {
-			t.Fatal("Failed to create 2FA token", err)
+
+		sToken, serviceErr := testE.SignToken(
+			context.Background(),
+			crypto.SignTokenOptions{
+				RequestID: uuid.NewString(),
+				Token:     token,
+				GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+					context.Background(),
+					services.BuildEncryptedJWKFnOptions{
+						RequestID: uuid.NewString(),
+						KeyType:   database.TokenKeyType2faAuthentication,
+						TTL:       testT.Get2FATTL(),
+					},
+				),
+			},
+		)
+		if serviceErr != nil {
+			t.Fatal("Failed to build encrypted JWK function", serviceErr)
 		}
 
 		recoveryCode := strings.Split(totpKey.Codes(), "\n")[getRandomZeroToSeven()]
-		return dtos.MapAccountToDTO(&account), twoFAToken, recoveryCode
+		return dtos.MapAccountToDTO(&account), sToken, recoveryCode
 	}
 
 	testCases := []TestRequestCase[bodies.RecoverBody]{
@@ -1033,20 +1080,18 @@ func TestAccountAuth2FAUpdateConfirm(t *testing.T) {
 			t.Fatal("Failed to find account TOTP", err)
 		}
 
-		dek, _, err := GetTestEncryption(t).ProcessTotpDEK(context.Background(),
-			crypto.ProcessTotpDEKOptions{
-				RequestID: uuid.NewString(),
-				TotpType:  crypto.TotpTypeAccount,
-				StoredDEK: account.DEK(),
-			},
-		)
-		if err != nil {
-			t.Fatal("Failed to decrypt account DEK", err)
-		}
-
-		secret, err := utils.Decrypt(accountTOTP.Secret, dek)
-		if err != nil {
-			t.Fatal("Failed to decrypt secret", err)
+		ctx := context.Background()
+		requestID := uuid.NewString()
+		secret, serviceErr := GetTestCrypto(t).DecryptWithDEK(context.Background(), crypto.DecryptWithDEKOptions{
+			RequestID: requestID,
+			GetDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
+				ctx,
+				requestID,
+			),
+			Ciphertext: accountTOTP.Secret,
+		})
+		if serviceErr != nil {
+			t.Fatal("Failed to decrypt TOTP secret", serviceErr)
 		}
 
 		code, err := totp.GenerateCode(secret, time.Now().UTC())
@@ -1230,14 +1275,31 @@ func TestResetAccountPassword(t *testing.T) {
 		if err != nil {
 			t.Fatal("Failed to find account by email", err)
 		}
-		token, err := testTokens.CreateResetToken(tokens.AccountResetTokenOptions{
+		token := testTokens.CreateResetToken(tokens.AccountResetTokenOptions{
 			PublicID: account.PublicID,
 			Version:  account.Version,
 		})
-		if err != nil {
-			t.Fatal("Failed to create reset password token", err)
+
+		sToken, serviceErr := GetTestCrypto(t).SignToken(
+			context.Background(),
+			crypto.SignTokenOptions{
+				RequestID: uuid.NewString(),
+				Token:     token,
+				GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+					context.Background(),
+					services.BuildEncryptedJWKFnOptions{
+						RequestID: uuid.NewString(),
+						KeyType:   database.TokenKeyTypePasswordReset,
+						TTL:       testTokens.GetResetTTL(),
+					},
+				),
+			},
+		)
+		if serviceErr != nil {
+			t.Fatal("Failed to sign token", serviceErr)
 		}
-		return token
+
+		return sToken
 	}
 
 	testCases := []TestRequestCase[bodies.ResetPasswordBody]{
@@ -1318,12 +1380,32 @@ func TestResetAccountPassword(t *testing.T) {
 			Name: "Should return 401 UNAUTHORIZED if user is not found",
 			ReqFn: func(t *testing.T) (bodies.ResetPasswordBody, string) {
 				testTokens := GetTestTokens(t)
-				token, _ := testTokens.CreateResetToken(tokens.AccountResetTokenOptions{
+				token := testTokens.CreateResetToken(tokens.AccountResetTokenOptions{
 					PublicID: uuid.New(),
 					Version:  1,
 				})
+
+				sToken, serviceErr := GetTestCrypto(t).SignToken(
+					context.Background(),
+					crypto.SignTokenOptions{
+						RequestID: uuid.NewString(),
+						Token:     token,
+						GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+							context.Background(),
+							services.BuildEncryptedJWKFnOptions{
+								RequestID: uuid.NewString(),
+								KeyType:   database.TokenKeyTypePasswordReset,
+								TTL:       testTokens.GetResetTTL(),
+							},
+						),
+					},
+				)
+				if serviceErr != nil {
+					t.Fatal("Failed to build encrypted JWK function", serviceErr)
+				}
+
 				return bodies.ResetPasswordBody{
-					ResetToken: token,
+					ResetToken: sToken,
 					Password:   "NewP@ssw0rd123",
 					Password2:  "NewP@ssw0rd123",
 				}, ""
@@ -1366,6 +1448,7 @@ func TestListAccountAuthProviders(t *testing.T) {
 			ReqFn: func(t *testing.T) (string, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				testD := GetTestDatabase(t)
+				testT := GetTestTokens(t)
 				providers := []database.AuthProvider{
 					database.AuthProviderMicrosoft,
 					database.AuthProviderGoogle,
@@ -1383,17 +1466,36 @@ func TestListAccountAuthProviders(t *testing.T) {
 					}
 				}
 
-				accessToken, err := GetTestTokens(t).CreateAccessToken(tokens.AccountAccessTokenOptions{
+				accessToken, err := testT.CreateAccessToken(tokens.AccountAccessTokenOptions{
 					PublicID:     account.PublicID,
 					Version:      account.Version(),
 					Scopes:       []tokens.AccountScope{tokens.AccountScopeAuthProvidersRead},
-					TokenSubject: "",
+					TokenSubject: account.PublicID.String(),
 				})
 				if err != nil {
 					t.Fatalf("Failed to create access token: %v", err)
 				}
 
-				return "", accessToken
+				sToken, serviceErr := GetTestCrypto(t).SignToken(
+					context.Background(),
+					crypto.SignTokenOptions{
+						RequestID: uuid.NewString(),
+						Token:     accessToken,
+						GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+							context.Background(),
+							services.BuildEncryptedJWKFnOptions{
+								RequestID: uuid.NewString(),
+								KeyType:   database.TokenKeyTypeAccess,
+								TTL:       testT.GetAccessTTL(),
+							},
+						),
+					},
+				)
+				if serviceErr != nil {
+					t.Fatal("Failed to build encrypted JWK function", serviceErr)
+				}
+
+				return "", sToken
 			},
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, _ string, res *http.Response) {
@@ -1411,7 +1513,8 @@ func TestListAccountAuthProviders(t *testing.T) {
 			Name: "Should return 403 forbidden if token has not enough permissions",
 			ReqFn: func(t *testing.T) (string, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
-				accessToken, err := GetTestTokens(t).CreateAccessToken(tokens.AccountAccessTokenOptions{
+				testT := GetTestTokens(t)
+				accessToken, err := testT.CreateAccessToken(tokens.AccountAccessTokenOptions{
 					PublicID: account.PublicID,
 					Version:  account.Version(),
 					Scopes: []tokens.AccountScope{
@@ -1423,7 +1526,27 @@ func TestListAccountAuthProviders(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Failed to create access token: %v", err)
 				}
-				return "", accessToken
+
+				sToken, serviceErr := GetTestCrypto(t).SignToken(
+					context.Background(),
+					crypto.SignTokenOptions{
+						RequestID: uuid.NewString(),
+						Token:     accessToken,
+						GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+							context.Background(),
+							services.BuildEncryptedJWKFnOptions{
+								RequestID: uuid.NewString(),
+								KeyType:   database.TokenKeyTypeAccess,
+								TTL:       testT.GetAccessTTL(),
+							},
+						),
+					},
+				)
+				if serviceErr != nil {
+					t.Fatal("Failed to build encrypted JWK function", serviceErr)
+				}
+
+				return "", sToken
 			},
 			ExpStatus: http.StatusForbidden,
 			AssertFn:  AssertForbiddenError[string],
@@ -1470,7 +1593,8 @@ func TestGetAccountAuthProvider(t *testing.T) {
 			Name: "Should return 200 OK with auth provider details if user has correct permissions",
 			ReqFn: func(t *testing.T) (string, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
-				accessToken, err := GetTestTokens(t).CreateAccessToken(tokens.AccountAccessTokenOptions{
+				testT := GetTestTokens(t)
+				accessToken, err := testT.CreateAccessToken(tokens.AccountAccessTokenOptions{
 					PublicID:     account.PublicID,
 					Version:      account.Version(),
 					Scopes:       []tokens.AccountScope{tokens.AccountScopeAuthProvidersRead},
@@ -1480,7 +1604,26 @@ func TestGetAccountAuthProvider(t *testing.T) {
 					t.Fatalf("Failed to create access token: %v", err)
 				}
 
-				return "", accessToken
+				sToken, serviceErr := GetTestCrypto(t).SignToken(
+					context.Background(),
+					crypto.SignTokenOptions{
+						RequestID: uuid.NewString(),
+						Token:     accessToken,
+						GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+							context.Background(),
+							services.BuildEncryptedJWKFnOptions{
+								RequestID: uuid.NewString(),
+								KeyType:   database.TokenKeyTypeAccess,
+								TTL:       testT.GetAccessTTL(),
+							},
+						),
+					},
+				)
+				if serviceErr != nil {
+					t.Fatal("Failed to build encrypted JWK function", serviceErr)
+				}
+
+				return "", sToken
 			},
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, provider string, res *http.Response) {
@@ -1523,7 +1666,8 @@ func TestGetAccountAuthProvider(t *testing.T) {
 			Name: "Should return 403 forbidden if token has not enough permissions",
 			ReqFn: func(t *testing.T) (string, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderMicrosoft))
-				accessToken, err := GetTestTokens(t).CreateAccessToken(tokens.AccountAccessTokenOptions{
+				testT := GetTestTokens(t)
+				accessToken, err := testT.CreateAccessToken(tokens.AccountAccessTokenOptions{
 					PublicID:     account.PublicID,
 					Version:      account.Version(),
 					Scopes:       []tokens.AccountScope{tokens.AccountScopeAppsRead},
@@ -1533,7 +1677,26 @@ func TestGetAccountAuthProvider(t *testing.T) {
 					t.Fatalf("Failed to create access token: %v", err)
 				}
 
-				return "", accessToken
+				sToken, serviceErr := GetTestCrypto(t).SignToken(
+					context.Background(),
+					crypto.SignTokenOptions{
+						RequestID: uuid.NewString(),
+						Token:     accessToken,
+						GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+							context.Background(),
+							services.BuildEncryptedJWKFnOptions{
+								RequestID: uuid.NewString(),
+								KeyType:   database.TokenKeyTypeAccess,
+								TTL:       testT.GetAccessTTL(),
+							},
+						),
+					},
+				)
+				if serviceErr != nil {
+					t.Fatal("Failed to build encrypted JWK function", serviceErr)
+				}
+
+				return "", sToken
 			},
 			ExpStatus: http.StatusForbidden,
 			AssertFn:  AssertForbiddenError[string],

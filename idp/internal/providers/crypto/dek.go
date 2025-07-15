@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -76,6 +77,7 @@ func (e *Crypto) GenerateDEK(ctx context.Context, opts GenerateDEKOptions) (stri
 
 type DEKID = string
 type EncryptedDEK = string
+type DEKCiphertext = string
 type GetDEKtoDecrypt = func(dekID DEKID) (EncryptedDEK, uuid.UUID, *exceptions.ServiceError)
 type GetDEKtoEncrypt = func() (DEKID, EncryptedDEK, uuid.UUID, *exceptions.ServiceError)
 
@@ -90,7 +92,7 @@ func (e *Crypto) getDecryptedDEK(
 		Location:  dekLocation,
 		Method:    "getDecryptedDEK",
 		RequestID: requestID,
-	}).With("dekID", dekID)
+	}).With("dekId", dekID, "kekId", kekID)
 	logger.DebugContext(ctx, "Retrieving DEK from cache...")
 
 	if dek, found := e.localCache.Get(buildDEKCacheKey(dekID)); found {
@@ -98,11 +100,7 @@ func (e *Crypto) getDecryptedDEK(
 		return dek, nil
 	}
 
-	dek, err := e.decryptDEK(ctx, decryptDEKOptions{
-		requestID:    requestID,
-		encryptedDEK: encryptedDEK,
-		kekID:        kekID,
-	})
+	dek, err := e.decrypt(ctx, requestID, kekID, encryptedDEK)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt DEK", "error", err)
 		return nil, exceptions.NewServerError()
@@ -117,18 +115,20 @@ func (e *Crypto) getDecryptedDEK(
 	return dek, nil
 }
 
-func formatDEKCiphertext(dekID, ciphertext string) string {
+func formatDEKCiphertext(dekID DEKID, ciphertext string) DEKCiphertext {
 	return fmt.Sprintf("%s.%s", dekID, ciphertext)
 }
 
 type EncryptWithDEKOptions struct {
 	RequestID string
-	DEKid     string
 	GetDEKfn  GetDEKtoEncrypt
 	PlainText string
 }
 
-func (e *Crypto) EncryptWithDEK(ctx context.Context, opts EncryptWithDEKOptions) (string, *exceptions.ServiceError) {
+func (e *Crypto) EncryptWithDEK(
+	ctx context.Context,
+	opts EncryptWithDEKOptions,
+) (DEKID, DEKCiphertext, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Location:  dekLocation,
 		Method:    "EncryptWithDEK",
@@ -137,6 +137,57 @@ func (e *Crypto) EncryptWithDEK(ctx context.Context, opts EncryptWithDEKOptions)
 	logger.DebugContext(ctx, "Encrypting with DEK...")
 
 	dekID, encDek, kekKID, serviceErr := opts.GetDEKfn()
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get DEK", "serviceError", serviceErr)
+		return "", "", serviceErr
+	}
+
+	dek, serviceErr := e.getDecryptedDEK(ctx, opts.RequestID, dekID, encDek, kekKID)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get decrypted DEK", "serviceError", serviceErr)
+		return "", "", serviceErr
+	}
+
+	ciphertext, err := utils.Encrypt(opts.PlainText, dek)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to encrypt with DEK", "error", err)
+		return "", "", exceptions.NewServerError()
+	}
+
+	logger.DebugContext(ctx, "Encrypted with DEK successfully", "dekID", dekID)
+	return dekID, formatDEKCiphertext(dekID, ciphertext), nil
+}
+
+func splitDEKCiphertext(ciphertext DEKCiphertext) (DEKID, string, error) {
+	parts := strings.Split(ciphertext, ".")
+	if len(parts) != 2 {
+		return "", "", errors.New("invalid DEK ciphertext format")
+	}
+
+	return parts[0], parts[1], nil
+}
+
+type DecryptWithDEKOptions struct {
+	RequestID  string
+	GetDEKfn   GetDEKtoDecrypt
+	Ciphertext string
+}
+
+func (e *Crypto) DecryptWithDEK(ctx context.Context, opts DecryptWithDEKOptions) (string, *exceptions.ServiceError) {
+	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
+		Location:  dekLocation,
+		Method:    "DecryptWithDEK",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Encrypting with DEK...")
+
+	dekID, ciphertext, err := splitDEKCiphertext(opts.Ciphertext)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to split DEK ciphertext", "error", err)
+		return "", exceptions.NewServerError()
+	}
+
+	encDek, kekKID, serviceErr := opts.GetDEKfn(dekID)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get DEK", "serviceError", serviceErr)
 		return "", serviceErr
@@ -148,12 +199,12 @@ func (e *Crypto) EncryptWithDEK(ctx context.Context, opts EncryptWithDEKOptions)
 		return "", serviceErr
 	}
 
-	ciphertext, err := utils.Encrypt(opts.PlainText, dek)
+	secret, err := utils.Decrypt(ciphertext, dek)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to encrypt with DEK", "error", err)
+		logger.ErrorContext(ctx, "Failed to decrypt secret", "error", err)
 		return "", exceptions.NewServerError()
 	}
 
-	logger.DebugContext(ctx, "Crypto successful", "dekID", opts.DEKid)
-	return formatDEKCiphertext(opts.DEKid, ciphertext), nil
+	logger.DebugContext(ctx, "Secret decrypted successfully")
+	return secret, nil
 }

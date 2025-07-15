@@ -32,7 +32,7 @@ const confirmationTemplate = `
 <body>
 	<h1>Confirm Confirmation</h1>
 	<br/>
-	<p>Welcome {{.KeyType}}</p>
+	<p>Welcome {{.Name}}</p>
 	<br/>
 	<p>Thank you for signing up to DevLogs. Please click the link below to confirm your email address.</p>
 	<a href="{{.ConfirmationURL}}">Confirm Confirm</a>

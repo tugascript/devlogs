@@ -443,7 +443,7 @@ func (s *Services) createAccountCredentialsKey(
 	opts createAccountCredentialsKeyOptions,
 ) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, accountCredentialsLocation, "createAccountCredentialsKey").With(
-		"accountID", opts.accountID,
+		"AccountID", opts.accountID,
 		"accountCredentialsID", opts.accountCredentialsID,
 	)
 	logger.InfoContext(ctx, "Creating account credentials key...")
@@ -540,7 +540,7 @@ func (s *Services) createAccountCredentialsSecret(
 	opts createAccountCredentialsSecretOptions,
 ) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, accountCredentialsLocation, "createAccountCredentialsSecret").With(
-		"accountID", opts.accountID,
+		"AccountID", opts.accountID,
 		"accountCredentialsID", opts.accountCredentialsID,
 	)
 	logger.InfoContext(ctx, "Creating account credentials secret...")
@@ -597,7 +597,7 @@ func (s *Services) rotateAccountCredentialsSecret(
 	opts rotateAccountCredentialsSecretOptions,
 ) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, accountCredentialsLocation, "rotateAccountCredentialsSecret").With(
-		"accountID", opts.accountID,
+		"AccountID", opts.accountID,
 		"accountCredentialsID", opts.accountCredentialsID,
 	)
 	logger.InfoContext(ctx, "Rotating account credentials secret...")

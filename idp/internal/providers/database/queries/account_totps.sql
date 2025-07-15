@@ -4,17 +4,19 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
--- name: CreateAccountTotps :exec
+-- name: CreateAccountTotp :exec
 INSERT INTO "account_totps" (
   "account_id",
   "url",
   "secret",
+  "dek_kid",
   "recovery_codes"
 ) VALUES (
   $1,
   $2,
   $3,
-  $4
+  $4,
+  $5
 );
 
 -- name: FindAccountTotpByAccountID :one
@@ -29,5 +31,6 @@ WHERE "account_id" = $1;
 UPDATE "account_totps" SET
   "url" = $2,
   "secret" = $3,
-  "recovery_codes" = $4
+  "dek_kid" = $4,
+  "recovery_codes" = $5
 WHERE "id" = $1;
