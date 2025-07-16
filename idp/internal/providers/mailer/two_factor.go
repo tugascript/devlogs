@@ -27,7 +27,7 @@ const twoFactorTemplate = `
 <body>
 	<h1>Access Code</h1>
 	<br/>
-	<p>Hello {{.KeyType}}</p>
+	<p>Hello {{.Name}}</p>
 	<br/>
 	<p>Your access code is: <strong>{{.Code}}</strong></p>
 	<br/>

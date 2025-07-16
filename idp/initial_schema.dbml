@@ -24,7 +24,7 @@ Table key_encryption_keys as KEK {
 
     Indexes {
         (kid) [unique, name: 'key_encryption_keys_kid_uidx']
-        (usage) [unique, name: 'key_encryption_keys_usage_uidx']
+        (usage) [name: 'key_encryption_keys_usage_idx']
         (kid, usage) [unique, name: 'key_encryption_keys_kid_usage_uidx']
     }
 }
@@ -233,7 +233,7 @@ Table account_totps as AT {
 
     Indexes {
         (account_id) [unique, name: 'accounts_totps_account_id_uidx']
-        (dek_kid) [unique, name: 'accounts_totps_dek_kid_uidx']
+        (dek_kid) [name: 'accounts_totps_dek_kid_idx']
     }
 }
 Ref: AT.account_id > A.id [delete: cascade]

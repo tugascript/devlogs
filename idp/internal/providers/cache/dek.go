@@ -11,18 +11,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
-	"time"
-
 	"github.com/google/uuid"
+	"strings"
 
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const (
-	dekLocation string        = "dek"
-	dekPrefix   string        = "dek"
-	dekDuration time.Duration = 2 * time.Hour
+	dekLocation string = "dek"
+	dekPrefix   string = "dek"
 )
 
 func buildEncDEKKey(suffix string) string {
@@ -53,7 +50,7 @@ func parseDEKData(data []byte) (string, string, uuid.UUID, error) {
 	return dekData.KID, dekData.DEK, dekData.KEKkid, nil
 }
 
-type CacheEncDEKOptions struct {
+type SaveEncDEKOptions struct {
 	RequestID string
 	DEK       string
 	KID       string
@@ -61,10 +58,10 @@ type CacheEncDEKOptions struct {
 	Suffix    string
 }
 
-func (c *Cache) CacheEncDEK(ctx context.Context, opts CacheEncDEKOptions) error {
+func (c *Cache) SaveEncDEK(ctx context.Context, opts SaveEncDEKOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  dekLocation,
-		Method:    "CacheEncDEK",
+		Method:    "SaveEncDEK",
 		RequestID: opts.RequestID,
 	}).With("dekKID", opts.KID)
 	logger.DebugContext(ctx, "Caching DEK...")
@@ -75,7 +72,7 @@ func (c *Cache) CacheEncDEK(ctx context.Context, opts CacheEncDEKOptions) error 
 		return err
 	}
 
-	if err := c.storage.Set(buildEncDEKKey(opts.Suffix), dekData, dekDuration); err != nil {
+	if err := c.storage.Set(buildEncDEKKey(opts.Suffix), dekData, c.dekEncTTL); err != nil {
 		logger.ErrorContext(ctx, "Error caching DEK", "error", err)
 		return err
 	}
@@ -139,7 +136,7 @@ func parseDecDEKValue(data []byte) (string, uuid.UUID, error) {
 	return parts[0], kekKID, nil
 }
 
-type CacheDecDEKOptions struct {
+type SaveDecDEKOptions struct {
 	RequestID string
 	DEK       string
 	KID       string
@@ -147,16 +144,20 @@ type CacheDecDEKOptions struct {
 	KEKid     uuid.UUID
 }
 
-func (c *Cache) CacheDecDEK(ctx context.Context, opts CacheDecDEKOptions) error {
+func (c *Cache) SaveDecDEK(ctx context.Context, opts SaveDecDEKOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  dekLocation,
-		Method:    "CacheDecDEK",
+		Method:    "SaveDecDEK",
 		RequestID: opts.RequestID,
 	}).With("dekKID", opts.KID)
 	logger.DebugContext(ctx, "Caching DEK...")
 
 	decDEKValue := buildDecDEKValue(opts.DEK, opts.KEKid)
-	if err := c.storage.Set(buildDecDEKKey(opts.Prefix, opts.KID), []byte(decDEKValue), dekDuration); err != nil {
+	if err := c.storage.Set(
+		buildDecDEKKey(opts.Prefix, opts.KID),
+		[]byte(decDEKValue),
+		c.dekDecTTL,
+	); err != nil {
 		logger.ErrorContext(ctx, "Error caching DEK", "error", err)
 		return err
 	}

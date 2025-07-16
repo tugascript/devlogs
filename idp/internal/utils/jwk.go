@@ -213,18 +213,18 @@ func EncodeP256JwkPrivate(privateKey *ecdsa.PrivateKey, kid string) ES256JWK {
 	}
 }
 
-func DecodeP256Jwk(jwk *ES256JWK) (ecdsa.PublicKey, error) {
+func DecodeP256Jwk(jwk *ES256JWK) (*ecdsa.PublicKey, error) {
 	x, err := base64.RawURLEncoding.DecodeString(jwk.X)
 	if err != nil {
-		return ecdsa.PublicKey{}, err
+		return nil, err
 	}
 
 	y, err := base64.RawURLEncoding.DecodeString(jwk.Y)
 	if err != nil {
-		return ecdsa.PublicKey{}, err
+		return nil, err
 	}
 
-	return ecdsa.PublicKey{
+	return &ecdsa.PublicKey{
 		Curve: elliptic.P256(),
 		X:     new(big.Int).SetBytes(x),
 		Y:     new(big.Int).SetBytes(y),

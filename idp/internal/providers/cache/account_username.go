@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -32,7 +31,7 @@ func (c *Cache) AddAccountUsername(ctx context.Context, opts AddAccountUsernameO
 	return c.storage.Set(
 		fmt.Sprintf("%s:%s", accountUsernamePrefix, opts.Username),
 		[]byte(strconv.Itoa(int(opts.ID))),
-		time.Duration(c.usernameTTL)*time.Second,
+		c.accountUsernameTTL,
 	)
 }
 

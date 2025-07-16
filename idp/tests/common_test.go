@@ -58,16 +58,25 @@ func initTestServicesAndApp(t *testing.T) {
 	_testConfig = &cfg
 	ctx := context.Background()
 
-	logger.InfoContext(ctx, "Building redis storage...")
+	logger.InfoContext(ctx, "Building distributed cache...")
 	cacheStorage := fiberRedis.New(fiberRedis.Config{
 		URL: _testConfig.RedisURL(),
 	})
+
+	dcCfg := _testConfig.DistributedCache()
 	_testCache = cache.NewCache(
 		logger,
 		cacheStorage,
-		_testConfig.AccountUsernameTTL(),
+		dcCfg.KEKTTL(),
+		dcCfg.DEKDecTTL(),
+		dcCfg.DEKEncTTL(),
+		dcCfg.PublicJWKTTL(),
+		dcCfg.PrivateJWKTTL(),
+		dcCfg.PublicJWKsTTL(),
+		dcCfg.AccountUsernameTTL(),
+		dcCfg.WellKnownOIDCConfigTTL(),
 	)
-	logger.InfoContext(ctx, "Finished building redis storage")
+	logger.InfoContext(ctx, "Finished building distributed cache")
 
 	// Build database connection
 	logger.InfoContext(ctx, "Building database connection...")

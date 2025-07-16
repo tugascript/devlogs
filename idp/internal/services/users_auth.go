@@ -190,7 +190,7 @@ func (s *Services) sendUserConfirmationEmail(
 	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: opts.requestID,
 		Token:     token,
-		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, logger, BuildGetEncryptedAccountJWKFnOptions{
+		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, BuildGetEncryptedAccountJWKFnOptions{
 			RequestID: opts.requestID,
 			KeyType:   database.TokenKeyTypeEmailVerification,
 			AccountID: opts.accountID,
@@ -319,7 +319,7 @@ func (s *Services) generateFullUserAuthDTO(
 	signedAccessToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: requestID,
 		Token:     accessToken,
-		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, logger, BuildGetEncryptedAccountJWKFnOptions{
+		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, BuildGetEncryptedAccountJWKFnOptions{
 			RequestID: requestID,
 			KeyType:   database.TokenKeyTypeAccess,
 			AccountID: accountID,
@@ -354,7 +354,7 @@ func (s *Services) generateFullUserAuthDTO(
 	signedRefreshToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: requestID,
 		Token:     refreshToken,
-		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, logger, BuildGetEncryptedAccountJWKFnOptions{
+		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, BuildGetEncryptedAccountJWKFnOptions{
 			RequestID: requestID,
 			KeyType:   database.TokenKeyTypeRefresh,
 			AccountID: accountID,
@@ -642,7 +642,7 @@ func (s *Services) LoginUser(
 		signedTwoFAToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 			RequestID: opts.RequestID,
 			Token:     twoFAToken,
-			GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, logger, BuildGetEncryptedAccountJWKFnOptions{
+			GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, BuildGetEncryptedAccountJWKFnOptions{
 				RequestID: opts.RequestID,
 				KeyType:   database.TokenKeyType2faAuthentication,
 				AccountID: opts.AccountID,
@@ -1167,7 +1167,7 @@ func (s *Services) ForgotUserPassword(
 	signedResetToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: opts.RequestID,
 		Token:     resetToken,
-		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, logger, BuildGetEncryptedAccountJWKFnOptions{
+		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, BuildGetEncryptedAccountJWKFnOptions{
 			RequestID: opts.RequestID,
 			KeyType:   database.TokenKeyTypePasswordReset,
 			AccountID: opts.AccountID,

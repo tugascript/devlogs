@@ -37,6 +37,7 @@ NONE
 
 #### IDP Todo
 
+- Account KEK rotation & DEK re-encryption
 - Accounts m2m auth:
   - client_credentials
   - jwt

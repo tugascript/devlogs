@@ -43,7 +43,7 @@ func (s *Services) createAndCacheGlobalKEK(
 		return uuid.Nil, exceptions.NewServerError()
 	}
 
-	if err := s.cache.CacheKEKUUID(ctx, cache.CacheKEKUUIDOptions{
+	if err := s.cache.SaveKEKUUID(ctx, cache.SaveKEKUUIDOptions{
 		RequestID: requestID,
 		KID:       keyID,
 		Prefix:    string(database.KekUsageGlobal),
@@ -86,7 +86,7 @@ func (s *Services) getAndCacheGlobalKEK(
 	}
 
 	if kekEntity.NextRotationAt.After(time.Now()) {
-		if err := s.cache.CacheKEKUUID(ctx, cache.CacheKEKUUIDOptions{
+		if err := s.cache.SaveKEKUUID(ctx, cache.SaveKEKUUIDOptions{
 			RequestID: requestID,
 			KID:       kekEntity.Kid,
 			Prefix:    string(database.KekUsageGlobal),
@@ -114,7 +114,7 @@ func (s *Services) getAndCacheGlobalKEK(
 		return uuid.Nil, exceptions.NewServerError()
 	}
 
-	if err := s.cache.CacheKEKUUID(ctx, cache.CacheKEKUUIDOptions{
+	if err := s.cache.SaveKEKUUID(ctx, cache.SaveKEKUUIDOptions{
 		RequestID: requestID,
 		KID:       kekEntity.Kid,
 		Prefix:    string(database.KekUsageGlobal),
@@ -197,7 +197,7 @@ func (s *Services) createAndCacheAccountKEK(
 		return uuid.Nil, serviceErr
 	}
 
-	if err := s.cache.CacheKEKUUID(ctx, cache.CacheKEKUUIDOptions{
+	if err := s.cache.SaveKEKUUID(ctx, cache.SaveKEKUUIDOptions{
 		RequestID: opts.requestID,
 		KID:       keyID,
 		Prefix:    fmt.Sprintf("%s:%d", database.KekUsageAccount, opts.accountID),
@@ -249,7 +249,7 @@ func (s *Services) getAndCacheAccountKEK(
 	}
 
 	if kekEntity.NextRotationAt.After(time.Now()) {
-		if err := s.cache.CacheKEKUUID(ctx, cache.CacheKEKUUIDOptions{
+		if err := s.cache.SaveKEKUUID(ctx, cache.SaveKEKUUIDOptions{
 			RequestID: opts.requestID,
 			KID:       kekEntity.Kid,
 			Prefix:    prefix,
@@ -277,7 +277,7 @@ func (s *Services) getAndCacheAccountKEK(
 		return uuid.Nil, exceptions.NewServerError()
 	}
 
-	if err := s.cache.CacheKEKUUID(ctx, cache.CacheKEKUUIDOptions{
+	if err := s.cache.SaveKEKUUID(ctx, cache.SaveKEKUUIDOptions{
 		RequestID: opts.requestID,
 		KID:       kekEntity.Kid,
 		Prefix:    prefix,

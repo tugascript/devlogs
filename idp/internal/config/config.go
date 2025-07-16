@@ -22,7 +22,6 @@ type Config struct {
 	maxProcs             int64
 	databaseURL          string
 	redisURL             string
-	accountUsernameTTL   int64
 	frontendDomain       string
 	backendDomain        string
 	cookieSecret         string
@@ -38,6 +37,7 @@ type Config struct {
 	localCacheConfig     LocalCacheConfig
 	openBaoConfig        OpenBaoConfig
 	cryptoConfig         CryptoConfig
+	distributedCache     DistributedCache
 	kekExpirationDays    int64
 	dekExpirationDays    int64
 	jwkExpirationDays    int64
@@ -61,10 +61,6 @@ func (c *Config) DatabaseURL() string {
 
 func (c *Config) RedisURL() string {
 	return c.redisURL
-}
-
-func (c *Config) AccountUsernameTTL() int64 {
-	return c.accountUsernameTTL
 }
 
 func (c *Config) FrontendDomain() string {
@@ -127,6 +123,10 @@ func (c *Config) CryptoConfig() CryptoConfig {
 	return c.cryptoConfig
 }
 
+func (c *Config) DistributedCache() DistributedCache {
+	return c.distributedCache
+}
+
 func (c *Config) KEKExpirationDays() int64 {
 	return c.kekExpirationDays
 }
@@ -139,7 +139,7 @@ func (c *Config) JWKExpirationDays() int64 {
 	return c.jwkExpirationDays
 }
 
-var variables = [38]string{
+var variables = [45]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -148,7 +148,6 @@ var variables = [38]string{
 	"MAX_PROCS",
 	"DATABASE_URL",
 	"REDIS_URL",
-	"ACCOUNT_USERNAME_TTL",
 	"FRONTEND_DOMAIN",
 	"BACKEND_DOMAIN",
 	"COOKIE_SECRET",
@@ -178,6 +177,14 @@ var variables = [38]string{
 	"KEK_EXPIRATION_DAYS",
 	"DEK_EXPIRATION_DAYS",
 	"JWK_EXPIRATION_DAYS",
+	"KEK_CACHE_TTL_SEC",
+	"DECRYPT_DEK_CACHE_TTL_SEC",
+	"ENCRYPT_DEK_CACHE_TTL_SEC",
+	"PUBLIC_JWK_CACHE_TTL_SEC",
+	"PRIVATE_JWK_CACHE_TTL_SEC",
+	"PUBLIC_JWKS_CACHE_TTL_SEC",
+	"ACCOUNT_USERNAME_CACHE_TTL_SEC",
+	"WELLKNOWN_OIDC_CONFIG_CACHE_TTL_SEC",
 }
 
 var optionalVariables = [10]string{
@@ -193,10 +200,9 @@ var optionalVariables = [10]string{
 	"MICROSOFT_CLIENT_SECRET",
 }
 
-var numerics = [22]string{
+var numerics = [29]string{
 	"PORT",
 	"MAX_PROCS",
-	"ACCOUNT_USERNAME_TTL",
 	"JWT_ACCESS_TTL_SEC",
 	"JWT_ACCOUNT_CREDENTIALS_TTL_SEC",
 	"JWT_REFRESH_TTL_SEC",
@@ -216,6 +222,14 @@ var numerics = [22]string{
 	"KEK_EXPIRATION_DAYS",
 	"DEK_EXPIRATION_DAYS",
 	"JWK_EXPIRATION_DAYS",
+	"KEK_CACHE_TTL_SEC",
+	"DECRYPT_DEK_CACHE_TTL_SEC",
+	"ENCRYPT_DEK_CACHE_TTL_SEC",
+	"PUBLIC_JWK_CACHE_TTL_SEC",
+	"PRIVATE_JWK_CACHE_TTL_SEC",
+	"PUBLIC_JWKS_CACHE_TTL_SEC",
+	"ACCOUNT_USERNAME_CACHE_TTL_SEC",
+	"WELLKNOWN_OIDC_CONFIG_CACHE_TTL_SEC",
 }
 
 func NewConfig(logger *slog.Logger, envPath string) Config {
@@ -250,19 +264,18 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 	}
 
 	return Config{
-		port:               intMap["PORT"],
-		env:                variablesMap["ENV"],
-		maxProcs:           intMap["MAX_PROCS"],
-		databaseURL:        variablesMap["DATABASE_URL"],
-		redisURL:           variablesMap["REDIS_URL"],
-		accountUsernameTTL: intMap["ACCOUNT_USERNAME_TTL"],
-		frontendDomain:     variablesMap["FRONTEND_DOMAIN"],
-		backendDomain:      variablesMap["BACKEND_DOMAIN"],
-		cookieSecret:       variablesMap["COOKIE_SECRET"],
-		cookieName:         variablesMap["COOKIE_NAME"],
-		emailPubChannel:    variablesMap["EMAIL_PUB_CHANNEL"],
-		serviceID:          uuid.MustParse(variablesMap["SERVICE_ID"]),
-		serviceName:        variablesMap["SERVICE_NAME"],
+		port:            intMap["PORT"],
+		env:             variablesMap["ENV"],
+		maxProcs:        intMap["MAX_PROCS"],
+		databaseURL:     variablesMap["DATABASE_URL"],
+		redisURL:        variablesMap["REDIS_URL"],
+		frontendDomain:  variablesMap["FRONTEND_DOMAIN"],
+		backendDomain:   variablesMap["BACKEND_DOMAIN"],
+		cookieSecret:    variablesMap["COOKIE_SECRET"],
+		cookieName:      variablesMap["COOKIE_NAME"],
+		emailPubChannel: variablesMap["EMAIL_PUB_CHANNEL"],
+		serviceID:       uuid.MustParse(variablesMap["SERVICE_ID"]),
+		serviceName:     variablesMap["SERVICE_NAME"],
 		loggerConfig: NewLoggerConfig(
 			strings.ToLower(variablesMap["DEBUG"]) == "true",
 			variablesMap["ENV"],
@@ -309,5 +322,15 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 		kekExpirationDays: intMap["KEK_EXPIRATION_DAYS"],
 		dekExpirationDays: intMap["DEK_EXPIRATION_DAYS"],
 		jwkExpirationDays: intMap["JWK_EXPIRATION_DAYS"],
+		distributedCache: NewDistributedCache(
+			intMap["KEK_CACHE_TTL_SEC"],
+			intMap["DECRYPT_DEK_CACHE_TTL_SEC"],
+			intMap["ENCRYPT_DEK_CACHE_TTL_SEC"],
+			intMap["PUBLIC_JWK_CACHE_TTL_SEC"],
+			intMap["PRIVATE_JWK_CACHE_TTL_SEC"],
+			intMap["PUBLIC_JWKS_CACHE_TTL_SEC"],
+			intMap["ACCOUNT_USERNAME_CACHE_TTL_SEC"],
+			intMap["WELLKNOWN_OIDC_CONFIG_CACHE_TTL_SEC"],
+		),
 	}
 }
