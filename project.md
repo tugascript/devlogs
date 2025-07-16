@@ -30,17 +30,17 @@ NONE
 - Accounts fix standard authentication
 - Test account standard authentication & account operations
 - Test multiple secrets account credentials
-
-#### IDP On-Going
-
 - Account KEK openbao integration
 
-#### IDP Todo
+#### IDP On-Going
 
 - Account KEK rotation & DEK re-encryption
 - Accounts m2m auth:
   - client_credentials
   - jwt
+
+#### IDP Todo
+
 - Test accounts m2m auth:
   - client_credentials
   - jwt
