@@ -16,13 +16,15 @@ INSERT INTO "credentials_keys" (
     "account_id",
     "public_kid",
     "public_key",
-    "expires_at"
+    "expires_at",
+    "usage"
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
-) RETURNING id, account_id, public_kid, public_key, crypto_suite, is_revoked, expires_at, created_at, updated_at
+    $4,
+    $5
+) RETURNING id, public_kid, public_key, crypto_suite, is_revoked, usage, account_id, expires_at, created_at, updated_at
 `
 
 type CreateCredentialsKeyParams struct {
@@ -30,6 +32,7 @@ type CreateCredentialsKeyParams struct {
 	PublicKid string
 	PublicKey []byte
 	ExpiresAt time.Time
+	Usage     CredentialsUsage
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -43,15 +46,17 @@ func (q *Queries) CreateCredentialsKey(ctx context.Context, arg CreateCredential
 		arg.PublicKid,
 		arg.PublicKey,
 		arg.ExpiresAt,
+		arg.Usage,
 	)
 	var i CredentialsKey
 	err := row.Scan(
 		&i.ID,
-		&i.AccountID,
 		&i.PublicKid,
 		&i.PublicKey,
 		&i.CryptoSuite,
 		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -59,12 +64,21 @@ func (q *Queries) CreateCredentialsKey(ctx context.Context, arg CreateCredential
 	return i, err
 }
 
+const deleteAllCredentialsKeys = `-- name: DeleteAllCredentialsKeys :exec
+DELETE FROM "credentials_keys"
+`
+
+func (q *Queries) DeleteAllCredentialsKeys(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteAllCredentialsKeys)
+	return err
+}
+
 const revokeCredentialsKey = `-- name: RevokeCredentialsKey :one
 UPDATE "credentials_keys" SET
     "is_revoked" = true,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, public_kid, public_key, crypto_suite, is_revoked, expires_at, created_at, updated_at
+RETURNING id, public_kid, public_key, crypto_suite, is_revoked, usage, account_id, expires_at, created_at, updated_at
 `
 
 func (q *Queries) RevokeCredentialsKey(ctx context.Context, id int32) (CredentialsKey, error) {
@@ -72,11 +86,12 @@ func (q *Queries) RevokeCredentialsKey(ctx context.Context, id int32) (Credentia
 	var i CredentialsKey
 	err := row.Scan(
 		&i.ID,
-		&i.AccountID,
 		&i.PublicKid,
 		&i.PublicKey,
 		&i.CryptoSuite,
 		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,

@@ -235,7 +235,7 @@ func TestConfirm(t *testing.T) {
 						TTL:       testTokens.GetConfirmationTTL(),
 					},
 				),
-				GetDEKfn: testServices.BuildGetGlobalDecDEKFn(
+				GetDecryptDEKfn: testServices.BuildGetGlobalDecDEKFn(
 					context.Background(),
 					requestID,
 				),
@@ -451,7 +451,7 @@ func TestTwoFactorLogin(t *testing.T) {
 
 				secret, serviceErr := GetTestCrypto(t).DecryptWithDEK(ctx, crypto.DecryptWithDEKOptions{
 					RequestID: requestID,
-					GetDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
+					GetDecryptDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
 						ctx,
 						requestID,
 					),
@@ -809,17 +809,26 @@ func TestAccount2FARecover(t *testing.T) {
 		totpKey, err := testE.GenerateTotpKey(ctx, crypto.GenerateTotpKeyOptions{
 			RequestID: requestID,
 			Email:     accountDTO.Email,
-			GetDEKfn: GetTestServices(t).BuildGetEncAccountDEK(ctx, services.GetEncAccountDEKOptions{
+			GetDEKfn: GetTestServices(t).BuildGetEncAccountDEKfn(ctx, services.BuildGetEncAccountDEKOptions{
 				RequestID: requestID,
 				AccountID: accountDTO.ID(),
 			}),
 			StoreTOTPfn: func(dekKID, encSecret string, hashedCode []byte, url string) *exceptions.ServiceError {
-				if err := testD.CreateAccountTotp(ctx, database.CreateAccountTotpParams{
-					AccountID:     accountDTO.ID(),
+				id, err := testD.CreateTotp(ctx, database.CreateTotpParams{
+					DekKid:        dekKID,
 					Url:           url,
 					Secret:        encSecret,
-					DekKid:        dekKID,
 					RecoveryCodes: hashedCode,
+					Usage:         database.TotpUsageAccount,
+					AccountID:     accountDTO.ID(),
+				})
+				if err != nil {
+					return exceptions.FromDBError(err)
+				}
+
+				if err := testD.CreateAccountTotp(ctx, database.CreateAccountTotpParams{
+					AccountID: accountDTO.ID(),
+					TotpID:    id,
 				}); err != nil {
 					return exceptions.FromDBError(err)
 				}
@@ -861,7 +870,7 @@ func TestAccount2FARecover(t *testing.T) {
 						TTL:       testT.Get2FATTL(),
 					},
 				),
-				GetDEKfn: testS.BuildGetGlobalDecDEKFn(
+				GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(
 					context.Background(),
 					requestID,
 				),
@@ -1096,7 +1105,7 @@ func TestAccountAuth2FAUpdateConfirm(t *testing.T) {
 		requestID := uuid.NewString()
 		secret, serviceErr := GetTestCrypto(t).DecryptWithDEK(context.Background(), crypto.DecryptWithDEKOptions{
 			RequestID: requestID,
-			GetDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
+			GetDecryptDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
 				ctx,
 				requestID,
 			),
@@ -1308,7 +1317,7 @@ func TestResetAccountPassword(t *testing.T) {
 						TTL:       testTokens.GetResetTTL(),
 					},
 				),
-				GetDEKfn: testServices.BuildGetGlobalDecDEKFn(
+				GetDecryptDEKfn: testServices.BuildGetGlobalDecDEKFn(
 					context.Background(),
 					requestID,
 				),
@@ -1420,7 +1429,7 @@ func TestResetAccountPassword(t *testing.T) {
 								TTL:       testTokens.GetResetTTL(),
 							},
 						),
-						GetDEKfn: testServices.BuildGetGlobalDecDEKFn(
+						GetDecryptDEKfn: testServices.BuildGetGlobalDecDEKFn(
 							context.Background(),
 							requestID,
 						),
@@ -1518,7 +1527,7 @@ func TestListAccountAuthProviders(t *testing.T) {
 								TTL:       testT.GetAccessTTL(),
 							},
 						),
-						GetDEKfn: testS.BuildGetGlobalDecDEKFn(
+						GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(
 							context.Background(),
 							requestID,
 						),
@@ -1576,7 +1585,7 @@ func TestListAccountAuthProviders(t *testing.T) {
 								TTL:       testT.GetAccessTTL(),
 							},
 						),
-						GetDEKfn: testS.BuildGetGlobalDecDEKFn(
+						GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(
 							context.Background(),
 							requestID,
 						),
@@ -1660,7 +1669,7 @@ func TestGetAccountAuthProvider(t *testing.T) {
 								TTL:       testT.GetAccessTTL(),
 							},
 						),
-						GetDEKfn: testS.BuildGetGlobalDecDEKFn(
+						GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(
 							context.Background(),
 							requestID,
 						),
@@ -1740,7 +1749,7 @@ func TestGetAccountAuthProvider(t *testing.T) {
 								TTL:       testT.GetAccessTTL(),
 							},
 						),
-						GetDEKfn: testS.BuildGetGlobalDecDEKFn(
+						GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(
 							context.Background(),
 							requestID,
 						),

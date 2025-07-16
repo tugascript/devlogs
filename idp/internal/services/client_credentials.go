@@ -12,6 +12,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"github.com/google/uuid"
 	"time"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
@@ -26,6 +27,7 @@ type clientCredentialsSecretOptions struct {
 	accountID int32
 	expiresIn time.Duration
 	prefix    string
+	usage     database.CredentialsUsage
 }
 
 func (s *Services) clientCredentialsSecret(
@@ -61,13 +63,16 @@ func (s *Services) clientCredentialsSecret(
 		SecretID:     secretID,
 		ClientSecret: hashedSecret,
 		ExpiresAt:    time.Now().Add(opts.expiresIn),
+		Usage:        opts.usage,
 	}, secret, nil
 }
 
 type clientCredentialsKeyOptions struct {
-	requestID string
-	accountID int32
-	expiresIn time.Duration
+	requestID       string
+	accountID       int32
+	accountPublicID uuid.UUID
+	expiresIn       time.Duration
+	usage           database.CredentialsUsage
 }
 
 func (s *Services) clientCredentialsKey(
@@ -100,6 +105,7 @@ func (s *Services) clientCredentialsKey(
 		PublicKid: kid,
 		PublicKey: jsonJwk,
 		ExpiresAt: time.Now().Add(opts.expiresIn),
+		Usage:     opts.usage,
 	}, utils.EncodeP256JwkPrivate(priv, kid), nil
 }
 

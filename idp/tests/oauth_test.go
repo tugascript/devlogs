@@ -704,7 +704,7 @@ func TestOAuthToken(t *testing.T) {
 					KeyType:   database.TokenKeyTypeOauthAuthorization,
 					TTL:       testTokens.GetOAuthTTL(),
 				}),
-				GetDEKfn: testServices.BuildGetGlobalDecDEKFn(ctx, requestID),
+				GetDecryptDEKfn: testServices.BuildGetGlobalDecDEKFn(ctx, requestID),
 			},
 		)
 		if serviceErr != nil {
@@ -738,7 +738,7 @@ func TestOAuthToken(t *testing.T) {
 				KeyType:   database.TokenKeyTypeRefresh,
 				TTL:       testTokens.GetRefreshTTL(),
 			}),
-			GetDEKfn: testServices.BuildGetGlobalDecDEKFn(ctx, requestID),
+			GetDecryptDEKfn: testServices.BuildGetGlobalDecDEKFn(ctx, requestID),
 		})
 		if serviceErr != nil {
 			t.Fatal("Failed to sign refresh token", serviceErr)

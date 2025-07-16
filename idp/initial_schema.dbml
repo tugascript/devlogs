@@ -142,6 +142,84 @@ Table accounts as A {
     }
 }
 
+Enum totp_usage {
+    "account"
+    "user"
+}
+
+Table totps as TP {
+    id serial [pk]
+
+    dek_kid varchar(22) [not null]
+    url varchar(250) [not null]
+    secret text [not null]
+    recovery_codes jsonb [not null]
+    usage totp_usage [not null]
+
+    account_id integer [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (dek_kid) [name: 'accounts_totps_dek_kid_idx']
+        (account_id) [name: 'accounts_totps_account_id_idx']
+    }
+}
+Ref: TP.dek_kid > DEK.kid [delete: cascade, update: cascade]
+Ref: TP.account_id > A.id [delete: cascade]
+
+Enum credentials_usage {
+    "account"
+    "user"
+}
+
+Table credentials_secrets as CS {
+    id serial [pk]
+
+    secret_id varchar(26) [not null]
+    client_secret text [not null]
+    is_revoked boolean [not null, default: false]
+    usage credentials_usage [not null]
+
+    account_id integer [not null]
+
+    expires_at timestamptz [not null]
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (secret_id) [unique, name: 'credential_secrets_secret_id_uidx']
+        (expires_at) [name: 'credential_secrets_expires_at_idx']
+        (is_revoked, usage, expires_at) [name: 'credential_secrets_is_revoked_usage_expires_at_idx']
+        (account_id) [name: 'credential_secrets_account_id_idx']
+    }
+}
+Ref: CS.account_id > A.id [delete: cascade]
+
+Table credentials_keys as CK {
+    id serial [pk]
+
+    public_kid varchar(22) [not null]
+    public_key jsonb [not null]
+    crypto_suite token_crypto_suite [not null, default: 'ES256']
+    is_revoked boolean [not null, default: false]
+    usage credentials_usage [not null]
+
+    account_id integer [not null]
+
+    expires_at timestamptz [not null]
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (public_kid) [unique, name: 'credential_keys_public_kid_uidx']
+        (expires_at) [name: 'credential_keys_expires_at_idx']
+        (is_revoked, usage, expires_at) [name: 'credential_keys_is_revoked_usage_expires_at_idx']
+    }
+}
+Ref: CK.account_id > A.id [delete: cascade]
+
 Table account_key_encryption_keys as AKEK {
     account_id integer [not null]
     key_encryption_key_id integer [not null]
@@ -172,90 +250,20 @@ Table account_data_encryption_keys as ADEK {
 Ref: ADEK.account_id > A.id [delete: cascade]
 Ref: ADEK.data_encryption_key_id > DEK.id [delete: cascade]
 
-Table credentials_secrets as CS {
-    id serial [pk]
-
-    account_id integer [not null]
-
-    secret_id varchar(26) [not null]
-    client_secret text [not null]
-    is_revoked boolean [not null, default: false]
-
-    expires_at timestamptz [not null]
-    created_at timestamptz [not null, default: `now()`]
-    updated_at timestamptz [not null, default: `now()`]
-
-    Indexes {
-        (account_id) [name: 'credential_secrets_account_id_idx']
-        (secret_id) [unique, name: 'credential_secrets_secret_id_uidx']
-        (expires_at) [name: 'credential_secrets_expires_at_idx']
-        (is_revoked, expires_at) [name: 'credential_secrets_is_revoked_expires_at_idx']
-        (account_id, secret_id) [name: 'credential_secrets_account_id_secret_id_idx']
-    }
-}
-Ref: CS.account_id > A.id [delete: cascade]
-
-Table credentials_keys as CK {
-    id serial [pk]
-
-    account_id integer [not null]
-
-    public_kid varchar(22) [not null]
-    public_key jsonb [not null]
-    crypto_suite token_crypto_suite [not null, default: 'ES256']
-    is_revoked boolean [not null, default: false]
-
-    expires_at timestamptz [not null]
-    created_at timestamptz [not null, default: `now()`]
-    updated_at timestamptz [not null, default: `now()`]
-
-    Indexes {
-        (account_id) [name: 'credential_keys_account_id_idx']
-        (public_kid) [unique, name: 'credential_keys_public_kid_uidx']
-        (expires_at) [name: 'credential_keys_expires_at_idx']
-        (is_revoked, expires_at) [name: 'credential_keys_is_revoked_expires_at_idx']
-        (account_id, public_kid) [name: 'credential_keys_account_id_public_kid_idx']
-    }
-}
-Ref: CK.account_id > A.id [delete: cascade]
-
 Table account_totps as AT {
-    id serial [pk]
-    
     account_id integer [not null]
-    dek_kid varchar(22) [not null]
-    url varchar(250) [not null]
-    secret text [not null]
-    recovery_codes jsonb [not null]
+    totp_id integer [not null]
 
     created_at timestamptz [not null, default: `now()`]
-    updated_at timestamptz [not null, default: `now()`]
 
     Indexes {
+        (account_id, totp_id) [pk]
         (account_id) [unique, name: 'accounts_totps_account_id_uidx']
-        (dek_kid) [name: 'accounts_totps_dek_kid_idx']
+        (totp_id) [unique, name: 'accounts_totps_totp_id_uidx']
     }
 }
 Ref: AT.account_id > A.id [delete: cascade]
-Ref: AT.dek_kid > DEK.kid [delete: cascade, update: cascade]
-
-Enum auth_method {
-    "none"
-    "client_secret_basic"
-    "client_secret_post"
-    "private_key_jwt"
-}
-
-Enum account_credentials_scope {
-    "account:admin"
-    "account:users:read"
-    "account:users:write"
-    "account:apps:read"
-    "account:apps:write"
-    "account:credentials:read"
-    "account:credentials:write"
-    "account:auth_providers:read"
-}
+Ref: AT.totp_id > TP.id [delete: cascade]
 
 Table account_credentials as AC {
     id serial [pk]
@@ -283,44 +291,63 @@ Table account_credentials as AC {
 Ref: AC.account_id > A.id [delete: cascade]
 
 Table account_credentials_secrets as ACS {
-    account_credentials_id integer [not null]
+    account_id integer [not null]
     credentials_secret_id integer [not null]
 
-    account_id integer [not null]
-
-    created_at timestamptz [not null, default: `now()`]
-
-    Indexes {
-        (account_credentials_id, credentials_secret_id) [pk]
-        (account_credentials_id) [name: 'account_credentials_secrets_account_credentials_id_idx']
-        (credentials_secret_id) [unique, name: 'account_credentials_secrets_credentials_secret_id_uidx']
-        (account_id) [name: 'account_credentials_secrets_account_id_idx']
-    }
-}
-Ref: ACS.account_id > A.id [delete: cascade]
-Ref: ACS.account_credentials_id > AC.id [delete: cascade]
-Ref: ACS.credentials_secret_id > CS.id [delete: cascade]
-
-Table account_credentials_keys as ACK {
     account_credentials_id integer [not null]
-    credentials_key_id integer [not null]
-
-    account_id integer [not null]
     account_public_id uuid [not null]
 
     created_at timestamptz [not null, default: `now()`]
 
     Indexes {
-        (account_credentials_id, credentials_key_id) [pk]
-        (account_credentials_id) [name: 'account_credentials_keys_account_credentials_id_idx']
-        (credentials_key_id) [unique, name: 'account_credentials_keys_credentials_key_id_uidx']
+        (account_id, credentials_secret_id) [pk]
+        (account_id) [name: 'account_credential_secrets_account_id_idx']
+        (account_public_id) [name: 'account_credential_secrets_account_public_id_idx']
+        (credentials_secret_id) [unique, name: 'account_credential_secrets_credentials_secret_id_uidx']
+        (account_credentials_id) [name: 'account_credential_secrets_account_credentials_id_idx']
+    }
+}
+Ref: ACS.account_id > A.id [delete: cascade]
+Ref: ACS.credentials_secret_id > CS.id [delete: cascade]
+
+Table account_credentials_keys as ACK {
+    account_id integer [not null]
+    credentials_key_id integer [not null]
+
+    account_credentials_id integer [not null]
+    account_public_id uuid [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id, credentials_key_id) [pk]
         (account_id) [name: 'account_credentials_keys_account_id_idx']
         (account_public_id) [name: 'account_credentials_keys_account_public_id_idx']
+        (credentials_key_id) [unique, name: 'account_credentials_keys_credentials_key_id_uidx']
+        (account_credentials_id) [name: 'account_credentials_keys_account_credentials_id_idx']
     }
 }
 Ref: ACK.account_id > A.id [delete: cascade]
 Ref: ACK.account_credentials_id > AC.id [delete: cascade]
 Ref: ACK.credentials_key_id > CK.id [delete: cascade]
+
+Enum auth_method {
+    "none"
+    "client_secret_basic"
+    "client_secret_post"
+    "private_key_jwt"
+}
+
+Enum account_credentials_scope {
+    "account:admin"
+    "account:users:read"
+    "account:users:write"
+    "account:apps:read"
+    "account:apps:write"
+    "account:credentials:read"
+    "account:credentials:write"
+    "account:auth_providers:read"
+}
 
 Enum auth_provider {
     "username_password"
@@ -450,20 +477,17 @@ Table users as U {
 Ref: U.account_id > A.id [delete: cascade]
 
 Table user_data_encryption_keys as UDEK {
-    id serial [pk]
-    
-    account_id integer [not null]
     user_id integer [not null]
-    user_public_id uuid [not null]
     data_encryption_key_id integer [not null]
 
+    account_id integer [not null]
     created_at timestamptz [not null, default: `now()`]
 
     Indexes {
-        (account_id) [name: 'user_data_encryption_keys_account_id_idx']
+        (user_id, data_encryption_key_id) [pk]
         (user_id) [name: 'user_data_encryption_keys_user_id_idx']
-        (user_public_id) [name: 'user_data_encryption_keys_user_public_id_idx']
         (data_encryption_key_id) [unique, name: 'user_data_encryption_keys_data_encryption_key_id_uidx']
+        (account_id) [name: 'user_data_encryption_keys_account_id_idx']
     }
 }
 Ref: UDEK.account_id > A.id [delete: cascade]
@@ -471,27 +495,22 @@ Ref: UDEK.user_id > U.id [delete: cascade]
 Ref: UDEK.data_encryption_key_id > DEK.id [delete: cascade]
 
 Table user_totps as UT {
-    id serial [pk]
+     user_id integer [not null]
+     totp_id integer [not null]
 
     account_id integer [not null]
-    dek_kid varchar(22) [not null]
-    user_id integer [not null]
-    url varchar(250) [not null]
-    secret text [not null]
-    recovery_codes jsonb [not null]
-
     created_at timestamptz [not null, default: `now()`]
-    updated_at timestamptz [not null, default: `now()`]
 
     Indexes {
-        (account_id) [name: 'user_totps_account_id_idx']
+        (user_id, totp_id) [pk]
         (user_id) [unique, name: 'user_totps_user_id_uidx']
-        (dek_kid) [name: 'user_totps_dek_kid_idx']
+        (totp_id) [unique, name: 'user_totps_totp_id_uidx']
+        (account_id) [name: 'user_totps_account_id_idx']
     }
 }
 Ref: UT.account_id > A.id [delete: cascade]
 Ref: UT.user_id > U.id [delete: cascade]
-Ref: UT.dek_kid > DEK.kid [delete: cascade, update: cascade]
+Ref: UT.totp_id > TP.id [delete: cascade]
 
 Table user_auth_providers as UAP {
     id serial [pk]
@@ -535,54 +554,52 @@ Ref: UC.user_id > U.id [delete: cascade]
 Ref: UC.account_id > A.id [delete: cascade]
 
 Table user_credentials_secrets as UCS {
-    id serial [pk]
-
     user_id integer [not null]
+    credentials_secret_id integer [not null]
+
     user_credential_id integer [not null]
     account_id integer [not null]
 
-    secret_id varchar(26) [not null]
-    client_secret text [not null]
+    user_public_id uuid [not null]
 
-    expires_at timestamptz [not null]
     created_at timestamptz [not null, default: `now()`]
 
     Indexes {
+        (user_id, credentials_secret_id) [pk]
         (user_id) [name: 'user_credentials_secrets_user_id_idx']
-        (user_credential_id) [name: 'user_credentials_secrets_user_credential_id_idx']
-        (secret_id) [unique, name: 'user_credentials_secrets_secret_id_uidx']
-        (user_credential_id, secret_id) [name: 'user_credentials_secrets_user_credential_id_secret_id_idx']
+        (credentials_secret_id) [unique, name: 'user_credentials_secrets_credentials_secret_id_uidx']
         (account_id) [name: 'user_credentials_secrets_account_id_idx']
+        (user_credential_id) [name: 'user_credentials_secrets_user_credential_id_idx']
+        (user_public_id) [name: 'user_credentials_secrets_user_public_id_idx']
     }
 }
 Ref: UCS.user_id > U.id [delete: cascade]
 Ref: UCS.user_credential_id > UC.id [delete: cascade]
+Ref: UCS.credentials_secret_id > CS.id [delete: cascade]
 Ref: UCS.account_id > A.id [delete: cascade]
 
 Table user_credentials_keys as UCK {
-    id serial [pk]
-
-    account_id integer [not null]
     user_id integer [not null]
+    credentials_key_id integer [not null]
+
     user_credential_id integer [not null]
+    account_id integer [not null]
 
-    public_kid varchar(22) [not null]
-    public_key jsonb [not null]
-    jwt_crypto_suite token_crypto_suite [not null, default: 'ES256']
-
-    expires_at timestamptz [not null]
+    user_public_id uuid [not null]
     created_at timestamptz [not null, default: `now()`]
 
     Indexes {
-        (account_id) [name: 'user_credentials_keys_account_id_idx']
+        (user_id, credentials_key_id) [pk]
         (user_id) [name: 'user_credentials_keys_user_id_idx']
+        (credentials_key_id) [unique, name: 'user_credentials_keys_credentials_key_id_uidx']
+        (account_id) [name: 'user_credentials_keys_account_id_idx']
         (user_credential_id) [name: 'user_credentials_keys_user_credential_id_idx']
-        (public_kid) [unique, name: 'user_credentials_keys_public_kid_uidx']
-        (user_credential_id, public_kid) [name: 'user_credentials_keys_user_credential_id_public_kid_idx']
+        (user_public_id) [name: 'user_credentials_keys_user_public_id_idx']
     }
 }
 Ref: UCK.user_id > U.id [delete: cascade]
 Ref: UCK.user_credential_id > UC.id [delete: cascade]
+Ref: UCK.credentials_key_id > CK.id [delete: cascade]
 Ref: UCK.account_id > A.id [delete: cascade]
 
 Enum app_type {

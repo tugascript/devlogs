@@ -51,5 +51,14 @@ SELECT * FROM "token_signing_keys"
 WHERE 
     "kid" = $1 AND
     "is_revoked" = false
-ORDER BY "id" DESC
 LIMIT 1;
+
+
+-- name: UpdateTokenSigningKeyDEKAndPrivateKey :exec
+UPDATE "token_signing_keys"
+SET
+    "dek_kid"    = $2,
+    "private_key" = $3,
+    "updated_at" = NOW()
+WHERE "id" = $1
+RETURNING *;

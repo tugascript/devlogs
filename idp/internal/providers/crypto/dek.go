@@ -79,8 +79,11 @@ func (e *Crypto) GenerateDEK(ctx context.Context, opts GenerateDEKOptions) (stri
 type DEKID = string
 type EncryptedDEK = string
 type DEKCiphertext = string
-type GetDEKtoDecrypt = func(dekID DEKID) (EncryptedDEK, uuid.UUID, *exceptions.ServiceError)
+type IsExpiredDEK = bool
+type EntityID = string
+type GetDEKtoDecrypt = func(dekID DEKID) (EncryptedDEK, KEKID, IsExpiredDEK, *exceptions.ServiceError)
 type GetDEKtoEncrypt = func() (DEKID, EncryptedDEK, uuid.UUID, *exceptions.ServiceError)
+type StoreReEncryptedData = func(entityID EntityID, dekID DEKID, ciphertext DEKCiphertext) *exceptions.ServiceError
 
 func (e *Crypto) getDecryptedDEK(
 	ctx context.Context,
@@ -169,9 +172,12 @@ func splitDEKCiphertext(ciphertext DEKCiphertext) (DEKID, string, error) {
 }
 
 type DecryptWithDEKOptions struct {
-	RequestID  string
-	GetDEKfn   GetDEKtoDecrypt
-	Ciphertext string
+	RequestID              string
+	GetDecryptDEKfn        GetDEKtoDecrypt
+	GetEncryptDEKfn        GetDEKtoEncrypt
+	StoreReEncryptedDataFn StoreReEncryptedData
+	EntityID               EntityID
+	Ciphertext             string
 }
 
 func (e *Crypto) DecryptWithDEK(ctx context.Context, opts DecryptWithDEKOptions) (string, *exceptions.ServiceError) {
@@ -188,7 +194,7 @@ func (e *Crypto) DecryptWithDEK(ctx context.Context, opts DecryptWithDEKOptions)
 		return "", exceptions.NewServerError()
 	}
 
-	encDek, kekKID, serviceErr := opts.GetDEKfn(dekID)
+	encDek, kekKID, isExpired, serviceErr := opts.GetDecryptDEKfn(dekID)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get DEK", "serviceError", serviceErr)
 		return "", serviceErr
@@ -204,6 +210,23 @@ func (e *Crypto) DecryptWithDEK(ctx context.Context, opts DecryptWithDEKOptions)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt secret", "error", err)
 		return "", exceptions.NewServerError()
+	}
+
+	if isExpired {
+		logger.DebugContext(ctx, "Secret is expired, re-encrypting...")
+		newDEKid, newCiphertext, serviceErr := e.EncryptWithDEK(ctx, EncryptWithDEKOptions{
+			RequestID: opts.RequestID,
+			GetDEKfn:  opts.GetEncryptDEKfn,
+			PlainText: secret,
+		})
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to re-encrypt secret", "serviceError", serviceErr)
+			return "", serviceErr
+		}
+		if serviceErr := opts.StoreReEncryptedDataFn(opts.EntityID, newDEKid, newCiphertext); serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to store re-encrypted data", "serviceError", serviceErr)
+			return "", serviceErr
+		}
 	}
 
 	logger.DebugContext(ctx, "Secret decrypted successfully")

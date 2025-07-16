@@ -67,11 +67,13 @@ type GenerateKeyPairOptions struct {
 }
 
 type getDecryptedPrivateKeyOptions struct {
-	requestID    string
-	jwkKID       string
-	encPrivKey   string
-	jwkCacheType JWKCacheType
-	getDEKfn     GetDEKtoDecrypt
+	requestID        string
+	jwkKID           string
+	encPrivKey       string
+	jwkCacheType     JWKCacheType
+	getDecDEKfn      GetDEKtoDecrypt
+	getEncDEKfn      GetDEKtoEncrypt
+	storeReEncDataFn StoreReEncryptedData
 }
 
 func encodeEd25519PrivateKeyBytes(privKey ed25519.PrivateKey) string {
@@ -170,9 +172,12 @@ func (e *Crypto) getDecryptedEd25519PrivateKey(
 	base64PrivKey, serviceErr := e.DecryptWithDEK(
 		ctx,
 		DecryptWithDEKOptions{
-			RequestID:  opts.requestID,
-			GetDEKfn:   opts.getDEKfn,
-			Ciphertext: opts.encPrivKey,
+			RequestID:              opts.requestID,
+			GetDecryptDEKfn:        opts.getDecDEKfn,
+			GetEncryptDEKfn:        opts.getEncDEKfn,
+			StoreReEncryptedDataFn: opts.storeReEncDataFn,
+			Ciphertext:             opts.encPrivKey,
+			EntityID:               opts.jwkKID,
 		},
 	)
 	if serviceErr != nil {
@@ -330,9 +335,12 @@ func (e *Crypto) getDecryptedES256PrivateKey(
 	base64PrivKey, serviceErr := e.DecryptWithDEK(
 		ctx,
 		DecryptWithDEKOptions{
-			RequestID:  opts.requestID,
-			GetDEKfn:   opts.getDEKfn,
-			Ciphertext: opts.encPrivKey,
+			RequestID:              opts.requestID,
+			GetDecryptDEKfn:        opts.getDecDEKfn,
+			GetEncryptDEKfn:        opts.getEncDEKfn,
+			StoreReEncryptedDataFn: opts.storeReEncDataFn,
+			Ciphertext:             opts.encPrivKey,
+			EntityID:               opts.jwkKID,
 		},
 	)
 	if serviceErr != nil {
@@ -364,10 +372,12 @@ type JWKkid = string
 type GetEncryptedJWK = func(cryptoSuite utils.SupportedCryptoSuite) (JWKkid, DEKCiphertext, JWKCacheType, *exceptions.ServiceError)
 
 type SignTokenOptions struct {
-	RequestID string
-	Token     *jwt.Token
-	GetJWKfn  GetEncryptedJWK
-	GetDEKfn  GetDEKtoDecrypt
+	RequestID       string
+	Token           *jwt.Token
+	GetJWKfn        GetEncryptedJWK
+	GetDecryptDEKfn GetDEKtoDecrypt
+	GetEncryptDEKfn GetDEKtoEncrypt
+	StoreFN         StoreReEncryptedData
 }
 
 func (e *Crypto) SignToken(
@@ -390,11 +400,13 @@ func (e *Crypto) SignToken(
 		}
 
 		privKey, serviceErr := e.getDecryptedEd25519PrivateKey(ctx, getDecryptedPrivateKeyOptions{
-			requestID:    opts.RequestID,
-			jwkKID:       kid,
-			encPrivKey:   encPrivKey,
-			jwkCacheType: cacheType,
-			getDEKfn:     opts.GetDEKfn,
+			requestID:        opts.RequestID,
+			jwkKID:           kid,
+			encPrivKey:       encPrivKey,
+			jwkCacheType:     cacheType,
+			getDecDEKfn:      opts.GetDecryptDEKfn,
+			getEncDEKfn:      opts.GetEncryptDEKfn,
+			storeReEncDataFn: opts.StoreFN,
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to get decrypted ed25519 private key", "serviceError", serviceErr)
@@ -417,11 +429,13 @@ func (e *Crypto) SignToken(
 		}
 
 		privKey, serviceErr := e.getDecryptedES256PrivateKey(ctx, getDecryptedPrivateKeyOptions{
-			requestID:    opts.RequestID,
-			jwkKID:       kid,
-			encPrivKey:   encPrivKey,
-			jwkCacheType: cacheType,
-			getDEKfn:     opts.GetDEKfn,
+			requestID:        opts.RequestID,
+			jwkKID:           kid,
+			encPrivKey:       encPrivKey,
+			jwkCacheType:     cacheType,
+			getDecDEKfn:      opts.GetDecryptDEKfn,
+			getEncDEKfn:      opts.GetEncryptDEKfn,
+			storeReEncDataFn: opts.StoreFN,
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to get decrypted ES256 private key", "serviceError", serviceErr)

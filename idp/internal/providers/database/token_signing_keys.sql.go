@@ -141,7 +141,6 @@ SELECT id, kid, key_type, public_key, private_key, dek_kid, crypto_suite, expire
 WHERE 
     "kid" = $1 AND
     "is_revoked" = false
-ORDER BY "id" DESC
 LIMIT 1
 `
 
@@ -164,4 +163,25 @@ func (q *Queries) FindTokenSigningKeyByKID(ctx context.Context, kid string) (Tok
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const updateTokenSigningKeyDEKAndPrivateKey = `-- name: UpdateTokenSigningKeyDEKAndPrivateKey :exec
+UPDATE "token_signing_keys"
+SET
+    "dek_kid"    = $2,
+    "private_key" = $3,
+    "updated_at" = NOW()
+WHERE "id" = $1
+RETURNING id, kid, key_type, public_key, private_key, dek_kid, crypto_suite, expires_at, usage, is_distributed, is_revoked, created_at, updated_at
+`
+
+type UpdateTokenSigningKeyDEKAndPrivateKeyParams struct {
+	ID         int32
+	DekKid     string
+	PrivateKey string
+}
+
+func (q *Queries) UpdateTokenSigningKeyDEKAndPrivateKey(ctx context.Context, arg UpdateTokenSigningKeyDEKAndPrivateKeyParams) error {
+	_, err := q.db.Exec(ctx, updateTokenSigningKeyDEKAndPrivateKey, arg.ID, arg.DekKid, arg.PrivateKey)
+	return err
 }

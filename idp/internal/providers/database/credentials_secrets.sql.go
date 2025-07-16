@@ -16,13 +16,15 @@ INSERT INTO "credentials_secrets" (
     "account_id",
     "secret_id",
     "client_secret",
-    "expires_at"
+    "expires_at",
+    "usage"
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
-) RETURNING id, account_id, secret_id, client_secret, is_revoked, expires_at, created_at, updated_at
+    $4,
+    $5
+) RETURNING id, secret_id, client_secret, is_revoked, usage, account_id, expires_at, created_at, updated_at
 `
 
 type CreateCredentialsSecretParams struct {
@@ -30,6 +32,7 @@ type CreateCredentialsSecretParams struct {
 	SecretID     string
 	ClientSecret string
 	ExpiresAt    time.Time
+	Usage        CredentialsUsage
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -43,14 +46,16 @@ func (q *Queries) CreateCredentialsSecret(ctx context.Context, arg CreateCredent
 		arg.SecretID,
 		arg.ClientSecret,
 		arg.ExpiresAt,
+		arg.Usage,
 	)
 	var i CredentialsSecret
 	err := row.Scan(
 		&i.ID,
-		&i.AccountID,
 		&i.SecretID,
 		&i.ClientSecret,
 		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -58,12 +63,21 @@ func (q *Queries) CreateCredentialsSecret(ctx context.Context, arg CreateCredent
 	return i, err
 }
 
+const deleteAllCredentialsSecrets = `-- name: DeleteAllCredentialsSecrets :exec
+DELETE FROM "credentials_secrets"
+`
+
+func (q *Queries) DeleteAllCredentialsSecrets(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteAllCredentialsSecrets)
+	return err
+}
+
 const revokeCredentialsSecret = `-- name: RevokeCredentialsSecret :one
 UPDATE "credentials_secrets" SET
     "is_revoked" = true,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, secret_id, client_secret, is_revoked, expires_at, created_at, updated_at
+RETURNING id, secret_id, client_secret, is_revoked, usage, account_id, expires_at, created_at, updated_at
 `
 
 func (q *Queries) RevokeCredentialsSecret(ctx context.Context, id int32) (CredentialsSecret, error) {
@@ -71,10 +85,11 @@ func (q *Queries) RevokeCredentialsSecret(ctx context.Context, id int32) (Creden
 	var i CredentialsSecret
 	err := row.Scan(
 		&i.ID,
-		&i.AccountID,
 		&i.SecretID,
 		&i.ClientSecret,
 		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,

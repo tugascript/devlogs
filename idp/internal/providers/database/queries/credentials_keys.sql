@@ -9,12 +9,14 @@ INSERT INTO "credentials_keys" (
     "account_id",
     "public_kid",
     "public_key",
-    "expires_at"
+    "expires_at",
+    "usage"
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
+    $4,
+    $5
 ) RETURNING *;
 
 -- name: RevokeCredentialsKey :one
@@ -30,3 +32,6 @@ UPDATE "credentials_keys" SET
     "created_at" = $3,
     "updated_at" = now()
 WHERE "public_kid" = $1;
+
+-- name: DeleteAllCredentialsKeys :exec
+DELETE FROM "credentials_keys";

@@ -33,8 +33,15 @@ func accountCredentialsCleanUp(t *testing.T) func() {
 		if err := db.DeleteAllAccountCredentials(context.Background()); err != nil {
 			t.Fatal("Failed to delete all accounts", err)
 		}
-
-		accountsCleanUp(t)
+		if err := db.DeleteAllCredentialsKeys(context.Background()); err != nil {
+			t.Fatal("Failed to delete all credentials keys", err)
+		}
+		if err := db.DeleteAllCredentialsSecrets(context.Background()); err != nil {
+			t.Fatal("Failed to delete all credentials secrets", err)
+		}
+		if err := db.DeleteAllAccounts(context.Background()); err != nil {
+			t.Fatal("Failed to delete all accounts", err)
+		}
 	}
 }
 

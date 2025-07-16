@@ -9,12 +9,14 @@ INSERT INTO "credentials_secrets" (
     "account_id",
     "secret_id",
     "client_secret",
-    "expires_at"
+    "expires_at",
+    "usage"
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
+    $4,
+    $5
 ) RETURNING *;
 
 -- name: RevokeCredentialsSecret :one
@@ -30,3 +32,6 @@ UPDATE "credentials_secrets" SET
     "created_at" = $3,
     "updated_at" = now()
 WHERE "secret_id" = $1;
+
+-- name: DeleteAllCredentialsSecrets :exec
+DELETE FROM "credentials_secrets";

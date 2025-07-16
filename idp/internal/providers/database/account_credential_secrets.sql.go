@@ -7,6 +7,8 @@ package database
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const countAccountCredentialSecretsByAccountCredentialID = `-- name: CountAccountCredentialSecretsByAccountCredentialID :one
@@ -28,11 +30,13 @@ const createAccountCredentialSecret = `-- name: CreateAccountCredentialSecret :e
 INSERT INTO "account_credentials_secrets" (
     "account_credentials_id",
     "credentials_secret_id",
-    "account_id"
+    "account_id",
+    "account_public_id"
 ) VALUES (
     $1,
     $2,
-    $3
+    $3,
+    $4
 )
 `
 
@@ -40,6 +44,7 @@ type CreateAccountCredentialSecretParams struct {
 	AccountCredentialsID int32
 	CredentialsSecretID  int32
 	AccountID            int32
+	AccountPublicID      uuid.UUID
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -48,12 +53,17 @@ type CreateAccountCredentialSecretParams struct {
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateAccountCredentialSecret(ctx context.Context, arg CreateAccountCredentialSecretParams) error {
-	_, err := q.db.Exec(ctx, createAccountCredentialSecret, arg.AccountCredentialsID, arg.CredentialsSecretID, arg.AccountID)
+	_, err := q.db.Exec(ctx, createAccountCredentialSecret,
+		arg.AccountCredentialsID,
+		arg.CredentialsSecretID,
+		arg.AccountID,
+		arg.AccountPublicID,
+	)
 	return err
 }
 
 const findAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID = `-- name: FindAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID :one
-SELECT csr.id, csr.account_id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
+SELECT csr.id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
 LEFT JOIN "account_credentials_secrets" "acs" ON "acs"."credentials_secret_id" = "csr"."id"
 WHERE 
     "acs"."account_credentials_id" = $1 AND 
@@ -71,10 +81,11 @@ func (q *Queries) FindAccountCredentialSecretByAccountCredentialIDAndCredentials
 	var i CredentialsSecret
 	err := row.Scan(
 		&i.ID,
-		&i.AccountID,
 		&i.SecretID,
 		&i.ClientSecret,
 		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -83,7 +94,7 @@ func (q *Queries) FindAccountCredentialSecretByAccountCredentialIDAndCredentials
 }
 
 const findCurrentAccountCredentialSecretByAccountCredentialID = `-- name: FindCurrentAccountCredentialSecretByAccountCredentialID :one
-SELECT csr.id, csr.account_id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
+SELECT csr.id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
 LEFT JOIN "account_credentials_secrets" "acs" ON "acs"."credentials_secret_id" = "csr"."id"
 WHERE 
     "acs"."account_credentials_id" = $1 AND 
@@ -97,10 +108,11 @@ func (q *Queries) FindCurrentAccountCredentialSecretByAccountCredentialID(ctx co
 	var i CredentialsSecret
 	err := row.Scan(
 		&i.ID,
-		&i.AccountID,
 		&i.SecretID,
 		&i.ClientSecret,
 		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -109,7 +121,7 @@ func (q *Queries) FindCurrentAccountCredentialSecretByAccountCredentialID(ctx co
 }
 
 const findPaginatedAccountCredentialSecretsByAccountCredentialID = `-- name: FindPaginatedAccountCredentialSecretsByAccountCredentialID :many
-SELECT csr.id, csr.account_id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
+SELECT csr.id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
 LEFT JOIN "account_credentials_secrets" "acs" ON "acs"."credentials_secret_id" = "csr"."id"
 WHERE "acs"."account_credentials_id" = $1
 ORDER BY "csr"."expires_at" DESC
@@ -133,10 +145,11 @@ func (q *Queries) FindPaginatedAccountCredentialSecretsByAccountCredentialID(ctx
 		var i CredentialsSecret
 		if err := rows.Scan(
 			&i.ID,
-			&i.AccountID,
 			&i.SecretID,
 			&i.ClientSecret,
 			&i.IsRevoked,
+			&i.Usage,
+			&i.AccountID,
 			&i.ExpiresAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,

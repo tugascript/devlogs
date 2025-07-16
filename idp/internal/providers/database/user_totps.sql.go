@@ -11,8 +11,9 @@ import (
 
 const findUserTotpByUserID = `-- name: FindUserTotpByUserID :one
 
-SELECT id, account_id, dek_kid, user_id, url, secret, recovery_codes, created_at, updated_at FROM "user_totps"
-WHERE "user_id" = $1 LIMIT 1
+SELECT t.id, t.dek_kid, t.url, t.secret, t.recovery_codes, t.usage, t.account_id, t.created_at, t.updated_at FROM "totps" AS "t"
+LEFT JOIN "user_totps" AS "at" ON "at"."totp_id" = "t"."id"
+WHERE "at"."user_id" = $1 LIMIT 1
 `
 
 // Copyright (c) 2025 Afonso Barracha
@@ -20,17 +21,17 @@ WHERE "user_id" = $1 LIMIT 1
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) FindUserTotpByUserID(ctx context.Context, userID int32) (UserTotp, error) {
+func (q *Queries) FindUserTotpByUserID(ctx context.Context, userID int32) (Totp, error) {
 	row := q.db.QueryRow(ctx, findUserTotpByUserID, userID)
-	var i UserTotp
+	var i Totp
 	err := row.Scan(
 		&i.ID,
-		&i.AccountID,
 		&i.DekKid,
-		&i.UserID,
 		&i.Url,
 		&i.Secret,
 		&i.RecoveryCodes,
+		&i.Usage,
+		&i.AccountID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

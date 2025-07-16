@@ -52,6 +52,8 @@ const (
 	PgTypeTokenKeyUsage           = "token_key_usage"
 	PgTypeTokenKeyType            = "token_key_type"
 	PgTypeTwoFactorType           = "two_factor_type"
+	PgTypeTOTPUsage               = "totp_usage"
+	PgTypeCredentialsUsage        = "credentials_usage"
 	PgTypeAuthMethod              = "auth_method"
 	PgTypeAccountCredentialsScope = "account_credentials_scope"
 	PgTypeAuthProvider            = "auth_provider"
@@ -63,13 +65,15 @@ const (
 	PgTypeResponseType            = "response_type"
 )
 
-var PgTypes = [15]string{
+var PgTypes = [17]string{
 	PgTypeKekUsage,
 	PgTypeDekUsage,
 	PgTypeTokenCryptoSuite,
 	PgTypeTokenKeyUsage,
 	PgTypeTokenKeyType,
 	PgTypeTwoFactorType,
+	PgTypeTOTPUsage,
+	PgTypeCredentialsUsage,
 	PgTypeAuthMethod,
 	PgTypeAccountCredentialsScope,
 	PgTypeAuthProvider,

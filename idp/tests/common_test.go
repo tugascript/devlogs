@@ -524,7 +524,7 @@ func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (stri
 				TTL:       tks.GetAccessTTL(),
 			},
 		),
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
 	})
 	if serviceErr != nil {
 		t.Fatal("Failed to sign access token", serviceErr)
@@ -552,7 +552,7 @@ func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (stri
 					TTL:       tks.GetRefreshTTL(),
 				},
 			),
-			GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+			GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
 		},
 	)
 	if serviceErr != nil {
@@ -589,7 +589,7 @@ func GenerateScopedAccountAccessToken(t *testing.T, account *dtos.AccountDTO, sc
 				TTL:       tks.GetAccessTTL(),
 			},
 		),
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
 	})
 	if serviceErr != nil {
 		t.Fatal("Failed to sign access token", serviceErr)

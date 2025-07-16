@@ -339,7 +339,9 @@ func (s *Services) ExtLoginAccount(
 			KeyType:   database.TokenKeyTypeOauthAuthorization,
 			TTL:       s.jwt.GetOAuthTTL(),
 		}),
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.RequestID),
+		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign OAuth Token", "serviceError", serviceErr)
@@ -431,7 +433,9 @@ func (s *Services) AppleLoginAccount(
 			KeyType:   database.TokenKeyTypeOauthAuthorization,
 			TTL:       s.jwt.GetOAuthTTL(),
 		}),
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.RequestID),
+		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to generate OAuth Token", "serviceError", serviceErr)

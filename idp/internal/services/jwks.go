@@ -211,7 +211,7 @@ func (s *Services) BuildGetGlobalEncryptedJWKFn(
 				requestID:   opts.RequestID,
 				keyType:     opts.KeyType,
 				cryptoSuite: cryptoSuite,
-				getDEKfn:    s.BuildGetEncGlobalDEK(ctx, opts.RequestID),
+				getDEKfn:    s.BuildGetEncGlobalDEKFn(ctx, opts.RequestID),
 				storeFN: s.buildStoreGlobalJWKfn(ctx, buildStoreGlobalJWKfnOptions{
 					requestID: opts.RequestID,
 					keyType:   opts.KeyType,
@@ -547,7 +547,7 @@ func (s *Services) BuildGetEncryptedAccountJWKFn(
 					keyType:   opts.KeyType,
 					data:      data,
 				}),
-				getDEKfn: s.BuildGetEncAccountDEK(ctx, GetEncAccountDEKOptions{
+				getDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
 					RequestID: opts.RequestID,
 					AccountID: opts.AccountID,
 				}),
@@ -738,4 +738,36 @@ func (s *Services) GetAndCacheAccountDistributedJWK(
 
 	logger.InfoContext(ctx, "Account distributed JWKs cached successfully", "etag", etag, "count", len(jwks))
 	return etag, jwks, nil
+}
+
+func (s *Services) BuildUpdateJWKDEKFn(
+	ctx context.Context,
+	requestID string,
+) crypto.StoreReEncryptedData {
+	logger := s.buildLogger(requestID, jwkLocation, "BuildUpdateJWKDEKFn")
+	logger.InfoContext(ctx, "Building update JWK DEK function...")
+
+	return func(kid crypto.EntityID, dekID crypto.DEKID, encPrivKey crypto.DEKCiphertext) *exceptions.ServiceError {
+		logger.InfoContext(ctx, "Updating JWK DEK...")
+		jwkEnt, err := s.database.FindTokenSigningKeyByKID(ctx, kid)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to get JWK from database", "error", err)
+			return exceptions.FromDBError(err)
+		}
+
+		if err := s.database.UpdateTokenSigningKeyDEKAndPrivateKey(
+			ctx,
+			database.UpdateTokenSigningKeyDEKAndPrivateKeyParams{
+				ID:         jwkEnt.ID,
+				DekKid:     dekID,
+				PrivateKey: encPrivKey,
+			},
+		); err != nil {
+			logger.ErrorContext(ctx, "Failed to update JWK DEK and private key", "error", err)
+			return exceptions.FromDBError(err)
+		}
+
+		logger.InfoContext(ctx, "JWK DEK updated successfully")
+		return nil
+	}
 }

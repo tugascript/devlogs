@@ -9,7 +9,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -87,11 +86,11 @@ func (s *Services) buildStoreGlobalDEKfn(
 	}
 }
 
-func (s *Services) BuildGetEncGlobalDEK(
+func (s *Services) BuildGetEncGlobalDEKFn(
 	ctx context.Context,
 	requestID string,
 ) crypto.GetDEKtoEncrypt {
-	logger := s.buildLogger(requestID, deksLocation, "BuildGetEncGlobalDEK")
+	logger := s.buildLogger(requestID, deksLocation, "BuildGetEncGlobalDEKFn")
 	logger.InfoContext(ctx, "Build GetDEKtoEncrypt function...")
 	return func() (crypto.DEKID, crypto.EncryptedDEK, uuid.UUID, *exceptions.ServiceError) {
 		kid, dek, kekKID, ok, err := s.cache.GetEncDEK(ctx, cache.GetEncDEKOptions{
@@ -158,25 +157,27 @@ func (s *Services) BuildGetGlobalDecDEKFn(
 	logger := s.buildLogger(requestID, deksLocation, "BuildGetGlobalDecDEKFn")
 	logger.InfoContext(ctx, "Building GetDEKtoDecrypt function for global DEK...")
 
-	return func(kid string) (string, uuid.UUID, *exceptions.ServiceError) {
-		dek, kekKID, ok, err := s.cache.GetDecDEK(ctx, cache.GetDecDEKOptions{
+	return func(kid string) (crypto.EncryptedDEK, crypto.KEKID, crypto.IsExpiredDEK, *exceptions.ServiceError) {
+		dek, kekKID, expiresAt, ok, err := s.cache.GetDecDEK(ctx, cache.GetDecDEKOptions{
 			RequestID: requestID,
 			KID:       kid,
 			Prefix:    "global",
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get DEK for decryption", "error", err)
-			return "", uuid.Nil, exceptions.NewServerError()
+			return "", uuid.Nil, false, exceptions.NewServerError()
 		}
+
+		now := time.Now()
 		if ok {
 			logger.InfoContext(ctx, "DEK found in cache", "dekKID", kid)
-			return dek, kekKID, nil
+			return dek, kekKID, now.After(expiresAt), nil
 		}
 
 		dekEnt, err := s.database.FindDataEncryptionKeyByKID(ctx, kid)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get DEK", "error", err)
-			return "", uuid.Nil, exceptions.FromDBError(err)
+			return "", uuid.Nil, false, exceptions.FromDBError(err)
 		}
 
 		if err := s.cache.SaveDecDEK(ctx, cache.SaveDecDEKOptions{
@@ -184,14 +185,15 @@ func (s *Services) BuildGetGlobalDecDEKFn(
 			DEK:       dekEnt.Dek,
 			KID:       dekEnt.Kid,
 			KEKid:     dekEnt.KekKid,
+			ExpiresAt: dekEnt.ExpiresAt,
 			Prefix:    "global",
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache DEK", "error", err)
-			return "", uuid.Nil, exceptions.NewServerError()
+			return "", uuid.Nil, false, exceptions.NewServerError()
 		}
 
 		logger.InfoContext(ctx, "DEK found in database", "dekKID", dekEnt.Kid)
-		return dekEnt.Dek, dekEnt.KekKid, nil
+		return dekEnt.Dek, dekEnt.KekKid, now.After(dekEnt.ExpiresAt), nil
 	}
 }
 
@@ -222,6 +224,7 @@ func (s *Services) buildStoreAccountDEKfn(
 
 		dekEnt, err := qrs.CreateDataEncryptionKey(ctx, database.CreateDataEncryptionKeyParams{
 			Kid:       dekID,
+			Dek:       encryptedDEK,
 			KekKid:    kekID,
 			Usage:     database.DekUsageAccount,
 			ExpiresAt: time.Now().AddDate(0, 0, int(s.dekExpDays)),
@@ -260,16 +263,16 @@ func (s *Services) buildStoreAccountDEKfn(
 	}
 }
 
-type GetEncAccountDEKOptions struct {
+type BuildGetEncAccountDEKOptions struct {
 	RequestID string
 	AccountID int32
 }
 
-func (s *Services) BuildGetEncAccountDEK(
+func (s *Services) BuildGetEncAccountDEKfn(
 	ctx context.Context,
-	opts GetEncAccountDEKOptions,
+	opts BuildGetEncAccountDEKOptions,
 ) crypto.GetDEKtoEncrypt {
-	logger := s.buildLogger(opts.RequestID, deksLocation, "BuildGetEncAccountDEK").With(
+	logger := s.buildLogger(opts.RequestID, deksLocation, "BuildGetEncAccountDEKfn").With(
 		"accountId", opts.AccountID,
 	)
 	logger.InfoContext(ctx, "Building GetDEKtoEncrypt function for account DEK...")
@@ -363,56 +366,65 @@ func (s *Services) BuildGetEncAccountDEK(
 	}
 }
 
-type buildGetDecAccountDEKFnOptions struct {
-	requestID string
-	accountID int32
+type BuildGetDecAccountDEKFnOptions struct {
+	RequestID string
+	AccountID int32
 }
 
-func (s *Services) buildGetDecAccountDEKFn(
+func (s *Services) BuildGetDecAccountDEKFn(
 	ctx context.Context,
-	logger *slog.Logger,
-	opts buildGetDecAccountDEKFnOptions,
+	opts BuildGetDecAccountDEKFnOptions,
 ) crypto.GetDEKtoDecrypt {
-	return func(kid string) (string, uuid.UUID, *exceptions.ServiceError) {
-		prefix := fmt.Sprintf("account:%d", opts.accountID)
-		dek, kekKID, ok, err := s.cache.GetDecDEK(ctx, cache.GetDecDEKOptions{
-			RequestID: opts.requestID,
+	logger := s.buildLogger(opts.RequestID, deksLocation, "BuildGetDecAccountDEKFn").With(
+		"accountId", opts.AccountID,
+	)
+	logger.InfoContext(ctx, "Building GetDEKtoDecrypt function for account DEK...")
+
+	return func(kid string) (crypto.EncryptedDEK, crypto.KEKID, crypto.IsExpiredDEK, *exceptions.ServiceError) {
+		logger.InfoContext(ctx, "Getting account DEK from cache")
+		prefix := fmt.Sprintf("account:%d", opts.AccountID)
+		dek, kekKID, expiresAt, found, err := s.cache.GetDecDEK(ctx, cache.GetDecDEKOptions{
+			RequestID: opts.RequestID,
 			KID:       kid,
 			Prefix:    prefix,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get DEK for decryption", "error", err)
-			return "", uuid.Nil, exceptions.NewServerError()
-		}
-		if ok {
-			logger.InfoContext(ctx, "DEK found in cache", "dekKID", kid)
-			return dek, kekKID, nil
+			return "", uuid.Nil, false, exceptions.NewServerError()
 		}
 
+		now := time.Now()
+		if found {
+			logger.InfoContext(ctx, "DEK found in cache", "dekKID", kid)
+			return dek, kekKID, now.After(expiresAt), nil
+		}
+
+		logger.InfoContext(ctx, "DEK not found in cache, checking database...")
 		dekEnt, err := s.database.FindAccountDataEncryptionKeyByAccountIDAndKID(
 			ctx,
 			database.FindAccountDataEncryptionKeyByAccountIDAndKIDParams{
-				AccountID: opts.accountID,
+				AccountID: opts.AccountID,
 				Kid:       kid,
 			},
 		)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get DEK", "error", err)
-			return "", uuid.Nil, exceptions.FromDBError(err)
+			return "", uuid.Nil, false, exceptions.FromDBError(err)
 		}
 
 		if err := s.cache.SaveDecDEK(ctx, cache.SaveDecDEKOptions{
-			RequestID: opts.requestID,
+			RequestID: opts.RequestID,
 			DEK:       dekEnt.Dek,
 			KID:       dekEnt.Kid,
 			KEKid:     dekEnt.KekKid,
+			ExpiresAt: dekEnt.ExpiresAt,
 			Prefix:    prefix,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache DEK", "error", err)
-			return "", uuid.Nil, exceptions.NewServerError()
+			return "", uuid.Nil, false, exceptions.NewServerError()
 		}
 
 		logger.InfoContext(ctx, "DEK found in database", "dekKID", dekEnt.Kid)
-		return dekEnt.Dek, dekEnt.KekKid, nil
+		return dekEnt.Dek, dekEnt.KekKid, now.After(dekEnt.ExpiresAt), nil
 	}
 }

@@ -7,30 +7,27 @@
 -- name: CreateAccountTotp :exec
 INSERT INTO "account_totps" (
   "account_id",
-  "url",
-  "secret",
-  "dek_kid",
-  "recovery_codes"
+  "totp_id"
 ) VALUES (
   $1,
-  $2,
-  $3,
-  $4,
-  $5
+  $2
 );
 
 -- name: FindAccountTotpByAccountID :one
-SELECT * FROM "account_totps"
-WHERE "account_id" = $1 LIMIT 1;
+SELECT "t".* FROM "totps" AS "t"
+LEFT JOIN "account_totps" AS "at" ON "at"."totp_id" = "t"."id"
+WHERE
+    "at"."account_id" = $1
+LIMIT 1;
 
 -- name: DeleteAccountRecoveryKeys :exec
 DELETE FROM "account_totps"
 WHERE "account_id" = $1;
 
--- name: UpdateAccountTotp :exec
-UPDATE "account_totps" SET
-  "url" = $2,
-  "secret" = $3,
-  "dek_kid" = $4,
-  "recovery_codes" = $5
-WHERE "id" = $1;
+-- -- name: UpdateAccountTotp :exec
+-- UPDATE "account_totps" SET
+--   "url" = $2,
+--   "secret" = $3,
+--   "dek_kid" = $4,
+--   "recovery_codes" = $5
+-- WHERE "id" = $1;
