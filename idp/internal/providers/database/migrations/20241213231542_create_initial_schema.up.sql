@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-07-13T06:18:37.512Z
+-- Generated at: 2025-07-16T02:29:07.502Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -478,7 +478,7 @@ CREATE TABLE "revoked_tokens" (
 
 CREATE UNIQUE INDEX "key_encryption_keys_kid_uidx" ON "key_encryption_keys" ("kid");
 
-CREATE UNIQUE INDEX "key_encryption_keys_usage_uidx" ON "key_encryption_keys" ("usage");
+CREATE INDEX "key_encryption_keys_usage_idx" ON "key_encryption_keys" ("usage");
 
 CREATE UNIQUE INDEX "key_encryption_keys_kid_usage_uidx" ON "key_encryption_keys" ("kid", "usage");
 
@@ -544,7 +544,7 @@ CREATE INDEX "credential_keys_account_id_public_kid_idx" ON "credentials_keys" (
 
 CREATE UNIQUE INDEX "accounts_totps_account_id_uidx" ON "account_totps" ("account_id");
 
-CREATE UNIQUE INDEX "accounts_totps_dek_kid_uidx" ON "account_totps" ("dek_kid");
+CREATE INDEX "accounts_totps_dek_kid_idx" ON "account_totps" ("dek_kid");
 
 CREATE UNIQUE INDEX "account_credentials_client_id_uidx" ON "account_credentials" ("client_id");
 

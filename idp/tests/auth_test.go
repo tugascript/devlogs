@@ -29,7 +29,6 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
-	"github.com/tugascript/devlogs/idp/internal/server"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"github.com/tugascript/devlogs/idp/internal/utils"
@@ -216,6 +215,8 @@ func TestConfirm(t *testing.T) {
 
 	generateConfirmationToken := func(t *testing.T, accountDTO dtos.AccountDTO) bodies.ConfirmationTokenBody {
 		testTokens := GetTestTokens(t)
+		testServices := GetTestServices(t)
+		requestID := uuid.NewString()
 		token := testTokens.CreateConfirmationToken(tokens.AccountConfirmationTokenOptions{
 			PublicID: accountDTO.PublicID,
 			Version:  accountDTO.Version(),
@@ -226,13 +227,17 @@ func TestConfirm(t *testing.T) {
 			crypto.SignTokenOptions{
 				RequestID: uuid.NewString(),
 				Token:     token,
-				GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+				GetJWKfn: testServices.BuildGetGlobalEncryptedJWKFn(
 					context.Background(),
 					services.BuildEncryptedJWKFnOptions{
-						RequestID: uuid.NewString(),
+						RequestID: requestID,
 						KeyType:   database.TokenKeyTypeEmailVerification,
 						TTL:       testTokens.GetConfirmationTTL(),
 					},
+				),
+				GetDEKfn: testServices.BuildGetGlobalDecDEKFn(
+					context.Background(),
+					requestID,
 				),
 			},
 		)
@@ -674,9 +679,8 @@ func TestRefreshToken(t *testing.T) {
 		_, refreshToken := GenerateTestAccountAuthTokens(t, &account)
 		testDb := GetTestDatabase(t)
 		testTokens := GetTestTokens(t)
-		_, _, id, exp, err := testTokens.VerifyRefreshToken(refreshToken, GetTestServices(t).BuildGetGlobalVerifyKeyFn(
+		_, _, id, exp, err := testTokens.VerifyRefreshToken(refreshToken, GetTestServices(t).BuildGetGlobalPublicKeyFn(
 			context.Background(),
-			server.DefaultLogger(),
 			services.BuildGetGlobalVerifyKeyFnOptions{
 				RequestID: uuid.NewString(),
 				KeyType:   database.TokenKeyTypeRefresh,
@@ -798,13 +802,17 @@ func TestAccount2FARecover(t *testing.T) {
 		testE := GetTestCrypto(t)
 		testD := GetTestDatabase(t)
 		testT := GetTestTokens(t)
+		testS := GetTestServices(t)
 		requestID := uuid.NewString()
 		ctx := context.Background()
 
 		totpKey, err := testE.GenerateTotpKey(ctx, crypto.GenerateTotpKeyOptions{
 			RequestID: requestID,
 			Email:     accountDTO.Email,
-			GetDEKfn:  GetTestServices(t).BuildGetEncGlobalDEK(ctx, requestID),
+			GetDEKfn: GetTestServices(t).BuildGetEncAccountDEK(ctx, services.GetEncAccountDEKOptions{
+				RequestID: requestID,
+				AccountID: accountDTO.ID(),
+			}),
 			StoreTOTPfn: func(dekKID, encSecret string, hashedCode []byte, url string) *exceptions.ServiceError {
 				if err := testD.CreateAccountTotp(ctx, database.CreateAccountTotpParams{
 					AccountID:     accountDTO.ID(),
@@ -845,13 +853,17 @@ func TestAccount2FARecover(t *testing.T) {
 			crypto.SignTokenOptions{
 				RequestID: uuid.NewString(),
 				Token:     token,
-				GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+				GetJWKfn: testS.BuildGetGlobalEncryptedJWKFn(
 					context.Background(),
 					services.BuildEncryptedJWKFnOptions{
 						RequestID: uuid.NewString(),
 						KeyType:   database.TokenKeyType2faAuthentication,
 						TTL:       testT.Get2FATTL(),
 					},
+				),
+				GetDEKfn: testS.BuildGetGlobalDecDEKFn(
+					context.Background(),
+					requestID,
 				),
 			},
 		)
@@ -1271,6 +1283,9 @@ func TestResetAccountPassword(t *testing.T) {
 
 	generateResetToken := func(t *testing.T, email string) string {
 		testTokens := GetTestTokens(t)
+		testServices := GetTestServices(t)
+		requestID := uuid.NewString()
+
 		account, err := GetTestDatabase(t).FindAccountByEmail(context.Background(), email)
 		if err != nil {
 			t.Fatal("Failed to find account by email", err)
@@ -1283,15 +1298,19 @@ func TestResetAccountPassword(t *testing.T) {
 		sToken, serviceErr := GetTestCrypto(t).SignToken(
 			context.Background(),
 			crypto.SignTokenOptions{
-				RequestID: uuid.NewString(),
+				RequestID: requestID,
 				Token:     token,
-				GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+				GetJWKfn: testServices.BuildGetGlobalEncryptedJWKFn(
 					context.Background(),
 					services.BuildEncryptedJWKFnOptions{
-						RequestID: uuid.NewString(),
+						RequestID: requestID,
 						KeyType:   database.TokenKeyTypePasswordReset,
 						TTL:       testTokens.GetResetTTL(),
 					},
+				),
+				GetDEKfn: testServices.BuildGetGlobalDecDEKFn(
+					context.Background(),
+					requestID,
 				),
 			},
 		)
@@ -1380,6 +1399,9 @@ func TestResetAccountPassword(t *testing.T) {
 			Name: "Should return 401 UNAUTHORIZED if user is not found",
 			ReqFn: func(t *testing.T) (bodies.ResetPasswordBody, string) {
 				testTokens := GetTestTokens(t)
+				testServices := GetTestServices(t)
+				requestID := uuid.NewString()
+
 				token := testTokens.CreateResetToken(tokens.AccountResetTokenOptions{
 					PublicID: uuid.New(),
 					Version:  1,
@@ -1388,15 +1410,19 @@ func TestResetAccountPassword(t *testing.T) {
 				sToken, serviceErr := GetTestCrypto(t).SignToken(
 					context.Background(),
 					crypto.SignTokenOptions{
-						RequestID: uuid.NewString(),
+						RequestID: requestID,
 						Token:     token,
-						GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+						GetJWKfn: testServices.BuildGetGlobalEncryptedJWKFn(
 							context.Background(),
 							services.BuildEncryptedJWKFnOptions{
 								RequestID: uuid.NewString(),
 								KeyType:   database.TokenKeyTypePasswordReset,
 								TTL:       testTokens.GetResetTTL(),
 							},
+						),
+						GetDEKfn: testServices.BuildGetGlobalDecDEKFn(
+							context.Background(),
+							requestID,
 						),
 					},
 				)
@@ -1449,6 +1475,9 @@ func TestListAccountAuthProviders(t *testing.T) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				testD := GetTestDatabase(t)
 				testT := GetTestTokens(t)
+				testS := GetTestServices(t)
+				requestID := uuid.NewString()
+
 				providers := []database.AuthProvider{
 					database.AuthProviderMicrosoft,
 					database.AuthProviderGoogle,
@@ -1479,15 +1508,19 @@ func TestListAccountAuthProviders(t *testing.T) {
 				sToken, serviceErr := GetTestCrypto(t).SignToken(
 					context.Background(),
 					crypto.SignTokenOptions{
-						RequestID: uuid.NewString(),
+						RequestID: requestID,
 						Token:     accessToken,
-						GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+						GetJWKfn: testS.BuildGetGlobalEncryptedJWKFn(
 							context.Background(),
 							services.BuildEncryptedJWKFnOptions{
-								RequestID: uuid.NewString(),
+								RequestID: requestID,
 								KeyType:   database.TokenKeyTypeAccess,
 								TTL:       testT.GetAccessTTL(),
 							},
+						),
+						GetDEKfn: testS.BuildGetGlobalDecDEKFn(
+							context.Background(),
+							requestID,
 						),
 					},
 				)
@@ -1514,6 +1547,9 @@ func TestListAccountAuthProviders(t *testing.T) {
 			ReqFn: func(t *testing.T) (string, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				testT := GetTestTokens(t)
+				testS := GetTestServices(t)
+				requestID := uuid.NewString()
+
 				accessToken, err := testT.CreateAccessToken(tokens.AccountAccessTokenOptions{
 					PublicID: account.PublicID,
 					Version:  account.Version(),
@@ -1530,15 +1566,19 @@ func TestListAccountAuthProviders(t *testing.T) {
 				sToken, serviceErr := GetTestCrypto(t).SignToken(
 					context.Background(),
 					crypto.SignTokenOptions{
-						RequestID: uuid.NewString(),
+						RequestID: requestID,
 						Token:     accessToken,
-						GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+						GetJWKfn: testS.BuildGetGlobalEncryptedJWKFn(
 							context.Background(),
 							services.BuildEncryptedJWKFnOptions{
-								RequestID: uuid.NewString(),
+								RequestID: requestID,
 								KeyType:   database.TokenKeyTypeAccess,
 								TTL:       testT.GetAccessTTL(),
 							},
+						),
+						GetDEKfn: testS.BuildGetGlobalDecDEKFn(
+							context.Background(),
+							requestID,
 						),
 					},
 				)
@@ -1594,6 +1634,9 @@ func TestGetAccountAuthProvider(t *testing.T) {
 			ReqFn: func(t *testing.T) (string, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				testT := GetTestTokens(t)
+				testS := GetTestServices(t)
+				requestID := uuid.NewString()
+
 				accessToken, err := testT.CreateAccessToken(tokens.AccountAccessTokenOptions{
 					PublicID:     account.PublicID,
 					Version:      account.Version(),
@@ -1607,15 +1650,19 @@ func TestGetAccountAuthProvider(t *testing.T) {
 				sToken, serviceErr := GetTestCrypto(t).SignToken(
 					context.Background(),
 					crypto.SignTokenOptions{
-						RequestID: uuid.NewString(),
+						RequestID: requestID,
 						Token:     accessToken,
-						GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+						GetJWKfn: testS.BuildGetGlobalEncryptedJWKFn(
 							context.Background(),
 							services.BuildEncryptedJWKFnOptions{
-								RequestID: uuid.NewString(),
+								RequestID: requestID,
 								KeyType:   database.TokenKeyTypeAccess,
 								TTL:       testT.GetAccessTTL(),
 							},
+						),
+						GetDEKfn: testS.BuildGetGlobalDecDEKFn(
+							context.Background(),
+							requestID,
 						),
 					},
 				)
@@ -1667,6 +1714,9 @@ func TestGetAccountAuthProvider(t *testing.T) {
 			ReqFn: func(t *testing.T) (string, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderMicrosoft))
 				testT := GetTestTokens(t)
+				testS := GetTestServices(t)
+				requestID := uuid.NewString()
+
 				accessToken, err := testT.CreateAccessToken(tokens.AccountAccessTokenOptions{
 					PublicID:     account.PublicID,
 					Version:      account.Version(),
@@ -1680,15 +1730,19 @@ func TestGetAccountAuthProvider(t *testing.T) {
 				sToken, serviceErr := GetTestCrypto(t).SignToken(
 					context.Background(),
 					crypto.SignTokenOptions{
-						RequestID: uuid.NewString(),
+						RequestID: requestID,
 						Token:     accessToken,
-						GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+						GetJWKfn: testS.BuildGetGlobalEncryptedJWKFn(
 							context.Background(),
 							services.BuildEncryptedJWKFnOptions{
-								RequestID: uuid.NewString(),
+								RequestID: requestID,
 								KeyType:   database.TokenKeyTypeAccess,
 								TTL:       testT.GetAccessTTL(),
 							},
+						),
+						GetDEKfn: testS.BuildGetGlobalDecDEKFn(
+							context.Background(),
+							requestID,
 						),
 					},
 				)

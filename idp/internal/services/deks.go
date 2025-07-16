@@ -69,7 +69,7 @@ func (s *Services) buildStoreGlobalDEKfn(
 			return 0, exceptions.NewServerError()
 		}
 
-		if err := s.cache.CacheEncDEK(ctx, cache.CacheEncDEKOptions{
+		if err := s.cache.SaveEncDEK(ctx, cache.SaveEncDEKOptions{
 			RequestID: requestID,
 			DEK:       encryptedDEK,
 			KID:       dekID,
@@ -179,7 +179,7 @@ func (s *Services) BuildGetGlobalDecDEKFn(
 			return "", uuid.Nil, exceptions.FromDBError(err)
 		}
 
-		if err := s.cache.CacheDecDEK(ctx, cache.CacheDecDEKOptions{
+		if err := s.cache.SaveDecDEK(ctx, cache.SaveDecDEKOptions{
 			RequestID: requestID,
 			DEK:       dekEnt.Dek,
 			KID:       dekEnt.Kid,
@@ -241,7 +241,7 @@ func (s *Services) buildStoreAccountDEKfn(
 			return 0, serviceErr
 		}
 
-		if err = s.cache.CacheEncDEK(ctx, cache.CacheEncDEKOptions{
+		if err = s.cache.SaveEncDEK(ctx, cache.SaveEncDEKOptions{
 			RequestID: opts.requestID,
 			DEK:       encryptedDEK,
 			KID:       dekID,
@@ -260,35 +260,41 @@ func (s *Services) buildStoreAccountDEKfn(
 	}
 }
 
-type getEncAccountDEKOptions struct {
-	requestID string
-	accountID int32
+type GetEncAccountDEKOptions struct {
+	RequestID string
+	AccountID int32
 }
 
-func (s *Services) buildGetEncAccountDEK(
+func (s *Services) BuildGetEncAccountDEK(
 	ctx context.Context,
-	logger *slog.Logger,
-	opts getEncAccountDEKOptions,
+	opts GetEncAccountDEKOptions,
 ) crypto.GetDEKtoEncrypt {
+	logger := s.buildLogger(opts.RequestID, deksLocation, "BuildGetEncAccountDEK").With(
+		"accountId", opts.AccountID,
+	)
+	logger.InfoContext(ctx, "Building GetDEKtoEncrypt function for account DEK...")
+
 	return func() (crypto.DEKID, crypto.EncryptedDEK, uuid.UUID, *exceptions.ServiceError) {
-		suffix := fmt.Sprintf("account:%d", opts.accountID)
-		kid, dek, kekKID, ok, err := s.cache.GetEncDEK(ctx, cache.GetEncDEKOptions{
-			RequestID: opts.requestID,
+		logger.InfoContext(ctx, "Getting account DEK from cache")
+		suffix := fmt.Sprintf("account:%d", opts.AccountID)
+		kid, dek, kekKID, found, err := s.cache.GetEncDEK(ctx, cache.GetEncDEKOptions{
+			RequestID: opts.RequestID,
 			Suffix:    suffix,
 		})
 		if err != nil {
-			logger.ErrorContext(ctx, "Failed to get global DEK", "error", err)
+			logger.ErrorContext(ctx, "Failed to get account DEK", "error", err)
 			return "", "", uuid.Nil, exceptions.NewServerError()
 		}
-		if ok {
-			logger.InfoContext(ctx, "Global DEK found in cache", "dek_kid", kid)
+		if found {
+			logger.InfoContext(ctx, "Account DEK found in cache", "dek_kid", kid)
 			return kid, dek, kekKID, nil
 		}
 
+		logger.InfoContext(ctx, "DEK not found in cache, checking database...")
 		dekEnt, err := s.database.FindAccountDataEncryptionKeyByAccountID(
 			ctx,
 			database.FindAccountDataEncryptionKeyByAccountIDParams{
-				AccountID: opts.accountID,
+				AccountID: opts.AccountID,
 				ExpiresAt: time.Now().Add(-2 * time.Hour),
 			},
 		)
@@ -299,9 +305,10 @@ func (s *Services) buildGetEncAccountDEK(
 				return "", "", uuid.Nil, serviceErr
 			}
 
+			logger.InfoContext(ctx, "DEK not found in database, creating new one...")
 			kekKID, serviceErr := s.GetOrCreateAccountKEK(ctx, GetOrCreateAccountKEKOptions{
-				RequestID: opts.requestID,
-				AccountID: opts.accountID,
+				RequestID: opts.RequestID,
+				AccountID: opts.AccountID,
 			})
 			if serviceErr != nil {
 				logger.ErrorContext(ctx, "Failed to get or create account KEK", "serviceError", serviceErr)
@@ -312,11 +319,11 @@ func (s *Services) buildGetEncAccountDEK(
 			if serviceErr := s.createDEK(
 				ctx,
 				createDEKOptions{
-					requestID: opts.requestID,
+					requestID: opts.RequestID,
 					kekKID:    kekKID,
 					storeFN: s.buildStoreAccountDEKfn(ctx, buildStoreAccountDEKOptions{
-						requestID: opts.requestID,
-						accountID: opts.accountID,
+						requestID: opts.RequestID,
+						accountID: opts.AccountID,
 						data:      data,
 					}),
 				},
@@ -337,12 +344,12 @@ func (s *Services) buildGetEncAccountDEK(
 				return "", "", uuid.Nil, exceptions.NewServerError()
 			}
 
-			logger.InfoContext(ctx, "Created new DEK", "dekKID", kid)
+			logger.InfoContext(ctx, "Created and cached new DEK", "dekKID", kid)
 			return kid, dek, kekKID, nil
 		}
 
-		if err := s.cache.CacheEncDEK(ctx, cache.CacheEncDEKOptions{
-			RequestID: opts.requestID,
+		if err := s.cache.SaveEncDEK(ctx, cache.SaveEncDEKOptions{
+			RequestID: opts.RequestID,
 			DEK:       dekEnt.Dek,
 			KID:       dekEnt.Kid,
 			KEKid:     dekEnt.KekKid,
@@ -352,7 +359,7 @@ func (s *Services) buildGetEncAccountDEK(
 			return "", "", uuid.Nil, exceptions.NewServerError()
 		}
 
-		return kid, dek, kekKID, nil
+		return dekEnt.Kid, dekEnt.Dek, dekEnt.KekKid, nil
 	}
 }
 
@@ -394,7 +401,7 @@ func (s *Services) buildGetDecAccountDEKFn(
 			return "", uuid.Nil, exceptions.FromDBError(err)
 		}
 
-		if err := s.cache.CacheDecDEK(ctx, cache.CacheDecDEKOptions{
+		if err := s.cache.SaveDecDEK(ctx, cache.SaveDecDEKOptions{
 			RequestID: opts.requestID,
 			DEK:       dekEnt.Dek,
 			KID:       dekEnt.Kid,

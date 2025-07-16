@@ -54,7 +54,7 @@ func (s *Services) processPurposeAuthHeader(
 	accountClaims, err := s.jwt.VerifyPurposeToken(
 		token,
 		opts.tokenPurpose,
-		s.BuildGetGlobalVerifyKeyFn(ctx, logger, BuildGetGlobalVerifyKeyFnOptions{
+		s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
 			RequestID: opts.requestID,
 			KeyType:   opts.tokenKeyType,
 		}),
@@ -81,17 +81,19 @@ func (s *Services) ProcessAccountAuthHeader(
 
 	token, serviceErr := extractAuthHeaderToken(opts.AuthHeader)
 	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to extract token from auth header", "serviceError", serviceErr)
 		return tokens.AccountClaims{}, nil, serviceErr
 	}
 
 	accountClaims, scopes, err := s.jwt.VerifyAccessToken(
 		token,
-		s.BuildGetGlobalVerifyKeyFn(ctx, logger, BuildGetGlobalVerifyKeyFnOptions{
+		s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
 			RequestID: opts.RequestID,
 			KeyType:   database.TokenKeyTypeAccess,
 		}),
 	)
 	if err != nil {
+		logger.WarnContext(ctx, "Failed to verify access token", "error", err)
 		return tokens.AccountClaims{}, nil, exceptions.NewUnauthorizedError()
 	}
 
@@ -294,7 +296,7 @@ func (s *Services) ConfirmAccount(
 	claims, err := s.jwt.VerifyPurposeToken(
 		opts.ConfirmationToken,
 		tokens.TokenPurposeConfirmation,
-		s.BuildGetGlobalVerifyKeyFn(ctx, logger, BuildGetGlobalVerifyKeyFnOptions{
+		s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
 			RequestID: opts.RequestID,
 			KeyType:   database.TokenKeyTypeEmailVerification,
 		}),
@@ -619,7 +621,7 @@ func (s *Services) LogoutAccount(
 
 	claims, _, tokenID, exp, err := s.jwt.VerifyRefreshToken(
 		opts.RefreshToken,
-		s.BuildGetGlobalVerifyKeyFn(ctx, logger, BuildGetGlobalVerifyKeyFnOptions{
+		s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
 			RequestID: opts.RequestID,
 			KeyType:   database.TokenKeyTypeRefresh,
 		}),
@@ -684,7 +686,7 @@ func (s *Services) RefreshTokenAccount(
 
 	claims, scopes, id, exp, err := s.jwt.VerifyRefreshToken(
 		opts.RefreshToken,
-		s.BuildGetGlobalVerifyKeyFn(ctx, logger, BuildGetGlobalVerifyKeyFnOptions{
+		s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
 			RequestID: opts.RequestID,
 			KeyType:   database.TokenKeyTypeRefresh,
 		}),
@@ -821,7 +823,7 @@ func (s *Services) ResetAccountPassword(
 	accountClaims, err := s.jwt.VerifyPurposeToken(
 		opts.ResetToken,
 		tokens.TokenPurposeReset,
-		s.BuildGetGlobalVerifyKeyFn(ctx, logger, BuildGetGlobalVerifyKeyFnOptions{
+		s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
 			RequestID: opts.RequestID,
 			KeyType:   database.TokenKeyTypePasswordReset,
 		}),

@@ -10,25 +10,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const (
-	jwkLocation string        = "jwk"
-	jwkPrefix   string        = "jwk"
-	jwkDuration time.Duration = 1 * time.Hour
+	jwkLocation string = "jwk"
 
-	jwkPublicSuffix   string        = "public"
-	jwkPublicDuration time.Duration = 5 * time.Minute
+	jwkPrefix       string = "jwk"
+	jwkPublicSuffix string = "public"
 )
 
 func buildJWKKey(prefix string, cryptoSuite utils.SupportedCryptoSuite, kid string) string {
 	return fmt.Sprintf("%s:%s:%s:%s", jwkPrefix, prefix, cryptoSuite, kid)
 }
 
-type SaveJWKOptions struct {
+type SavePublicJWKOptions struct {
 	RequestID   string
 	Prefix      string
 	CryptoSuite utils.SupportedCryptoSuite
@@ -36,10 +34,10 @@ type SaveJWKOptions struct {
 	PublicKey   []byte
 }
 
-func (c *Cache) SaveJWK(ctx context.Context, opts SaveJWKOptions) error {
+func (c *Cache) SavePublicJWK(ctx context.Context, opts SavePublicJWKOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  jwkLocation,
-		Method:    "SaveJWK",
+		Method:    "SavePublicJWK",
 		RequestID: opts.RequestID,
 	}).With(
 		"kid", opts.KeyID,
@@ -47,7 +45,7 @@ func (c *Cache) SaveJWK(ctx context.Context, opts SaveJWKOptions) error {
 	logger.DebugContext(ctx, "Saving JWK...")
 
 	key := buildJWKKey(opts.Prefix, opts.CryptoSuite, opts.KeyID)
-	if err := c.storage.Set(key, opts.PublicKey, jwkDuration); err != nil {
+	if err := c.storage.Set(key, opts.PublicKey, c.publicJWKTTL); err != nil {
 		logger.ErrorContext(ctx, "Error caching JWK", "error", err)
 		return err
 	}
@@ -70,6 +68,7 @@ func (c *Cache) GetJWK(ctx context.Context, opts GetJWKOptions) (utils.JWK, bool
 	}).With(
 		"kid", opts.KeyID,
 	)
+	logger.DebugContext(ctx, "Getting JWK...")
 
 	key := buildJWKKey(opts.Prefix, opts.CryptoSuite, opts.KeyID)
 	val, err := c.storage.Get(key)
@@ -95,9 +94,17 @@ func buildJWKPrivateKeyKey(cryptoSuite utils.SupportedCryptoSuite, suffix string
 	return fmt.Sprintf("%s:%s:%s", jwkPrefix, cryptoSuite, suffix)
 }
 
-type privateKetData struct {
-	KID        string `json:"kid"`
-	EncPrivKey string `json:"private_key"`
+func encodeJWKPrivateKeyData(kid string, encPrivKey string) []byte {
+	return []byte(fmt.Sprintf("%s::%s", kid, encPrivKey))
+}
+
+func decodeJWKPrivateKeyData(data []byte) (string, string, error) {
+	dataSlice := strings.Split(string(data), "::")
+	if len(dataSlice) != 2 {
+		return "", "", fmt.Errorf("invalid JWK private key data")
+	}
+
+	return dataSlice[0], dataSlice[1], nil
 }
 
 type SaveJWKPrivateKeyOptions struct {
@@ -116,17 +123,11 @@ func (c *Cache) SaveJWKPrivateKey(ctx context.Context, opts SaveJWKPrivateKeyOpt
 	}).With("kid", opts.KID)
 	logger.DebugContext(ctx, "Saving JWK private key...")
 
-	data := privateKetData{
-		KID:        opts.KID,
-		EncPrivKey: opts.EncPrivKey,
-	}
-	json, err := json.Marshal(data)
-	if err != nil {
-		logger.ErrorContext(ctx, "Error marshalling JWK private key", "error", err)
-		return err
-	}
-
-	if err := c.storage.Set(buildJWKPrivateKeyKey(opts.CryptoSuite, opts.Suffix), json, jwkDuration); err != nil {
+	if err := c.storage.Set(
+		buildJWKPrivateKeyKey(opts.CryptoSuite, opts.Suffix),
+		encodeJWKPrivateKeyData(opts.KID, opts.EncPrivKey),
+		c.privateJWKTTL,
+	); err != nil {
 		logger.ErrorContext(ctx, "Error caching JWK private key", "error", err)
 		return err
 	}
@@ -162,13 +163,14 @@ func (c *Cache) GetJWKPrivateKey(
 		return "", "", false, nil
 	}
 
-	var data privateKetData
-	if err := json.Unmarshal(val, &data); err != nil {
-		logger.ErrorContext(ctx, "Error unmarshalling JWK private key", "error", err)
+	kid, encPrivKey, err := decodeJWKPrivateKeyData(val)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error decoding JWK private key data", "error", err)
 		return "", "", false, err
 	}
 
-	return data.KID, data.EncPrivKey, true, nil
+	logger.DebugContext(ctx, "JWK private key found in cache", "kid", kid)
+	return kid, encPrivKey, true, nil
 }
 
 type SavePublicJWKsOptions struct {
@@ -197,7 +199,7 @@ func (c *Cache) SavePublicJWKs(
 	if err := c.storage.Set(
 		fmt.Sprintf("%s:%s:%s", jwkPrefix, opts.Prefix, jwkPublicSuffix),
 		jwksBytes,
-		jwkPublicDuration,
+		c.publicJWKsTTL,
 	); err != nil {
 		logger.ErrorContext(ctx, "Error caching public JWKs", "error", err)
 		return "", err

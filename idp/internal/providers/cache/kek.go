@@ -9,7 +9,6 @@ package cache
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -17,30 +16,29 @@ import (
 )
 
 const (
-	kekLocation string        = "kek"
-	kekPrefix   string        = "kek"
-	kekDuration time.Duration = 3 * time.Hour
+	kekLocation string = "kek"
+	kekPrefix   string = "kek"
 )
 
 func buildKEKKey(prefix string) string {
 	return fmt.Sprintf("%s:%s", kekPrefix, prefix)
 }
 
-type CacheKEKUUIDOptions struct {
+type SaveKEKUUIDOptions struct {
 	RequestID string
 	KID       uuid.UUID
 	Prefix    string
 }
 
-func (c *Cache) CacheKEKUUID(ctx context.Context, opts CacheKEKUUIDOptions) error {
+func (c *Cache) SaveKEKUUID(ctx context.Context, opts SaveKEKUUIDOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  kekLocation,
-		Method:    "CacheKEKUUID",
+		Method:    "SaveKEKUUID",
 		RequestID: opts.RequestID,
 	})
 	logger.DebugContext(ctx, "Caching KEK UUID...")
 
-	return c.storage.Set(buildKEKKey(opts.Prefix), opts.KID[:], kekDuration)
+	return c.storage.Set(buildKEKKey(opts.Prefix), opts.KID[:], c.kekTTL)
 }
 
 type GetKEKUUIDOptions struct {

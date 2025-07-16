@@ -86,16 +86,28 @@ func New(
 	logger *slog.Logger,
 	cfg config.Config,
 ) *FiberServer {
-	logger.InfoContext(ctx, "Building redis storage...")
+	logger.InfoContext(ctx, "Building distributed cache...")
+
+	logger.InfoContext(ctx, "Building redis cache storage...")
 	cacheStorage := fiberRedis.New(fiberRedis.Config{
 		URL: cfg.RedisURL(),
 	})
+	logger.InfoContext(ctx, "Finished building redis cache storage")
+
+	dcCfg := cfg.DistributedCache()
 	cc := cache.NewCache(
 		logger,
 		cacheStorage,
-		cfg.AccountUsernameTTL(),
+		dcCfg.KEKTTL(),
+		dcCfg.DEKDecTTL(),
+		dcCfg.DEKEncTTL(),
+		dcCfg.PublicJWKTTL(),
+		dcCfg.PrivateJWKTTL(),
+		dcCfg.PublicJWKsTTL(),
+		dcCfg.AccountUsernameTTL(),
+		dcCfg.WellKnownOIDCConfigTTL(),
 	)
-	logger.InfoContext(ctx, "Finished building redis storage")
+	logger.InfoContext(ctx, "Finished building distributed cache")
 
 	logger.InfoContext(ctx, "Building database connection pool...")
 	pgCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL())

@@ -673,8 +673,9 @@ func TestOAuthToken(t *testing.T) {
 		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGitHub))
 		testCache := GetTestCache(t)
 		testTokens := GetTestTokens(t)
-		ctx := context.Background()
+		testServices := GetTestServices(t)
 		requestID := uuid.NewString()
+		ctx := context.Background()
 
 		code, err := testCache.GenerateOAuthCode(ctx, cache.GenerateOAuthOptions{
 			RequestID:       requestID,
@@ -698,14 +699,12 @@ func TestOAuthToken(t *testing.T) {
 			crypto.SignTokenOptions{
 				RequestID: requestID,
 				Token:     accessToken,
-				GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
-					context.Background(),
-					services.BuildEncryptedJWKFnOptions{
-						RequestID: requestID,
-						KeyType:   database.TokenKeyTypeOauthAuthorization,
-						TTL:       testTokens.GetOAuthTTL(),
-					},
-				),
+				GetJWKfn: testServices.BuildGetGlobalEncryptedJWKFn(ctx, services.BuildEncryptedJWKFnOptions{
+					RequestID: requestID,
+					KeyType:   database.TokenKeyTypeOauthAuthorization,
+					TTL:       testTokens.GetOAuthTTL(),
+				}),
+				GetDEKfn: testServices.BuildGetGlobalDecDEKFn(ctx, requestID),
 			},
 		)
 		if serviceErr != nil {
@@ -718,7 +717,9 @@ func TestOAuthToken(t *testing.T) {
 	beforeEachRefresh := func(t *testing.T) string {
 		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 		testTokens := GetTestTokens(t)
+		testServices := GetTestServices(t)
 		requestID := uuid.NewString()
+		ctx := context.Background()
 
 		refreshToken, err := testTokens.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
 			PublicID: account.PublicID,
@@ -729,21 +730,16 @@ func TestOAuthToken(t *testing.T) {
 			t.Fatal("Failed to create refresh token", err)
 		}
 
-		sRefreshToken, serviceErr := GetTestCrypto(t).SignToken(
-			context.Background(),
-			crypto.SignTokenOptions{
+		sRefreshToken, serviceErr := GetTestCrypto(t).SignToken(ctx, crypto.SignTokenOptions{
+			RequestID: requestID,
+			Token:     refreshToken,
+			GetJWKfn: testServices.BuildGetGlobalEncryptedJWKFn(ctx, services.BuildEncryptedJWKFnOptions{
 				RequestID: requestID,
-				Token:     refreshToken,
-				GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
-					context.Background(),
-					services.BuildEncryptedJWKFnOptions{
-						RequestID: requestID,
-						KeyType:   database.TokenKeyTypeRefresh,
-						TTL:       testTokens.GetRefreshTTL(),
-					},
-				),
-			},
-		)
+				KeyType:   database.TokenKeyTypeRefresh,
+				TTL:       testTokens.GetRefreshTTL(),
+			}),
+			GetDEKfn: testServices.BuildGetGlobalDecDEKFn(ctx, requestID),
+		})
 		if serviceErr != nil {
 			t.Fatal("Failed to sign refresh token", serviceErr)
 		}

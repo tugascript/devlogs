@@ -21,7 +21,8 @@ import (
 const (
 	dekLocation string = "dek"
 
-	dekByteLen int = 32 // 256 bits
+	dekByteLen   int   = 32   // 256 bits
+	dekCacheCost int64 = 1000 // Cost for caching DEK, used in Ristretto cache
 )
 
 func buildDEKCacheKey(dekID string) string {
@@ -66,7 +67,7 @@ func (e *Crypto) GenerateDEK(ctx context.Context, opts GenerateDEKOptions) (stri
 		return "", serviceErr
 	}
 
-	if ok := e.localCache.SetWithTTL(buildDEKCacheKey(dekID), dek, 0, e.dekTTL); !ok {
+	if ok := e.localCache.SetWithTTL(buildDEKCacheKey(dekID), dek, dekCacheCost, e.dekTTL); !ok {
 		logger.ErrorContext(ctx, "Failed to cache DEK", "dekID", dekID)
 		return "", errors.New("failed to cache DEK")
 	}
@@ -106,7 +107,7 @@ func (e *Crypto) getDecryptedDEK(
 		return nil, exceptions.NewServerError()
 	}
 
-	if ok := e.localCache.SetWithTTL(dekID, dek, 0, e.dekTTL); !ok {
+	if ok := e.localCache.SetWithTTL(dekID, dek, dekCacheCost, e.dekTTL); !ok {
 		logger.ErrorContext(ctx, "Failed to cache DEK")
 		return nil, exceptions.NewServerError()
 	}

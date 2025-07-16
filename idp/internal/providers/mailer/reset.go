@@ -30,7 +30,7 @@ const resetTemplate = `
 <body>
 	<h1>Password Reset</h1>
 	<br/>
-	<p>Hello {{.KeyType}}</p>
+	<p>Hello {{.Name}}</p>
 	<br/>
 	<p>We received a request to reset your password. Please click the link below to reset your password.</p>
 	<a href="{{.ResetURL}}">Reset Password</a>
