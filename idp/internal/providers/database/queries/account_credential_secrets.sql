@@ -8,11 +8,13 @@
 INSERT INTO "account_credentials_secrets" (
     "account_credentials_id",
     "credentials_secret_id",
-    "account_id"
+    "account_id",
+    "account_public_id"
 ) VALUES (
     $1,
     $2,
-    $3
+    $3,
+    $4
 );
 
 -- name: FindPaginatedAccountCredentialSecretsByAccountCredentialID :many

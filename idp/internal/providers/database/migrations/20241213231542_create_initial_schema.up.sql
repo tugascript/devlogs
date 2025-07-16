@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-07-16T02:29:07.502Z
+-- Generated at: 2025-07-16T09:33:08.207Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -38,6 +38,16 @@ CREATE TYPE "two_factor_type" AS ENUM (
   'none',
   'totp',
   'email'
+);
+
+CREATE TYPE "totp_usage" AS ENUM (
+  'account',
+  'user'
+);
+
+CREATE TYPE "credentials_usage" AS ENUM (
+  'account',
+  'user'
 );
 
 CREATE TYPE "auth_method" AS ENUM (
@@ -189,6 +199,43 @@ CREATE TABLE "accounts" (
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
+CREATE TABLE "totps" (
+  "id" serial PRIMARY KEY,
+  "dek_kid" varchar(22) NOT NULL,
+  "url" varchar(250) NOT NULL,
+  "secret" text NOT NULL,
+  "recovery_codes" jsonb NOT NULL,
+  "usage" totp_usage NOT NULL,
+  "account_id" integer NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "credentials_secrets" (
+  "id" serial PRIMARY KEY,
+  "secret_id" varchar(26) NOT NULL,
+  "client_secret" text NOT NULL,
+  "is_revoked" boolean NOT NULL DEFAULT false,
+  "usage" credentials_usage NOT NULL,
+  "account_id" integer NOT NULL,
+  "expires_at" timestamptz NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "credentials_keys" (
+  "id" serial PRIMARY KEY,
+  "public_kid" varchar(22) NOT NULL,
+  "public_key" jsonb NOT NULL,
+  "crypto_suite" token_crypto_suite NOT NULL DEFAULT 'ES256',
+  "is_revoked" boolean NOT NULL DEFAULT false,
+  "usage" credentials_usage NOT NULL,
+  "account_id" integer NOT NULL,
+  "expires_at" timestamptz NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
 CREATE TABLE "account_key_encryption_keys" (
   "account_id" integer NOT NULL,
   "key_encryption_key_id" integer NOT NULL,
@@ -203,38 +250,11 @@ CREATE TABLE "account_data_encryption_keys" (
   PRIMARY KEY ("account_id", "data_encryption_key_id")
 );
 
-CREATE TABLE "credentials_secrets" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "secret_id" varchar(26) NOT NULL,
-  "client_secret" text NOT NULL,
-  "is_revoked" boolean NOT NULL DEFAULT false,
-  "expires_at" timestamptz NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now()),
-  "updated_at" timestamptz NOT NULL DEFAULT (now())
-);
-
-CREATE TABLE "credentials_keys" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "public_kid" varchar(22) NOT NULL,
-  "public_key" jsonb NOT NULL,
-  "crypto_suite" token_crypto_suite NOT NULL DEFAULT 'ES256',
-  "is_revoked" boolean NOT NULL DEFAULT false,
-  "expires_at" timestamptz NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now()),
-  "updated_at" timestamptz NOT NULL DEFAULT (now())
-);
-
 CREATE TABLE "account_totps" (
-  "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
-  "dek_kid" varchar(22) NOT NULL,
-  "url" varchar(250) NOT NULL,
-  "secret" text NOT NULL,
-  "recovery_codes" jsonb NOT NULL,
+  "totp_id" integer NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
-  "updated_at" timestamptz NOT NULL DEFAULT (now())
+  PRIMARY KEY ("account_id", "totp_id")
 );
 
 CREATE TABLE "account_credentials" (
@@ -250,20 +270,21 @@ CREATE TABLE "account_credentials" (
 );
 
 CREATE TABLE "account_credentials_secrets" (
-  "account_credentials_id" integer NOT NULL,
-  "credentials_secret_id" integer NOT NULL,
   "account_id" integer NOT NULL,
+  "credentials_secret_id" integer NOT NULL,
+  "account_credentials_id" integer NOT NULL,
+  "account_public_id" uuid NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
-  PRIMARY KEY ("account_credentials_id", "credentials_secret_id")
+  PRIMARY KEY ("account_id", "credentials_secret_id")
 );
 
 CREATE TABLE "account_credentials_keys" (
-  "account_credentials_id" integer NOT NULL,
-  "credentials_key_id" integer NOT NULL,
   "account_id" integer NOT NULL,
+  "credentials_key_id" integer NOT NULL,
+  "account_credentials_id" integer NOT NULL,
   "account_public_id" uuid NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
-  PRIMARY KEY ("account_credentials_id", "credentials_key_id")
+  PRIMARY KEY ("account_id", "credentials_key_id")
 );
 
 CREATE TABLE "account_auth_providers" (
@@ -310,24 +331,19 @@ CREATE TABLE "users" (
 );
 
 CREATE TABLE "user_data_encryption_keys" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
   "user_id" integer NOT NULL,
-  "user_public_id" uuid NOT NULL,
   "data_encryption_key_id" integer NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now())
+  "account_id" integer NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  PRIMARY KEY ("user_id", "data_encryption_key_id")
 );
 
 CREATE TABLE "user_totps" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "dek_kid" varchar(22) NOT NULL,
   "user_id" integer NOT NULL,
-  "url" varchar(250) NOT NULL,
-  "secret" text NOT NULL,
-  "recovery_codes" jsonb NOT NULL,
+  "totp_id" integer NOT NULL,
+  "account_id" integer NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
-  "updated_at" timestamptz NOT NULL DEFAULT (now())
+  PRIMARY KEY ("user_id", "totp_id")
 );
 
 CREATE TABLE "user_auth_providers" (
@@ -350,26 +366,23 @@ CREATE TABLE "user_credentials" (
 );
 
 CREATE TABLE "user_credentials_secrets" (
-  "id" serial PRIMARY KEY,
   "user_id" integer NOT NULL,
+  "credentials_secret_id" integer NOT NULL,
   "user_credential_id" integer NOT NULL,
   "account_id" integer NOT NULL,
-  "secret_id" varchar(26) NOT NULL,
-  "client_secret" text NOT NULL,
-  "expires_at" timestamptz NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now())
+  "user_public_id" uuid NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  PRIMARY KEY ("user_id", "credentials_secret_id")
 );
 
 CREATE TABLE "user_credentials_keys" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
   "user_id" integer NOT NULL,
+  "credentials_key_id" integer NOT NULL,
   "user_credential_id" integer NOT NULL,
-  "public_kid" varchar(22) NOT NULL,
-  "public_key" jsonb NOT NULL,
-  "jwt_crypto_suite" token_crypto_suite NOT NULL DEFAULT 'ES256',
-  "expires_at" timestamptz NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now())
+  "account_id" integer NOT NULL,
+  "user_public_id" uuid NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  PRIMARY KEY ("user_id", "credentials_key_id")
 );
 
 CREATE TABLE "apps" (
@@ -514,6 +527,24 @@ CREATE INDEX "accounts_public_id_version_idx" ON "accounts" ("public_id", "versi
 
 CREATE UNIQUE INDEX "accounts_username_uidx" ON "accounts" ("username");
 
+CREATE INDEX "accounts_totps_dek_kid_idx" ON "totps" ("dek_kid");
+
+CREATE INDEX "accounts_totps_account_id_idx" ON "totps" ("account_id");
+
+CREATE UNIQUE INDEX "credential_secrets_secret_id_uidx" ON "credentials_secrets" ("secret_id");
+
+CREATE INDEX "credential_secrets_expires_at_idx" ON "credentials_secrets" ("expires_at");
+
+CREATE INDEX "credential_secrets_is_revoked_usage_expires_at_idx" ON "credentials_secrets" ("is_revoked", "usage", "expires_at");
+
+CREATE INDEX "credential_secrets_account_id_idx" ON "credentials_secrets" ("account_id");
+
+CREATE UNIQUE INDEX "credential_keys_public_kid_uidx" ON "credentials_keys" ("public_kid");
+
+CREATE INDEX "credential_keys_expires_at_idx" ON "credentials_keys" ("expires_at");
+
+CREATE INDEX "credential_keys_is_revoked_usage_expires_at_idx" ON "credentials_keys" ("is_revoked", "usage", "expires_at");
+
 CREATE INDEX "account_key_encryption_keys_account_id_idx" ON "account_key_encryption_keys" ("account_id");
 
 CREATE UNIQUE INDEX "account_key_encryption_keys_key_encryption_key_id_uidx" ON "account_key_encryption_keys" ("key_encryption_key_id");
@@ -522,29 +553,9 @@ CREATE INDEX "account_data_encryption_keys_account_id_idx" ON "account_data_encr
 
 CREATE UNIQUE INDEX "account_data_encryption_keys_account_id_data_encryption_key_id_uidx" ON "account_data_encryption_keys" ("data_encryption_key_id");
 
-CREATE INDEX "credential_secrets_account_id_idx" ON "credentials_secrets" ("account_id");
-
-CREATE UNIQUE INDEX "credential_secrets_secret_id_uidx" ON "credentials_secrets" ("secret_id");
-
-CREATE INDEX "credential_secrets_expires_at_idx" ON "credentials_secrets" ("expires_at");
-
-CREATE INDEX "credential_secrets_is_revoked_expires_at_idx" ON "credentials_secrets" ("is_revoked", "expires_at");
-
-CREATE INDEX "credential_secrets_account_id_secret_id_idx" ON "credentials_secrets" ("account_id", "secret_id");
-
-CREATE INDEX "credential_keys_account_id_idx" ON "credentials_keys" ("account_id");
-
-CREATE UNIQUE INDEX "credential_keys_public_kid_uidx" ON "credentials_keys" ("public_kid");
-
-CREATE INDEX "credential_keys_expires_at_idx" ON "credentials_keys" ("expires_at");
-
-CREATE INDEX "credential_keys_is_revoked_expires_at_idx" ON "credentials_keys" ("is_revoked", "expires_at");
-
-CREATE INDEX "credential_keys_account_id_public_kid_idx" ON "credentials_keys" ("account_id", "public_kid");
-
 CREATE UNIQUE INDEX "accounts_totps_account_id_uidx" ON "account_totps" ("account_id");
 
-CREATE INDEX "accounts_totps_dek_kid_idx" ON "account_totps" ("dek_kid");
+CREATE UNIQUE INDEX "accounts_totps_totp_id_uidx" ON "account_totps" ("totp_id");
 
 CREATE UNIQUE INDEX "account_credentials_client_id_uidx" ON "account_credentials" ("client_id");
 
@@ -556,19 +567,21 @@ CREATE INDEX "account_credentials_account_public_id_client_id_idx" ON "account_c
 
 CREATE UNIQUE INDEX "account_credentials_alias_account_id_uidx" ON "account_credentials" ("alias", "account_id");
 
-CREATE INDEX "account_credentials_secrets_account_credentials_id_idx" ON "account_credentials_secrets" ("account_credentials_id");
+CREATE INDEX "account_credential_secrets_account_id_idx" ON "account_credentials_secrets" ("account_id");
 
-CREATE UNIQUE INDEX "account_credentials_secrets_credentials_secret_id_uidx" ON "account_credentials_secrets" ("credentials_secret_id");
+CREATE INDEX "account_credential_secrets_account_public_id_idx" ON "account_credentials_secrets" ("account_public_id");
 
-CREATE INDEX "account_credentials_secrets_account_id_idx" ON "account_credentials_secrets" ("account_id");
+CREATE UNIQUE INDEX "account_credential_secrets_credentials_secret_id_uidx" ON "account_credentials_secrets" ("credentials_secret_id");
 
-CREATE INDEX "account_credentials_keys_account_credentials_id_idx" ON "account_credentials_keys" ("account_credentials_id");
-
-CREATE UNIQUE INDEX "account_credentials_keys_credentials_key_id_uidx" ON "account_credentials_keys" ("credentials_key_id");
+CREATE INDEX "account_credential_secrets_account_credentials_id_idx" ON "account_credentials_secrets" ("account_credentials_id");
 
 CREATE INDEX "account_credentials_keys_account_id_idx" ON "account_credentials_keys" ("account_id");
 
 CREATE INDEX "account_credentials_keys_account_public_id_idx" ON "account_credentials_keys" ("account_public_id");
+
+CREATE UNIQUE INDEX "account_credentials_keys_credentials_key_id_uidx" ON "account_credentials_keys" ("credentials_key_id");
+
+CREATE INDEX "account_credentials_keys_account_credentials_id_idx" ON "account_credentials_keys" ("account_credentials_id");
 
 CREATE INDEX "auth_providers_email_idx" ON "account_auth_providers" ("email");
 
@@ -594,19 +607,17 @@ CREATE UNIQUE INDEX "users_public_id_uidx" ON "users" ("public_id");
 
 CREATE INDEX "users_public_id_version_idx" ON "users" ("public_id", "version");
 
-CREATE INDEX "user_data_encryption_keys_account_id_idx" ON "user_data_encryption_keys" ("account_id");
-
 CREATE INDEX "user_data_encryption_keys_user_id_idx" ON "user_data_encryption_keys" ("user_id");
-
-CREATE INDEX "user_data_encryption_keys_user_public_id_idx" ON "user_data_encryption_keys" ("user_public_id");
 
 CREATE UNIQUE INDEX "user_data_encryption_keys_data_encryption_key_id_uidx" ON "user_data_encryption_keys" ("data_encryption_key_id");
 
-CREATE INDEX "user_totps_account_id_idx" ON "user_totps" ("account_id");
+CREATE INDEX "user_data_encryption_keys_account_id_idx" ON "user_data_encryption_keys" ("account_id");
 
 CREATE UNIQUE INDEX "user_totps_user_id_uidx" ON "user_totps" ("user_id");
 
-CREATE INDEX "user_totps_dek_kid_idx" ON "user_totps" ("dek_kid");
+CREATE UNIQUE INDEX "user_totps_totp_id_uidx" ON "user_totps" ("totp_id");
+
+CREATE INDEX "user_totps_account_id_idx" ON "user_totps" ("account_id");
 
 CREATE INDEX "user_auth_provider_user_id_idx" ON "user_auth_providers" ("user_id");
 
@@ -622,23 +633,23 @@ CREATE INDEX "user_credentials_account_id_idx" ON "user_credentials" ("account_i
 
 CREATE INDEX "user_credentials_secrets_user_id_idx" ON "user_credentials_secrets" ("user_id");
 
-CREATE INDEX "user_credentials_secrets_user_credential_id_idx" ON "user_credentials_secrets" ("user_credential_id");
-
-CREATE UNIQUE INDEX "user_credentials_secrets_secret_id_uidx" ON "user_credentials_secrets" ("secret_id");
-
-CREATE INDEX "user_credentials_secrets_user_credential_id_secret_id_idx" ON "user_credentials_secrets" ("user_credential_id", "secret_id");
+CREATE UNIQUE INDEX "user_credentials_secrets_credentials_secret_id_uidx" ON "user_credentials_secrets" ("credentials_secret_id");
 
 CREATE INDEX "user_credentials_secrets_account_id_idx" ON "user_credentials_secrets" ("account_id");
 
-CREATE INDEX "user_credentials_keys_account_id_idx" ON "user_credentials_keys" ("account_id");
+CREATE INDEX "user_credentials_secrets_user_credential_id_idx" ON "user_credentials_secrets" ("user_credential_id");
+
+CREATE INDEX "user_credentials_secrets_user_public_id_idx" ON "user_credentials_secrets" ("user_public_id");
 
 CREATE INDEX "user_credentials_keys_user_id_idx" ON "user_credentials_keys" ("user_id");
 
+CREATE UNIQUE INDEX "user_credentials_keys_credentials_key_id_uidx" ON "user_credentials_keys" ("credentials_key_id");
+
+CREATE INDEX "user_credentials_keys_account_id_idx" ON "user_credentials_keys" ("account_id");
+
 CREATE INDEX "user_credentials_keys_user_credential_id_idx" ON "user_credentials_keys" ("user_credential_id");
 
-CREATE UNIQUE INDEX "user_credentials_keys_public_kid_uidx" ON "user_credentials_keys" ("public_kid");
-
-CREATE INDEX "user_credentials_keys_user_credential_id_public_kid_idx" ON "user_credentials_keys" ("user_credential_id", "public_kid");
+CREATE INDEX "user_credentials_keys_user_public_id_idx" ON "user_credentials_keys" ("user_public_id");
 
 CREATE INDEX "apps_account_id_idx" ON "apps" ("account_id");
 
@@ -696,6 +707,14 @@ ALTER TABLE "data_encryption_keys" ADD FOREIGN KEY ("kek_kid") REFERENCES "key_e
 
 ALTER TABLE "token_signing_keys" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
 
+ALTER TABLE "totps" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "credentials_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
 ALTER TABLE "account_key_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_key_encryption_keys" ADD FOREIGN KEY ("key_encryption_key_id") REFERENCES "key_encryption_keys" ("id") ON DELETE CASCADE;
@@ -704,19 +723,13 @@ ALTER TABLE "account_data_encryption_keys" ADD FOREIGN KEY ("account_id") REFERE
 
 ALTER TABLE "account_data_encryption_keys" ADD FOREIGN KEY ("data_encryption_key_id") REFERENCES "data_encryption_keys" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "credentials_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
-
 ALTER TABLE "account_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "account_totps" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "account_totps" ADD FOREIGN KEY ("totp_id") REFERENCES "totps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("credentials_secret_id") REFERENCES "credentials_secrets" ("id") ON DELETE CASCADE;
 
@@ -746,7 +759,7 @@ ALTER TABLE "user_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("
 
 ALTER TABLE "user_totps" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "user_totps" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "user_totps" ADD FOREIGN KEY ("totp_id") REFERENCES "totps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "user_auth_providers" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
@@ -760,11 +773,15 @@ ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("user_id") REFERENCES "u
 
 ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("user_credential_id") REFERENCES "user_credentials" ("id") ON DELETE CASCADE;
 
+ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("credentials_secret_id") REFERENCES "credentials_secrets" ("id") ON DELETE CASCADE;
+
 ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "user_credentials_keys" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "user_credentials_keys" ADD FOREIGN KEY ("user_credential_id") REFERENCES "user_credentials" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_credentials_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "user_credentials_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

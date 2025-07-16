@@ -302,6 +302,48 @@ func (ns NullClaims) Value() (driver.Value, error) {
 	return string(ns.Claims), nil
 }
 
+type CredentialsUsage string
+
+const (
+	CredentialsUsageAccount CredentialsUsage = "account"
+	CredentialsUsageUser    CredentialsUsage = "user"
+)
+
+func (e *CredentialsUsage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CredentialsUsage(s)
+	case string:
+		*e = CredentialsUsage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CredentialsUsage: %T", src)
+	}
+	return nil
+}
+
+type NullCredentialsUsage struct {
+	CredentialsUsage CredentialsUsage
+	Valid            bool // Valid is true if CredentialsUsage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCredentialsUsage) Scan(value interface{}) error {
+	if value == nil {
+		ns.CredentialsUsage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CredentialsUsage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCredentialsUsage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CredentialsUsage), nil
+}
+
 type DekUsage string
 
 const (
@@ -656,6 +698,48 @@ func (ns NullTokenKeyUsage) Value() (driver.Value, error) {
 	return string(ns.TokenKeyUsage), nil
 }
 
+type TotpUsage string
+
+const (
+	TotpUsageAccount TotpUsage = "account"
+	TotpUsageUser    TotpUsage = "user"
+)
+
+func (e *TotpUsage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TotpUsage(s)
+	case string:
+		*e = TotpUsage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TotpUsage: %T", src)
+	}
+	return nil
+}
+
+type NullTotpUsage struct {
+	TotpUsage TotpUsage
+	Valid     bool // Valid is true if TotpUsage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTotpUsage) Scan(value interface{}) error {
+	if value == nil {
+		ns.TotpUsage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TotpUsage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTotpUsage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TotpUsage), nil
+}
+
 type TwoFactorType string
 
 const (
@@ -738,17 +822,18 @@ type AccountCredential struct {
 }
 
 type AccountCredentialsKey struct {
-	AccountCredentialsID int32
-	CredentialsKeyID     int32
 	AccountID            int32
+	CredentialsKeyID     int32
+	AccountCredentialsID int32
 	AccountPublicID      uuid.UUID
 	CreatedAt            time.Time
 }
 
 type AccountCredentialsSecret struct {
-	AccountCredentialsID int32
-	CredentialsSecretID  int32
 	AccountID            int32
+	CredentialsSecretID  int32
+	AccountCredentialsID int32
+	AccountPublicID      uuid.UUID
 	CreatedAt            time.Time
 }
 
@@ -771,14 +856,9 @@ type AccountTokenSigningKey struct {
 }
 
 type AccountTotp struct {
-	ID            int32
-	AccountID     int32
-	DekKid        string
-	Url           string
-	Secret        string
-	RecoveryCodes []byte
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	AccountID int32
+	TotpID    int32
+	CreatedAt time.Time
 }
 
 type App struct {
@@ -878,11 +958,12 @@ type AppServiceAudience struct {
 
 type CredentialsKey struct {
 	ID          int32
-	AccountID   int32
 	PublicKid   string
 	PublicKey   []byte
 	CryptoSuite TokenCryptoSuite
 	IsRevoked   bool
+	Usage       CredentialsUsage
+	AccountID   int32
 	ExpiresAt   time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -890,10 +971,11 @@ type CredentialsKey struct {
 
 type CredentialsSecret struct {
 	ID           int32
-	AccountID    int32
 	SecretID     string
 	ClientSecret string
 	IsRevoked    bool
+	Usage        CredentialsUsage
+	AccountID    int32
 	ExpiresAt    time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -955,6 +1037,18 @@ type TokenSigningKey struct {
 	UpdatedAt     time.Time
 }
 
+type Totp struct {
+	ID            int32
+	DekKid        string
+	Url           string
+	Secret        string
+	RecoveryCodes []byte
+	Usage         TotpUsage
+	AccountID     int32
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type User struct {
 	ID            int32
 	PublicID      uuid.UUID
@@ -992,45 +1086,33 @@ type UserCredential struct {
 }
 
 type UserCredentialsKey struct {
-	ID               int32
-	AccountID        int32
 	UserID           int32
+	CredentialsKeyID int32
 	UserCredentialID int32
-	PublicKid        string
-	PublicKey        []byte
-	JwtCryptoSuite   TokenCryptoSuite
-	ExpiresAt        time.Time
+	AccountID        int32
+	UserPublicID     uuid.UUID
 	CreatedAt        time.Time
 }
 
 type UserCredentialsSecret struct {
-	ID               int32
-	UserID           int32
-	UserCredentialID int32
-	AccountID        int32
-	SecretID         string
-	ClientSecret     string
-	ExpiresAt        time.Time
-	CreatedAt        time.Time
+	UserID              int32
+	CredentialsSecretID int32
+	UserCredentialID    int32
+	AccountID           int32
+	UserPublicID        uuid.UUID
+	CreatedAt           time.Time
 }
 
 type UserDataEncryptionKey struct {
-	ID                  int32
-	AccountID           int32
 	UserID              int32
-	UserPublicID        uuid.UUID
 	DataEncryptionKeyID int32
+	AccountID           int32
 	CreatedAt           time.Time
 }
 
 type UserTotp struct {
-	ID            int32
-	AccountID     int32
-	DekKid        string
-	UserID        int32
-	Url           string
-	Secret        string
-	RecoveryCodes []byte
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	UserID    int32
+	TotpID    int32
+	AccountID int32
+	CreatedAt time.Time
 }

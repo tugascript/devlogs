@@ -195,10 +195,15 @@ func (s *Services) sendUserConfirmationEmail(
 			KeyType:   database.TokenKeyTypeEmailVerification,
 			AccountID: opts.accountID,
 		}),
-		GetDEKfn: s.buildGetDecAccountDEKFn(ctx, logger, buildGetDecAccountDEKFnOptions{
-			requestID: opts.requestID,
-			accountID: opts.accountID,
+		GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
+			RequestID: opts.requestID,
+			AccountID: opts.accountID,
 		}),
+		GetEncryptDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			RequestID: opts.requestID,
+			AccountID: opts.accountID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, opts.requestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign user token", "serviceError", serviceErr)
@@ -324,10 +329,15 @@ func (s *Services) generateFullUserAuthDTO(
 			KeyType:   database.TokenKeyTypeAccess,
 			AccountID: accountID,
 		}),
-		GetDEKfn: s.buildGetDecAccountDEKFn(ctx, logger, buildGetDecAccountDEKFnOptions{
-			requestID: requestID,
-			accountID: accountID,
+		GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
+			RequestID: requestID,
+			AccountID: accountID,
 		}),
+		GetEncryptDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			RequestID: requestID,
+			AccountID: accountID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, requestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign access token", "serviceError", serviceErr)
@@ -359,10 +369,15 @@ func (s *Services) generateFullUserAuthDTO(
 			KeyType:   database.TokenKeyTypeRefresh,
 			AccountID: accountID,
 		}),
-		GetDEKfn: s.buildGetDecAccountDEKFn(ctx, logger, buildGetDecAccountDEKFnOptions{
-			requestID: requestID,
-			accountID: accountID,
+		GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
+			RequestID: requestID,
+			AccountID: accountID,
 		}),
+		GetEncryptDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			RequestID: requestID,
+			AccountID: accountID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, requestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign access token", "serviceError", serviceErr)
@@ -647,10 +662,15 @@ func (s *Services) LoginUser(
 				KeyType:   database.TokenKeyType2faAuthentication,
 				AccountID: opts.AccountID,
 			}),
-			GetDEKfn: s.buildGetDecAccountDEKFn(ctx, logger, buildGetDecAccountDEKFnOptions{
-				requestID: opts.RequestID,
-				accountID: opts.AccountID,
+			GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
+				RequestID: opts.RequestID,
+				AccountID: opts.AccountID,
 			}),
+			GetEncryptDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+				RequestID: opts.RequestID,
+				AccountID: opts.AccountID,
+			}),
+			StoreFN: s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to sign two-factor authentication token", "serviceError", serviceErr)
@@ -1172,10 +1192,15 @@ func (s *Services) ForgotUserPassword(
 			KeyType:   database.TokenKeyTypePasswordReset,
 			AccountID: opts.AccountID,
 		}),
-		GetDEKfn: s.buildGetDecAccountDEKFn(ctx, logger, buildGetDecAccountDEKFnOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
+		GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
 		}),
+		GetEncryptDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign reset token", "serviceError", serviceErr)

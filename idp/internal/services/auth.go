@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -152,7 +153,9 @@ func (s *Services) sendConfirmationEmail(
 			KeyType:   database.TokenKeyTypeEmailVerification,
 			TTL:       s.jwt.GetConfirmationTTL(),
 		}),
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, requestID),
+		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, requestID),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to sign confirmation token", "error", err)
@@ -245,7 +248,9 @@ func (s *Services) GenerateFullAuthDTO(
 			KeyType:   database.TokenKeyTypeAccess,
 			TTL:       s.jwt.GetAccessTTL(),
 		}),
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, requestID),
+		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, requestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign access token", "serviceError", serviceErr)
@@ -270,7 +275,9 @@ func (s *Services) GenerateFullAuthDTO(
 			KeyType:   database.TokenKeyTypeRefresh,
 			TTL:       s.jwt.GetRefreshTTL(),
 		}),
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, requestID),
+		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, requestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign refresh token", "serviceError", serviceErr)
@@ -357,7 +364,9 @@ func (s *Services) generate2FAAuth(
 			KeyType:   database.TokenKeyType2faAuthentication,
 			TTL:       s.jwt.Get2FATTL(),
 		}),
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, requestID),
+		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, requestID),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to sign 2FA token", "error", err)
@@ -462,6 +471,71 @@ func (s *Services) LoginAccount(
 	)
 }
 
+func (s *Services) buildGetAccountTOTPFn(
+	ctx context.Context,
+	requestID string,
+) crypto.GetTOTPSecret {
+	logger := s.buildLogger(requestID, authLocation, "buildGetAccountTOTPFn")
+	logger.InfoContext(ctx, "Building GetAccountTOTP function...")
+
+	return func(ownerID int32) (crypto.DEKCiphertext, *exceptions.ServiceError) {
+		logger.InfoContext(ctx, "Getting TOTP secret...")
+		accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, ownerID)
+		if err != nil {
+			serviceErr := exceptions.FromDBError(err)
+			if serviceErr.Code == exceptions.CodeNotFound {
+				logger.WarnContext(ctx, "Account TOTP not found", "error", err)
+				return "", exceptions.NewForbiddenError()
+			}
+
+			logger.ErrorContext(ctx, "Failed to find account TOTP", "error", err)
+			return "", serviceErr
+		}
+
+		logger.InfoContext(ctx, "Found account TOTP secret")
+		return accountTOTP.Secret, nil
+	}
+}
+
+func (s *Services) buildUpdateAccountTOTPDEKFn(
+	ctx context.Context,
+	requestID string,
+) crypto.StoreReEncryptedData {
+	logger := s.buildLogger(requestID, authLocation, "buildUpdateAccountTOTPDEKFn")
+	logger.InfoContext(ctx, "Building UpdateAccountTOTPDEK function...")
+
+	return func(
+		accountID crypto.EntityID,
+		dekID crypto.DEKID,
+		secret crypto.DEKCiphertext,
+	) *exceptions.ServiceError {
+		logger.InfoContext(ctx, "Updating TOTP secret...")
+		intID, err := strconv.ParseInt(accountID, 10, 32)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to parse account ID", "error", err)
+			return exceptions.NewServerError()
+		}
+
+		accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, int32(intID))
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to find account TOTP", "error", err)
+			return exceptions.FromDBError(err)
+		}
+
+		if err := s.database.UpdateTOTPSecretAndDEK(ctx, database.UpdateTOTPSecretAndDEKParams{
+			ID:     accountTOTP.ID,
+			DekKid: dekID,
+			Secret: secret,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to update TOTP secret", "error", err)
+			return exceptions.FromDBError(err)
+		}
+
+		logger.InfoContext(ctx, "Updated TOTP secret successfully")
+		return nil
+	}
+}
+
 type VerifyAccountTotpOptions struct {
 	RequestID string
 	ID        int32
@@ -481,22 +555,16 @@ func (s *Services) VerifyAccountTotp(
 		RequestID: opts.RequestID,
 		Code:      opts.Code,
 		OwnerID:   opts.ID,
-		GetSecret: func(ownerID int32) (crypto.DEKCiphertext, *exceptions.ServiceError) {
-			accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, opts.ID)
-			if err != nil {
-				serviceErr := exceptions.FromDBError(err)
-				if serviceErr.Code == exceptions.CodeNotFound {
-					logger.WarnContext(ctx, "Account TOTP not found", "error", err)
-					return "", exceptions.NewForbiddenError()
-				}
-
-				logger.ErrorContext(ctx, "Failed to find account TOTP", "error", err)
-				return "", serviceErr
-			}
-
-			return accountTOTP.Secret, nil
-		},
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
+		GetSecret: s.buildGetAccountTOTPFn(ctx, opts.RequestID),
+		GetDecryptDEKFN: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.ID,
+		}),
+		GetEncryptDEKFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.ID,
+		}),
+		StoreFN: s.buildUpdateAccountTOTPDEKFn(ctx, opts.RequestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to verify TOTP Code", "error", serviceErr)
@@ -782,7 +850,9 @@ func (s *Services) ForgotAccountPassword(
 			KeyType:   database.TokenKeyTypePasswordReset,
 			TTL:       s.jwt.GetResetTTL(),
 		}),
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.RequestID),
+		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate rest token", "error", err)
@@ -877,6 +947,67 @@ func isValidRecoveryCode(code string) bool {
 	return recoveryRegex.MatchString(code)
 }
 
+func (s *Services) buildGetAccountRecoveryCodesFn(
+	ctx context.Context,
+	requestID string,
+) crypto.GetTOTPRecoveryCodes {
+	logger := s.buildLogger(requestID, authLocation, "buildGetAccountRecoveryCodesFn")
+	logger.InfoContext(ctx, "Building GetAccountRecoveryCodes function...")
+
+	return func(ownerID int32) ([]byte, *exceptions.ServiceError) {
+		logger.InfoContext(ctx, "Getting recovery codes...")
+		accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, ownerID)
+		if err != nil {
+			serviceErr := exceptions.FromDBError(err)
+			if serviceErr.Code == exceptions.CodeNotFound {
+				logger.WarnContext(ctx, "Account TOTP not found", "error", err)
+				return nil, exceptions.NewForbiddenError()
+			}
+
+			logger.ErrorContext(ctx, "Failed to find account TOTP", "error", err)
+			return nil, serviceErr
+		}
+
+		logger.InfoContext(ctx, "Found account recovery codes")
+		return accountTOTP.RecoveryCodes, nil
+	}
+}
+
+type buildUpdateAccountTOTPFnOptions struct {
+	requestID string
+	accountID int32
+}
+
+func (s *Services) buildUpdateAccountTOTPFn(
+	ctx context.Context,
+	opts buildUpdateAccountTOTPFnOptions,
+) crypto.StoreTOTP {
+	logger := s.buildLogger(opts.requestID, authLocation, "buildUpdateAccountTOTPFn")
+	logger.InfoContext(ctx, "Building update account TOTP function...")
+
+	return func(dekKID, encSecret string, hashedCode []byte, url string) *exceptions.ServiceError {
+		logger.InfoContext(ctx, "Updating account TOTP...")
+		accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, opts.accountID)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to find account TOTP", "error", err)
+			return exceptions.FromDBError(err)
+		}
+
+		if err := s.database.UpdateTOTP(ctx, database.UpdateTOTPParams{
+			ID:            accountTOTP.ID,
+			DekKid:        dekKID,
+			Secret:        encSecret,
+			RecoveryCodes: hashedCode,
+			Url:           url,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to update account TOTP", "error", err)
+			return exceptions.FromDBError(err)
+		}
+
+		return nil
+	}
+}
+
 type RecoverAccountOptions struct {
 	RequestID    string
 	PublicID     uuid.UUID
@@ -913,53 +1044,20 @@ func (s *Services) RecoverAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, accountDTO.ID())
-	if err != nil {
-		serviceErr := exceptions.FromDBError(err)
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "Account TOTP not found", "error", err)
-			return dtos.AuthDTO{}, exceptions.NewForbiddenError()
-		}
-
-		logger.ErrorContext(ctx, "Failed to find account TOTP", "error", err)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
 	ok, newTotpKey, serviceErr := s.crypto.VerifyTotpRecoveryCode(ctx, crypto.VerifyTotpRecoveryCodeOptions{
 		RequestID:    opts.RequestID,
 		Email:        accountDTO.Email,
 		RecoveryCode: opts.RecoveryCode,
 		OwnerID:      accountDTO.ID(),
-		GetCodes: func(ownerID int32) ([]byte, *exceptions.ServiceError) {
-			accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, accountDTO.ID())
-			if err != nil {
-				serviceErr := exceptions.FromDBError(err)
-				if serviceErr.Code == exceptions.CodeNotFound {
-					logger.WarnContext(ctx, "Account TOTP not found", "error", err)
-					return nil, exceptions.NewForbiddenError()
-				}
-
-				logger.ErrorContext(ctx, "Failed to find account TOTP", "error", err)
-				return nil, serviceErr
-			}
-
-			return accountTOTP.RecoveryCodes, nil
-		},
-		GetDEKfn: s.BuildGetEncGlobalDEK(ctx, opts.RequestID),
-		StoreTOTPfn: func(dekKID, encSecret string, hashedCode []byte, url string) *exceptions.ServiceError {
-			if err := s.database.UpdateAccountTotp(ctx, database.UpdateAccountTotpParams{
-				ID:            accountTOTP.ID,
-				DekKid:        dekKID,
-				Secret:        encSecret,
-				RecoveryCodes: hashedCode,
-				Url:           url,
-			}); err != nil {
-				logger.ErrorContext(ctx, "Failed to update account TOTP", "error", err)
-				return exceptions.FromDBError(err)
-			}
-
-			return nil
-		},
+		GetCodes:     s.buildGetAccountRecoveryCodesFn(ctx, opts.RequestID),
+		GetDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			RequestID: opts.RequestID,
+			AccountID: accountDTO.ID(),
+		}),
+		StoreTOTPfn: s.buildUpdateAccountTOTPFn(ctx, buildUpdateAccountTOTPFnOptions{
+			requestID: opts.RequestID,
+			accountID: accountDTO.ID(),
+		}),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to verify TOTP recovery code", "serviceError", serviceErr)
@@ -981,7 +1079,9 @@ func (s *Services) RecoverAccount(
 			KeyType:   database.TokenKeyType2faAuthentication,
 			TTL:       s.jwt.Get2FATTL(),
 		}),
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.RequestID),
+		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign 2FA token", "serviceError", serviceErr)
@@ -1065,6 +1165,68 @@ func (s *Services) GetAccountAuthProvider(
 	return dtos.MapAccountAuthProviderToDTO(&authProvider), nil
 }
 
+type buildStoreAccountTOTPOptions struct {
+	requestID string
+	accountID int32
+}
+
+func (s *Services) buildStoreAccountTOTP(
+	ctx context.Context,
+	opts buildStoreAccountTOTPOptions,
+) crypto.StoreTOTP {
+	logger := s.buildLogger(opts.requestID, authLocation, "buildStoreAccountTOTP").With(
+		"AccountID", opts.accountID,
+	)
+	logger.InfoContext(ctx, "Building store account TOTP function...")
+
+	return func(dekKID, encSecret string, hashedCode []byte, url string) *exceptions.ServiceError {
+		var serviceErr *exceptions.ServiceError
+		qrs, txn, err := s.database.BeginTx(ctx)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+			return exceptions.FromDBError(err)
+		}
+		defer func() {
+			logger.DebugContext(ctx, "Finalizing transaction")
+			s.database.FinalizeTx(ctx, txn, err, serviceErr)
+		}()
+
+		id, err := qrs.CreateTotp(ctx, database.CreateTotpParams{
+			DekKid:        dekKID,
+			Url:           url,
+			Secret:        encSecret,
+			RecoveryCodes: hashedCode,
+			Usage:         database.TotpUsageAccount,
+			AccountID:     opts.accountID,
+		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create TOTP", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return serviceErr
+		}
+
+		if err = qrs.CreateAccountTotp(ctx, database.CreateAccountTotpParams{
+			AccountID: opts.accountID,
+			TotpID:    id,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create account recovery keys", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return serviceErr
+		}
+
+		if err = qrs.UpdateAccountTwoFactorType(ctx, database.UpdateAccountTwoFactorTypeParams{
+			TwoFactorType: database.TwoFactorTypeTotp,
+			ID:            opts.accountID,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to update account 2FA", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return serviceErr
+		}
+
+		return nil
+	}
+}
+
 type updateAccount2FAOptions struct {
 	requestID   string
 	id          int32
@@ -1084,42 +1246,14 @@ func (s *Services) updateAccountTOTP2FA(
 	totpKey, err := s.crypto.GenerateTotpKey(ctx, crypto.GenerateTotpKeyOptions{
 		RequestID: opts.requestID,
 		Email:     opts.email,
-		GetDEKfn:  s.BuildGetEncGlobalDEK(ctx, opts.requestID),
-		StoreTOTPfn: func(dekKID, encSecret string, hashedCode []byte, url string) *exceptions.ServiceError {
-			var serviceErr *exceptions.ServiceError
-			qrs, txn, err := s.database.BeginTx(ctx)
-			if err != nil {
-				logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-				return exceptions.FromDBError(err)
-			}
-			defer func() {
-				logger.DebugContext(ctx, "Finalizing transaction")
-				s.database.FinalizeTx(ctx, txn, err, serviceErr)
-			}()
-
-			if err = qrs.CreateAccountTotp(ctx, database.CreateAccountTotpParams{
-				AccountID:     opts.id,
-				Url:           url,
-				Secret:        encSecret,
-				RecoveryCodes: hashedCode,
-				DekKid:        dekKID,
-			}); err != nil {
-				logger.ErrorContext(ctx, "Failed to create account recovery keys", "error", err)
-				serviceErr = exceptions.FromDBError(err)
-				return serviceErr
-			}
-
-			if err = qrs.UpdateAccountTwoFactorType(ctx, database.UpdateAccountTwoFactorTypeParams{
-				TwoFactorType: database.TwoFactorTypeTotp,
-				ID:            opts.id,
-			}); err != nil {
-				logger.ErrorContext(ctx, "Failed to update account 2FA", "error", err)
-				serviceErr = exceptions.FromDBError(err)
-				return serviceErr
-			}
-
-			return nil
-		},
+		GetDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			RequestID: opts.requestID,
+			AccountID: opts.id,
+		}),
+		StoreTOTPfn: s.buildStoreAccountTOTP(ctx, buildStoreAccountTOTPOptions{
+			requestID: opts.requestID,
+			accountID: opts.id,
+		}),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate TOTP", "error", err)
@@ -1146,7 +1280,9 @@ func (s *Services) updateAccountTOTP2FA(
 			KeyType:   database.TokenKeyType2faAuthentication,
 			TTL:       s.jwt.Get2FATTL(),
 		}),
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.requestID),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.requestID),
+		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.requestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign 2FA token", "serviceError", serviceErr)
@@ -1248,7 +1384,9 @@ func (s *Services) updateAccountEmail2FA(
 			KeyType:   database.TokenKeyType2faAuthentication,
 			TTL:       s.jwt.Get2FATTL(),
 		}),
-		GetDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.requestID),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.requestID),
+		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.requestID),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign 2FA token", "serviceError", serviceErr)

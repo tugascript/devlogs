@@ -63,7 +63,7 @@ func (q *Queries) CreateAccountCredentialKey(ctx context.Context, arg CreateAcco
 }
 
 const findAccountCredentialKeyByAccountCredentialIDAndPublicKID = `-- name: FindAccountCredentialKeyByAccountCredentialIDAndPublicKID :one
-SELECT ckr.id, ckr.account_id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
+SELECT ckr.id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.usage, ckr.account_id, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
 LEFT JOIN "account_credentials_keys" "ack" ON "ack"."credentials_key_id" = "ckr"."id"
 WHERE 
     "ack"."account_credentials_id" = $1 AND 
@@ -81,11 +81,12 @@ func (q *Queries) FindAccountCredentialKeyByAccountCredentialIDAndPublicKID(ctx 
 	var i CredentialsKey
 	err := row.Scan(
 		&i.ID,
-		&i.AccountID,
 		&i.PublicKid,
 		&i.PublicKey,
 		&i.CryptoSuite,
 		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -94,7 +95,7 @@ func (q *Queries) FindAccountCredentialKeyByAccountCredentialIDAndPublicKID(ctx 
 }
 
 const findActiveAccountCredentialKeysByAccountPublicID = `-- name: FindActiveAccountCredentialKeysByAccountPublicID :many
-SELECT ckr.id, ckr.account_id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
+SELECT ckr.id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.usage, ckr.account_id, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
 LEFT JOIN "account_credentials_keys" "ack" ON "ack"."credentials_key_id" = "ckr"."id"
 WHERE 
     "ack"."account_public_id" = $1 AND 
@@ -114,11 +115,12 @@ func (q *Queries) FindActiveAccountCredentialKeysByAccountPublicID(ctx context.C
 		var i CredentialsKey
 		if err := rows.Scan(
 			&i.ID,
-			&i.AccountID,
 			&i.PublicKid,
 			&i.PublicKey,
 			&i.CryptoSuite,
 			&i.IsRevoked,
+			&i.Usage,
+			&i.AccountID,
 			&i.ExpiresAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -134,7 +136,7 @@ func (q *Queries) FindActiveAccountCredentialKeysByAccountPublicID(ctx context.C
 }
 
 const findCurrentAccountCredentialKeyByAccountCredentialID = `-- name: FindCurrentAccountCredentialKeyByAccountCredentialID :one
-SELECT ckr.id, ckr.account_id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
+SELECT ckr.id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.usage, ckr.account_id, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
 LEFT JOIN "account_credentials_keys" "ack" ON "ack"."credentials_key_id" = "ckr"."id"
 WHERE 
     "ack"."account_credentials_id" = $1 AND 
@@ -148,11 +150,12 @@ func (q *Queries) FindCurrentAccountCredentialKeyByAccountCredentialID(ctx conte
 	var i CredentialsKey
 	err := row.Scan(
 		&i.ID,
-		&i.AccountID,
 		&i.PublicKid,
 		&i.PublicKey,
 		&i.CryptoSuite,
 		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -161,7 +164,7 @@ func (q *Queries) FindCurrentAccountCredentialKeyByAccountCredentialID(ctx conte
 }
 
 const findPaginatedAccountCredentialKeysByAccountCredentialID = `-- name: FindPaginatedAccountCredentialKeysByAccountCredentialID :many
-SELECT ckr.id, ckr.account_id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
+SELECT ckr.id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.usage, ckr.account_id, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
 LEFT JOIN "account_credentials_keys" "ack" ON "ack"."credentials_key_id" = "ckr"."id"
 WHERE "ack"."account_credentials_id" = $1
 ORDER BY "ckr"."expires_at" DESC
@@ -185,11 +188,12 @@ func (q *Queries) FindPaginatedAccountCredentialKeysByAccountCredentialID(ctx co
 		var i CredentialsKey
 		if err := rows.Scan(
 			&i.ID,
-			&i.AccountID,
 			&i.PublicKid,
 			&i.PublicKey,
 			&i.CryptoSuite,
 			&i.IsRevoked,
+			&i.Usage,
+			&i.AccountID,
 			&i.ExpiresAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,

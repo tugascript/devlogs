@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"image/jpeg"
 	"log/slog"
+	"strconv"
 	"strings"
 
 	"github.com/pquerna/otp"
@@ -279,11 +280,13 @@ func (e *Crypto) GenerateTotpKey(
 type GetTOTPSecret = func(ownerID int32) (DEKCiphertext, *exceptions.ServiceError)
 
 type VerifyTotpCodeOptions struct {
-	RequestID string
-	Code      string
-	OwnerID   int32
-	GetSecret GetTOTPSecret
-	GetDEKfn  GetDEKtoDecrypt
+	RequestID       string
+	Code            string
+	OwnerID         int32
+	GetSecret       GetTOTPSecret
+	GetDecryptDEKFN GetDEKtoDecrypt
+	GetEncryptDEKFN GetDEKtoEncrypt
+	StoreFN         StoreReEncryptedData
 }
 
 func (e *Crypto) VerifyTotpCode(
@@ -306,9 +309,12 @@ func (e *Crypto) VerifyTotpCode(
 	secret, serviceErr := e.DecryptWithDEK(
 		ctx,
 		DecryptWithDEKOptions{
-			RequestID:  opts.RequestID,
-			GetDEKfn:   opts.GetDEKfn,
-			Ciphertext: encSecret,
+			RequestID:              opts.RequestID,
+			GetDecryptDEKfn:        opts.GetDecryptDEKFN,
+			GetEncryptDEKfn:        opts.GetEncryptDEKFN,
+			Ciphertext:             encSecret,
+			EntityID:               strconv.Itoa(int(opts.OwnerID)),
+			StoreReEncryptedDataFn: opts.StoreFN,
 		},
 	)
 

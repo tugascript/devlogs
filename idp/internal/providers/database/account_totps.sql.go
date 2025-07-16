@@ -13,25 +13,16 @@ const createAccountTotp = `-- name: CreateAccountTotp :exec
 
 INSERT INTO "account_totps" (
   "account_id",
-  "url",
-  "secret",
-  "dek_kid",
-  "recovery_codes"
+  "totp_id"
 ) VALUES (
   $1,
-  $2,
-  $3,
-  $4,
-  $5
+  $2
 )
 `
 
 type CreateAccountTotpParams struct {
-	AccountID     int32
-	Url           string
-	Secret        string
-	DekKid        string
-	RecoveryCodes []byte
+	AccountID int32
+	TotpID    int32
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -40,13 +31,7 @@ type CreateAccountTotpParams struct {
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateAccountTotp(ctx context.Context, arg CreateAccountTotpParams) error {
-	_, err := q.db.Exec(ctx, createAccountTotp,
-		arg.AccountID,
-		arg.Url,
-		arg.Secret,
-		arg.DekKid,
-		arg.RecoveryCodes,
-	)
+	_, err := q.db.Exec(ctx, createAccountTotp, arg.AccountID, arg.TotpID)
 	return err
 }
 
@@ -61,50 +46,26 @@ func (q *Queries) DeleteAccountRecoveryKeys(ctx context.Context, accountID int32
 }
 
 const findAccountTotpByAccountID = `-- name: FindAccountTotpByAccountID :one
-SELECT id, account_id, dek_kid, url, secret, recovery_codes, created_at, updated_at FROM "account_totps"
-WHERE "account_id" = $1 LIMIT 1
+SELECT t.id, t.dek_kid, t.url, t.secret, t.recovery_codes, t.usage, t.account_id, t.created_at, t.updated_at FROM "totps" AS "t"
+LEFT JOIN "account_totps" AS "at" ON "at"."totp_id" = "t"."id"
+WHERE
+    "at"."account_id" = $1
+LIMIT 1
 `
 
-func (q *Queries) FindAccountTotpByAccountID(ctx context.Context, accountID int32) (AccountTotp, error) {
+func (q *Queries) FindAccountTotpByAccountID(ctx context.Context, accountID int32) (Totp, error) {
 	row := q.db.QueryRow(ctx, findAccountTotpByAccountID, accountID)
-	var i AccountTotp
+	var i Totp
 	err := row.Scan(
 		&i.ID,
-		&i.AccountID,
 		&i.DekKid,
 		&i.Url,
 		&i.Secret,
 		&i.RecoveryCodes,
+		&i.Usage,
+		&i.AccountID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const updateAccountTotp = `-- name: UpdateAccountTotp :exec
-UPDATE "account_totps" SET
-  "url" = $2,
-  "secret" = $3,
-  "dek_kid" = $4,
-  "recovery_codes" = $5
-WHERE "id" = $1
-`
-
-type UpdateAccountTotpParams struct {
-	ID            int32
-	Url           string
-	Secret        string
-	DekKid        string
-	RecoveryCodes []byte
-}
-
-func (q *Queries) UpdateAccountTotp(ctx context.Context, arg UpdateAccountTotpParams) error {
-	_, err := q.db.Exec(ctx, updateAccountTotp,
-		arg.ID,
-		arg.Url,
-		arg.Secret,
-		arg.DekKid,
-		arg.RecoveryCodes,
-	)
-	return err
 }

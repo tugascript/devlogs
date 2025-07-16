@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	accountCredentialsLocation string = "account_keys"
+	accountCredentialsLocation string = "account_credentials"
 
 	accountSecretBytes int = 32
 
@@ -150,17 +150,21 @@ func (s *Services) CreateAccountCredentials(
 
 	switch opts.AuthMethods {
 	case AuthMethodPrivateKeyJwt:
-		dbPrms, jwk, serviceErr := s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
+		var dbPrms database.CreateCredentialsKeyParams
+		var jwk utils.ES256JWK
+		dbPrms, jwk, serviceErr = s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
 			requestID: opts.RequestID,
 			accountID: accountID,
 			expiresIn: accountCredentialsSecretExpiry,
+			usage:     database.CredentialsUsageAccount,
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
-		clientKey, err := qrs.CreateCredentialsKey(ctx, dbPrms)
+		var clientKey database.CredentialsKey
+		clientKey, err = qrs.CreateCredentialsKey(ctx, dbPrms)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create client key", "error", err)
 			serviceErr = exceptions.FromDBError(err)
@@ -180,18 +184,22 @@ func (s *Services) CreateAccountCredentials(
 
 		return dtos.MapAccountCredentialsToDTOWithJWK(&accountCredentials, &jwk, dbPrms.ExpiresAt), nil
 	case AuthMethodClientSecretBasic, AuthMethodClientSecretPost, AuthMethodBothClientSecrets:
-		dbPrms, secret, serviceErr := s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
+		var dbPrms database.CreateCredentialsSecretParams
+		var secret string
+		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
 			requestID: opts.RequestID,
 			accountID: accountID,
 			expiresIn: accountCredentialsSecretExpiry,
 			prefix:    accountCredentialsSecretPrefix,
+			usage:     database.CredentialsUsageAccount,
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
-		clientSecret, err := qrs.CreateCredentialsSecret(ctx, dbPrms)
+		var clientSecret database.CredentialsSecret
+		clientSecret, err = qrs.CreateCredentialsSecret(ctx, dbPrms)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
 			serviceErr = exceptions.FromDBError(err)
@@ -200,6 +208,7 @@ func (s *Services) CreateAccountCredentials(
 
 		if err = qrs.CreateAccountCredentialSecret(ctx, database.CreateAccountCredentialSecretParams{
 			AccountID:            accountID,
+			AccountPublicID:      opts.AccountPublicID,
 			AccountCredentialsID: accountCredentials.ID,
 			CredentialsSecretID:  clientSecret.ID,
 		}); err != nil {
@@ -211,7 +220,8 @@ func (s *Services) CreateAccountCredentials(
 		return dtos.MapAccountCredentialsToDTOWithSecret(&accountCredentials, clientSecret.SecretID, secret, dbPrms.ExpiresAt), nil
 	default:
 		logger.ErrorContext(ctx, "Invalid auth method", "authMethods", opts.AuthMethods)
-		return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
+		serviceErr = exceptions.NewServerError()
+		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 }
 
@@ -452,6 +462,7 @@ func (s *Services) createAccountCredentialsKey(
 		requestID: opts.requestID,
 		accountID: opts.accountID,
 		expiresIn: accountCredentialsSecretExpiry,
+		usage:     database.CredentialsUsageAccount,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
@@ -550,6 +561,7 @@ func (s *Services) createAccountCredentialsSecret(
 		accountID: opts.accountID,
 		expiresIn: accountCredentialsSecretExpiry,
 		prefix:    accountCredentialsSecretPrefix,
+		usage:     database.CredentialsUsageAccount,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)

@@ -310,9 +310,12 @@ func TestConfirmUpdateAccountPassword(t *testing.T) {
 
 				secret, serviceErr := GetTestCrypto(t).DecryptWithDEK(context.Background(), crypto.DecryptWithDEKOptions{
 					RequestID: requestID,
-					GetDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
+					GetDecryptDEKfn: GetTestServices(t).BuildGetDecAccountDEKFn(
 						context.Background(),
-						requestID,
+						services.BuildGetDecAccountDEKFnOptions{
+							RequestID: requestID,
+							AccountID: account.ID(),
+						},
 					),
 					Ciphertext: accountTOTP.Secret,
 				})
@@ -747,7 +750,7 @@ func TestConfirmUpdateAccountEmail(t *testing.T) {
 
 				secret, serviceErr := GetTestCrypto(t).DecryptWithDEK(context.Background(), crypto.DecryptWithDEKOptions{
 					RequestID: requestID,
-					GetDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
+					GetDecryptDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
 						context.Background(),
 						requestID,
 					),
@@ -1115,7 +1118,7 @@ func TestConfirmUpdateAccountUsername(t *testing.T) {
 
 				secret, serviceErr := GetTestCrypto(t).DecryptWithDEK(context.Background(), crypto.DecryptWithDEKOptions{
 					RequestID: requestID,
-					GetDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
+					GetDecryptDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
 						context.Background(),
 						requestID,
 					),

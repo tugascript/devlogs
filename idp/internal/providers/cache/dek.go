@@ -11,8 +11,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -118,28 +121,35 @@ func buildDecDEKKey(prefix string, kid string) string {
 	return fmt.Sprintf("%s:%s:%s", dekPrefix, prefix, kid)
 }
 
-func buildDecDEKValue(dek string, kekKID uuid.UUID) string {
-	return fmt.Sprintf("%s::%s", dek, kekKID.String())
+func buildDecDEKValue(dek string, kekKID uuid.UUID, expiresAt time.Time) string {
+	return fmt.Sprintf("%s::%d::%s", dek, expiresAt.Unix(), kekKID.String())
 }
 
-func parseDecDEKValue(data []byte) (string, uuid.UUID, error) {
-	parts := strings.Split(string(data), "::")
-	if len(parts) != 2 {
-		return "", uuid.Nil, errors.New("invalid DEK value")
+func parseDecDEKValue(data []byte) (string, uuid.UUID, time.Time, error) {
+	dataStr := string(data)
+	parts := strings.Split(dataStr, "::")
+	if len(parts) != 3 {
+		return "", uuid.Nil, time.Time{}, errors.New("invalid DEK value")
 	}
 
-	kekKID, err := uuid.Parse(parts[1])
+	unixTime, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		return "", uuid.Nil, err
+		return "", uuid.Nil, time.Time{}, err
 	}
 
-	return parts[0], kekKID, nil
+	kekKID, err := uuid.Parse(parts[2])
+	if err != nil {
+		return "", uuid.Nil, time.Time{}, err
+	}
+
+	return parts[0], kekKID, time.Unix(unixTime, 0), nil
 }
 
 type SaveDecDEKOptions struct {
 	RequestID string
 	DEK       string
 	KID       string
+	ExpiresAt time.Time
 	Prefix    string
 	KEKid     uuid.UUID
 }
@@ -152,7 +162,7 @@ func (c *Cache) SaveDecDEK(ctx context.Context, opts SaveDecDEKOptions) error {
 	}).With("dekKID", opts.KID)
 	logger.DebugContext(ctx, "Caching DEK...")
 
-	decDEKValue := buildDecDEKValue(opts.DEK, opts.KEKid)
+	decDEKValue := buildDecDEKValue(opts.DEK, opts.KEKid, opts.ExpiresAt)
 	if err := c.storage.Set(
 		buildDecDEKKey(opts.Prefix, opts.KID),
 		[]byte(decDEKValue),
@@ -172,7 +182,7 @@ type GetDecDEKOptions struct {
 	KID       string
 }
 
-func (c *Cache) GetDecDEK(ctx context.Context, opts GetDecDEKOptions) (string, uuid.UUID, bool, error) {
+func (c *Cache) GetDecDEK(ctx context.Context, opts GetDecDEKOptions) (string, uuid.UUID, time.Time, bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  dekLocation,
 		Method:    "GetDecDEK",
@@ -183,19 +193,19 @@ func (c *Cache) GetDecDEK(ctx context.Context, opts GetDecDEKOptions) (string, u
 	dekData, err := c.storage.Get(buildDecDEKKey(opts.Prefix, opts.KID))
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting DEK", "error", err)
-		return "", uuid.Nil, false, err
+		return "", uuid.Nil, time.Time{}, false, err
 	}
 	if dekData == nil {
 		logger.DebugContext(ctx, "DEK not found")
-		return "", uuid.Nil, false, nil
+		return "", uuid.Nil, time.Time{}, false, nil
 	}
 
-	dek, kekKID, err := parseDecDEKValue(dekData)
+	dek, kekKID, expiresAt, err := parseDecDEKValue(dekData)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error parsing DEK data", "error", err)
-		return "", uuid.Nil, false, err
+		return "", uuid.Nil, time.Time{}, false, err
 	}
 
 	logger.DebugContext(ctx, "DEK found")
-	return dek, kekKID, true, nil
+	return dek, kekKID, expiresAt, true, nil
 }
