@@ -124,8 +124,15 @@ func AppendZeroToDecades(n int64) string {
 
 func IsValidURL(s string) bool {
 	length := len(s)
-	_, err := url.Parse(s)
-	return length >= 10 && length <= 250 && err == nil
+	if length < 10 || length > 250 {
+		return false
+	}
+
+	parsed, err := url.Parse(s)
+	if err != nil {
+		return false
+	}
+	return parsed.Scheme == "http" || parsed.Scheme == "https"
 }
 
 func ProcessURL(url string) string {
