@@ -98,8 +98,22 @@ func serviceErrorWithFieldsResponse(logger *slog.Logger, ctx *fiber.Ctx, service
 
 func oauthErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, message string) error {
 	resErr := exceptions.NewOAuthError(message)
-	logResponse(logger, ctx, fiber.StatusBadRequest)
-	return ctx.Status(fiber.StatusBadRequest).JSON(&resErr)
+
+	switch message {
+	case exceptions.OAuthErrorInvalidRequest, exceptions.OAuthErrorInvalidGrant,
+		exceptions.OAuthErrorInvalidScope, exceptions.OAuthErrorUnsupportedGrantType:
+		logResponse(logger, ctx, fiber.StatusBadRequest)
+		return ctx.Status(fiber.StatusBadRequest).JSON(&resErr)
+	case exceptions.OAuthErrorUnauthorizedClient, exceptions.OAuthErrorAccessDenied:
+		logResponse(logger, ctx, fiber.StatusUnauthorized)
+		return ctx.Status(fiber.StatusUnauthorized).JSON(&resErr)
+	case exceptions.OAuthServerError:
+		logResponse(logger, ctx, fiber.StatusInternalServerError)
+		return ctx.Status(fiber.StatusInternalServerError).JSON(&resErr)
+	default:
+		logResponse(logger, ctx, fiber.StatusBadRequest)
+		return ctx.Status(fiber.StatusBadRequest).JSON(&resErr)
+	}
 }
 
 func parseRequestErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err error) error {
@@ -109,27 +123,3 @@ func parseRequestErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err error) e
 		Status(fiber.StatusBadRequest).
 		JSON(exceptions.NewEmptyValidationErrorResponse(exceptions.ValidationResponseLocationBody))
 }
-
-// func parseBasicAuthHeader(ctx *fiber.Ctx) (string, string, *exceptions.ServiceError) {
-// 	ah := ctx.Get("Authorization")
-// 	if ah == "" {
-// 		return "", "", exceptions.NewUnauthorizedError()
-// 	}
-
-// 	ahSlice := strings.Split(strings.TrimSpace(ah), " ")
-// 	if len(ahSlice) != 2 || utils.Lowered(ahSlice[0]) != "basic" {
-// 		return "", "", exceptions.NewUnauthorizedError()
-// 	}
-
-// 	decoded, err := base64.StdEncoding.DecodeString(ahSlice[1])
-// 	if err != nil {
-// 		return "", "", exceptions.NewUnauthorizedError()
-// 	}
-
-// 	decodedSlice := strings.Split(string(decoded), ":")
-// 	if len(ahSlice) != 2 {
-// 		return "", "", exceptions.NewUnauthorizedError()
-// 	}
-
-// 	return decodedSlice[0], decodedSlice[1], nil
-// }

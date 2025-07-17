@@ -26,12 +26,12 @@ const (
 type ClientCredentialsSecretDTO struct {
 	id int32
 
-	PublicID        string          `json:"id"`
-	ClientSecret    string          `json:"client_secret,omitempty"`
-	ClientSecretJWK *utils.ES256JWK `json:"client_secret_jwk,omitempty"`
-	ClientSecretExp int64           `json:"client_secret_exp"`
-	Status          string          `json:"status"`
-	Type            string          `json:"type"`
+	PublicID        string    `json:"id"`
+	ClientSecret    string    `json:"client_secret,omitempty"`
+	ClientSecretJWK utils.JWK `json:"client_secret_jwk,omitempty"`
+	ClientSecretExp int64     `json:"client_secret_exp"`
+	Status          string    `json:"status"`
+	Type            string    `json:"type"`
 }
 
 func (s *ClientCredentialsSecretDTO) ID() int32 {
@@ -97,7 +97,7 @@ func MapCredentialsKeyToDTO(
 
 func MapCredentialsKeyToDTOWithJWK(
 	key *database.CredentialsKey,
-	jwk *utils.ES256JWK,
+	jwk utils.JWK,
 ) ClientCredentialsSecretDTO {
 	return ClientCredentialsSecretDTO{
 		id:              key.ID,

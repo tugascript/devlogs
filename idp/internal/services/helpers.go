@@ -145,17 +145,3 @@ func mapTwoFactorType(twoFactorType string) (database.TwoFactorType, *exceptions
 		return "", exceptions.NewValidationError("invalid two factor type")
 	}
 }
-
-// func mapTokenCryptoSuite[T string](cryptoSuite T) (database.TokenCryptoSuite, *exceptions.ServiceError) {
-// 	if len(cryptoSuite) != 5 {
-// 		return "", exceptions.NewValidationError("invalid crypto suite")
-// 	}
-
-// 	dbCryptoSuite := database.TokenCryptoSuite(cryptoSuite)
-// 	switch dbCryptoSuite {
-// 	case database.TokenCryptoSuiteES256, database.TokenCryptoSuiteEdDSA:
-// 		return dbCryptoSuite, nil
-// 	default:
-// 		return "", exceptions.NewValidationError("invalid crypto suite")
-// 	}
-// }

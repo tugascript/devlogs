@@ -9,6 +9,7 @@ INSERT INTO "credentials_keys" (
     "account_id",
     "public_kid",
     "public_key",
+    "crypto_suite",
     "expires_at",
     "usage"
 ) VALUES (
@@ -16,7 +17,8 @@ INSERT INTO "credentials_keys" (
     $2,
     $3,
     $4,
-    $5
+    $5,
+    $6
 ) RETURNING *;
 
 -- name: RevokeCredentialsKey :one
@@ -32,6 +34,16 @@ UPDATE "credentials_keys" SET
     "created_at" = $3,
     "updated_at" = now()
 WHERE "public_kid" = $1;
+
+-- name: FindCredentialsKeyPublicKeyByPublicKIDCryptoSuiteAndUsage :one
+SELECT "public_key" FROM "credentials_keys"
+WHERE
+    "public_kid" = $1 AND
+    "usage" = $2 AND
+    "crypto_suite" = $3 AND
+    "is_revoked" = false AND
+    "expires_at" > now()
+LIMIT 1;
 
 -- name: DeleteAllCredentialsKeys :exec
 DELETE FROM "credentials_keys";

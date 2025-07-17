@@ -192,6 +192,7 @@ Table credentials_secrets as CS {
         (secret_id) [unique, name: 'credential_secrets_secret_id_uidx']
         (expires_at) [name: 'credential_secrets_expires_at_idx']
         (is_revoked, usage, expires_at) [name: 'credential_secrets_is_revoked_usage_expires_at_idx']
+        (secret_id, is_revoked, expires_at) [name: 'credential_secrets_secret_id_is_revoked_expires_at_idx']
         (account_id) [name: 'credential_secrets_account_id_idx']
     }
 }
@@ -202,7 +203,7 @@ Table credentials_keys as CK {
 
     public_kid varchar(22) [not null]
     public_key jsonb [not null]
-    crypto_suite token_crypto_suite [not null, default: 'ES256']
+    crypto_suite token_crypto_suite [not null]
     is_revoked boolean [not null, default: false]
     usage credentials_usage [not null]
 
@@ -216,6 +217,7 @@ Table credentials_keys as CK {
         (public_kid) [unique, name: 'credential_keys_public_kid_uidx']
         (expires_at) [name: 'credential_keys_expires_at_idx']
         (is_revoked, usage, expires_at) [name: 'credential_keys_is_revoked_usage_expires_at_idx']
+        (public_kid, crypto_suite, usage, is_revoked, expires_at) [name: 'credential_keys_public_kid_crypto_suite_usage_is_revoked_expires_at_idx']
     }
 }
 Ref: CK.account_id > A.id [delete: cascade]
@@ -273,6 +275,7 @@ Table account_credentials as AC {
 
     scopes "account_credentials_scope[]" [not null]
     auth_methods "auth_method[]" [not null]
+    issuers "varchar(250)[]" [not null]
 
     alias varchar(50) [not null]
     client_id varchar(22) [not null]
@@ -316,15 +319,17 @@ Table account_credentials_keys as ACK {
 
     account_credentials_id integer [not null]
     account_public_id uuid [not null]
+    jwk_kid varchar(22) [not null]
 
     created_at timestamptz [not null, default: `now()`]
 
     Indexes {
         (account_id, credentials_key_id) [pk]
         (account_id) [name: 'account_credentials_keys_account_id_idx']
-        (account_public_id) [name: 'account_credentials_keys_account_public_id_idx']
         (credentials_key_id) [unique, name: 'account_credentials_keys_credentials_key_id_uidx']
         (account_credentials_id) [name: 'account_credentials_keys_account_credentials_id_idx']
+        (account_public_id) [name: 'account_credentials_keys_account_public_id_idx']
+        (account_credentials_id, jwk_kid) [name: 'account_credentials_keys_account_credentials_id_jwk_kid_idx']
     }
 }
 Ref: ACK.account_id > A.id [delete: cascade]

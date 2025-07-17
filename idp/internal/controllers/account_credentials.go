@@ -43,14 +43,18 @@ func (c *Controllers) CreateAccountCredentials(ctx *fiber.Ctx) error {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	accountKeysDTO, serviceErr := c.services.CreateAccountCredentials(ctx.UserContext(), services.CreateAccountCredentialsOptions{
-		RequestID:       requestID,
-		AccountPublicID: accountClaims.AccountID,
-		AccountVersion:  accountClaims.AccountVersion,
-		Alias:           body.Alias,
-		Scopes:          body.Scopes,
-		AuthMethods:     body.AuthMethods,
-	})
+	accountKeysDTO, serviceErr := c.services.CreateAccountCredentials(
+		ctx.UserContext(),
+		services.CreateAccountCredentialsOptions{
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			AccountVersion:  accountClaims.AccountVersion,
+			Alias:           body.Alias,
+			Scopes:          body.Scopes,
+			AuthMethods:     body.AuthMethods,
+			Issuers:         body.Issuers,
+		},
+	)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
@@ -118,9 +122,9 @@ func (c *Controllers) GetSingleAccountCredentials(ctx *fiber.Ctx) error {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	accountKeysDTO, serviceErr := c.services.GetAccountCredentialsByClientID(
+	accountKeysDTO, serviceErr := c.services.GetAccountCredentialsByClientIDAndAccountPublicID(
 		ctx.UserContext(),
-		services.GetAccountCredentialsByClientIDOptions{
+		services.GetAccountCredentialsByClientIDAndAccountPublicIDOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
 			ClientID:        urlParams.ClientID,

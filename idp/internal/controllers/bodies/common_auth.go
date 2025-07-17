@@ -49,8 +49,18 @@ type AuthCodeLoginBody struct {
 }
 
 type ClientCredentialsBody struct {
-	GrantType string `json:"grant_type" validate:"required,eq=client_credentials"`
-	Scope     string `json:"scopes,omitempty" validate:"omitempty,scopes"`
+	GrantType    string `json:"grant_type" validate:"required,eq=client_credentials"`
+	Scope        string `json:"scopes,omitempty" validate:"omitempty,scopes"`
+	Issuer       string `json:"issuer" validate:"required,url"`
+	Audience     string `json:"audience,omitempty" validate:"omitempty,url"`
+	ClientID     string `json:"client_id,omitempty" validate:"omitempty,min=1"`
+	ClientSecret string `json:"client_secret,omitempty" validate:"omitempty,min=1"`
+}
+
+type JWTGrantBody struct {
+	GrantType string `json:"grant_type" validate:"required,eq=urn:ietf:params:oauth:grant-type:jwt-bearer"`
+	Scope     string `json:"scope,omitempty" validate:"omitempty,scope"`
+	Assertion string `json:"assertion" validate:"required,jwt"`
 }
 
 type AppleLoginBody struct {

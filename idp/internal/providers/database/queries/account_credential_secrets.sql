@@ -47,6 +47,16 @@ WHERE
     "csr"."secret_id" = $2
 LIMIT 1;
 
+-- name: FindValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID :one
+SELECT "csr".* FROM "credentials_secrets" "csr"
+LEFT JOIN "account_credentials_secrets" "acs" ON "acs"."credentials_secret_id" = "csr"."id"
+WHERE
+    "acs"."account_credentials_id" = $1 AND
+    "csr"."secret_id" = $2 AND
+    "csr"."is_revoked" = false AND
+    "csr"."expires_at" > now()
+LIMIT 1;
+
 -- name: RevokeAccountCredentialSecret :exec
 UPDATE "credentials_secrets" SET
     "is_revoked" = true

@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-07-16T09:33:08.207Z
+-- Generated at: 2025-07-17T05:58:01.824Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -227,7 +227,7 @@ CREATE TABLE "credentials_keys" (
   "id" serial PRIMARY KEY,
   "public_kid" varchar(22) NOT NULL,
   "public_key" jsonb NOT NULL,
-  "crypto_suite" token_crypto_suite NOT NULL DEFAULT 'ES256',
+  "crypto_suite" token_crypto_suite NOT NULL,
   "is_revoked" boolean NOT NULL DEFAULT false,
   "usage" credentials_usage NOT NULL,
   "account_id" integer NOT NULL,
@@ -263,6 +263,7 @@ CREATE TABLE "account_credentials" (
   "account_public_id" uuid NOT NULL,
   "scopes" account_credentials_scope[] NOT NULL,
   "auth_methods" auth_method[] NOT NULL,
+  "issuers" varchar(250)[] NOT NULL,
   "alias" varchar(50) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
@@ -283,6 +284,7 @@ CREATE TABLE "account_credentials_keys" (
   "credentials_key_id" integer NOT NULL,
   "account_credentials_id" integer NOT NULL,
   "account_public_id" uuid NOT NULL,
+  "jwk_kid" varchar(22) NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("account_id", "credentials_key_id")
 );
@@ -537,6 +539,8 @@ CREATE INDEX "credential_secrets_expires_at_idx" ON "credentials_secrets" ("expi
 
 CREATE INDEX "credential_secrets_is_revoked_usage_expires_at_idx" ON "credentials_secrets" ("is_revoked", "usage", "expires_at");
 
+CREATE INDEX "credential_secrets_secret_id_is_revoked_expires_at_idx" ON "credentials_secrets" ("secret_id", "is_revoked", "expires_at");
+
 CREATE INDEX "credential_secrets_account_id_idx" ON "credentials_secrets" ("account_id");
 
 CREATE UNIQUE INDEX "credential_keys_public_kid_uidx" ON "credentials_keys" ("public_kid");
@@ -544,6 +548,8 @@ CREATE UNIQUE INDEX "credential_keys_public_kid_uidx" ON "credentials_keys" ("pu
 CREATE INDEX "credential_keys_expires_at_idx" ON "credentials_keys" ("expires_at");
 
 CREATE INDEX "credential_keys_is_revoked_usage_expires_at_idx" ON "credentials_keys" ("is_revoked", "usage", "expires_at");
+
+CREATE INDEX "credential_keys_public_kid_crypto_suite_usage_is_revoked_expires_at_idx" ON "credentials_keys" ("public_kid", "crypto_suite", "usage", "is_revoked", "expires_at");
 
 CREATE INDEX "account_key_encryption_keys_account_id_idx" ON "account_key_encryption_keys" ("account_id");
 
@@ -577,11 +583,13 @@ CREATE INDEX "account_credential_secrets_account_credentials_id_idx" ON "account
 
 CREATE INDEX "account_credentials_keys_account_id_idx" ON "account_credentials_keys" ("account_id");
 
-CREATE INDEX "account_credentials_keys_account_public_id_idx" ON "account_credentials_keys" ("account_public_id");
-
 CREATE UNIQUE INDEX "account_credentials_keys_credentials_key_id_uidx" ON "account_credentials_keys" ("credentials_key_id");
 
 CREATE INDEX "account_credentials_keys_account_credentials_id_idx" ON "account_credentials_keys" ("account_credentials_id");
+
+CREATE INDEX "account_credentials_keys_account_public_id_idx" ON "account_credentials_keys" ("account_public_id");
+
+CREATE INDEX "account_credentials_keys_account_credentials_id_jwk_kid_idx" ON "account_credentials_keys" ("account_credentials_id", "jwk_kid");
 
 CREATE INDEX "auth_providers_email_idx" ON "account_auth_providers" ("email");
 

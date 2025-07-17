@@ -9,22 +9,32 @@ package services
 import (
 	"context"
 	"fmt"
-	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
+	"github.com/golang-jwt/jwt/v5"
 	"log/slog"
 	"net/url"
+	"slices"
 	"strconv"
+	"strings"
+	"time"
+
+	"github.com/tugascript/devlogs/idp/internal/utils"
 
 	"github.com/google/uuid"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
+	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 )
 
-const oauthLocation string = "oauth"
+const (
+	oauthLocation string = "oauth"
+
+	bearerJWTMaxValiditySecs int64 = 300
+)
 
 var oauthScopes = []oauth.Scope{oauth.ScopeProfile}
 
@@ -526,4 +536,410 @@ func (s *Services) GetAccountPublicJWKs(
 
 	logger.InfoContext(ctx, "Got account public JWKs successfully")
 	return etag, dtos.NewJWKsDTO(jwks), nil
+}
+
+type ProcessAccountCredentialsScopeOptions struct {
+	RequestID string
+	Scope     string
+}
+
+func (s *Services) ProcessAccountCredentialsScope(
+	ctx context.Context,
+	opts ProcessAccountCredentialsScopeOptions,
+) ([]string, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, oauthLocation, "ProcessAccountCredentialsScope").With(
+		"scope", opts.Scope,
+	)
+	logger.InfoContext(ctx, "Processing account credentials scope...")
+
+	if opts.Scope == "" {
+		logger.InfoContext(ctx, "Scope is empty, returning empty scopes")
+		return make([]string, 0), nil
+	}
+
+	scopesSlice := strings.Split(opts.Scope, " ")
+	sliceLen := len(scopesSlice)
+	scopesMap := utils.MapSliceToHashSet(scopesSlice)
+	mapSize := scopesMap.Size()
+	if sliceLen > mapSize {
+		logger.WarnContext(ctx, "Scopes contain duplicates",
+			"scopesCount", sliceLen,
+			"uniqueScopesCount", mapSize,
+		)
+		return nil, exceptions.NewValidationError("Scopes contain duplicates")
+	}
+
+	scopes := make([]string, 0, mapSize)
+	for _, scope := range scopesMap.Items() {
+		encodedScope := database.AccountCredentialsScope(scope)
+		switch encodedScope {
+		case database.AccountCredentialsScopeAccountAdmin, database.AccountCredentialsScopeAccountUsersRead,
+			database.AccountCredentialsScopeAccountUsersWrite, database.AccountCredentialsScopeAccountAppsRead,
+			database.AccountCredentialsScopeAccountAppsWrite, database.AccountCredentialsScopeAccountCredentialsRead,
+			database.AccountCredentialsScopeAccountCredentialsWrite,
+			database.AccountCredentialsScopeAccountAuthProvidersRead:
+			scopes = append(scopes, scope)
+		default:
+			logger.WarnContext(ctx, "Invalid scope", "scope", scope)
+			return nil, exceptions.NewValidationError(fmt.Sprintf("Invalid scope: %s", scope))
+		}
+	}
+
+	if scopesMap.Contains(tokens.AccountScopeAdmin) {
+		logger.InfoContext(ctx, "Scopes contains admin account, returning only admin scope")
+		return []string{tokens.AccountScopeAdmin}, nil
+	}
+
+	logger.InfoContext(ctx, "Successfully processed account credentials scope")
+	return scopes, nil
+}
+
+func mapDefaultAccountScopes(
+	inputScopes []string,
+	credentialsScopes []database.AccountCredentialsScope,
+) []string {
+	if len(inputScopes) == 0 {
+		return utils.MapSlice(credentialsScopes, func(s *database.AccountCredentialsScope) string {
+			return string(*s)
+		})
+	}
+
+	return inputScopes
+}
+
+type validateAccountJWTClaimsOptions struct {
+	requestID     string
+	claims        jwt.RegisteredClaims
+	backendDomain string
+}
+
+func (s *Services) validateAccountJWTGrantToken(
+	ctx context.Context,
+	opts validateAccountJWTClaimsOptions,
+) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, oauthLocation, "validateAccountJWTGrantToken")
+	logger.InfoContext(ctx, "Validating Account JWT Bearer token claims...")
+
+	if opts.claims.Subject == "" || len(opts.claims.Subject) != 22 {
+		logger.ErrorContext(ctx, "JWT Bearer token subject is invalid", "subject", opts.claims.Subject)
+		return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	accountClientsDTO, serviceErr := s.GetAccountCredentialsByPublicID(ctx, GetAccountCredentialsByPublicIDOptions{
+		RequestID: opts.requestID,
+		ClientID:  opts.claims.Subject,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get account credentials by public ID", "serviceError", serviceErr)
+		return dtos.AccountCredentialsDTO{}, serviceErr
+	}
+
+	if !slices.Contains(accountClientsDTO.AuthMethods, database.AuthMethodPrivateKeyJwt) {
+		logger.InfoContext(ctx, "Account credentials does not support JWT Bearer login",
+			"clientID", opts.claims.Subject,
+			"authMethods", accountClientsDTO.AuthMethods,
+		)
+		return dtos.AccountCredentialsDTO{}, exceptions.NewForbiddenError()
+	}
+	if opts.claims.Issuer == "" ||
+		!utils.IsValidURL(opts.claims.Issuer) ||
+		!slices.Contains(accountClientsDTO.Issuers, utils.ProcessURL(opts.claims.Issuer)) {
+		logger.WarnContext(ctx, "JWT Bearer token issuer is not allowed", "issuer", opts.claims.Issuer)
+		return dtos.AccountCredentialsDTO{}, exceptions.NewForbiddenError()
+	}
+	if len(opts.claims.Audience) != 1 ||
+		utils.ProcessURL(opts.claims.Audience[0]) != fmt.Sprintf("https://%s", opts.backendDomain) {
+		logger.WarnContext(ctx, "JWT Bearer token audience is not allowed",
+			"audience", opts.claims.Audience,
+		)
+		return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	now := time.Now()
+	if opts.claims.ExpiresAt == nil || opts.claims.ExpiresAt.Before(now) {
+		logger.WarnContext(ctx, "JWT Bearer token is expired", "expiresAt", opts.claims.ExpiresAt)
+		return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	expAtUnix := opts.claims.ExpiresAt.Unix()
+	if opts.claims.IssuedAt != nil {
+		if opts.claims.IssuedAt.Before(now.Add(-time.Minute * 2)) {
+			logger.WarnContext(ctx, "JWT Bearer token is issued too long ago",
+				"issuedAt", opts.claims.IssuedAt,
+			)
+			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+		}
+		if opts.claims.IssuedAt.After(now) {
+			logger.WarnContext(ctx, "JWT Bearer token is in the future", "issuedAt", opts.claims.IssuedAt)
+			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+		}
+		if expAtUnix-opts.claims.IssuedAt.Unix() > bearerJWTMaxValiditySecs {
+			logger.WarnContext(ctx, "JWT Bearer token has a validity period greater than 5 minutes",
+				"expiresAt", opts.claims.ExpiresAt, "issuedAt", opts.claims.IssuedAt,
+			)
+			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+		}
+	}
+	if expAtUnix-now.Unix() > bearerJWTMaxValiditySecs {
+		logger.WarnContext(ctx, "JWT Bearer token has a validity period greater than 5 minutes", "expiresAt", opts.claims.ExpiresAt)
+		return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	logger.InfoContext(ctx, "Account JWT Bearer token is valid")
+	return accountClientsDTO, nil
+}
+
+type generateClientCredentialsAuthenticationOptions struct {
+	requestID       string
+	accountPublicID uuid.UUID
+	accountVersion  int32
+	clientID        string
+	scopes          []string
+}
+
+func (s *Services) generateClientCredentialsAuthentication(
+	ctx context.Context,
+	opts generateClientCredentialsAuthenticationOptions,
+) (dtos.AuthDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, oauthLocation, "generateClientCredentialsAuthentication").With(
+		"accountPublicID", opts.accountPublicID,
+		"clientID", opts.clientID,
+		"scopes", opts.scopes,
+	)
+	logger.InfoContext(ctx, "Generating client credentials authentication...")
+
+	token, err := s.jwt.CreateAccessToken(tokens.AccountAccessTokenOptions{
+		PublicID:     opts.accountPublicID,
+		Version:      opts.accountVersion,
+		Scopes:       opts.scopes,
+		TokenSubject: opts.clientID,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create access token", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewServerError()
+	}
+
+	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
+		RequestID: opts.requestID,
+		Token:     token,
+		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
+			RequestID: opts.requestID,
+			KeyType:   database.TokenKeyTypeClientCredentials,
+			TTL:       s.jwt.GetAccountCredentialsTTL(),
+		}),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.requestID),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.requestID),
+		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.requestID),
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to sign access token", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Client credentials authentication generated successfully")
+	return dtos.NewAuthDTO(signedToken, s.jwt.GetAccountCredentialsTTL()), nil
+}
+
+type JWTBearerAccountLoginOptions struct {
+	RequestID     string
+	Token         string
+	Scopes        []string
+	BackendDomain string
+}
+
+func (s *Services) JWTBearerAccountLogin(
+	ctx context.Context,
+	opts JWTBearerAccountLoginOptions,
+) (dtos.AuthDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, oauthLocation, "JWTBearerAccountLogin")
+	logger.InfoContext(ctx, "JWT Bearer account logging in...")
+
+	claims, kid, err := s.jwt.VerifyJWTBearerGrantToken(opts.Token, s.BuildGetClientCredentialsKeyPublicJWKFn(
+		ctx,
+		BuildGetClientCredentialsKeyFnOptions{
+			RequestID: opts.RequestID,
+			Usage:     database.CredentialsUsageAccount,
+		},
+	))
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to verify JWT Bearer", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	accountClientsDTO, serviceErr := s.validateAccountJWTGrantToken(ctx, validateAccountJWTClaimsOptions{
+		requestID:     opts.RequestID,
+		claims:        claims,
+		backendDomain: opts.BackendDomain,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to validate JWT Bearer token", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	account, err := s.database.FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKID(
+		ctx,
+		database.FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKIDParams{
+			AccountCredentialsID: accountClientsDTO.ID(),
+			JwkKid:               kid,
+		},
+	)
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account not found by account credentials ID and JWK kid",
+				"accountCredentialsId", accountClientsDTO.ID(),
+				"jwkKid", kid,
+			)
+			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to find account by account credentials ID and JWK kid", "error", err)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	return s.generateClientCredentialsAuthentication(ctx, generateClientCredentialsAuthenticationOptions{
+		requestID:       opts.RequestID,
+		accountPublicID: account.PublicID,
+		accountVersion:  account.Version,
+		clientID:        accountClientsDTO.ClientID,
+		scopes:          mapDefaultAccountScopes(opts.Scopes, accountClientsDTO.Scopes),
+	})
+}
+
+type processAccountClientSecretOptions struct {
+	requestID    string
+	clientSecret string
+}
+
+func (s *Services) processAccountClientSecret(
+	ctx context.Context,
+	opts processAccountClientSecretOptions,
+) (string, string, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, oauthLocation, "processAccountClientSecret")
+	logger.InfoContext(ctx, "Processing account client secret...")
+	secret := strings.TrimSpace(opts.clientSecret)
+	if secret == "" {
+		logger.WarnContext(ctx, "Client secret is empty")
+		return "", "", exceptions.NewUnauthorizedError()
+	}
+
+	parts := strings.Split(secret, ".")
+	if len(parts) != 2 {
+		logger.WarnContext(ctx, "Client secret must be in the format 'secretID.secretValue'")
+		return "", "", exceptions.NewUnauthorizedError()
+	}
+
+	idLen := len(parts[0])
+	if idLen != 22 {
+		logger.WarnContext(ctx, "Client secret ID must be 22 characters long", "secretIdLength", idLen)
+		return "", "", exceptions.NewUnauthorizedError()
+	}
+
+	logger.InfoContext(ctx, "Successfully processed account client secret", "secretID", parts[0])
+	return parts[0], parts[1], nil
+}
+
+type ClientCredentialsAccountLoginOptions struct {
+	RequestID    string
+	ClientID     string
+	ClientSecret string
+	Issuer       string
+	Scopes       []string
+	AuthMethod   database.AuthMethod
+}
+
+func (s *Services) ClientCredentialsAccountLogin(
+	ctx context.Context,
+	opts ClientCredentialsAccountLoginOptions,
+) (dtos.AuthDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, oauthLocation, "ClientCredentialsAccountLogin").With(
+		"clientID", opts.ClientID,
+		"issuer", opts.Issuer,
+		"authenticationMethod", opts.AuthMethod,
+	)
+	logger.InfoContext(ctx, "Client credentials account logging in...")
+
+	secretID, secret, serviceErr := s.processAccountClientSecret(ctx, processAccountClientSecretOptions{
+		requestID:    opts.RequestID,
+		clientSecret: opts.ClientSecret,
+	})
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to process account client secret", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	accountClientsDTO, serviceErr := s.GetAccountCredentialsByPublicID(ctx, GetAccountCredentialsByPublicIDOptions{
+		RequestID: opts.RequestID,
+		ClientID:  opts.ClientID,
+	})
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to get account credentials by public ID", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+	if slices.Contains(accountClientsDTO.AuthMethods, opts.AuthMethod) {
+		logger.WarnContext(ctx, "Account credentials does not support client credentials login",
+			"authMethods", accountClientsDTO.AuthMethods,
+		)
+		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
+
+	}
+	if !slices.Contains(accountClientsDTO.Issuers, utils.ProcessURL(opts.Issuer)) {
+		logger.WarnContext(ctx, "Client credentials issuer is not allowed", "issuer", opts.Issuer)
+		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
+	}
+
+	secretEnt, err := s.database.FindValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID(
+		ctx,
+		database.FindValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretIDParams{
+			AccountCredentialsID: accountClientsDTO.ID(),
+			SecretID:             secretID,
+		},
+	)
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account credentials secret not found",
+				"accountCredentialsId", accountClientsDTO.ID(),
+				"secretID", secretID,
+			)
+			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to find account credentials secret", "error", err)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	verified, err := utils.Argon2CompareHash(secret, secretEnt.ClientSecret)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to compare account credentials secret", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewServerError()
+	}
+	if !verified {
+		logger.WarnContext(ctx, "Account credentials secret is invalid")
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	}
+
+	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
+		RequestID: opts.RequestID,
+		ID:        accountClientsDTO.AccountID(),
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account not found by account credentials ID",
+				"accountCredentialsId", accountClientsDTO.ID(),
+			)
+			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get account by account credentials ID", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	return s.generateClientCredentialsAuthentication(ctx, generateClientCredentialsAuthenticationOptions{
+		requestID:       opts.RequestID,
+		accountPublicID: accountDTO.PublicID,
+		accountVersion:  accountDTO.Version(),
+		clientID:        accountClientsDTO.ClientID,
+		scopes:          mapDefaultAccountScopes(opts.Scopes, accountClientsDTO.Scopes),
+	})
 }

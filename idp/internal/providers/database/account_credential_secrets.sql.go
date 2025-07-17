@@ -164,6 +164,39 @@ func (q *Queries) FindPaginatedAccountCredentialSecretsByAccountCredentialID(ctx
 	return items, nil
 }
 
+const findValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID = `-- name: FindValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID :one
+SELECT csr.id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
+LEFT JOIN "account_credentials_secrets" "acs" ON "acs"."credentials_secret_id" = "csr"."id"
+WHERE
+    "acs"."account_credentials_id" = $1 AND
+    "csr"."secret_id" = $2 AND
+    "csr"."is_revoked" = false AND
+    "csr"."expires_at" > now()
+LIMIT 1
+`
+
+type FindValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretIDParams struct {
+	AccountCredentialsID int32
+	SecretID             string
+}
+
+func (q *Queries) FindValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID(ctx context.Context, arg FindValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretIDParams) (CredentialsSecret, error) {
+	row := q.db.QueryRow(ctx, findValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID, arg.AccountCredentialsID, arg.SecretID)
+	var i CredentialsSecret
+	err := row.Scan(
+		&i.ID,
+		&i.SecretID,
+		&i.ClientSecret,
+		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const revokeAccountCredentialSecret = `-- name: RevokeAccountCredentialSecret :exec
 UPDATE "credentials_secrets" SET
     "is_revoked" = true
