@@ -23,6 +23,22 @@ func extractTokenKID(token *jwt.Token) (string, error) {
 	return kid, nil
 }
 
+func extractTokenAlgorithm(token *jwt.Token) (utils.SupportedCryptoSuite, error) {
+	alg, ok := token.Header["alg"].(string)
+	if !ok {
+		return "", jwt.ErrInvalidKey
+	}
+
+	switch alg {
+	case jwt.SigningMethodEdDSA.Alg():
+		return utils.SupportedCryptoSuiteEd25519, nil
+	case jwt.SigningMethodES256.Alg():
+		return utils.SupportedCryptoSuiteES256, nil
+	default:
+		return "", fmt.Errorf("unsupported algorithm: %s", alg)
+	}
+}
+
 func buildPathAudience(backendDomain, path string) string {
 	processedDomain := utils.ProcessURL(backendDomain)
 	if path == "/" {

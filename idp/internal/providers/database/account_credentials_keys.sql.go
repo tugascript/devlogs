@@ -31,12 +31,14 @@ INSERT INTO "account_credentials_keys" (
     "account_credentials_id",
     "credentials_key_id",
     "account_id",
-    "account_public_id"
+    "account_public_id",
+    "jwk_kid"
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
+    $4,
+    $5
 )
 `
 
@@ -45,6 +47,7 @@ type CreateAccountCredentialKeyParams struct {
 	CredentialsKeyID     int32
 	AccountID            int32
 	AccountPublicID      uuid.UUID
+	JwkKid               string
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -58,6 +61,7 @@ func (q *Queries) CreateAccountCredentialKey(ctx context.Context, arg CreateAcco
 		arg.CredentialsKeyID,
 		arg.AccountID,
 		arg.AccountPublicID,
+		arg.JwkKid,
 	)
 	return err
 }
@@ -88,6 +92,42 @@ func (q *Queries) FindAccountCredentialKeyByAccountCredentialIDAndPublicKID(ctx 
 		&i.Usage,
 		&i.AccountID,
 		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKID = `-- name: FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKID :one
+SELECT a.id, a.public_id, a.given_name, a.family_name, a.username, a.email, a.organization, a.password, a.version, a.email_verified, a.is_active, a.two_factor_type, a.created_at, a.updated_at FROM "accounts" AS "a"
+LEFT JOIN "account_credentials_keys" AS "ack" ON "ack"."account_id" = "a"."id"
+WHERE
+    "ack"."account_credentials_id" = $1 AND
+    "ack"."jwk_kid" = $2
+LIMIT 1
+`
+
+type FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKIDParams struct {
+	AccountCredentialsID int32
+	JwkKid               string
+}
+
+func (q *Queries) FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKID(ctx context.Context, arg FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKIDParams) (Account, error) {
+	row := q.db.QueryRow(ctx, findAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKID, arg.AccountCredentialsID, arg.JwkKid)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.GivenName,
+		&i.FamilyName,
+		&i.Username,
+		&i.Email,
+		&i.Organization,
+		&i.Password,
+		&i.Version,
+		&i.EmailVerified,
+		&i.IsActive,
+		&i.TwoFactorType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

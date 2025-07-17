@@ -16,6 +16,7 @@ INSERT INTO "credentials_keys" (
     "account_id",
     "public_kid",
     "public_key",
+    "crypto_suite",
     "expires_at",
     "usage"
 ) VALUES (
@@ -23,16 +24,18 @@ INSERT INTO "credentials_keys" (
     $2,
     $3,
     $4,
-    $5
+    $5,
+    $6
 ) RETURNING id, public_kid, public_key, crypto_suite, is_revoked, usage, account_id, expires_at, created_at, updated_at
 `
 
 type CreateCredentialsKeyParams struct {
-	AccountID int32
-	PublicKid string
-	PublicKey []byte
-	ExpiresAt time.Time
-	Usage     CredentialsUsage
+	AccountID   int32
+	PublicKid   string
+	PublicKey   []byte
+	CryptoSuite TokenCryptoSuite
+	ExpiresAt   time.Time
+	Usage       CredentialsUsage
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -45,6 +48,7 @@ func (q *Queries) CreateCredentialsKey(ctx context.Context, arg CreateCredential
 		arg.AccountID,
 		arg.PublicKid,
 		arg.PublicKey,
+		arg.CryptoSuite,
 		arg.ExpiresAt,
 		arg.Usage,
 	)
@@ -71,6 +75,30 @@ DELETE FROM "credentials_keys"
 func (q *Queries) DeleteAllCredentialsKeys(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, deleteAllCredentialsKeys)
 	return err
+}
+
+const findCredentialsKeyPublicKeyByPublicKIDCryptoSuiteAndUsage = `-- name: FindCredentialsKeyPublicKeyByPublicKIDCryptoSuiteAndUsage :one
+SELECT "public_key" FROM "credentials_keys"
+WHERE
+    "public_kid" = $1 AND
+    "usage" = $2 AND
+    "crypto_suite" = $3 AND
+    "is_revoked" = false AND
+    "expires_at" > now()
+LIMIT 1
+`
+
+type FindCredentialsKeyPublicKeyByPublicKIDCryptoSuiteAndUsageParams struct {
+	PublicKid   string
+	Usage       CredentialsUsage
+	CryptoSuite TokenCryptoSuite
+}
+
+func (q *Queries) FindCredentialsKeyPublicKeyByPublicKIDCryptoSuiteAndUsage(ctx context.Context, arg FindCredentialsKeyPublicKeyByPublicKIDCryptoSuiteAndUsageParams) ([]byte, error) {
+	row := q.db.QueryRow(ctx, findCredentialsKeyPublicKeyByPublicKIDCryptoSuiteAndUsage, arg.PublicKid, arg.Usage, arg.CryptoSuite)
+	var public_key []byte
+	err := row.Scan(&public_key)
+	return public_key, err
 }
 
 const revokeCredentialsKey = `-- name: RevokeCredentialsKey :one

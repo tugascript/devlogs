@@ -9,6 +9,7 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 	"log/slog"
 
 	"github.com/gofiber/fiber/v2"
@@ -25,7 +26,9 @@ const (
 	grantTypeRefresh           string = "refresh_token"
 	grantTypeAuthorization     string = "authorization_code"
 	grantTypeClientCredentials string = "client_credentials"
+	grantTypeJwtBearer         string = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 
+	oauthTokenCacheControl string = "private, no-store, no-cache, must-revalidate, max-age=0"
 	publicJWKsCacheControl string = "public, max-age=300, must-revalidate"
 )
 
@@ -193,6 +196,8 @@ func oauthErrorResponseMapper(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *e
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
 	case exceptions.CodeValidation:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidGrant)
+	case exceptions.CodeForbidden:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnauthorizedClient)
 	default:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthServerError)
 	}
@@ -236,43 +241,10 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 		c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	}
 
+	ctx.Set(fiber.HeaderCacheControl, oauthTokenCacheControl)
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
-
-// var accountClientCredentialsScopes = map[tokens.AccountScope]bool{
-// 	tokens.AccountScopeUsersWrite:       true,
-// 	tokens.AccountScopeUsersRead:        true,
-// 	tokens.AccountScopeAppsWrite:        true,
-// 	tokens.AccountScopeAppsRead:         true,
-// 	tokens.AccountScopeAdmin:            true,
-// 	tokens.AccountScopeEmail:            true,
-// 	tokens.AccountScopeProfile:          true,
-// 	tokens.AccountScopeCredentialsRead:  true,
-// 	tokens.AccountScopeCredentialsWrite: true,
-// }
-
-// func processAccountClientCredentialScopes(scopes string) ([]tokens.AccountScope, bool) {
-// 	if scopes == "" {
-// 		return nil, true
-// 	}
-
-// 	scopesSlice := strings.Split(scopes, " ")
-// 	if len(scopesSlice) == 0 {
-// 		return nil, false
-// 	}
-
-// 	accountScopes := make([]tokens.AccountScope, len(scopesSlice))
-// 	for i, scope := range scopesSlice {
-// 		if !accountClientCredentialsScopes[scope] {
-// 			return nil, false
-// 		}
-
-// 		accountScopes[i] = scope
-// 	}
-
-// 	return accountScopes, true
-// }
 
 func (c *Controllers) accountRefreshToken(ctx *fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, oauthLocation, "accountRefreshToken")
@@ -294,6 +266,109 @@ func (c *Controllers) accountRefreshToken(ctx *fiber.Ctx, requestID string) erro
 	}
 
 	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
+	ctx.Set(fiber.HeaderCacheControl, oauthTokenCacheControl)
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
+}
+
+func (c *Controllers) accountJWTBearer(ctx *fiber.Ctx, requestID string) error {
+	logger := c.buildLogger(requestID, oauthLocation, "accountJWTBearer")
+
+	body := bodies.JWTGrantBody{
+		GrantType: ctx.FormValue("grant_type"),
+		Scope:     ctx.FormValue("scope"),
+		Assertion: ctx.FormValue("assertion"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+	}
+
+	scopes, serviceErr := c.services.ProcessAccountCredentialsScope(
+		ctx.UserContext(),
+		services.ProcessAccountCredentialsScopeOptions{
+			RequestID: requestID,
+			Scope:     body.Scope,
+		},
+	)
+	if serviceErr != nil {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidScope)
+	}
+
+	authDTO, serviceErr := c.services.JWTBearerAccountLogin(ctx.UserContext(), services.JWTBearerAccountLoginOptions{
+		RequestID:     requestID,
+		Token:         body.Assertion,
+		Scopes:        scopes,
+		BackendDomain: c.backendDomain,
+	})
+	if serviceErr != nil {
+		return oauthErrorResponseMapper(logger, ctx, serviceErr)
+	}
+
+	ctx.Set(fiber.HeaderCacheControl, oauthTokenCacheControl)
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
+}
+
+func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string) error {
+	logger := c.buildLogger(requestID, oauthLocation, "accountClientCredentials")
+
+	body := bodies.ClientCredentialsBody{
+		GrantType:    ctx.FormValue("grant_type"),
+		Scope:        ctx.FormValue("scope"),
+		Issuer:       ctx.FormValue("issuer"),
+		Audience:     ctx.FormValue("audience"),
+		ClientID:     ctx.FormValue("client_id"),
+		ClientSecret: ctx.FormValue("client_secret"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+	}
+	if body.Audience != "" &&
+		utils.IsValidURL(body.Audience) &&
+		utils.ProcessURL(body.Audience) != fmt.Sprintf("https://%s", c.backendDomain) {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
+	}
+
+	clientID, clientSecret, authMethod, serviceErr := c.services.ProcessClientCredentialsLoginData(
+		ctx.UserContext(),
+		services.ProcessClientCredentialsLoginDataOptions{
+			RequestID:    requestID,
+			ClientID:     body.ClientID,
+			ClientSecret: body.ClientSecret,
+			AuthHeader:   ctx.Get("Authorization"),
+		},
+	)
+	if serviceErr != nil {
+		return oauthErrorResponseMapper(logger, ctx, serviceErr)
+	}
+
+	scopes, serviceErr := c.services.ProcessAccountCredentialsScope(
+		ctx.UserContext(),
+		services.ProcessAccountCredentialsScopeOptions{
+			RequestID: requestID,
+			Scope:     body.Scope,
+		},
+	)
+	if serviceErr != nil {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidScope)
+	}
+
+	authDTO, serviceErr := c.services.ClientCredentialsAccountLogin(
+		ctx.UserContext(),
+		services.ClientCredentialsAccountLoginOptions{
+			RequestID:    requestID,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Issuer:       body.Issuer,
+			Scopes:       scopes,
+			AuthMethod:   authMethod,
+		},
+	)
+	if serviceErr != nil {
+		return oauthErrorResponseMapper(logger, ctx, serviceErr)
+	}
+
+	ctx.Set(fiber.HeaderCacheControl, oauthTokenCacheControl)
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
@@ -321,9 +396,10 @@ func (c *Controllers) AccountOAuthToken(ctx *fiber.Ctx) error {
 		return c.accountRefreshToken(ctx, requestID)
 	case grantTypeAuthorization:
 		return c.accountAuthorizationCodeToken(ctx, requestID)
+	case grantTypeJwtBearer:
+		return c.accountJWTBearer(ctx, requestID)
 	case grantTypeClientCredentials:
-		// TODO: Implement client credentials login
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnsupportedGrantType)
+		return c.accountClientCredentials(ctx, requestID)
 	default:
 		logger.WarnContext(ctx.UserContext(), "Unsupported grant_type", "grantType", grantType)
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnsupportedGrantType)
@@ -345,7 +421,6 @@ func (c *Controllers) AccountOAuthPublicJWKs(ctx *fiber.Ctx) error {
 		return ctx.SendStatus(fiber.StatusNotModified)
 	}
 
-	logResponse(logger, ctx, fiber.StatusOK)
 	ctx.Set(fiber.HeaderCacheControl, publicJWKsCacheControl)
 	ctx.Set(fiber.HeaderETag, etag)
 	logResponse(logger, ctx, fiber.StatusOK)

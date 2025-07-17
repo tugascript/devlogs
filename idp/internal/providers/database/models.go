@@ -815,6 +815,7 @@ type AccountCredential struct {
 	AccountPublicID uuid.UUID
 	Scopes          []AccountCredentialsScope
 	AuthMethods     []AuthMethod
+	Issuers         []string
 	Alias           string
 	ClientID        string
 	CreatedAt       time.Time
@@ -826,6 +827,7 @@ type AccountCredentialsKey struct {
 	CredentialsKeyID     int32
 	AccountCredentialsID int32
 	AccountPublicID      uuid.UUID
+	JwkKid               string
 	CreatedAt            time.Time
 }
 

@@ -8,6 +8,7 @@ package utils
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -110,7 +111,7 @@ var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-
 
 func IsValidEmail(email string) bool {
 	length := len(email)
-	return length > 6 && length < 255 && emailRegex.MatchString(email)
+	return length >= 6 && length <= 255 && emailRegex.MatchString(email)
 }
 
 func AppendZeroToDecades(n int64) string {
@@ -119,6 +120,12 @@ func AppendZeroToDecades(n int64) string {
 	}
 
 	return strconv.Itoa(int(n))
+}
+
+func IsValidURL(s string) bool {
+	length := len(s)
+	_, err := url.Parse(s)
+	return length >= 10 && length <= 250 && err == nil
 }
 
 func ProcessURL(url string) string {

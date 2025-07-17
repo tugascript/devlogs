@@ -24,10 +24,7 @@ import (
 const (
 	accountCredentialsLocation string = "account_credentials"
 
-	accountSecretBytes int = 32
-
 	accountCredentialsSecretExpiry time.Duration = time.Hour * 24 * 365 // 1 year
-	accountCredentialsSecretPrefix string        = "acc"
 
 	accountCredentialsKeysCacheTTL       int    = 900 // 15 minutes
 	accountCredentialsKeysCacheKeyPrefix string = "account_credentials_keys"
@@ -72,6 +69,8 @@ type CreateAccountCredentialsOptions struct {
 	Alias           string
 	Scopes          []string
 	AuthMethods     string
+	Issuers         []string
+	Algorithm       string
 }
 
 func (s *Services) CreateAccountCredentials(
@@ -81,6 +80,7 @@ func (s *Services) CreateAccountCredentials(
 	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "CreateAccountCredentials").With(
 		"accountPublicID", opts.AccountPublicID,
 		"scopes", opts.Scopes,
+		"alias", opts.Alias,
 		"authMethods", opts.AuthMethods,
 	)
 	logger.InfoContext(ctx, "Creating account keys...")
@@ -141,6 +141,9 @@ func (s *Services) CreateAccountCredentials(
 		Scopes:          scopes,
 		AuthMethods:     authMethods,
 		Alias:           alias,
+		Issuers: utils.MapSlice(opts.Issuers, func(url *string) string {
+			return utils.ProcessURL(*url)
+		}),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create account credentials", "error", err)
@@ -151,12 +154,14 @@ func (s *Services) CreateAccountCredentials(
 	switch opts.AuthMethods {
 	case AuthMethodPrivateKeyJwt:
 		var dbPrms database.CreateCredentialsKeyParams
-		var jwk utils.ES256JWK
+		var jwk utils.JWK
 		dbPrms, jwk, serviceErr = s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
-			requestID: opts.RequestID,
-			accountID: accountID,
-			expiresIn: accountCredentialsSecretExpiry,
-			usage:     database.CredentialsUsageAccount,
+			requestID:       opts.RequestID,
+			accountID:       accountID,
+			accountPublicID: opts.AccountPublicID,
+			expiresIn:       accountCredentialsSecretExpiry,
+			usage:           database.CredentialsUsageAccount,
+			cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
@@ -176,13 +181,14 @@ func (s *Services) CreateAccountCredentials(
 			AccountCredentialsID: accountCredentials.ID,
 			CredentialsKeyID:     clientKey.ID,
 			AccountPublicID:      opts.AccountPublicID,
+			JwkKid:               clientKey.PublicKid,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to create account credential key", "error", err)
 			serviceErr = exceptions.FromDBError(err)
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
-		return dtos.MapAccountCredentialsToDTOWithJWK(&accountCredentials, &jwk, dbPrms.ExpiresAt), nil
+		return dtos.MapAccountCredentialsToDTOWithJWK(&accountCredentials, jwk, dbPrms.ExpiresAt), nil
 	case AuthMethodClientSecretBasic, AuthMethodClientSecretPost, AuthMethodBothClientSecrets:
 		var dbPrms database.CreateCredentialsSecretParams
 		var secret string
@@ -190,7 +196,6 @@ func (s *Services) CreateAccountCredentials(
 			requestID: opts.RequestID,
 			accountID: accountID,
 			expiresIn: accountCredentialsSecretExpiry,
-			prefix:    accountCredentialsSecretPrefix,
 			usage:     database.CredentialsUsageAccount,
 		})
 		if serviceErr != nil {
@@ -225,21 +230,21 @@ func (s *Services) CreateAccountCredentials(
 	}
 }
 
-type GetAccountCredentialsByClientIDOptions struct {
+type GetAccountCredentialsByClientIDAndAccountPublicIDOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
 	ClientID        string
 }
 
-func (s *Services) GetAccountCredentialsByClientID(
+func (s *Services) GetAccountCredentialsByClientIDAndAccountPublicID(
 	ctx context.Context,
-	opts GetAccountCredentialsByClientIDOptions,
+	opts GetAccountCredentialsByClientIDAndAccountPublicIDOptions,
 ) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "GetAccountCredentialsByClientID").With(
+	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "GetAccountCredentialsByClientIDAndAccountPublicID").With(
 		"clientId", opts.ClientID,
 		"accountPublicID", opts.AccountPublicID,
 	)
-	logger.InfoContext(ctx, "Getting account keys by client id...")
+	logger.InfoContext(ctx, "Getting account keys by client id and account public id...")
 
 	accountCredentials, err := s.database.FindAccountCredentialsByAccountPublicIDAndClientID(
 		ctx,
@@ -259,8 +264,37 @@ func (s *Services) GetAccountCredentialsByClientID(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	logger.InfoContext(ctx, "Got account keys by client id successfully")
+	logger.InfoContext(ctx, "Got account keys by client id and account public id successfully")
 	return dtos.MapAccountCredentialsToDTO(&accountCredentials), nil
+}
+
+type GetAccountCredentialsByPublicIDOptions struct {
+	RequestID string
+	ClientID  string
+}
+
+func (s *Services) GetAccountCredentialsByPublicID(
+	ctx context.Context,
+	opts GetAccountCredentialsByPublicIDOptions,
+) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "GetAccountCredentialsByPublicID").With(
+		"clientId", opts.ClientID,
+	)
+	logger.InfoContext(ctx, "Getting account keys by client id...")
+
+	accountClients, err := s.database.FindAccountCredentialsByClientID(ctx, opts.ClientID)
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account keys not found", "error", err)
+			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get account keys", "error", err)
+		return dtos.AccountCredentialsDTO{}, serviceErr
+	}
+
+	return dtos.MapAccountCredentialsToDTO(&accountClients), nil
 }
 
 type getAccountCredentialsForMutationOptions struct {
@@ -289,7 +323,7 @@ func (s *Services) getAccountCredentialsForMutation(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	return s.GetAccountCredentialsByClientID(ctx, GetAccountCredentialsByClientIDOptions{
+	return s.GetAccountCredentialsByClientIDAndAccountPublicID(ctx, GetAccountCredentialsByClientIDAndAccountPublicIDOptions{
 		RequestID:       opts.requestID,
 		AccountPublicID: opts.accountPublicID,
 		ClientID:        opts.clientID,
@@ -446,6 +480,7 @@ type createAccountCredentialsKeyOptions struct {
 	accountID            int32
 	accountPublicID      uuid.UUID
 	accountCredentialsID int32
+	cryptoSuite          utils.SupportedCryptoSuite
 }
 
 func (s *Services) createAccountCredentialsKey(
@@ -459,10 +494,12 @@ func (s *Services) createAccountCredentialsKey(
 	logger.InfoContext(ctx, "Creating account credentials key...")
 
 	dbPrms, jwk, serviceErr := s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
-		requestID: opts.requestID,
-		accountID: opts.accountID,
-		expiresIn: accountCredentialsSecretExpiry,
-		usage:     database.CredentialsUsageAccount,
+		requestID:       opts.requestID,
+		accountID:       opts.accountID,
+		accountPublicID: opts.accountPublicID,
+		cryptoSuite:     opts.cryptoSuite,
+		expiresIn:       accountCredentialsSecretExpiry,
+		usage:           database.CredentialsUsageAccount,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
@@ -497,7 +534,7 @@ func (s *Services) createAccountCredentialsKey(
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
-	return dtos.MapCredentialsKeyToDTOWithJWK(&clientKey, &jwk), nil
+	return dtos.MapCredentialsKeyToDTOWithJWK(&clientKey, jwk), nil
 }
 
 type rotateAccountCredentialsKeyOptions struct {
@@ -528,12 +565,24 @@ func (s *Services) rotateAccountCredentialsKey(
 			return dtos.ClientCredentialsSecretDTO{}, serviceErr
 		}
 
-		return s.createAccountCredentialsKey(ctx, createAccountCredentialsKeyOptions(opts))
+		return s.createAccountCredentialsKey(ctx, createAccountCredentialsKeyOptions{
+			requestID:            opts.requestID,
+			accountID:            opts.accountID,
+			accountPublicID:      opts.accountPublicID,
+			accountCredentialsID: opts.accountCredentialsID,
+			cryptoSuite:          mapAlgorithmToTokenCryptoSuite(string(currentKey.CryptoSuite)),
+		})
 	}
 
 	if isMoreThanHalfExpiry(currentKey.CreatedAt, currentKey.ExpiresAt) {
 		logger.InfoContext(ctx, "Current account credentials key is more than half expired, creating a new one")
-		return s.createAccountCredentialsKey(ctx, createAccountCredentialsKeyOptions(opts))
+		return s.createAccountCredentialsKey(ctx, createAccountCredentialsKeyOptions{
+			requestID:            opts.requestID,
+			accountID:            opts.accountID,
+			accountPublicID:      opts.accountPublicID,
+			accountCredentialsID: opts.accountCredentialsID,
+			cryptoSuite:          mapAlgorithmToTokenCryptoSuite(string(currentKey.CryptoSuite)),
+		})
 	}
 
 	logger.WarnContext(ctx, "Current account credentials key is not more than half expired, returning it")
@@ -560,7 +609,6 @@ func (s *Services) createAccountCredentialsSecret(
 		requestID: opts.requestID,
 		accountID: opts.accountID,
 		expiresIn: accountCredentialsSecretExpiry,
-		prefix:    accountCredentialsSecretPrefix,
 		usage:     database.CredentialsUsageAccount,
 	})
 	if serviceErr != nil {
@@ -788,9 +836,9 @@ func (s *Services) ListAccountCredentialsSecretsOrKeys(
 	)
 	logger.InfoContext(ctx, "Listing account credentials secrets or keys...")
 
-	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsByClientID(
+	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsByClientIDAndAccountPublicID(
 		ctx,
-		GetAccountCredentialsByClientIDOptions{
+		GetAccountCredentialsByClientIDAndAccountPublicIDOptions{
 			RequestID:       opts.RequestID,
 			AccountPublicID: opts.AccountPublicID,
 			ClientID:        opts.ClientID,
@@ -890,7 +938,7 @@ func (s *Services) getAccountCredentialsSecretByID(
 		}
 
 		logger.ErrorContext(ctx, "Failed to find account credentials secret", "error", err)
-		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewNotFoundError()
+		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
 	return dtos.MapCredentialsSecretToDTO(&secret), nil
@@ -914,9 +962,9 @@ func (s *Services) GetAccountCredentialsSecretOrKey(
 	)
 	logger.InfoContext(ctx, "Getting account credentials secret or key...")
 
-	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsByClientID(
+	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsByClientIDAndAccountPublicID(
 		ctx,
-		GetAccountCredentialsByClientIDOptions{
+		GetAccountCredentialsByClientIDAndAccountPublicIDOptions{
 			RequestID:       opts.RequestID,
 			AccountPublicID: opts.AccountPublicID,
 			ClientID:        opts.ClientID,
