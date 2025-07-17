@@ -876,7 +876,7 @@ func (s *Services) ClientCredentialsAccountLogin(
 		logger.WarnContext(ctx, "Failed to get account credentials by public ID", "serviceError", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
-	if slices.Contains(accountClientsDTO.AuthMethods, opts.AuthMethod) {
+	if !slices.Contains(accountClientsDTO.AuthMethods, opts.AuthMethod) {
 		logger.WarnContext(ctx, "Account credentials does not support client credentials login",
 			"authMethods", accountClientsDTO.AuthMethods,
 		)
