@@ -9,7 +9,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"github.com/golang-jwt/jwt/v5"
 	"log/slog"
 	"net/url"
 	"slices"
@@ -17,8 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tugascript/devlogs/idp/internal/utils"
-
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
@@ -28,12 +26,17 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const (
 	oauthLocation string = "oauth"
 
+	// Maximum validity of a bearer JWT, set to 5 minutes (300 seconds)
 	bearerJWTMaxValiditySecs int64 = 300
+
+	// Maximum JWT bearer issuance tolerance, set to 2 minutes
+	bearerJWTMaxIssuanceTolerance time.Duration = -2 * time.Minute
 )
 
 var oauthScopes = []oauth.Scope{oauth.ScopeProfile}
@@ -663,7 +666,7 @@ func (s *Services) validateAccountJWTClaims(
 
 	expAtUnix := opts.claims.ExpiresAt.Unix()
 	if opts.claims.IssuedAt != nil {
-		if opts.claims.IssuedAt.Before(now.Add(-time.Minute * 2)) {
+		if opts.claims.IssuedAt.Before(now.Add(bearerJWTMaxIssuanceTolerance)) {
 			logger.WarnContext(ctx, "JWT Bearer token was issued too long ago",
 				"iat", opts.claims.IssuedAt,
 			)
@@ -694,7 +697,7 @@ func (s *Services) validateAccountJWTClaims(
 			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
 		}
 	} else if opts.claims.NotBefore != nil {
-		if opts.claims.NotBefore.Before(now.Add(-time.Minute * 2)) {
+		if opts.claims.NotBefore.Before(now.Add(bearerJWTMaxIssuanceTolerance)) {
 			logger.WarnContext(ctx, "JWT Bearer token was issued too long ago",
 				"nbf", opts.claims.NotBefore,
 			)
@@ -877,7 +880,6 @@ type ClientCredentialsAccountLoginOptions struct {
 	RequestID    string
 	ClientID     string
 	ClientSecret string
-	Issuer       string
 	Scopes       []string
 	AuthMethod   database.AuthMethod
 }
@@ -888,7 +890,6 @@ func (s *Services) ClientCredentialsAccountLogin(
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, oauthLocation, "ClientCredentialsAccountLogin").With(
 		"clientID", opts.ClientID,
-		"issuer", opts.Issuer,
 		"authenticationMethod", opts.AuthMethod,
 	)
 	logger.InfoContext(ctx, "Client credentials account logging in...")
@@ -916,10 +917,6 @@ func (s *Services) ClientCredentialsAccountLogin(
 		)
 		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 
-	}
-	if !slices.Contains(accountClientsDTO.Issuers, utils.ProcessURL(opts.Issuer)) {
-		logger.WarnContext(ctx, "Client credentials issuer is not allowed", "issuer", opts.Issuer)
-		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 	}
 
 	secretEnt, err := s.database.FindValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID(

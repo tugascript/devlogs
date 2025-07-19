@@ -20,7 +20,7 @@ type AccountCredentialsDTO struct {
 	Alias           string                             `json:"alias"`
 	Scopes          []database.AccountCredentialsScope `json:"scopes"`
 	AuthMethods     []database.AuthMethod              `json:"auth_methods"`
-	Issuers         []string                           `json:"issuers"`
+	Issuers         []string                           `json:"issuers,omitempty"`
 	ClientSecretID  string                             `json:"client_secret_id,omitempty"`
 	ClientSecret    string                             `json:"client_secret,omitempty"`
 	ClientSecretJWK utils.JWK                          `json:"client_secret_jwk,omitempty"`

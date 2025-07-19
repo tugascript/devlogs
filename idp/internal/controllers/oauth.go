@@ -309,7 +309,6 @@ func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string)
 	body := bodies.ClientCredentialsBody{
 		GrantType:    ctx.FormValue("grant_type"),
 		Scope:        ctx.FormValue("scope"),
-		Issuer:       ctx.FormValue("issuer"),
 		Audience:     ctx.FormValue("audience"),
 		ClientID:     ctx.FormValue("client_id"),
 		ClientSecret: ctx.FormValue("client_secret"),
@@ -353,7 +352,6 @@ func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string)
 			RequestID:    requestID,
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			Issuer:       body.Issuer,
 			Scopes:       scopes,
 			AuthMethod:   authMethod,
 		},
