@@ -50,7 +50,7 @@ type AuthCodeLoginBody struct {
 
 type ClientCredentialsBody struct {
 	GrantType    string `json:"grant_type" validate:"required,eq=client_credentials"`
-	Scope        string `json:"scopes,omitempty" validate:"omitempty,scopes"`
+	Scope        string `json:"scope,omitempty" validate:"omitempty,scopes"`
 	Issuer       string `json:"issuer" validate:"required,url"`
 	Audience     string `json:"audience,omitempty" validate:"omitempty,url"`
 	ClientID     string `json:"client_id,omitempty" validate:"omitempty,min=1"`
@@ -59,7 +59,7 @@ type ClientCredentialsBody struct {
 
 type JWTGrantBody struct {
 	GrantType string `json:"grant_type" validate:"required,eq=urn:ietf:params:oauth:grant-type:jwt-bearer"`
-	Scope     string `json:"scope,omitempty" validate:"omitempty,scope"`
+	Scope     string `json:"scope,omitempty" validate:"omitempty,scopes"`
 	Assertion string `json:"assertion" validate:"required,jwt"`
 }
 

@@ -35,10 +35,11 @@ INSERT INTO "account_credentials" (
 
 -- name: UpdateAccountCredentials :one
 UPDATE "account_credentials" SET
-    "scopes" = $1,
-    "alias" = $2,
+    "scopes" = $2,
+    "alias" = $3,
+    "issuers" = $4,
     "updated_at" = now()
-WHERE "id" = $3
+WHERE "id" = $1
 RETURNING *;
 
 -- name: CountAccountCredentialsByAliasAndAccountID :one

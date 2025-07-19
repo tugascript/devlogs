@@ -9,7 +9,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -23,8 +22,6 @@ import (
 
 const (
 	accountCredentialsLocation string = "account_credentials"
-
-	accountCredentialsSecretExpiry time.Duration = time.Hour * 24 * 365 // 1 year
 
 	accountCredentialsKeysCacheTTL       int    = 900 // 15 minutes
 	accountCredentialsKeysCacheKeyPrefix string = "account_credentials_keys"
@@ -159,7 +156,7 @@ func (s *Services) CreateAccountCredentials(
 			requestID:       opts.RequestID,
 			accountID:       accountID,
 			accountPublicID: opts.AccountPublicID,
-			expiresIn:       accountCredentialsSecretExpiry,
+			expiresIn:       s.accountCCExpDays,
 			usage:           database.CredentialsUsageAccount,
 			cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
 		})
@@ -195,7 +192,7 @@ func (s *Services) CreateAccountCredentials(
 		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
 			requestID: opts.RequestID,
 			accountID: accountID,
-			expiresIn: accountCredentialsSecretExpiry,
+			expiresIn: s.accountCCExpDays,
 			usage:     database.CredentialsUsageAccount,
 		})
 		if serviceErr != nil {
@@ -376,6 +373,7 @@ type UpdateAccountCredentialsScopesOptions struct {
 	ClientID        string
 	Alias           string
 	Scopes          []tokens.AccountScope
+	Issuers         []string
 }
 
 func (s *Services) UpdateAccountCredentials(
@@ -430,6 +428,9 @@ func (s *Services) UpdateAccountCredentials(
 		ID:     accountCredentialsDTO.ID(),
 		Scopes: scopes,
 		Alias:  alias,
+		Issuers: utils.MapSlice(opts.Issuers, func(url *string) string {
+			return utils.ProcessURL(*url)
+		}),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account keys scopes", "error", err)
@@ -498,7 +499,7 @@ func (s *Services) createAccountCredentialsKey(
 		accountID:       opts.accountID,
 		accountPublicID: opts.accountPublicID,
 		cryptoSuite:     opts.cryptoSuite,
-		expiresIn:       accountCredentialsSecretExpiry,
+		expiresIn:       s.accountCCExpDays,
 		usage:           database.CredentialsUsageAccount,
 	})
 	if serviceErr != nil {
@@ -608,7 +609,7 @@ func (s *Services) createAccountCredentialsSecret(
 	dbPrms, secret, serviceErr := s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
 		requestID: opts.requestID,
 		accountID: opts.accountID,
-		expiresIn: accountCredentialsSecretExpiry,
+		expiresIn: s.accountCCExpDays,
 		usage:     database.CredentialsUsageAccount,
 	})
 	if serviceErr != nil {
@@ -1160,7 +1161,7 @@ func (s *Services) ListActiveAccountCredentialsKeysWithCache(
 	logger.InfoContext(ctx, "Listing account credentials keys with cache...")
 
 	cacheKey := fmt.Sprintf("%s:%s", accountCredentialsKeysCacheKeyPrefix, opts.AccountPublicID)
-	jwksDTO, etag, err := cache.GetCachedResponse(s.cache, ctx, cache.GetCachedResponseOptions[dtos.JWKsDTO]{
+	jwksDTO, etag, err := cache.GetResponse(s.cache, ctx, cache.GetResponseOptions[dtos.JWKsDTO]{
 		RequestID: opts.RequestID,
 		Key:       cacheKey,
 	})
@@ -1181,7 +1182,7 @@ func (s *Services) ListActiveAccountCredentialsKeysWithCache(
 		return dtos.JWKsDTO{}, "", serviceErr
 	}
 
-	etag, err = cache.CacheResponse(s.cache, ctx, cache.CacheResponseOptions[dtos.JWKsDTO]{
+	etag, err = cache.SaveResponse(s.cache, ctx, cache.SaveResponseOptions[dtos.JWKsDTO]{
 		RequestID: opts.RequestID,
 		Key:       cacheKey,
 		TTL:       accountCredentialsKeysCacheTTL,

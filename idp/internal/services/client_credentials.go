@@ -169,6 +169,12 @@ func (s *Services) clientCredentialsKey(
 	)
 	logger.InfoContext(ctx, "Generating client credentials key...")
 
+	cryptoSuite, err := mapCryptoSuite(opts.cryptoSuite)
+	if err != nil {
+		logger.ErrorContext(ctx, "Invalid crypto suite", "error", err)
+		return database.CreateCredentialsKeyParams{}, nil, exceptions.NewServerError()
+	}
+
 	kid, jsonJwk, privJwk, serviceErr := s.buildClientCredentialsJwk(ctx, buildClientCredentialsJwkOptions{
 		requestID:   opts.requestID,
 		cryptoSuite: opts.cryptoSuite,
@@ -179,11 +185,12 @@ func (s *Services) clientCredentialsKey(
 	}
 
 	return database.CreateCredentialsKeyParams{
-		AccountID: opts.accountID,
-		PublicKid: kid,
-		PublicKey: jsonJwk,
-		ExpiresAt: time.Now().Add(opts.expiresIn),
-		Usage:     opts.usage,
+		AccountID:   opts.accountID,
+		PublicKid:   kid,
+		PublicKey:   jsonJwk,
+		ExpiresAt:   time.Now().Add(opts.expiresIn),
+		Usage:       opts.usage,
+		CryptoSuite: cryptoSuite,
 	}, privJwk, nil
 }
 

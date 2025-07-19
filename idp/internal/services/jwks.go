@@ -131,7 +131,7 @@ func (s *Services) buildStoreGlobalJWKfn(
 			DekKid:        dekKid,
 			CryptoSuite:   dbCryptoSuite,
 			Usage:         database.TokenKeyUsageGlobal,
-			ExpiresAt:     time.Now().Add(time.Duration(s.jwkExpDays) * time.Hour * 24),
+			ExpiresAt:     time.Now().Add(s.jwkExpDays),
 			IsDistributed: isDistributedJWK(opts.keyType),
 		})
 		if err != nil {
@@ -446,7 +446,7 @@ func (s *Services) buildStoreAccountJWKfn(
 			PrivateKey:    encryptedKey,
 			DekKid:        dekKid,
 			CryptoSuite:   dbCryptoSuite,
-			ExpiresAt:     time.Now().Add(time.Duration(s.jwkExpDays) * time.Hour * 24),
+			ExpiresAt:     time.Now().Add(s.jwkExpDays),
 			Usage:         database.TokenKeyUsageAccount,
 			IsDistributed: isDistributedJWK(opts.keyType),
 		})

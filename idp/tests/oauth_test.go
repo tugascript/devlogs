@@ -747,6 +747,81 @@ func TestOAuthToken(t *testing.T) {
 		return sRefreshToken
 	}
 
+	beforeEachBearerJWT := func(
+		t *testing.T,
+		algorithm database.TokenCryptoSuite,
+		issuer string,
+		expDuration time.Duration,
+		iat *time.Time,
+		nbf *time.Time,
+	) string {
+		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderApple))
+		cred, serviceErr := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+			RequestID:       uuid.NewString(),
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			Alias:           "update-cred",
+			Scopes:          []string{"account:admin"},
+			AuthMethods:     "private_key_jwt",
+			Issuers:         []string{"https://issuer.example.com"},
+			Algorithm:       string(algorithm),
+		})
+		if serviceErr != nil {
+			t.Fatalf("Failed to create account credentials: %v", serviceErr)
+		}
+
+		mapTime := func(tm *time.Time) *jwt.NumericDate {
+			if tm == nil {
+				return nil
+			}
+			return jwt.NewNumericDate(*tm)
+		}
+
+		mapExp := func(ia *time.Time, nb *time.Time) *jwt.NumericDate {
+			if ia != nil {
+				return jwt.NewNumericDate(ia.Add(expDuration))
+			}
+			if nb != nil {
+				return jwt.NewNumericDate(nb.Add(expDuration))
+			}
+			return jwt.NewNumericDate(time.Now().Add(expDuration))
+		}
+
+		jwk := cred.ClientSecretJWK
+		claims := jwt.RegisteredClaims{
+			Issuer:    issuer,
+			Subject:   cred.ClientID,
+			Audience:  jwt.ClaimStrings{"https://" + GetTestConfig(t).BackendDomain()},
+			ExpiresAt: mapExp(iat, nbf),
+			NotBefore: mapTime(nbf),
+			IssuedAt:  mapTime(iat),
+			ID:        uuid.NewString(),
+		}
+		var signingMethod jwt.SigningMethod
+		switch algorithm {
+		case database.TokenCryptoSuiteES256:
+			signingMethod = jwt.SigningMethodES256
+		case database.TokenCryptoSuiteEdDSA:
+			signingMethod = jwt.SigningMethodEdDSA
+		default:
+			t.Fatalf("Unsupported algorithm: %s", algorithm)
+		}
+		token := jwt.NewWithClaims(signingMethod, claims)
+		token.Header["kid"] = jwk.GetKeyID()
+
+		privateKey, err := jwk.ToPrivateKey()
+		if err != nil {
+			t.Fatalf("Failed to convert JWK to private key: %v", err)
+		}
+
+		signedToken, err := token.SignedString(privateKey)
+		if err != nil {
+			t.Fatalf("Failed to sign token: %v", err)
+		}
+
+		return signedToken
+	}
+
 	createAuthorizationBody := func(code string) string {
 		form := make(url.Values)
 		form.Add("code", code)
@@ -759,6 +834,16 @@ func TestOAuthToken(t *testing.T) {
 		form := make(url.Values)
 		form.Add("refresh_token", refreshToken)
 		form.Add("grant_type", "refresh_token")
+		return form.Encode()
+	}
+
+	createBearerJWTBody := func(token string, scope string) string {
+		form := make(url.Values)
+		form.Add("assertion", token)
+		form.Add("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
+		if scope != "" {
+			form.Add("scope", scope)
+		}
 		return form.Encode()
 	}
 
@@ -785,12 +870,12 @@ func TestOAuthToken(t *testing.T) {
 			},
 		},
 		{
-			Name: "POST should return 400 BAD REQUEST access_denied with authorization_code grant type with valid code and invalid token",
+			Name: "POST should return 401 UNAUTHORIZED access_denied with authorization_code grant type with valid code and invalid token",
 			ReqFn: func(t *testing.T) (string, string) {
 				code, accessToken := beforeEachAuthorization(t)
 				return createAuthorizationBody(code), accessToken + "invalid"
 			},
-			ExpStatus: http.StatusBadRequest,
+			ExpStatus: http.StatusUnauthorized,
 			AssertFn: func(t *testing.T, req string, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
 				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
@@ -817,7 +902,7 @@ func TestOAuthToken(t *testing.T) {
 			},
 		},
 		{
-			Name: "POST should return 400 BAD REQUEST access_denied with refresh_token grant type with refresh token with invalid claims",
+			Name: "POST should return 401 UNAUTHORIZED access_denied with refresh_token grant type with refresh token with invalid claims",
 			ReqFn: func(t *testing.T) (string, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				testTokens := GetTestTokens(t)
@@ -853,10 +938,211 @@ func TestOAuthToken(t *testing.T) {
 
 				return createRefreshBody(sRefreshToken), ""
 			},
-			ExpStatus: http.StatusBadRequest,
+			ExpStatus: http.StatusUnauthorized,
 			AssertFn: func(t *testing.T, req string, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
 				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
+			},
+		},
+		{
+			Name: "POST should return 200 OK with private_key_jwt grant type with valid ES256 JWT token",
+			ReqFn: func(t *testing.T) (string, string) {
+				now := time.Now()
+				signedToken := beforeEachBearerJWT(
+					t,
+					database.TokenCryptoSuiteES256,
+					"https://issuer.example.com",
+					5*time.Minute,
+					&now,
+					&now,
+				)
+				return createBearerJWTBody(signedToken, ""), ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+		},
+		{
+			Name: "POST should return 200 OK with private_key_jwt grant type with valid EdDSA JWT token",
+			ReqFn: func(t *testing.T) (string, string) {
+				now := time.Now()
+				signedToken := beforeEachBearerJWT(
+					t,
+					database.TokenCryptoSuiteEdDSA,
+					"https://issuer.example.com",
+					5*time.Minute,
+					&now,
+					&now,
+				)
+				return createBearerJWTBody(signedToken, ""), ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+		},
+		{
+			Name: "POST should return 200 OK with private_key_jwt grant type with valid ES256 JWT token with minimal claims",
+			ReqFn: func(t *testing.T) (string, string) {
+				signedToken := beforeEachBearerJWT(
+					t,
+					database.TokenCryptoSuiteES256,
+					"https://issuer.example.com",
+					5*time.Minute,
+					nil,
+					nil,
+				)
+				return createBearerJWTBody(signedToken, ""), ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+		},
+		{
+			Name: "POST should return 200 OK with private_key_jwt grant type with valid EdDSA JWT token with only nbf claim",
+			ReqFn: func(t *testing.T) (string, string) {
+				minusOne := time.Now().Add(-1 * time.Minute)
+				signedToken := beforeEachBearerJWT(
+					t,
+					database.TokenCryptoSuiteEdDSA,
+					"https://issuer.example.com",
+					5*time.Minute,
+					nil,
+					&minusOne,
+				)
+				return createBearerJWTBody(signedToken, ""), ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+		},
+		{
+			Name: "POST should return 200 OK with private_key_jwt grant type with valid ES256 JWT token and valid claims",
+			ReqFn: func(t *testing.T) (string, string) {
+				now := time.Now()
+				signedToken := beforeEachBearerJWT(
+					t,
+					database.TokenCryptoSuiteES256,
+					"https://issuer.example.com",
+					5*time.Minute,
+					&now,
+					&now,
+				)
+				return createBearerJWTBody(signedToken, strings.Join([]string{
+					string(database.AccountCredentialsScopeAccountAppsRead),
+					string(database.AccountCredentialsScopeAccountUsersRead),
+					string(database.AccountCredentialsScopeAccountCredentialsRead),
+				}, " ")), ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+		},
+		{
+			Name: "POST should return 401 UNAUTHORIZED unauthorized_client with private_key_jwt grant type with invalid issuer",
+			ReqFn: func(t *testing.T) (string, string) {
+				now := time.Now()
+				signedToken := beforeEachBearerJWT(
+					t,
+					database.TokenCryptoSuiteES256,
+					"https://invalid-issuer.example.com",
+					5*time.Minute,
+					&now,
+					&now,
+				)
+				return createBearerJWTBody(signedToken, ""), ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorUnauthorizedClient)
+			},
+		},
+		{
+			Name: "POST should return 401 UNAUTHORIZED access_denied with private_key_jwt grant type with a extensive lifespan token",
+			ReqFn: func(t *testing.T) (string, string) {
+				now := time.Now()
+				signedToken := beforeEachBearerJWT(
+					t,
+					database.TokenCryptoSuiteES256,
+					"https://issuer.example.com",
+					10*time.Minute,
+					&now,
+					&now,
+				)
+				return createBearerJWTBody(signedToken, ""), ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
+			},
+		},
+		{
+			Name: "POST should return 401 UNAUTHORIZED access_denied with private_key_jwt grant type with a extensive lifespan token with minimal claims",
+			ReqFn: func(t *testing.T) (string, string) {
+				signedToken := beforeEachBearerJWT(
+					t,
+					database.TokenCryptoSuiteES256,
+					"https://issuer.example.com",
+					10*time.Minute,
+					nil,
+					nil,
+				)
+				return createBearerJWTBody(signedToken, ""), ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
+			},
+		},
+		{
+			Name: "POST should return 401 UNAUTHORIZED access_denied with private_key_jwt grant type with a extensive lifespan token with minimal nbf",
+			ReqFn: func(t *testing.T) (string, string) {
+				minusOne := time.Now().Add(-1 * time.Minute)
+				signedToken := beforeEachBearerJWT(
+					t,
+					database.TokenCryptoSuiteES256,
+					"https://issuer.example.com",
+					10*time.Minute,
+					nil,
+					&minusOne,
+				)
+				return createBearerJWTBody(signedToken, ""), ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
+			},
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST invalid_request with private_key_jwt grant type with invalid JWT token",
+			ReqFn: func(t *testing.T) (string, string) {
+				return createBearerJWTBody("not-a-jwt", ""), ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorInvalidRequest)
+			},
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST with private_key_jwt grant type with invalid scope",
+			ReqFn: func(t *testing.T) (string, string) {
+				now := time.Now()
+				signedToken := beforeEachBearerJWT(
+					t,
+					database.TokenCryptoSuiteES256,
+					"https://issuer.example.com",
+					5*time.Minute,
+					&now,
+					&now,
+				)
+				return createBearerJWTBody(signedToken, strings.Join([]string{
+					string(database.AccountCredentialsScopeAccountAppsRead),
+					"account:unknown:read",
+				}, " ")), ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorInvalidScope)
 			},
 		},
 	}

@@ -19,7 +19,14 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const cacheControlNoStore string = "no-store"
+const (
+	cacheControlNoStore string = "no-store, no-cache, must-revalidate, private"
+
+	grantTypeRefresh           string = "refresh_token"
+	grantTypeAuthorization     string = "authorization_code"
+	grantTypeClientCredentials string = "client_credentials"
+	grantTypeJwtBearer         string = "urn:ietf:params:oauth:grant-type:jwt-bearer"
+)
 
 func (c *Controllers) buildLogger(
 	requestID,

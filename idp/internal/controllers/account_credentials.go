@@ -171,6 +171,7 @@ func (c *Controllers) UpdateAccountCredentials(ctx *fiber.Ctx) error {
 			ClientID:        urlParams.ClientID,
 			Scopes:          body.Scopes,
 			Alias:           body.Alias,
+			Issuers:         body.Issuers,
 		},
 	)
 	if serviceErr != nil {

@@ -34,7 +34,7 @@ func (s *Services) createAndCacheGlobalKEK(
 			return s.database.CreateKeyEncryptionKey(ctx, database.CreateKeyEncryptionKeyParams{
 				Kid:            keyID,
 				Usage:          database.KekUsageGlobal,
-				NextRotationAt: time.Now().AddDate(0, 0, int(s.kekExpDays)),
+				NextRotationAt: time.Now().Add(s.kekExpDays),
 			})
 		},
 	})
@@ -106,7 +106,7 @@ func (s *Services) getAndCacheGlobalKEK(
 		StoreFN: func(_ uuid.UUID) (int32, error) {
 			return s.database.RotateKeyEncryptionKey(ctx, database.RotateKeyEncryptionKeyParams{
 				ID:             kekEntity.ID,
-				NextRotationAt: time.Now().AddDate(0, 0, int(s.kekExpDays)),
+				NextRotationAt: time.Now().Add(s.kekExpDays),
 			})
 		},
 	}); err != nil {
@@ -178,7 +178,7 @@ func (s *Services) createAndCacheAccountKEK(
 			return qrs.CreateKeyEncryptionKey(ctx, database.CreateKeyEncryptionKeyParams{
 				Kid:            keyID,
 				Usage:          database.KekUsageAccount,
-				NextRotationAt: time.Now().AddDate(0, 0, int(s.kekExpDays)),
+				NextRotationAt: time.Now().Add(s.kekExpDays),
 			})
 		},
 	})
@@ -269,7 +269,7 @@ func (s *Services) getAndCacheAccountKEK(
 		StoreFN: func(_ uuid.UUID) (int32, error) {
 			return s.database.RotateKeyEncryptionKey(ctx, database.RotateKeyEncryptionKeyParams{
 				ID:             kekEntity.ID,
-				NextRotationAt: time.Now().AddDate(0, 0, int(s.kekExpDays)),
+				NextRotationAt: time.Now().Add(s.kekExpDays),
 			})
 		},
 	}); err != nil {

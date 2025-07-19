@@ -41,6 +41,8 @@ type Config struct {
 	kekExpirationDays    int64
 	dekExpirationDays    int64
 	jwkExpirationDays    int64
+	accountCCExpDays     int64
+	userCCExpDays        int64
 }
 
 func (c *Config) Port() int64 {
@@ -139,7 +141,15 @@ func (c *Config) JWKExpirationDays() int64 {
 	return c.jwkExpirationDays
 }
 
-var variables = [45]string{
+func (c *Config) AccountCCExpDays() int64 {
+	return c.accountCCExpDays
+}
+
+func (c *Config) UserCCExpDays() int64 {
+	return c.userCCExpDays
+}
+
+var variables = [47]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -185,6 +195,8 @@ var variables = [45]string{
 	"PUBLIC_JWKS_CACHE_TTL_SEC",
 	"ACCOUNT_USERNAME_CACHE_TTL_SEC",
 	"WELLKNOWN_OIDC_CONFIG_CACHE_TTL_SEC",
+	"ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
+	"USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
 }
 
 var optionalVariables = [10]string{
@@ -200,7 +212,7 @@ var optionalVariables = [10]string{
 	"MICROSOFT_CLIENT_SECRET",
 }
 
-var numerics = [29]string{
+var numerics = [31]string{
 	"PORT",
 	"MAX_PROCS",
 	"JWT_ACCESS_TTL_SEC",
@@ -230,6 +242,8 @@ var numerics = [29]string{
 	"PUBLIC_JWKS_CACHE_TTL_SEC",
 	"ACCOUNT_USERNAME_CACHE_TTL_SEC",
 	"WELLKNOWN_OIDC_CONFIG_CACHE_TTL_SEC",
+	"ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
+	"USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
 }
 
 func NewConfig(logger *slog.Logger, envPath string) Config {
@@ -332,5 +346,7 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 			intMap["ACCOUNT_USERNAME_CACHE_TTL_SEC"],
 			intMap["WELLKNOWN_OIDC_CONFIG_CACHE_TTL_SEC"],
 		),
+		accountCCExpDays: intMap["ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
+		userCCExpDays:    intMap["USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
 	}
 }

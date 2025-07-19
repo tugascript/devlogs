@@ -23,12 +23,6 @@ import (
 const (
 	oauthLocation string = "oauth"
 
-	grantTypeRefresh           string = "refresh_token"
-	grantTypeAuthorization     string = "authorization_code"
-	grantTypeClientCredentials string = "client_credentials"
-	grantTypeJwtBearer         string = "urn:ietf:params:oauth:grant-type:jwt-bearer"
-
-	oauthTokenCacheControl string = "private, no-store, no-cache, must-revalidate, max-age=0"
 	publicJWKsCacheControl string = "public, max-age=300, must-revalidate"
 )
 
@@ -241,7 +235,7 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 		c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
 	}
 
-	ctx.Set(fiber.HeaderCacheControl, oauthTokenCacheControl)
+	ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
@@ -266,7 +260,7 @@ func (c *Controllers) accountRefreshToken(ctx *fiber.Ctx, requestID string) erro
 	}
 
 	c.saveAccountRefreshCookie(ctx, authDTO.RefreshToken)
-	ctx.Set(fiber.HeaderCacheControl, oauthTokenCacheControl)
+	ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
@@ -304,7 +298,7 @@ func (c *Controllers) accountJWTBearer(ctx *fiber.Ctx, requestID string) error {
 		return oauthErrorResponseMapper(logger, ctx, serviceErr)
 	}
 
-	ctx.Set(fiber.HeaderCacheControl, oauthTokenCacheControl)
+	ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
@@ -368,7 +362,7 @@ func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string)
 		return oauthErrorResponseMapper(logger, ctx, serviceErr)
 	}
 
-	ctx.Set(fiber.HeaderCacheControl, oauthTokenCacheControl)
+	ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }

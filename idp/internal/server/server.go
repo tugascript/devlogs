@@ -278,6 +278,8 @@ func New(
 		cfg.KEKExpirationDays(),
 		cfg.DEKExpirationDays(),
 		cfg.JWKExpirationDays(),
+		cfg.AccountCCExpDays(),
+		cfg.UserCCExpDays(),
 	)
 	logger.InfoContext(ctx, "Finished building services")
 

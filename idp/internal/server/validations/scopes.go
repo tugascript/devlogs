@@ -8,11 +8,14 @@ package validations
 
 import (
 	"regexp"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 )
 
 const scopesValidatorTag string = "scopes"
+
+var scopeRegex = regexp.MustCompile(`^[a-zA-Z0-9]+(:[a-zA-Z0-9]+)?`)
 
 func scopesValidator(fl validator.FieldLevel) bool {
 	input, ok := fl.Field().Interface().(string)
@@ -23,10 +26,12 @@ func scopesValidator(fl validator.FieldLevel) bool {
 		return true
 	}
 
-	re, err := regexp.Compile(`^[a-zA-Z0-9]+(:[a-zA-Z0-9]+)?(\s[a-zA-Z0-9]+(:[a-zA-Z0-9]+)?)*$`)
-	if err != nil {
-		return false
+	scopes := strings.Split(input, " ")
+	for _, scope := range scopes {
+		if !scopeRegex.MatchString(scope) {
+			return false
+		}
 	}
 
-	return re.MatchString(input)
+	return true
 }

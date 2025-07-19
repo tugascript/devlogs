@@ -210,6 +210,13 @@ func assertTempAccessResponse[T any](t *testing.T, _ T, res *http.Response) {
 	AssertNotEmpty(t, resBody.ExpiresIn)
 }
 
+func assertAuthAccessResponse[T any](t *testing.T, _ T, res *http.Response) {
+	resBody := AssertTestResponseBody(t, res, dtos.AuthDTO{})
+	AssertEqual(t, "Bearer", resBody.TokenType)
+	AssertNotEmpty(t, resBody.AccessToken)
+	AssertNotEmpty(t, resBody.ExpiresIn)
+}
+
 func TestConfirm(t *testing.T) {
 	const registerPath = "/v1/auth/confirm-email"
 

@@ -613,11 +613,11 @@ type validateAccountJWTClaimsOptions struct {
 	backendDomain string
 }
 
-func (s *Services) validateAccountJWTGrantToken(
+func (s *Services) validateAccountJWTClaims(
 	ctx context.Context,
 	opts validateAccountJWTClaimsOptions,
 ) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.requestID, oauthLocation, "validateAccountJWTGrantToken")
+	logger := s.buildLogger(opts.requestID, oauthLocation, "validateAccountJWTClaims")
 	logger.InfoContext(ctx, "Validating Account JWT Bearer token claims...")
 
 	if opts.claims.Subject == "" || len(opts.claims.Subject) != 22 {
@@ -664,25 +664,59 @@ func (s *Services) validateAccountJWTGrantToken(
 	expAtUnix := opts.claims.ExpiresAt.Unix()
 	if opts.claims.IssuedAt != nil {
 		if opts.claims.IssuedAt.Before(now.Add(-time.Minute * 2)) {
-			logger.WarnContext(ctx, "JWT Bearer token is issued too long ago",
-				"issuedAt", opts.claims.IssuedAt,
+			logger.WarnContext(ctx, "JWT Bearer token was issued too long ago",
+				"iat", opts.claims.IssuedAt,
 			)
 			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
 		}
 		if opts.claims.IssuedAt.After(now) {
-			logger.WarnContext(ctx, "JWT Bearer token is in the future", "issuedAt", opts.claims.IssuedAt)
+			logger.WarnContext(ctx, "JWT Bearer token is in the future", "iat", opts.claims.IssuedAt)
 			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+		}
+		if opts.claims.NotBefore != nil {
+			if opts.claims.NotBefore.After(now) {
+				logger.WarnContext(ctx, "JWT Bearer token is not valid yet",
+					"iat", opts.claims.IssuedAt, "nbf", opts.claims.NotBefore,
+				)
+				return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+			}
+			if opts.claims.NotBefore.Unix() < opts.claims.IssuedAt.Unix() {
+				logger.WarnContext(ctx, "JWT Bearer token nbf is before iat",
+					"nbf", opts.claims.NotBefore, "iat", opts.claims.IssuedAt,
+				)
+				return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+			}
 		}
 		if expAtUnix-opts.claims.IssuedAt.Unix() > bearerJWTMaxValiditySecs {
 			logger.WarnContext(ctx, "JWT Bearer token has a validity period greater than 5 minutes",
-				"expiresAt", opts.claims.ExpiresAt, "issuedAt", opts.claims.IssuedAt,
+				"exp", opts.claims.ExpiresAt, "iat", opts.claims.IssuedAt,
 			)
 			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
 		}
-	}
-	if expAtUnix-now.Unix() > bearerJWTMaxValiditySecs {
-		logger.WarnContext(ctx, "JWT Bearer token has a validity period greater than 5 minutes", "expiresAt", opts.claims.ExpiresAt)
-		return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+	} else if opts.claims.NotBefore != nil {
+		if opts.claims.NotBefore.Before(now.Add(-time.Minute * 2)) {
+			logger.WarnContext(ctx, "JWT Bearer token was issued too long ago",
+				"nbf", opts.claims.NotBefore,
+			)
+			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+		}
+		if opts.claims.NotBefore.After(now) {
+			logger.WarnContext(ctx, "JWT Bearer token is not valid yet", "nbf", opts.claims.NotBefore)
+			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+		}
+		if expAtUnix-opts.claims.NotBefore.Unix() > bearerJWTMaxValiditySecs {
+			logger.WarnContext(ctx, "JWT Bearer token has a validity period greater than 5 minutes",
+				"exp", opts.claims.ExpiresAt, "nbf", opts.claims.NotBefore,
+			)
+			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+		}
+	} else {
+		if expAtUnix-now.Unix() > bearerJWTMaxValiditySecs {
+			logger.WarnContext(ctx, "JWT Bearer token has a validity period greater than 5 minutes",
+				"exp", opts.claims.ExpiresAt,
+			)
+			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+		}
 	}
 
 	logger.InfoContext(ctx, "Account JWT Bearer token is valid")
@@ -766,7 +800,7 @@ func (s *Services) JWTBearerAccountLogin(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	accountClientsDTO, serviceErr := s.validateAccountJWTGrantToken(ctx, validateAccountJWTClaimsOptions{
+	accountClientsDTO, serviceErr := s.validateAccountJWTClaims(ctx, validateAccountJWTClaimsOptions{
 		requestID:     opts.RequestID,
 		claims:        claims,
 		backendDomain: opts.BackendDomain,

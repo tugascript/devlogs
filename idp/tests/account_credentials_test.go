@@ -58,6 +58,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Scopes:      []string{"account:admin"},
 					Alias:       "admin",
 					AuthMethods: "both_client_secrets",
+					Issuers:     []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -71,10 +72,11 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertEqual(t, len(resBody.AuthMethods), 2)
 				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodClientSecretBasic)
 				AssertEqual(t, resBody.AuthMethods[1], database.AuthMethodClientSecretPost)
+				AssertEqual(t, resBody.Issuers[0], "https://issuer.example.com")
 			},
 		},
 		{
-			Name: "Should return 201 CREATED with secret and private key JWT",
+			Name: "Should return 201 CREATED with secret and private key JWT with ES256 algorithm",
 			ReqFn: func(t *testing.T) (bodies.CreateAccountCredentialsBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
@@ -82,6 +84,57 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Scopes:      []string{"account:credentials:read", "account:credentials:write"},
 					Alias:       "super-key",
 					AuthMethods: "private_key_jwt",
+					Issuers:     []string{"https://issuer.example.com"},
+					Algorithm:   "ES256",
+				}, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ bodies.CreateAccountCredentialsBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AccountCredentialsDTO{})
+				AssertNotEmpty(t, resBody.ClientID)
+				AssertNotEmpty(t, resBody.ClientSecretID)
+				AssertEmpty(t, resBody.ClientSecret)
+				AssertNotEmpty(t, resBody.ClientSecretExp)
+				AssertNotEmpty(t, resBody.ClientSecretJWK)
+				AssertEqual(t, len(resBody.AuthMethods), 1)
+				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodPrivateKeyJwt)
+			},
+		},
+		{
+			Name: "Should return 201 CREATED with secret and private key JWT with EdDSA algorithm",
+			ReqFn: func(t *testing.T) (bodies.CreateAccountCredentialsBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.CreateAccountCredentialsBody{
+					Scopes:      []string{"account:credentials:read", "account:credentials:write"},
+					Alias:       "super-key",
+					AuthMethods: "private_key_jwt",
+					Issuers:     []string{"https://issuer.example.com"},
+					Algorithm:   "EdDSA",
+				}, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ bodies.CreateAccountCredentialsBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AccountCredentialsDTO{})
+				AssertNotEmpty(t, resBody.ClientID)
+				AssertNotEmpty(t, resBody.ClientSecretID)
+				AssertEmpty(t, resBody.ClientSecret)
+				AssertNotEmpty(t, resBody.ClientSecretExp)
+				AssertNotEmpty(t, resBody.ClientSecretJWK)
+				AssertEqual(t, len(resBody.AuthMethods), 1)
+				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodPrivateKeyJwt)
+			},
+		},
+		{
+			Name: "Should return 201 CREATED with secret and private key JWT with default algorithm",
+			ReqFn: func(t *testing.T) (bodies.CreateAccountCredentialsBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.CreateAccountCredentialsBody{
+					Scopes:      []string{"account:credentials:read", "account:credentials:write"},
+					Alias:       "super-key",
+					AuthMethods: "private_key_jwt",
+					Issuers:     []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -105,6 +158,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Scopes:      []string{"account:apps:read", "account:apps:write"},
 					Alias:       "app-keys",
 					AuthMethods: "client_secret_post",
+					Issuers:     []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -128,6 +182,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Scopes:      []string{"account:users:read", "account:users:write"},
 					Alias:       "user-keys",
 					AuthMethods: "client_secret_basic",
+					Issuers:     []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -151,6 +206,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Scopes:      []string{"invalid:scope", "account:users:readsd"},
 					Alias:       "invalid asdfasd ### scope",
 					AuthMethods: "client_secret_not_valid",
+					Issuers:     []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusBadRequest,
@@ -184,6 +240,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Scopes:      []string{"account:admin"},
 					Alias:       "existing-alias",
 					AuthMethods: "client_secret_basic",
+					Issuers:     []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusConflict,
@@ -199,6 +256,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Scopes:      []string{"account:credentials:write", "account:auth_providers:read"},
 					Alias:       "user-keys",
 					AuthMethods: "client_secret_basic",
+					Issuers:     []string{"https://issuer.example.com"},
 				}, ""
 			},
 			ExpStatus: http.StatusUnauthorized,
@@ -213,6 +271,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Scopes:      []string{"account:apps:read", "account:apps:write"},
 					Alias:       "app-keys",
 					AuthMethods: "client_secret_post",
+					Issuers:     []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusForbidden,
@@ -248,10 +307,16 @@ func TestListAccountCredentials(t *testing.T) {
 			{"account:apps:read", "account:apps:write"},
 			{"account:users:read", "account:users:write"},
 		}
+		issuersList := [][]string{
+			{"https://issuer1.example.com"},
+			{"https://issuer2.example.com"},
+			{"https://issuer3.example.com"},
+		}
 
 		for i := 0; i < n; i++ {
 			authMethods := authMethodsList[rand2.IntN(len(authMethodsList))]
 			scopes := scopesList[rand2.IntN(len(scopesList))]
+			issuers := issuersList[rand2.IntN(len(issuersList))]
 			alias := "cred-" + uuid.NewString()
 
 			_, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
@@ -261,6 +326,7 @@ func TestListAccountCredentials(t *testing.T) {
 				Alias:           alias,
 				Scopes:          scopes,
 				AuthMethods:     authMethods,
+				Issuers:         issuers,
 			})
 			if err != nil {
 				t.Fatalf("Failed to create account credentials: %v", err)
@@ -399,6 +465,7 @@ func TestGetAccountCredentials(t *testing.T) {
 			Alias:           "get-cred",
 			Scopes:          []string{"account:admin"},
 			AuthMethods:     "client_secret_basic",
+			Issuers:         []string{"https://issuer.example.com"},
 		})
 		if err != nil {
 			t.Fatalf("Failed to create account credentials: %v", err)
@@ -504,6 +571,7 @@ func TestUpdateAccountCredentials(t *testing.T) {
 			Alias:           "update-cred",
 			Scopes:          []string{"account:admin"},
 			AuthMethods:     "client_secret_basic",
+			Issuers:         []string{"https://issuer.example.com"},
 		})
 		if err != nil {
 			t.Fatalf("Failed to create account credentials: %v", err)
@@ -518,8 +586,9 @@ func TestUpdateAccountCredentials(t *testing.T) {
 			ReqFn: func(t *testing.T) (bodies.UpdateAccountCredentialsBody, string) {
 				accessToken := updateAccountCredentialBeforeEach(t)
 				return bodies.UpdateAccountCredentialsBody{
-					Alias:  "updated-alias",
-					Scopes: []string{"account:users:read"},
+					Alias:   "updated-alias",
+					Scopes:  []string{"account:users:read"},
+					Issuers: []string{"https://issuer-updated.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusOK,
@@ -528,6 +597,7 @@ func TestUpdateAccountCredentials(t *testing.T) {
 				AssertEqual(t, resBody.Alias, "updated-alias")
 				AssertEqual(t, len(resBody.Scopes), 1)
 				AssertEqual(t, resBody.Scopes[0], "account:users:read")
+				AssertEqual(t, resBody.Issuers[0], "https://issuer-updated.example.com")
 			},
 			PathFn: func() string {
 				return accountCredentialsPath + "/" + clientID
@@ -538,8 +608,9 @@ func TestUpdateAccountCredentials(t *testing.T) {
 			ReqFn: func(t *testing.T) (bodies.UpdateAccountCredentialsBody, string) {
 				accessToken := updateAccountCredentialBeforeEach(t)
 				return bodies.UpdateAccountCredentialsBody{
-					Alias:  "invalid alias ###",
-					Scopes: []string{"account:users:read", "invalid:scope"},
+					Alias:   "invalid alias ###",
+					Scopes:  []string{"account:users:read", "invalid:scope"},
+					Issuers: []string{"https://issuer-updated.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusBadRequest,
@@ -566,6 +637,7 @@ func TestUpdateAccountCredentials(t *testing.T) {
 					Alias:           "existing-alias",
 					Scopes:          []string{"account:users:read"},
 					AuthMethods:     "client_secret_basic",
+					Issuers:         []string{"updated.example.com"},
 				}); err != nil {
 					t.Fatalf("Failed to create initial account credentials: %v", err)
 				}
@@ -576,6 +648,7 @@ func TestUpdateAccountCredentials(t *testing.T) {
 					AccountVersion:  account.Version(),
 					Alias:           "other-alias",
 					Scopes:          []string{"account:users:read"},
+					Issuers:         []string{"https://updated.example.com"},
 					AuthMethods:     "client_secret_basic",
 				})
 				if err != nil {
@@ -583,8 +656,9 @@ func TestUpdateAccountCredentials(t *testing.T) {
 				}
 				clientID = clientCreds.ClientID
 				return bodies.UpdateAccountCredentialsBody{
-					Alias:  "existing-alias",
-					Scopes: []string{"account:users:read"},
+					Alias:   "existing-alias",
+					Scopes:  []string{"account:users:read"},
+					Issuers: []string{"https://issuer-updated.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusConflict,
@@ -602,8 +676,9 @@ func TestUpdateAccountCredentials(t *testing.T) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsWrite})
 				return bodies.UpdateAccountCredentialsBody{
-					Alias:  "new-alias",
-					Scopes: []string{"account:users:read"},
+					Alias:   "new-alias",
+					Scopes:  []string{"account:users:read"},
+					Issuers: []string{"https://issuer-updated.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusNotFound,
@@ -617,8 +692,9 @@ func TestUpdateAccountCredentials(t *testing.T) {
 			ReqFn: func(t *testing.T) (bodies.UpdateAccountCredentialsBody, string) {
 				updateAccountCredentialBeforeEach(t)
 				return bodies.UpdateAccountCredentialsBody{
-					Alias:  "updated-alias",
-					Scopes: []string{"account:users:read"},
+					Alias:   "updated-alias",
+					Scopes:  []string{"account:users:read"},
+					Issuers: []string{"https://issuer-updated.example.com"},
 				}, ""
 			},
 			ExpStatus: http.StatusUnauthorized,
@@ -639,14 +715,16 @@ func TestUpdateAccountCredentials(t *testing.T) {
 					Alias:           "forbidden-cred",
 					Scopes:          []string{"account:admin"},
 					AuthMethods:     "client_secret_basic",
+					Issuers:         []string{"https://issuer.example.com"},
 				})
 				if err != nil {
 					t.Fatalf("Failed to create account credentials: %v", err)
 				}
 				clientID = cred.ClientID
 				return bodies.UpdateAccountCredentialsBody{
-					Alias:  "updated-alias",
-					Scopes: []string{"account:users:read"},
+					Alias:   "updated-alias",
+					Scopes:  []string{"account:users:read"},
+					Issuers: []string{"https://issuer-updated.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusForbidden,
@@ -681,6 +759,7 @@ func TestDeleteAccountCredentials(t *testing.T) {
 			Alias:           "delete-cred",
 			Scopes:          []string{"account:admin"},
 			AuthMethods:     "client_secret_basic",
+			Issuers:         []string{"https://issuer.example.com"},
 		})
 		if err != nil {
 			t.Fatalf("Failed to create account credentials: %v", err)
@@ -780,6 +859,7 @@ func TestRevokeAccountCredentialsSecret(t *testing.T) {
 			AccountVersion:  account.Version(),
 			Alias:           "revoke-cred",
 			Scopes:          []string{"account:admin"},
+			Issuers:         []string{"https://issuer.example.com"},
 			AuthMethods:     authMethods,
 		})
 		if err != nil {
@@ -916,6 +996,7 @@ func TestListAccountCredentialsSecret(t *testing.T) {
 			AccountVersion:  account.Version(),
 			Alias:           "list-cred",
 			Scopes:          []string{"account:admin"},
+			Issuers:         []string{"https://issuer.example.com"},
 			AuthMethods:     authMethods,
 		})
 		if err != nil {
@@ -992,6 +1073,7 @@ func TestListAccountCredentialsSecret(t *testing.T) {
 					AccountVersion:  account.Version(),
 					Alias:           "forbidden-cred",
 					Scopes:          []string{"account:admin"},
+					Issuers:         []string{"https://issuer.example.com"},
 					AuthMethods:     "client_secret_basic",
 				})
 				if err != nil {
@@ -1032,6 +1114,7 @@ func TestCreateAccountCredentialsSecret(t *testing.T) {
 				AccountVersion:  account.Version(),
 				Alias:           "create-secret-cred",
 				Scopes:          []string{"account:admin"},
+				Issuers:         []string{"https://issuer.example.com"},
 				AuthMethods:     authMethods,
 			},
 		)
@@ -1272,6 +1355,7 @@ func TestGetAccountCredentialsSecret(t *testing.T) {
 			AccountVersion:  account.Version(),
 			Alias:           "get-secret-cred",
 			Scopes:          []string{"account:admin"},
+			Issuers:         []string{"https://issuer.example.com"},
 			AuthMethods:     authMethods,
 		})
 		if err != nil {
@@ -1360,6 +1444,7 @@ func TestGetAccountCredentialsSecret(t *testing.T) {
 					AccountVersion:  account.Version(),
 					Alias:           "forbidden-cred",
 					Scopes:          []string{"account:admin"},
+					Issuers:         []string{"https://issuer.example.com"},
 					AuthMethods:     "client_secret_basic",
 				})
 				if err != nil {

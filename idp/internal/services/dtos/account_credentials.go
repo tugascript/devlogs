@@ -7,6 +7,7 @@
 package dtos
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -37,17 +38,41 @@ func (ak *AccountCredentialsDTO) ID() int32 {
 	return ak.id
 }
 
+func (ak *AccountCredentialsDTO) UnmarshalJSON(data []byte) error {
+	type Alias AccountCredentialsDTO
+	aux := &struct {
+		ClientSecretJWK json.RawMessage `json:"client_secret_jwk"`
+		*Alias
+	}{
+		Alias: (*Alias)(ak),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if aux.ClientSecretJWK != nil {
+		jwk, err := utils.JsonToJWK(aux.ClientSecretJWK)
+		if err != nil {
+			return err
+		}
+		ak.ClientSecretJWK = jwk
+	}
+
+	return nil
+}
+
 func MapAccountCredentialsToDTO(
-	accountKeys *database.AccountCredential,
+	accountCredential *database.AccountCredential,
 ) AccountCredentialsDTO {
 	return AccountCredentialsDTO{
-		id:          accountKeys.ID,
-		ClientID:    accountKeys.ClientID,
-		Alias:       accountKeys.Alias,
-		Scopes:      accountKeys.Scopes,
-		Issuers:     accountKeys.Issuers,
-		AuthMethods: accountKeys.AuthMethods,
-		accountId:   accountKeys.AccountID,
+		id:          accountCredential.ID,
+		ClientID:    accountCredential.ClientID,
+		Alias:       accountCredential.Alias,
+		Scopes:      accountCredential.Scopes,
+		Issuers:     accountCredential.Issuers,
+		AuthMethods: accountCredential.AuthMethods,
+		accountId:   accountCredential.AccountID,
 	}
 }
 
