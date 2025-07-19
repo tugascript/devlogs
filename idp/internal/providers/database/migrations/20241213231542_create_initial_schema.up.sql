@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-07-17T05:58:01.824Z
+-- Generated at: 2025-07-19T10:24:32.963Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',

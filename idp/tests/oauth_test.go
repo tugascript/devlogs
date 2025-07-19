@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -822,6 +823,32 @@ func TestOAuthToken(t *testing.T) {
 		return signedToken
 	}
 
+	beforeEachClientCredentials := func(t *testing.T, authMethods string) (string, string) {
+		var am string
+		switch authMethods {
+		case "client_secret_basic", "client_secret_post", "both_client_secrets":
+			am = authMethods
+		default:
+			t.Fatalf("Unsupported auth methods: %s", authMethods)
+		}
+
+		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderMicrosoft))
+		cred, serviceErr := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
+			RequestID:       uuid.NewString(),
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			Alias:           "update-cred",
+			Scopes:          []string{"account:admin"},
+			AuthMethods:     am,
+			Issuers:         []string{"https://issuer.example.com"},
+		})
+		if serviceErr != nil {
+			t.Fatalf("Failed to create account credentials: %v", serviceErr)
+		}
+
+		return cred.ClientID, cred.ClientSecret
+	}
+
 	createAuthorizationBody := func(code string) string {
 		form := make(url.Values)
 		form.Add("code", code)
@@ -845,6 +872,32 @@ func TestOAuthToken(t *testing.T) {
 			form.Add("scope", scope)
 		}
 		return form.Encode()
+	}
+
+	createClientCredentialsBodyAndAH := func(
+		authMethod string,
+		clientID string,
+		clientSecret string,
+		audience string,
+		scope string,
+	) (string, string) {
+		form := make(url.Values)
+		form.Add("grant_type", "client_credentials")
+
+		if audience != "" {
+			form.Add("audience", audience)
+		}
+		if scope != "" {
+			form.Add("scope", scope)
+		}
+
+		if authMethod == "client_secret_basic" {
+			return form.Encode(), base64.StdEncoding.EncodeToString([]byte(clientID + ":" + clientSecret))
+		}
+
+		form.Add("client_id", clientID)
+		form.Add("client_secret", clientSecret)
+		return form.Encode(), ""
 	}
 
 	testCases := []TestRequestCase[string]{
@@ -1053,7 +1106,7 @@ func TestOAuthToken(t *testing.T) {
 			},
 		},
 		{
-			Name: "POST should return 401 UNAUTHORIZED access_denied with private_key_jwt grant type with a extensive lifespan token",
+			Name: "POST should return 401 UNAUTHORIZED access_denied with private_key_jwt grant type with an extensive lifespan token",
 			ReqFn: func(t *testing.T) (string, string) {
 				now := time.Now()
 				signedToken := beforeEachBearerJWT(
@@ -1073,7 +1126,7 @@ func TestOAuthToken(t *testing.T) {
 			},
 		},
 		{
-			Name: "POST should return 401 UNAUTHORIZED access_denied with private_key_jwt grant type with a extensive lifespan token with minimal claims",
+			Name: "POST should return 401 UNAUTHORIZED access_denied with private_key_jwt grant type with an extensive lifespan token with minimal claims",
 			ReqFn: func(t *testing.T) (string, string) {
 				signedToken := beforeEachBearerJWT(
 					t,
@@ -1092,7 +1145,7 @@ func TestOAuthToken(t *testing.T) {
 			},
 		},
 		{
-			Name: "POST should return 401 UNAUTHORIZED access_denied with private_key_jwt grant type with a extensive lifespan token with minimal nbf",
+			Name: "POST should return 401 UNAUTHORIZED access_denied with private_key_jwt grant type with an extensive lifespan token with minimal nbf",
 			ReqFn: func(t *testing.T) (string, string) {
 				minusOne := time.Now().Add(-1 * time.Minute)
 				signedToken := beforeEachBearerJWT(
@@ -1144,6 +1197,60 @@ func TestOAuthToken(t *testing.T) {
 				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
 				AssertEqual(t, resBody.Error, exceptions.OAuthErrorInvalidScope)
 			},
+		},
+		{
+			Name: "POST should return 200 OK with client_credentials grant type with valid client_id and client_secret, and basic auth",
+			ReqFn: func(t *testing.T) (string, string) {
+				clientID, clientSecret := beforeEachClientCredentials(t, "client_secret_basic")
+				body, authHeader := createClientCredentialsBodyAndAH("client_secret_basic", clientID, clientSecret, "", "")
+				return body, authHeader
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+			TokenType: "Basic",
+		},
+		{
+			Name: "POST should return 200 OK with client_credentials grant type with valid client_id and client_secret, and post form",
+			ReqFn: func(t *testing.T) (string, string) {
+				clientID, clientSecret := beforeEachClientCredentials(t, "client_secret_post")
+				body, _ := createClientCredentialsBodyAndAH("client_secret_post", clientID, clientSecret, "", "")
+				return body, ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+		},
+		{
+			Name: "POST should return 200 OK with client_credentials grant type with valid client_id and client_secret, with both auth methods using basic auth and a valid audience",
+			ReqFn: func(t *testing.T) (string, string) {
+				clientID, clientSecret := beforeEachClientCredentials(t, "both_client_secrets")
+				body, authHeader := createClientCredentialsBodyAndAH(
+					"client_secret_basic",
+					clientID,
+					clientSecret,
+					fmt.Sprintf("https://%s", GetTestConfig(t).BackendDomain()),
+					"",
+				)
+				return body, authHeader
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+			TokenType: "Basic",
+		},
+		{
+			Name: "POST should return 200 OK with client_credentials grant type with valid client_id and client_secret, with both auth methods using post auth and a valid scope",
+			ReqFn: func(t *testing.T) (string, string) {
+				clientID, clientSecret := beforeEachClientCredentials(t, "both_client_secrets")
+				body, _ := createClientCredentialsBodyAndAH(
+					"client_secret_post",
+					clientID,
+					clientSecret,
+					"",
+					"account:users:read account:admin",
+				)
+				return body, ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
 		},
 	}
 

@@ -29,6 +29,8 @@ import (
 const (
 	clientCredentialsLocation string = "client_credentials"
 
+	// The client credentials secret length is set to 32 bytes to ensure a high level of entropy
+	// and security
 	clientCredentialsSecretBytes int = 32
 )
 

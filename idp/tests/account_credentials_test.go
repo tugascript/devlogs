@@ -58,7 +58,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Scopes:      []string{"account:admin"},
 					Alias:       "admin",
 					AuthMethods: "both_client_secrets",
-					Issuers:     []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -72,7 +71,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertEqual(t, len(resBody.AuthMethods), 2)
 				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodClientSecretBasic)
 				AssertEqual(t, resBody.AuthMethods[1], database.AuthMethodClientSecretPost)
-				AssertEqual(t, resBody.Issuers[0], "https://issuer.example.com")
+				AssertEqual(t, len(resBody.Issuers), 0)
 			},
 		},
 		{
@@ -158,7 +157,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Scopes:      []string{"account:apps:read", "account:apps:write"},
 					Alias:       "app-keys",
 					AuthMethods: "client_secret_post",
-					Issuers:     []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -182,7 +180,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Scopes:      []string{"account:users:read", "account:users:write"},
 					Alias:       "user-keys",
 					AuthMethods: "client_secret_basic",
-					Issuers:     []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -195,6 +192,24 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertEmpty(t, resBody.ClientSecretJWK)
 				AssertEqual(t, len(resBody.AuthMethods), 1)
 				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodClientSecretBasic)
+			},
+		},
+		{
+			Name: "Should return 400 BAD REQUEST with auth method of private_key_jwt but no issuers",
+			ReqFn: func(t *testing.T) (bodies.CreateAccountCredentialsBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.CreateAccountCredentialsBody{
+					Scopes:      []string{"account:credentials:read", "account:credentials:write"},
+					Alias:       "super-key",
+					AuthMethods: "private_key_jwt",
+				}, accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ bodies.CreateAccountCredentialsBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertEqual(t, len(resBody.Fields), 1)
+				AssertEqual(t, resBody.Fields[0].Param, "issuers")
 			},
 		},
 		{
