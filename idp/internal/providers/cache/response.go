@@ -14,26 +14,26 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const cacheResponseLocation string = "cache_response"
+const responseLocation string = "response"
 
-type CacheResponseOptions[T any] struct {
+type SaveResponseOptions[T any] struct {
 	RequestID string
 	Key       string
 	TTL       int
 	Value     T
 }
 
-func CacheResponse[T any](
+func SaveResponse[T any](
 	c *Cache,
 	ctx context.Context,
-	opts CacheResponseOptions[T],
+	opts SaveResponseOptions[T],
 ) (string, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Location:  cacheResponseLocation,
-		Method:    "CacheResponse",
+		Location:  responseLocation,
+		Method:    "SaveResponse",
 		RequestID: opts.RequestID,
 	}).With("key", opts.Key)
-	logger.DebugContext(ctx, "Caching response...")
+	logger.DebugContext(ctx, "Saving response...")
 
 	responseBytes, err := json.Marshal(opts.Value)
 	if err != nil {
@@ -42,26 +42,27 @@ func CacheResponse[T any](
 	}
 
 	if err := c.storage.Set(opts.Key, responseBytes, time.Duration(opts.TTL)*time.Second); err != nil {
-		logger.ErrorContext(ctx, "Error caching response", "error", err)
+		logger.ErrorContext(ctx, "Error saving response", "error", err)
 		return "", err
 	}
 
+	logger.DebugContext(ctx, "Response saved successfully")
 	return utils.GenerateETag(responseBytes), nil
 }
 
-type GetCachedResponseOptions[T any] struct {
+type GetResponseOptions[T any] struct {
 	RequestID string
 	Key       string
 }
 
-func GetCachedResponse[T any](
+func GetResponse[T any](
 	c *Cache,
 	ctx context.Context,
-	opts GetCachedResponseOptions[T],
+	opts GetResponseOptions[T],
 ) (T, string, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Location:  cacheResponseLocation,
-		Method:    "GetCachedResponse",
+		Location:  responseLocation,
+		Method:    "GetResponse",
 		RequestID: opts.RequestID,
 	}).With("key", opts.Key)
 	logger.DebugContext(ctx, "Getting cached response...")

@@ -8,8 +8,7 @@ package services
 
 import (
 	"log/slog"
-
-	"github.com/tugascript/devlogs/idp/internal/utils"
+	"time"
 
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
@@ -17,19 +16,22 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type Services struct {
-	logger         *slog.Logger
-	database       *database.Database
-	cache          *cache.Cache
-	mail           *mailer.EmailPublisher
-	jwt            *tokens.Tokens
-	crypto         *crypto.Crypto
-	oauthProviders *oauth.Providers
-	kekExpDays     int64
-	dekExpDays     int64
-	jwkExpDays     int64
+	logger           *slog.Logger
+	database         *database.Database
+	cache            *cache.Cache
+	mail             *mailer.EmailPublisher
+	jwt              *tokens.Tokens
+	crypto           *crypto.Crypto
+	oauthProviders   *oauth.Providers
+	kekExpDays       time.Duration
+	dekExpDays       time.Duration
+	jwkExpDays       time.Duration
+	accountCCExpDays time.Duration
+	userCCExpDays    time.Duration
 }
 
 func NewServices(
@@ -43,17 +45,21 @@ func NewServices(
 	kekExpDays int64,
 	dekExpDays int64,
 	jwkExpDays int64,
+	accountCCExpDays int64,
+	userCCExpDays int64,
 ) *Services {
 	return &Services{
-		logger:         logger.With(utils.BaseLayer, utils.ServicesLogLayer),
-		database:       database,
-		cache:          cache,
-		mail:           mail,
-		jwt:            jwt,
-		crypto:         encrypt,
-		oauthProviders: oauthProv,
-		kekExpDays:     kekExpDays,
-		dekExpDays:     dekExpDays,
-		jwkExpDays:     jwkExpDays,
+		logger:           logger.With(utils.BaseLayer, utils.ServicesLogLayer),
+		database:         database,
+		cache:            cache,
+		mail:             mail,
+		jwt:              jwt,
+		crypto:           encrypt,
+		oauthProviders:   oauthProv,
+		kekExpDays:       utils.ToDaysDuration(kekExpDays),
+		dekExpDays:       utils.ToDaysDuration(dekExpDays),
+		jwkExpDays:       utils.ToDaysDuration(jwkExpDays),
+		accountCCExpDays: utils.ToDaysDuration(accountCCExpDays),
+		userCCExpDays:    utils.ToDaysDuration(userCCExpDays),
 	}
 }

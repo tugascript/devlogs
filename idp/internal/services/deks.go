@@ -61,7 +61,7 @@ func (s *Services) buildStoreGlobalDEKfn(
 			KekKid:    kekID,
 			Usage:     database.DekUsageGlobal,
 			Dek:       encryptedDEK,
-			ExpiresAt: time.Now().AddDate(0, 0, int(s.dekExpDays)),
+			ExpiresAt: time.Now().Add(s.dekExpDays),
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create DEK", "error", err)
@@ -227,7 +227,7 @@ func (s *Services) buildStoreAccountDEKfn(
 			Dek:       encryptedDEK,
 			KekKid:    kekID,
 			Usage:     database.DekUsageAccount,
-			ExpiresAt: time.Now().AddDate(0, 0, int(s.dekExpDays)),
+			ExpiresAt: time.Now().Add(s.dekExpDays),
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create DEK", "error", err)

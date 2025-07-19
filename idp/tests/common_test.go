@@ -217,6 +217,8 @@ func initTestServicesAndApp(t *testing.T) {
 		cfg.KEKExpirationDays(),
 		cfg.DEKExpirationDays(),
 		cfg.JWKExpirationDays(),
+		cfg.AccountCCExpDays(),
+		cfg.UserCCExpDays(),
 	)
 
 	_testServer = server.New(ctx, logger, *_testConfig)

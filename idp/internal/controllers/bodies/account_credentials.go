@@ -15,6 +15,7 @@ type CreateAccountCredentialsBody struct {
 }
 
 type UpdateAccountCredentialsBody struct {
-	Scopes []string `json:"scopes" validate:"required,unique,dive,oneof=account:admin account:users:read account:users:write account:apps:read account:apps:write account:credentials:read account:credentials:write account:auth_providers:read"`
-	Alias  string   `json:"alias" validate:"required,min=1,max=50,slug"`
+	Scopes  []string `json:"scopes" validate:"required,unique,dive,oneof=account:admin account:users:read account:users:write account:apps:read account:apps:write account:credentials:read account:credentials:write account:auth_providers:read"`
+	Alias   string   `json:"alias" validate:"required,min=1,max=50,slug"`
+	Issuers []string `json:"issuers" validate:"required,unique,dive,url"`
 }

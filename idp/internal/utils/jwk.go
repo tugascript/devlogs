@@ -40,6 +40,7 @@ type JWK interface {
 	GetKeyID() string
 	ToUsableKey() (any, error)
 	MarshalJSON() ([]byte, error)
+	ToPrivateKey() (any, error)
 }
 
 type Ed25519JWK struct {
@@ -69,6 +70,10 @@ func (j *Ed25519JWK) MarshalJSON() ([]byte, error) {
 	return json.Marshal(*j)
 }
 
+func (j *Ed25519JWK) ToPrivateKey() (any, error) {
+	return DecodeEd25519JwkPrivate(j)
+}
+
 type ES256JWK struct {
 	Kty    string   `json:"kty"`         // Key Type (EC for Elliptic Curve)
 	Crv    string   `json:"crv"`         // Curve (P-256)
@@ -95,6 +100,10 @@ func (j *ES256JWK) ToUsableKey() (any, error) {
 
 func (j *ES256JWK) MarshalJSON() ([]byte, error) {
 	return json.Marshal(*j)
+}
+
+func (j *ES256JWK) ToPrivateKey() (any, error) {
+	return DecodeP256JwkPrivate(j)
 }
 
 type RS256JWK struct {
@@ -184,6 +193,23 @@ func DecodeEd25519Jwk(jwk *Ed25519JWK) (ed25519.PublicKey, error) {
 	return publicKey, nil
 }
 
+func DecodeEd25519JwkPrivate(jwk *Ed25519JWK) (ed25519.PrivateKey, error) {
+	if jwk.D == "" {
+		return nil, fmt.Errorf("private key not available in JWK")
+	}
+
+	privateKey, err := base64.RawURLEncoding.DecodeString(jwk.D)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode private key: %w", err)
+	}
+
+	if len(privateKey) != ed25519.PrivateKeySize {
+		return nil, fmt.Errorf("invalid private key size")
+	}
+
+	return privateKey, nil
+}
+
 func EncodeP256Jwk(publicKey *ecdsa.PublicKey, kid string) ES256JWK {
 	return ES256JWK{
 		Kty:    ecKty,
@@ -228,6 +254,36 @@ func DecodeP256Jwk(jwk *ES256JWK) (*ecdsa.PublicKey, error) {
 		Curve: elliptic.P256(),
 		X:     new(big.Int).SetBytes(x),
 		Y:     new(big.Int).SetBytes(y),
+	}, nil
+}
+
+func DecodeP256JwkPrivate(jwk *ES256JWK) (*ecdsa.PrivateKey, error) {
+	if jwk.D == "" {
+		return nil, fmt.Errorf("private key not available in JWK")
+	}
+
+	dBytes, err := base64.RawURLEncoding.DecodeString(jwk.D)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode private key: %w", err)
+	}
+
+	xBytes, err := base64.RawURLEncoding.DecodeString(jwk.X)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode X coordinate: %w", err)
+	}
+
+	yBytes, err := base64.RawURLEncoding.DecodeString(jwk.Y)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode Y coordinate: %w", err)
+	}
+
+	return &ecdsa.PrivateKey{
+		PublicKey: ecdsa.PublicKey{
+			Curve: elliptic.P256(),
+			X:     new(big.Int).SetBytes(xBytes),
+			Y:     new(big.Int).SetBytes(yBytes),
+		},
+		D: new(big.Int).SetBytes(dBytes),
 	}, nil
 }
 

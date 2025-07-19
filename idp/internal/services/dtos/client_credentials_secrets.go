@@ -7,6 +7,7 @@
 package dtos
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -36,6 +37,30 @@ type ClientCredentialsSecretDTO struct {
 
 func (s *ClientCredentialsSecretDTO) ID() int32 {
 	return s.id
+}
+
+func (s *ClientCredentialsSecretDTO) UnmarshalJSON(data []byte) error {
+	type Alias ClientCredentialsSecretDTO
+	aux := &struct {
+		ClientSecretJWK json.RawMessage `json:"client_secret_jwk"`
+		*Alias
+	}{
+		Alias: (*Alias)(s),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if aux.ClientSecretJWK != nil {
+		jwk, err := utils.JsonToJWK(aux.ClientSecretJWK)
+		if err != nil {
+			return err
+		}
+		s.ClientSecretJWK = jwk
+	}
+
+	return nil
 }
 
 func getCredentialsSecretStatus(secret *database.CredentialsSecret) string {

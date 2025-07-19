@@ -221,21 +221,28 @@ func (q *Queries) FindPaginatedAccountCredentialsByAccountPublicID(ctx context.C
 
 const updateAccountCredentials = `-- name: UpdateAccountCredentials :one
 UPDATE "account_credentials" SET
-    "scopes" = $1,
-    "alias" = $2,
+    "scopes" = $2,
+    "alias" = $3,
+    "issuers" = $4,
     "updated_at" = now()
-WHERE "id" = $3
+WHERE "id" = $1
 RETURNING id, account_id, account_public_id, scopes, auth_methods, issuers, alias, client_id, created_at, updated_at
 `
 
 type UpdateAccountCredentialsParams struct {
-	Scopes []AccountCredentialsScope
-	Alias  string
-	ID     int32
+	ID      int32
+	Scopes  []AccountCredentialsScope
+	Alias   string
+	Issuers []string
 }
 
 func (q *Queries) UpdateAccountCredentials(ctx context.Context, arg UpdateAccountCredentialsParams) (AccountCredential, error) {
-	row := q.db.QueryRow(ctx, updateAccountCredentials, arg.Scopes, arg.Alias, arg.ID)
+	row := q.db.QueryRow(ctx, updateAccountCredentials,
+		arg.ID,
+		arg.Scopes,
+		arg.Alias,
+		arg.Issuers,
+	)
 	var i AccountCredential
 	err := row.Scan(
 		&i.ID,
