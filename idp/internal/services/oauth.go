@@ -36,7 +36,7 @@ const (
 	bearerJWTMaxValiditySecs int64 = 300
 
 	// Maximum JWT bearer issuance tolerance, set to 2 minutes
-	bearerJWTMaxIssuanceTolerance time.Duration = -2 * time.Minute
+	bearerJWTMaxIssuanceTolerance time.Duration = 2 * time.Minute
 )
 
 var oauthScopes = []oauth.Scope{oauth.ScopeProfile}
@@ -666,7 +666,7 @@ func (s *Services) validateAccountJWTClaims(
 
 	expAtUnix := opts.claims.ExpiresAt.Unix()
 	if opts.claims.IssuedAt != nil {
-		if opts.claims.IssuedAt.Before(now.Add(bearerJWTMaxIssuanceTolerance)) {
+		if opts.claims.IssuedAt.Before(now.Add(-bearerJWTMaxIssuanceTolerance)) {
 			logger.WarnContext(ctx, "JWT Bearer token was issued too long ago",
 				"iat", opts.claims.IssuedAt,
 			)
@@ -697,7 +697,7 @@ func (s *Services) validateAccountJWTClaims(
 			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
 		}
 	} else if opts.claims.NotBefore != nil {
-		if opts.claims.NotBefore.Before(now.Add(bearerJWTMaxIssuanceTolerance)) {
+		if opts.claims.NotBefore.Before(now.Add(-bearerJWTMaxIssuanceTolerance)) {
 			logger.WarnContext(ctx, "JWT Bearer token was issued too long ago",
 				"nbf", opts.claims.NotBefore,
 			)
