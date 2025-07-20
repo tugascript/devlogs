@@ -266,7 +266,10 @@ func (s *Services) ProcessClientCredentialsLoginData(
 	if opts.AuthHeader == "" {
 		logger.InfoContext(ctx, "Auth header is empty")
 		if opts.ClientID == "" || opts.ClientSecret == "" {
-			logger.WarnContext(ctx, "Client ID and/or Client Secret is empty")
+			logger.WarnContext(ctx, "Client ID and/or Client Secret is empty",
+				"clientIdLength", len(opts.ClientID),
+				"clientSecretLength", len(opts.ClientSecret),
+			)
 			return "", "", "", exceptions.NewValidationError("Client ID and/or Client Secret is empty")
 		}
 
