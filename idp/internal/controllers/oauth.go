@@ -197,6 +197,19 @@ func oauthErrorResponseMapper(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *e
 	}
 }
 
+func oauthClientCredentialsErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *exceptions.ServiceError) error {
+	switch serviceErr.Code {
+	case exceptions.CodeUnauthorized:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
+	case exceptions.CodeValidation:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+	case exceptions.CodeForbidden:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnauthorizedClient)
+	default:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthServerError)
+	}
+}
+
 func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, oauthLocation, "accountAuthorizationCodeToken")
 
@@ -295,7 +308,7 @@ func (c *Controllers) accountJWTBearer(ctx *fiber.Ctx, requestID string) error {
 		BackendDomain: c.backendDomain,
 	})
 	if serviceErr != nil {
-		return oauthErrorResponseMapper(logger, ctx, serviceErr)
+		return oauthClientCredentialsErrorResponse(logger, ctx, serviceErr)
 	}
 
 	ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)
@@ -332,7 +345,7 @@ func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string)
 		},
 	)
 	if serviceErr != nil {
-		return oauthErrorResponseMapper(logger, ctx, serviceErr)
+		return oauthClientCredentialsErrorResponse(logger, ctx, serviceErr)
 	}
 
 	scopes, serviceErr := c.services.ProcessAccountCredentialsScope(
@@ -357,7 +370,7 @@ func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string)
 		},
 	)
 	if serviceErr != nil {
-		return oauthErrorResponseMapper(logger, ctx, serviceErr)
+		return oauthClientCredentialsErrorResponse(logger, ctx, serviceErr)
 	}
 
 	ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)

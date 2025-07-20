@@ -171,6 +171,7 @@ Ref: TP.account_id > A.id [delete: cascade]
 
 Enum credentials_usage {
     "account"
+    "app"
     "user"
 }
 

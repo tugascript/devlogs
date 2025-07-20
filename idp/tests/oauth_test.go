@@ -1252,6 +1252,70 @@ func TestOAuthToken(t *testing.T) {
 			ExpStatus: http.StatusOK,
 			AssertFn:  assertAuthAccessResponse[string],
 		},
+		{
+			Name: "POST should return 401 UNAUTHORIZED access_denied with client_credentials grant type with invalid client_id and client_secret",
+			ReqFn: func(t *testing.T) (string, string) {
+				body, _ := createClientCredentialsBodyAndAH("client_secret_post", "invalid-client-id", "invalid-client-secret", "", "")
+				return body, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
+			},
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST invalid_request with client_credentials grant type with missing client_secret",
+			ReqFn: func(t *testing.T) (string, string) {
+				clientID, _ := beforeEachClientCredentials(t, "client_secret_post")
+				body, _ := createClientCredentialsBodyAndAH("client_secret_post", clientID, "", "", "")
+				return body, ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorInvalidRequest)
+			},
+		},
+		{
+			Name: "POST should return 401 UNAUTHORIZED access_denied with client_credentials grant type with invalid audience",
+			ReqFn: func(t *testing.T) (string, string) {
+				clientID, clientSecret := beforeEachClientCredentials(t, "client_secret_basic")
+				body, token := createClientCredentialsBodyAndAH(
+					"client_secret_basic",
+					clientID,
+					clientSecret,
+					"https://invalid-audience.example.com",
+					"",
+				)
+				return body, token
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
+			},
+			TokenType: "Basic",
+		},
+		{
+			Name: "POST should return 400 BAD REQUEST invalid_scope with client_credentials grant type with invalid scope",
+			ReqFn: func(t *testing.T) (string, string) {
+				clientID, clientSecret := beforeEachClientCredentials(t, "client_secret_post")
+				body, _ := createClientCredentialsBodyAndAH(
+					"client_secret_post",
+					clientID,
+					clientSecret,
+					"",
+					"account:unknown:read",
+				)
+				return body, ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, req string, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorInvalidScope)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
