@@ -32,6 +32,10 @@ const (
 	// The client credentials secret length is set to 32 bytes to ensure a high level of entropy
 	// and security
 	clientCredentialsSecretBytes int = 32
+
+	clientCredentialsIDLength     = 22 // Client ID length is 22 characters, which is the length of a base62 encoded UUID
+	clientCredentialsSecretLength = 65 // Client Secret length is at least 65 characters, which is the length of a base64 encoded secret + secret id
+
 )
 
 type clientCredentialsSecretOptions struct {
@@ -275,14 +279,14 @@ func (s *Services) ProcessClientCredentialsLoginData(
 
 		clientID := strings.TrimSpace(opts.ClientID)
 		clientIDLen := len(clientID)
-		if clientIDLen != 22 {
+		if clientIDLen != clientCredentialsIDLength {
 			logger.WarnContext(ctx, "Client ID must be 22 characters long", "clientIdLength", clientIDLen)
 			return "", "", "", exceptions.NewUnauthorizedError()
 		}
 
 		clientSecret := strings.TrimSpace(opts.ClientSecret)
 		clientSecretLen := len(clientSecret)
-		if clientSecretLen < 65 {
+		if clientSecretLen < clientCredentialsSecretLength {
 			logger.WarnContext(ctx, "Client Secret must be at least 65 characters long",
 				"clientSecretLength", clientSecretLen,
 			)
