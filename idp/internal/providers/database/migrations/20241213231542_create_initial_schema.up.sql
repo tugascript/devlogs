@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-07-19T13:56:38.036Z
+-- Generated at: 2025-07-21T11:11:27.412Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -136,12 +136,10 @@ CREATE TYPE "grant_type" AS ENUM (
   'urn:ietf:params:oauth:grant-type:jwt-bearer'
 );
 
-CREATE TYPE "response_type" AS ENUM (
-  'code',
-  'token',
-  'id_token',
-  'token id_token',
-  'code id_token'
+CREATE TYPE "code_challenge_method" AS ENUM (
+  'none',
+  'plain',
+  'S256'
 );
 
 CREATE TABLE "key_encryption_keys" (
@@ -303,7 +301,7 @@ CREATE TABLE "oidc_configs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "claims_supported" claims[] NOT NULL DEFAULT '{ "sub", "email", "email_verified", "given_name", "family_name" }',
-  "scopes_supported" scopes[] NOT NULL DEFAULT '{ "email", "profile" }',
+  "scopes_supported" scopes[] NOT NULL DEFAULT '{ "openid", "email", "profile" }',
   "user_roles_supported" varchar(50)[] NOT NULL DEFAULT '{ "user", "staff", "admin" }',
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
@@ -362,8 +360,10 @@ CREATE TABLE "user_credentials" (
   "id" serial PRIMARY KEY,
   "user_id" integer NOT NULL,
   "account_id" integer NOT NULL,
+  "app_id" integer NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "auth_methods" auth_method[] NOT NULL,
+  "issuers" varchar(250)[] NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -395,7 +395,7 @@ CREATE TABLE "apps" (
   "name" varchar(50) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "version" integer NOT NULL DEFAULT 1,
-  "client_uri" varchar(250),
+  "client_uri" varchar(250) NOT NULL,
   "logo_uri" varchar(250),
   "tos_uri" varchar(250),
   "policy_uri" varchar(250),
@@ -403,10 +403,9 @@ CREATE TABLE "apps" (
   "software_version" varchar(250),
   "auth_methods" auth_method[] NOT NULL,
   "grant_types" grant_type[] NOT NULL,
-  "response_types" response_type[] NOT NULL,
   "default_scopes" scopes[] NOT NULL DEFAULT '{ "openid", "email" }',
   "auth_providers" auth_provider[] NOT NULL DEFAULT '{ "username_password" }',
-  "username_column" app_username_column NOT NULL DEFAULT 'email',
+  "username_column" app_username_column NOT NULL,
   "id_token_ttl" integer NOT NULL DEFAULT 3600,
   "token_ttl" integer NOT NULL DEFAULT 900,
   "refresh_token_ttl" integer NOT NULL DEFAULT 259200,
@@ -430,33 +429,35 @@ CREATE TABLE "app_keys" (
   PRIMARY KEY ("app_id", "credentials_key_id")
 );
 
-CREATE TABLE "app_callback_uris" (
+CREATE TABLE "app_auth_code_configs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "app_id" integer NOT NULL,
   "callback_uris" varchar(250)[] NOT NULL,
   "logout_uris" varchar(250)[] NOT NULL,
+  "allowed_origins" varchar(250)[] NOT NULL,
+  "code_challenge_method" code_challenge_method NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
-CREATE TABLE "app_server_urls" (
+CREATE TABLE "app_server_configs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "app_id" integer NOT NULL,
   "confirmation_url" varchar(250) NOT NULL,
-  "reset_url" varchar(250) NOT NULL,
+  "reset_password_url" varchar(250) NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
-CREATE TABLE "app_service_audiences" (
-  "id" serial PRIMARY KEY,
+CREATE TABLE "app_related_apps" (
   "account_id" integer NOT NULL,
   "app_id" integer NOT NULL,
-  "audiences" varchar(250)[] NOT NULL DEFAULT '{}',
+  "related_app_id" integer NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
-  "updated_at" timestamptz NOT NULL DEFAULT (now())
+  "updated_at" timestamptz NOT NULL DEFAULT (now()),
+  PRIMARY KEY ("app_id", "related_app_id")
 );
 
 CREATE TABLE "app_designs" (
@@ -636,9 +637,13 @@ CREATE INDEX "user_auth_provider_account_id_idx" ON "user_auth_providers" ("acco
 
 CREATE UNIQUE INDEX "user_credentials_client_id_uidx" ON "user_credentials" ("client_id");
 
-CREATE UNIQUE INDEX "user_credentials_user_id_uidx" ON "user_credentials" ("user_id");
+CREATE INDEX "user_credentials_user_id_idx" ON "user_credentials" ("user_id");
 
 CREATE INDEX "user_credentials_account_id_idx" ON "user_credentials" ("account_id");
+
+CREATE INDEX "user_credentials_app_id_idx" ON "user_credentials" ("app_id");
+
+CREATE UNIQUE INDEX "user_credentials_user_id_app_id_uidx" ON "user_credentials" ("user_id", "app_id");
 
 CREATE INDEX "user_credentials_secrets_user_id_idx" ON "user_credentials_secrets" ("user_id");
 
@@ -666,8 +671,6 @@ CREATE INDEX "apps_type_idx" ON "apps" ("type");
 
 CREATE UNIQUE INDEX "apps_client_id_uidx" ON "apps" ("client_id");
 
-CREATE INDEX "apps_client_id_version_idx" ON "apps" ("client_id", "version");
-
 CREATE INDEX "apps_name_idx" ON "apps" ("name");
 
 CREATE UNIQUE INDEX "apps_account_id_name_uidx" ON "apps" ("account_id", "name");
@@ -686,17 +689,19 @@ CREATE UNIQUE INDEX "app_keys_credentials_key_id_uidx" ON "app_keys" ("credentia
 
 CREATE INDEX "app_keys_account_id_idx" ON "app_keys" ("account_id");
 
-CREATE INDEX "app_uris_account_id_idx" ON "app_callback_uris" ("account_id");
+CREATE INDEX "app_uris_account_id_idx" ON "app_auth_code_configs" ("account_id");
 
-CREATE UNIQUE INDEX "app_uris_app_id_uidx" ON "app_callback_uris" ("app_id");
+CREATE UNIQUE INDEX "app_uris_app_id_uidx" ON "app_auth_code_configs" ("app_id");
 
-CREATE INDEX "app_server_urls_account_id_idx" ON "app_server_urls" ("account_id");
+CREATE INDEX "app_server_urls_account_id_idx" ON "app_server_configs" ("account_id");
 
-CREATE UNIQUE INDEX "app_server_urls_app_id_uidx" ON "app_server_urls" ("app_id");
+CREATE UNIQUE INDEX "app_server_urls_app_id_uidx" ON "app_server_configs" ("app_id");
 
-CREATE INDEX "app_service_uris_account_id_idx" ON "app_service_audiences" ("account_id");
+CREATE INDEX "app_related_apps_account_id_idx" ON "app_related_apps" ("account_id");
 
-CREATE UNIQUE INDEX "app_service_uris_app_id_uidx" ON "app_service_audiences" ("app_id");
+CREATE INDEX "app_related_apps_app_id_idx" ON "app_related_apps" ("app_id");
+
+CREATE UNIQUE INDEX "app_related_apps_related_app_id_uidx" ON "app_related_apps" ("related_app_id");
 
 CREATE INDEX "app_designs_account_id_idx" ON "app_designs" ("account_id");
 
@@ -778,6 +783,8 @@ ALTER TABLE "user_credentials" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("
 
 ALTER TABLE "user_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
+ALTER TABLE "user_credentials" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+
 ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("user_credential_id") REFERENCES "user_credentials" ("id") ON DELETE CASCADE;
@@ -808,17 +815,19 @@ ALTER TABLE "app_keys" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DE
 
 ALTER TABLE "app_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "app_callback_uris" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_auth_code_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "app_callback_uris" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_auth_code_configs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "app_server_urls" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_server_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "app_server_urls" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_server_configs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "app_service_audiences" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_related_apps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "app_service_audiences" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_related_apps" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "app_related_apps" ADD FOREIGN KEY ("related_app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_designs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

@@ -424,7 +424,7 @@ Table oidc_configs as OIDC {
     account_id integer [not null]
 
     claims_supported "claims[]" [not null, default: '{ "sub", "email", "email_verified", "given_name", "family_name" }']
-    scopes_supported "scopes[]" [not null, default: '{ "email", "profile" }']
+    scopes_supported "scopes[]" [not null, default: '{ "openid", "email", "profile" }']
     user_roles_supported "varchar(50)[]" [not null, default: '{ "user", "staff", "admin" }']
 
     created_at timestamptz [not null, default: `now()`]
@@ -543,21 +543,26 @@ Table user_credentials as UC {
 
     user_id integer [not null]
     account_id integer [not null]
+    app_id integer [not null]
 
     client_id varchar(22) [not null]
     auth_methods "auth_method[]" [not null]
+    issuers "varchar(250)[]" [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
 
     Indexes {
         (client_id) [unique, name: 'user_credentials_client_id_uidx']
-        (user_id) [unique, name: 'user_credentials_user_id_uidx']
+        (user_id) [name: 'user_credentials_user_id_idx']
         (account_id) [name: 'user_credentials_account_id_idx']
+        (app_id) [name: 'user_credentials_app_id_idx']
+        (user_id, app_id) [unique, name: 'user_credentials_user_id_app_id_uidx']
     }
 }
 Ref: UC.user_id > U.id [delete: cascade]
 Ref: UC.account_id > A.id [delete: cascade]
+Ref: UC.app_id > APP.id [delete: cascade]
 
 Table user_credentials_secrets as UCS {
     user_id integer [not null]
@@ -631,26 +636,17 @@ Enum grant_type {
     "urn:ietf:params:oauth:grant-type:jwt-bearer"
 }
 
-Enum response_type {
-    "code"
-    "token"
-    "id_token"
-    "token id_token"
-    "code id_token"
-}
-
 Table apps as APP {
     id serial [pk]
     account_id integer [not null]
 
     type app_type [not null]
     name varchar(50) [not null]
-
     client_id varchar(22) [not null]
     version integer [not null, default: 1]
 
     // Common asthetic
-    client_uri varchar(250) [null]
+    client_uri varchar(250) [not null]
     logo_uri varchar(250) [null]
     tos_uri varchar(250) [null]
     policy_uri varchar(250) [null]
@@ -660,10 +656,9 @@ Table apps as APP {
     // Common on all OAuth2 apps
     auth_methods "auth_method[]" [not null]
     grant_types "grant_type[]" [not null]
-    response_types "response_type[]" [not null]
     default_scopes "scopes[]" [not null, default: '{ "openid", "email" }']
     auth_providers "auth_provider[]" [not null, default: '{ "username_password" }']
-    username_column app_username_column [not null, default: 'email']
+    username_column app_username_column [not null]
 
     // Tokens TTLs
     id_token_ttl integer [not null, default: 3600] // 1 hour
@@ -677,7 +672,6 @@ Table apps as APP {
         (account_id) [name: 'apps_account_id_idx']
         (type) [name: 'apps_type_idx']
         (client_id) [unique, name: 'apps_client_id_uidx']
-        (client_id, version) [name: 'apps_client_id_version_idx']
         (name) [name: 'apps_name_idx']
         (account_id, name) [unique, name: 'apps_account_id_name_uidx']
         (account_id, type) [name: 'apps_account_id_type_idx']
@@ -724,7 +718,13 @@ Ref: APK.account_id > A.id [delete: cascade]
 Ref: APK.app_id > APP.id [delete: cascade]
 Ref: APK.credentials_key_id > CK.id [delete: cascade]
 
-Table app_callback_uris as AUR {
+Enum code_challenge_method {
+    "none"
+    "plain"
+    "S256"
+}
+
+Table app_auth_code_configs as AACC {
     id serial [pk]
 
     account_id integer [not null]
@@ -732,6 +732,8 @@ Table app_callback_uris as AUR {
 
     callback_uris "varchar(250)[]" [not null]
     logout_uris "varchar(250)[]" [not null]
+    allowed_origins "varchar(250)[]" [not null]
+    code_challenge_method code_challenge_method [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -741,17 +743,17 @@ Table app_callback_uris as AUR {
         (app_id) [unique, name: 'app_uris_app_id_uidx']
     }
 }
-Ref: AUR.account_id > A.id [delete: cascade]
-Ref: AUR.app_id > APP.id [delete: cascade]
+Ref: AACC.account_id > A.id [delete: cascade]
+Ref: AACC.app_id > APP.id [delete: cascade]
 
-Table app_server_urls as AURL {
+Table app_server_configs as ASC {
     id serial [pk]
 
     account_id integer [not null]
     app_id integer [not null]
 
     confirmation_url varchar(250) [not null]
-    reset_url varchar(250) [not null]
+    reset_password_url varchar(250) [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -761,27 +763,27 @@ Table app_server_urls as AURL {
         (app_id) [unique, name: 'app_server_urls_app_id_uidx']
     }
 }
-Ref: AURL.account_id > A.id [delete: cascade]
-Ref: AURL.app_id > APP.id [delete: cascade]
+Ref: ASC.account_id > A.id [delete: cascade]
+Ref: ASC.app_id > APP.id [delete: cascade]
 
-Table app_service_audiences as ASA {
-    id serial [pk]
-
+Table app_related_apps as ARA {
     account_id integer [not null]
     app_id integer [not null]
-
-    audiences "varchar(250)[]" [not null, default: '{}']
+    related_app_id integer [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
 
     Indexes {
-        (account_id) [name: 'app_service_uris_account_id_idx']
-        (app_id) [unique, name: 'app_service_uris_app_id_uidx']
+        (app_id, related_app_id) [pk]
+        (account_id) [name: 'app_related_apps_account_id_idx']
+        (app_id) [name: 'app_related_apps_app_id_idx']
+        (related_app_id) [unique, name: 'app_related_apps_related_app_id_uidx']
     }
 }
-Ref: ASA.account_id > A.id [delete: cascade]
-Ref: ASA.app_id > APP.id [delete: cascade]
+Ref: ARA.account_id > A.id [delete: cascade]
+Ref: ARA.app_id > APP.id [delete: cascade]
+Ref: ARA.related_app_id > APP.id [delete: cascade]
 
 Table app_designs as AD {
     id serial [pk]

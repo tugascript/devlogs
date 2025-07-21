@@ -9,12 +9,11 @@ INSERT INTO "apps" (
   "account_id",
   "type",
   "name",
-  "username_column",
   "client_id",
+  "client_uri",
+  "username_column",
   "auth_methods",
-  "grant_types",
-  "response_types",
-  "id_token_ttl"
+  "grant_types"
 ) VALUES (
   $1,
   $2,
@@ -23,12 +22,11 @@ INSERT INTO "apps" (
   $5,
   $6,
   $7,
-  $8,
-  $9
+  $8
 ) RETURNING *;
 
 
--- name: CountAppsByNameAndAccountID :one
+-- name: CountAppsByAccountIDAndName :one
 SELECT COUNT("id") FROM "apps"
 WHERE "account_id" = $1 AND "name" = $2
 LIMIT 1;
@@ -103,3 +101,8 @@ UPDATE "apps" SET
     "updated_at" = now()
 WHERE "id" = $1
 RETURNING *;
+
+-- name: FindAppsByClientIDsAndAccountID :many
+SELECT * FROM "apps"
+WHERE "client_id" IN (sqlc.slice('client_ids')) AND "account_id" = $1
+ORDER BY "name" ASC LIMIT $2;

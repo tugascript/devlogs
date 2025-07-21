@@ -9,13 +9,113 @@ package controllers
 import (
 	"github.com/gofiber/fiber/v2"
 
+	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
+	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 )
 
 const appsLocation string = "apps"
+
+func (c *Controllers) createWebApp(
+	ctx *fiber.Ctx,
+	requestID string,
+	accountClaims *tokens.AccountClaims,
+	baseBody *bodies.CreateAppBodyBase,
+) error {
+	logger := c.buildLogger(requestID, appsLocation, "createWebApp")
+
+	body := new(bodies.CreateAppBodyWeb)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	return ctx.SendStatus(fiber.StatusNotImplemented)
+}
+
+func (c *Controllers) createNativeOrSpaApp(
+	ctx *fiber.Ctx,
+	requestID string,
+	accountClaims *tokens.AccountClaims,
+	baseBody *bodies.CreateAppBodyBase,
+) error {
+	logger := c.buildLogger(requestID, appsLocation, "createNativeOrSpaApp")
+
+	body := new(bodies.CreateAppBodyNativeOrSpa)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	return ctx.SendStatus(fiber.StatusNotImplemented)
+}
+
+func (c *Controllers) createBackendApp(
+	ctx *fiber.Ctx,
+	requestID string,
+	accountClaims *tokens.AccountClaims,
+	baseBody *bodies.CreateAppBodyBase,
+) error {
+	logger := c.buildLogger(requestID, appsLocation, "createBackendApp")
+
+	body := new(bodies.CreateAppBodyBackend)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	return ctx.SendStatus(fiber.StatusNotImplemented)
+}
+
+func (c *Controllers) createDeviceApp(
+	ctx *fiber.Ctx,
+	requestID string,
+	accountClaims *tokens.AccountClaims,
+	baseBody *bodies.CreateAppBodyBase,
+) error {
+	logger := c.buildLogger(requestID, appsLocation, "createDeviceApp")
+
+	body := new(bodies.CreateAppBodyDevice)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	return ctx.SendStatus(fiber.StatusNotImplemented)
+}
+
+func (c *Controllers) CreateApp(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, appsLocation, "CreateApp")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.CreateAppBodyBase)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	logResponse(logger, ctx, fiber.StatusCreated)
+	return ctx.Status(fiber.StatusCreated).JSON(appDTO)
+}
 
 func (c *Controllers) DeleteApp(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)

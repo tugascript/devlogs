@@ -118,3 +118,14 @@ func NewItemsDTO[T any](items []T) ItemsDTO[T] {
 	}
 	return ItemsDTO[T]{Items: items}
 }
+
+type LinksSelfDTO struct {
+	Self string `json:"self"`
+}
+
+func NewLinksSelfDTO(backendDomain, route string, extraParams ...string) LinksSelfDTO {
+	extraParamsStr := processExtraParams(extraParams)
+	return LinksSelfDTO{
+		Self: fmt.Sprintf("https://%s/v1%s%s", backendDomain, route, extraParamsStr),
+	}
+}
