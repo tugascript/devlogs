@@ -24,19 +24,19 @@ func (q *Queries) CountAppsByAccountID(ctx context.Context, accountID int32) (in
 	return count, err
 }
 
-const countAppsByNameAndAccountID = `-- name: CountAppsByNameAndAccountID :one
+const countAppsByAccountIDAndName = `-- name: CountAppsByAccountIDAndName :one
 SELECT COUNT("id") FROM "apps"
 WHERE "account_id" = $1 AND "name" = $2
 LIMIT 1
 `
 
-type CountAppsByNameAndAccountIDParams struct {
+type CountAppsByAccountIDAndNameParams struct {
 	AccountID int32
 	Name      string
 }
 
-func (q *Queries) CountAppsByNameAndAccountID(ctx context.Context, arg CountAppsByNameAndAccountIDParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countAppsByNameAndAccountID, arg.AccountID, arg.Name)
+func (q *Queries) CountAppsByAccountIDAndName(ctx context.Context, arg CountAppsByAccountIDAndNameParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAppsByAccountIDAndName, arg.AccountID, arg.Name)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -66,12 +66,11 @@ INSERT INTO "apps" (
   "account_id",
   "type",
   "name",
-  "username_column",
   "client_id",
+  "client_uri",
+  "username_column",
   "auth_methods",
-  "grant_types",
-  "response_types",
-  "id_token_ttl"
+  "grant_types"
 ) VALUES (
   $1,
   $2,
@@ -80,21 +79,19 @@ INSERT INTO "apps" (
   $5,
   $6,
   $7,
-  $8,
-  $9
-) RETURNING id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, response_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at
+  $8
+) RETURNING id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at
 `
 
 type CreateAppParams struct {
 	AccountID      int32
 	Type           AppType
 	Name           string
-	UsernameColumn AppUsernameColumn
 	ClientID       string
+	ClientUri      string
+	UsernameColumn AppUsernameColumn
 	AuthMethods    []AuthMethod
 	GrantTypes     []GrantType
-	ResponseTypes  []ResponseType
-	IDTokenTtl     int32
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -107,12 +104,11 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		arg.AccountID,
 		arg.Type,
 		arg.Name,
-		arg.UsernameColumn,
 		arg.ClientID,
+		arg.ClientUri,
+		arg.UsernameColumn,
 		arg.AuthMethods,
 		arg.GrantTypes,
-		arg.ResponseTypes,
-		arg.IDTokenTtl,
 	)
 	var i App
 	err := row.Scan(
@@ -130,7 +126,6 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		&i.SoftwareVersion,
 		&i.AuthMethods,
 		&i.GrantTypes,
-		&i.ResponseTypes,
 		&i.DefaultScopes,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -154,7 +149,7 @@ func (q *Queries) DeleteApp(ctx context.Context, id int32) error {
 }
 
 const filterAppsByNameAndByAccountIDOrderedByID = `-- name: FilterAppsByNameAndByAccountIDOrderedByID :many
-SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, response_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
 WHERE "account_id" = $1 AND "name" ILIKE $2
 ORDER BY "id" DESC
 OFFSET $3 LIMIT $4
@@ -196,7 +191,6 @@ func (q *Queries) FilterAppsByNameAndByAccountIDOrderedByID(ctx context.Context,
 			&i.SoftwareVersion,
 			&i.AuthMethods,
 			&i.GrantTypes,
-			&i.ResponseTypes,
 			&i.DefaultScopes,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -217,7 +211,7 @@ func (q *Queries) FilterAppsByNameAndByAccountIDOrderedByID(ctx context.Context,
 }
 
 const filterAppsByNameAndByAccountIDOrderedByName = `-- name: FilterAppsByNameAndByAccountIDOrderedByName :many
-SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, response_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
 WHERE "account_id" = $1 AND "name" ILIKE $2
 ORDER BY "name" ASC
 OFFSET $3 LIMIT $4
@@ -259,7 +253,6 @@ func (q *Queries) FilterAppsByNameAndByAccountIDOrderedByName(ctx context.Contex
 			&i.SoftwareVersion,
 			&i.AuthMethods,
 			&i.GrantTypes,
-			&i.ResponseTypes,
 			&i.DefaultScopes,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -280,7 +273,7 @@ func (q *Queries) FilterAppsByNameAndByAccountIDOrderedByName(ctx context.Contex
 }
 
 const findAppByClientID = `-- name: FindAppByClientID :one
-SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, response_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
 WHERE "client_id" = $1 LIMIT 1
 `
 
@@ -302,7 +295,6 @@ func (q *Queries) FindAppByClientID(ctx context.Context, clientID string) (App, 
 		&i.SoftwareVersion,
 		&i.AuthMethods,
 		&i.GrantTypes,
-		&i.ResponseTypes,
 		&i.DefaultScopes,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -316,7 +308,7 @@ func (q *Queries) FindAppByClientID(ctx context.Context, clientID string) (App, 
 }
 
 const findAppByClientIDAndVersion = `-- name: FindAppByClientIDAndVersion :one
-SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, response_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
 WHERE "client_id" = $1 AND "version" = $2 LIMIT 1
 `
 
@@ -343,7 +335,6 @@ func (q *Queries) FindAppByClientIDAndVersion(ctx context.Context, arg FindAppBy
 		&i.SoftwareVersion,
 		&i.AuthMethods,
 		&i.GrantTypes,
-		&i.ResponseTypes,
 		&i.DefaultScopes,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -357,7 +348,7 @@ func (q *Queries) FindAppByClientIDAndVersion(ctx context.Context, arg FindAppBy
 }
 
 const findAppByID = `-- name: FindAppByID :one
-SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, response_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
 WHERE "id" = $1 LIMIT 1
 `
 
@@ -379,7 +370,6 @@ func (q *Queries) FindAppByID(ctx context.Context, id int32) (App, error) {
 		&i.SoftwareVersion,
 		&i.AuthMethods,
 		&i.GrantTypes,
-		&i.ResponseTypes,
 		&i.DefaultScopes,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -392,8 +382,63 @@ func (q *Queries) FindAppByID(ctx context.Context, id int32) (App, error) {
 	return i, err
 }
 
+const findAppsByClientIDsAndAccountID = `-- name: FindAppsByClientIDsAndAccountID :many
+SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
+WHERE "client_id" IN ($3) AND "account_id" = $1
+ORDER BY "name" ASC LIMIT $2
+`
+
+type FindAppsByClientIDsAndAccountIDParams struct {
+	AccountID int32
+	Limit     int32
+	ClientIds []string
+}
+
+func (q *Queries) FindAppsByClientIDsAndAccountID(ctx context.Context, arg FindAppsByClientIDsAndAccountIDParams) ([]App, error) {
+	rows, err := q.db.Query(ctx, findAppsByClientIDsAndAccountID, arg.AccountID, arg.Limit, arg.ClientIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []App{}
+	for rows.Next() {
+		var i App
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.Type,
+			&i.Name,
+			&i.ClientID,
+			&i.Version,
+			&i.ClientUri,
+			&i.LogoUri,
+			&i.TosUri,
+			&i.PolicyUri,
+			&i.SoftwareID,
+			&i.SoftwareVersion,
+			&i.AuthMethods,
+			&i.GrantTypes,
+			&i.DefaultScopes,
+			&i.AuthProviders,
+			&i.UsernameColumn,
+			&i.IDTokenTtl,
+			&i.TokenTtl,
+			&i.RefreshTokenTtl,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findPaginatedAppsByAccountIDOrderedByID = `-- name: FindPaginatedAppsByAccountIDOrderedByID :many
-SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, response_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
 WHERE "account_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3
@@ -429,7 +474,6 @@ func (q *Queries) FindPaginatedAppsByAccountIDOrderedByID(ctx context.Context, a
 			&i.SoftwareVersion,
 			&i.AuthMethods,
 			&i.GrantTypes,
-			&i.ResponseTypes,
 			&i.DefaultScopes,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -450,7 +494,7 @@ func (q *Queries) FindPaginatedAppsByAccountIDOrderedByID(ctx context.Context, a
 }
 
 const findPaginatedAppsByAccountIDOrderedByName = `-- name: FindPaginatedAppsByAccountIDOrderedByName :many
-SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, response_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
+SELECT id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
 WHERE "account_id" = $1
 ORDER BY "name" ASC
 OFFSET $2 LIMIT $3
@@ -486,7 +530,6 @@ func (q *Queries) FindPaginatedAppsByAccountIDOrderedByName(ctx context.Context,
 			&i.SoftwareVersion,
 			&i.AuthMethods,
 			&i.GrantTypes,
-			&i.ResponseTypes,
 			&i.DefaultScopes,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -518,14 +561,14 @@ SET "name" = $2,
     "software_version" = $9,
     "auth_methods" = $10
 WHERE "id" = $1
-RETURNING id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, response_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at
+RETURNING id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at
 `
 
 type UpdateAppParams struct {
 	ID              int32
 	Name            string
 	UsernameColumn  AppUsernameColumn
-	ClientUri       pgtype.Text
+	ClientUri       string
 	LogoUri         pgtype.Text
 	TosUri          pgtype.Text
 	PolicyUri       pgtype.Text
@@ -563,7 +606,6 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		&i.SoftwareVersion,
 		&i.AuthMethods,
 		&i.GrantTypes,
-		&i.ResponseTypes,
 		&i.DefaultScopes,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -581,7 +623,7 @@ UPDATE "apps" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, response_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at
+RETURNING id, account_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at
 `
 
 func (q *Queries) UpdateAppVersion(ctx context.Context, id int32) (App, error) {
@@ -602,7 +644,6 @@ func (q *Queries) UpdateAppVersion(ctx context.Context, id int32) (App, error) {
 		&i.SoftwareVersion,
 		&i.AuthMethods,
 		&i.GrantTypes,
-		&i.ResponseTypes,
 		&i.DefaultScopes,
 		&i.AuthProviders,
 		&i.UsernameColumn,

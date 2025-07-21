@@ -302,10 +302,54 @@ func (ns NullClaims) Value() (driver.Value, error) {
 	return string(ns.Claims), nil
 }
 
+type CodeChallengeMethod string
+
+const (
+	CodeChallengeMethodNone  CodeChallengeMethod = "none"
+	CodeChallengeMethodPlain CodeChallengeMethod = "plain"
+	CodeChallengeMethodS256  CodeChallengeMethod = "S256"
+)
+
+func (e *CodeChallengeMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CodeChallengeMethod(s)
+	case string:
+		*e = CodeChallengeMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CodeChallengeMethod: %T", src)
+	}
+	return nil
+}
+
+type NullCodeChallengeMethod struct {
+	CodeChallengeMethod CodeChallengeMethod
+	Valid               bool // Valid is true if CodeChallengeMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCodeChallengeMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.CodeChallengeMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CodeChallengeMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCodeChallengeMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CodeChallengeMethod), nil
+}
+
 type CredentialsUsage string
 
 const (
 	CredentialsUsageAccount CredentialsUsage = "account"
+	CredentialsUsageApp     CredentialsUsage = "app"
 	CredentialsUsageUser    CredentialsUsage = "user"
 )
 
@@ -472,51 +516,6 @@ func (ns NullKekUsage) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.KekUsage), nil
-}
-
-type ResponseType string
-
-const (
-	ResponseTypeCode         ResponseType = "code"
-	ResponseTypeToken        ResponseType = "token"
-	ResponseTypeIDToken      ResponseType = "id_token"
-	ResponseTypeTokenidToken ResponseType = "token id_token"
-	ResponseTypeCodeidToken  ResponseType = "code id_token"
-)
-
-func (e *ResponseType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ResponseType(s)
-	case string:
-		*e = ResponseType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ResponseType: %T", src)
-	}
-	return nil
-}
-
-type NullResponseType struct {
-	ResponseType ResponseType
-	Valid        bool // Valid is true if ResponseType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullResponseType) Scan(value interface{}) error {
-	if value == nil {
-		ns.ResponseType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.ResponseType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullResponseType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.ResponseType), nil
 }
 
 type Scopes string
@@ -870,7 +869,7 @@ type App struct {
 	Name            string
 	ClientID        string
 	Version         int32
-	ClientUri       pgtype.Text
+	ClientUri       string
 	LogoUri         pgtype.Text
 	TosUri          pgtype.Text
 	PolicyUri       pgtype.Text
@@ -878,7 +877,6 @@ type App struct {
 	SoftwareVersion pgtype.Text
 	AuthMethods     []AuthMethod
 	GrantTypes      []GrantType
-	ResponseTypes   []ResponseType
 	DefaultScopes   []Scopes
 	AuthProviders   []AuthProvider
 	UsernameColumn  AppUsernameColumn
@@ -889,14 +887,16 @@ type App struct {
 	UpdatedAt       time.Time
 }
 
-type AppCallbackUri struct {
-	ID           int32
-	AccountID    int32
-	AppID        int32
-	CallbackUris []string
-	LogoutUris   []string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+type AppAuthCodeConfig struct {
+	ID                  int32
+	AccountID           int32
+	AppID               int32
+	CallbackUris        []string
+	LogoutUris          []string
+	AllowedOrigins      []string
+	CodeChallengeMethod CodeChallengeMethod
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type AppDesign struct {
@@ -932,6 +932,14 @@ type AppProfile struct {
 	UpdatedAt time.Time
 }
 
+type AppRelatedApp struct {
+	AccountID    int32
+	AppID        int32
+	RelatedAppID int32
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type AppSecret struct {
 	AppID               int32
 	CredentialsSecretID int32
@@ -939,23 +947,14 @@ type AppSecret struct {
 	CreatedAt           time.Time
 }
 
-type AppServerUrl struct {
-	ID              int32
-	AccountID       int32
-	AppID           int32
-	ConfirmationUrl string
-	ResetUrl        string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-}
-
-type AppServiceAudience struct {
-	ID        int32
-	AccountID int32
-	AppID     int32
-	Audiences []string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+type AppServerConfig struct {
+	ID               int32
+	AccountID        int32
+	AppID            int32
+	ConfirmationUrl  string
+	ResetPasswordUrl string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type CredentialsKey struct {
@@ -1081,8 +1080,10 @@ type UserCredential struct {
 	ID          int32
 	UserID      int32
 	AccountID   int32
+	AppID       int32
 	ClientID    string
 	AuthMethods []AuthMethod
+	Issuers     []string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

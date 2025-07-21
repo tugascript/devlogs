@@ -7,7 +7,6 @@
 DROP TABLE IF EXISTS "revoked_tokens";
 DROP TABLE IF EXISTS "app_profiles";
 DROP TABLE IF EXISTS "app_designs";
-DROP TABLE IF EXISTS "app_service_audiences";
 DROP TABLE IF EXISTS "app_server_urls";
 DROP TABLE IF EXISTS "app_callback_uris";
 DROP TABLE IF EXISTS "app_keys";
