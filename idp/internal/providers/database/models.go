@@ -957,6 +957,17 @@ type AppServerConfig struct {
 	UpdatedAt        time.Time
 }
 
+type AppServiceConfig struct {
+	ID             int32
+	AccountID      int32
+	AppID          int32
+	AuthMethods    []AuthMethod
+	GrantTypes     []GrantType
+	AllowedDomains []string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type CredentialsKey struct {
 	ID          int32
 	PublicKid   string

@@ -785,6 +785,27 @@ Ref: ARA.account_id > A.id [delete: cascade]
 Ref: ARA.app_id > APP.id [delete: cascade]
 Ref: ARA.related_app_id > APP.id [delete: cascade]
 
+Table app_service_configs as ASCONF {
+    id serial [pk]
+
+    account_id integer [not null]
+    app_id integer [not null]
+
+    auth_methods "auth_method[]" [not null]
+    grant_types "grant_type[]" [not null]
+    allowed_domains "varchar(250)[]" [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'app_service_configs_account_id_idx']
+        (app_id) [unique, name: 'app_service_configs_app_id_uidx']
+    }
+}
+Ref: ASCONF.account_id > A.id [delete: cascade]
+Ref: ASCONF.app_id > APP.id [delete: cascade]
+
 Table app_designs as AD {
     id serial [pk]
 
