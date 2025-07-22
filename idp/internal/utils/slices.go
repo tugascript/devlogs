@@ -6,8 +6,19 @@
 
 package utils
 
+func ToEmptySlice[T any](s []T) []T {
+	if s == nil {
+		return make([]T, 0)
+	}
+	return s
+}
+
 func MapSlice[T any, U any](s []T, f func(*T) U) []U {
-	result := make([]U, len(s))
+	length := len(s)
+	result := make([]U, length)
+	if length == 0 {
+		return result
+	}
 
 	for i, v := range s {
 		result[i] = f(&v)

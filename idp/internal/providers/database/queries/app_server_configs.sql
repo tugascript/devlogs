@@ -4,17 +4,15 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
--- name: CreateAppProfile :exec
-INSERT INTO "app_profiles" (
+-- name: CreateAppServerConfig :one
+INSERT INTO "app_server_configs" (
     "account_id",
-    "user_id",
-    "app_id"
+    "app_id",
+    "confirmation_url",
+    "reset_password_url"
 ) VALUES (
     $1,
     $2,
-    $3
-);
-
--- name: FindAppProfileIDByAppIDAndUserID :one
-SELECT "id" FROM "app_profiles"
-WHERE "app_id" = $1 AND "user_id" = $2 LIMIT 1;
+    $3,
+    $4
+) RETURNING *;

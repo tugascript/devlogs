@@ -543,6 +543,7 @@ type rotateAccountCredentialsKeyOptions struct {
 	accountID            int32
 	accountPublicID      uuid.UUID
 	accountCredentialsID int32
+	cryptoSuite          utils.SupportedCryptoSuite
 }
 
 func (s *Services) rotateAccountCredentialsKey(
@@ -571,7 +572,7 @@ func (s *Services) rotateAccountCredentialsKey(
 			accountID:            opts.accountID,
 			accountPublicID:      opts.accountPublicID,
 			accountCredentialsID: opts.accountCredentialsID,
-			cryptoSuite:          mapAlgorithmToTokenCryptoSuite(string(currentKey.CryptoSuite)),
+			cryptoSuite:          opts.cryptoSuite,
 		})
 	}
 
@@ -582,7 +583,7 @@ func (s *Services) rotateAccountCredentialsKey(
 			accountID:            opts.accountID,
 			accountPublicID:      opts.accountPublicID,
 			accountCredentialsID: opts.accountCredentialsID,
-			cryptoSuite:          mapAlgorithmToTokenCryptoSuite(string(currentKey.CryptoSuite)),
+			cryptoSuite:          opts.cryptoSuite,
 		})
 	}
 
@@ -691,6 +692,7 @@ type RotateAccountCredentialsSecretOptions struct {
 	AccountPublicID uuid.UUID
 	AccountVersion  int32
 	ClientID        string
+	Algorithm       string
 }
 
 func (s *Services) RotateAccountCredentialsSecret(
@@ -723,6 +725,7 @@ func (s *Services) RotateAccountCredentialsSecret(
 			accountID:            accountCredentialsDTO.AccountID(),
 			accountPublicID:      opts.AccountPublicID,
 			accountCredentialsID: accountCredentialsDTO.ID(),
+			cryptoSuite:          mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
 		})
 	}
 	if amHashSet.Contains(database.AuthMethodClientSecretBasic) || amHashSet.Contains(database.AuthMethodClientSecretPost) {

@@ -31,19 +31,13 @@ NONE
 - Test account standard authentication & account operations
 - Test multiple secrets account credentials
 - Account KEK openbao integration
-
-#### IDP On-Going
-
 - Account KEK rotation & DEK re-encryption
 - Accounts m2m auth:
   - client_credentials
   - jwt
 
-#### IDP Todo
+#### IDP On-Going
 
-- Test accounts m2m auth:
-  - client_credentials
-  - jwt
 - Multiple app types creation
   - web
   - native
@@ -51,17 +45,11 @@ NONE
   - backend
   - device
   - service
-- Test multiple app types creation
-  - web
-  - native
-  - spa
-  - backend
-  - device
-  - service
+
+#### IDP Todo
+
 - Account key generation
-- Test account key generation
 - Dynamic OIDC configs
-- Test dynamic OIDC configs
 - User authentication for each app type:
   - web
   - native & spa

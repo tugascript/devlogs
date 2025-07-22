@@ -275,6 +275,14 @@ func (c *Controllers) CreateAccountCredentialsSecret(ctx *fiber.Ctx) error {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
+	body := new(bodies.CreateAccountCredentialsSecretBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
 	secretDTO, serviceErr := c.services.RotateAccountCredentialsSecret(
 		ctx.UserContext(),
 		services.RotateAccountCredentialsSecretOptions{
@@ -282,6 +290,7 @@ func (c *Controllers) CreateAccountCredentialsSecret(ctx *fiber.Ctx) error {
 			AccountPublicID: accountClaims.AccountID,
 			AccountVersion:  accountClaims.AccountVersion,
 			ClientID:        urlParams.ClientID,
+			Algorithm:       body.Algorithm,
 		},
 	)
 	if serviceErr != nil {

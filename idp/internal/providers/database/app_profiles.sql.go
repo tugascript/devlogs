@@ -10,6 +10,7 @@ import (
 )
 
 const createAppProfile = `-- name: CreateAppProfile :exec
+
 INSERT INTO "app_profiles" (
     "account_id",
     "user_id",
@@ -27,6 +28,11 @@ type CreateAppProfileParams struct {
 	AppID     int32
 }
 
+// Copyright (c) 2025 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateAppProfile(ctx context.Context, arg CreateAppProfileParams) error {
 	_, err := q.db.Exec(ctx, createAppProfile, arg.AccountID, arg.UserID, arg.AppID)
 	return err
