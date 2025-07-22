@@ -591,7 +591,6 @@ type CreateSPAAppOptions struct {
 	AccountVersion      int32
 	Name                string
 	UsernameColumn      string
-	Algorithm           string
 	ClientURI           string
 	CallbackURIs        []string
 	LogoutURIs          []string
@@ -1112,12 +1111,208 @@ func (s *Services) CreateDeviceApp(
 	return dtos.MapDeviceAppToDTO(&app, relatedApps, opts.BackendDomain), nil
 }
 
-// TODO: add create service app options and implementation
-//type CreateServiceAppOptions struct {
-//	RequestID       string
-//	AccountPublicID uuid.UUID
-//	Name            string
-//	AccountVersion  int32
-//	AuthMethods     string
-//	Algorithm       string
-//}
+func mapServiceGrantTypesFromAuthMethods(authMethods string) ([]database.GrantType, *exceptions.ServiceError) {
+	switch authMethods {
+	case AuthMethodBothClientSecrets, AuthMethodClientSecretPost, AuthMethodClientSecretBasic:
+		return []database.GrantType{database.GrantTypeClientCredentials}, nil
+	case AuthMethodPrivateKeyJwt:
+		return []database.GrantType{database.GrantTypeUrnIetfParamsOauthGrantTypeJwtBearer}, nil
+	default:
+		return nil, exceptions.NewValidationError("Unsupported auth method")
+	}
+}
+
+type CreateServiceAppOptions struct {
+	RequestID        string
+	AccountPublicID  uuid.UUID
+	Name             string
+	AccountVersion   int32
+	AuthMethods      string
+	Algorithm        string
+	ClientURI        string
+	UsersAuthMethods string
+	AllowedDomains   []string
+}
+
+func (s *Services) CreateServiceApp(
+	ctx context.Context,
+	opts CreateServiceAppOptions,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "CreateServiceApp").With(
+		"accountPublicId", opts.AccountPublicID,
+		"accountVersion", opts.AccountVersion,
+		"name", opts.Name,
+	)
+	logger.InfoContext(ctx, "Creating service app...")
+
+	authMethods, serviceErr := mapAuthMethod(opts.AuthMethods)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map auth method", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	grantTypes, serviceErr := mapServiceGrantTypesFromAuthMethods(opts.AuthMethods)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map service grant types", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	userAuthMethods, serviceErr := mapAuthMethod(opts.UsersAuthMethods)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map user auth methods", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	userGrantTypes, serviceErr := mapServiceGrantTypesFromAuthMethods(opts.UsersAuthMethods)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map user grant types", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+	if opts.UsersAuthMethods == AuthMethodPrivateKeyJwt && len(opts.AllowedDomains) == 0 {
+		logger.ErrorContext(ctx, "Allowed domains must be provided for private key JWT auth method")
+		return dtos.AppDTO{}, exceptions.NewValidationError("Allowed domains must be provided for private key JWT auth method")
+	}
+
+	accountID, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.AccountPublicID,
+		Version:   opts.AccountVersion,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get account ID by public ID and version", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	name := utils.Capitalized(opts.Name)
+	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
+		requestID: opts.RequestID,
+		accountID: accountID,
+		name:      name,
+	}); serviceErr != nil {
+		logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return dtos.AppDTO{}, exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	clientID := utils.Base62UUID()
+	app, err := qrs.CreateApp(ctx, database.CreateAppParams{
+		AccountID:      accountID,
+		Type:           database.AppTypeService,
+		Name:           name,
+		UsernameColumn: database.AppUsernameColumnEmail,
+		ClientID:       clientID,
+		AuthMethods:    authMethods,
+		GrantTypes:     grantTypes,
+		ClientUri:      utils.ProcessURL(opts.ClientURI),
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create app", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	appService, err := qrs.CreateAppServiceConfig(ctx, database.CreateAppServiceConfigParams{
+		AccountID:      accountID,
+		AppID:          app.ID,
+		AuthMethods:    userAuthMethods,
+		GrantTypes:     userGrantTypes,
+		AllowedDomains: utils.ToEmptySlice(opts.AllowedDomains),
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create app service config", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	switch opts.AuthMethods {
+	case AuthMethodPrivateKeyJwt:
+		var dbPrms database.CreateCredentialsKeyParams
+		var jwk utils.JWK
+		dbPrms, jwk, serviceErr = s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountID,
+			accountPublicID: opts.AccountPublicID,
+			expiresIn:       s.accountCCExpDays,
+			usage:           database.CredentialsUsageApp,
+			cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
+		})
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		var clientKey database.CredentialsKey
+		clientKey, err = qrs.CreateCredentialsKey(ctx, dbPrms)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create client key", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		if err = qrs.CreateAppKey(ctx, database.CreateAppKeyParams{
+			AccountID:        accountID,
+			AppID:            app.ID,
+			CredentialsKeyID: clientKey.ID,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create app key", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		logger.InfoContext(ctx, "Created service app successfully with private key JWT auth method")
+		return dtos.MapServiceAppWithJWKToDTO(&app, &appService, jwk, clientKey.ExpiresAt), nil
+	case AuthMethodBothClientSecrets, AuthMethodClientSecretPost, AuthMethodClientSecretBasic:
+		var dbPrms database.CreateCredentialsSecretParams
+		var secret string
+		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
+			requestID: opts.RequestID,
+			accountID: accountID,
+			expiresIn: s.accountCCExpDays,
+			usage:     database.CredentialsUsageApp,
+		})
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		var clientSecret database.CredentialsSecret
+		clientSecret, err = qrs.CreateCredentialsSecret(ctx, dbPrms)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		if err = qrs.CreateAppSecret(ctx, database.CreateAppSecretParams{
+			AppID:               app.ID,
+			CredentialsSecretID: clientSecret.ID,
+			AccountID:           accountID,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create app secret", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		logger.InfoContext(ctx, "Created service app successfully with client secret auth method")
+		return dtos.MapServiceAppWithSecretToDTO(
+			&app,
+			&appService,
+			clientSecret.SecretID,
+			secret,
+			clientSecret.ExpiresAt,
+		), nil
+	default:
+		logger.ErrorContext(ctx, "Unsupported auth method", "authMethod", opts.AuthMethods)
+		serviceErr = exceptions.NewValidationError("Unsupported auth method")
+		return dtos.AppDTO{}, serviceErr
+	}
+}

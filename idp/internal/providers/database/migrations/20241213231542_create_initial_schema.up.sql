@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-07-21T11:11:27.412Z
+-- Generated at: 2025-07-22T13:21:18.081Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -460,6 +460,17 @@ CREATE TABLE "app_related_apps" (
   PRIMARY KEY ("app_id", "related_app_id")
 );
 
+CREATE TABLE "app_service_configs" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "app_id" integer NOT NULL,
+  "auth_methods" auth_method[] NOT NULL,
+  "grant_types" grant_type[] NOT NULL,
+  "allowed_domains" varchar(250)[] NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
 CREATE TABLE "app_designs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
@@ -703,6 +714,10 @@ CREATE INDEX "app_related_apps_app_id_idx" ON "app_related_apps" ("app_id");
 
 CREATE UNIQUE INDEX "app_related_apps_related_app_id_uidx" ON "app_related_apps" ("related_app_id");
 
+CREATE INDEX "app_service_configs_account_id_idx" ON "app_service_configs" ("account_id");
+
+CREATE UNIQUE INDEX "app_service_configs_app_id_uidx" ON "app_service_configs" ("app_id");
+
 CREATE INDEX "app_designs_account_id_idx" ON "app_designs" ("account_id");
 
 CREATE UNIQUE INDEX "app_designs_app_id_uidx" ON "app_designs" ("app_id");
@@ -828,6 +843,10 @@ ALTER TABLE "app_related_apps" ADD FOREIGN KEY ("account_id") REFERENCES "accoun
 ALTER TABLE "app_related_apps" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_related_apps" ADD FOREIGN KEY ("related_app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "app_service_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "app_service_configs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_designs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

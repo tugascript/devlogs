@@ -19,3 +19,7 @@ type UpdateAccountCredentialsBody struct {
 	Alias   string   `json:"alias" validate:"required,min=1,max=50,slug"`
 	Issuers []string `json:"issuers" validate:"required,unique,dive,url"`
 }
+
+type CreateAccountCredentialsSecretBody struct {
+	Algorithm string `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
+}
