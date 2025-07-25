@@ -640,6 +640,8 @@ Table apps as APP {
     id serial [pk]
     account_id integer [not null]
 
+    account_public_id uuid [not null]
+
     type app_type [not null]
     name varchar(50) [not null]
     client_id varchar(22) [not null]
@@ -672,6 +674,8 @@ Table apps as APP {
         (account_id) [name: 'apps_account_id_idx']
         (type) [name: 'apps_type_idx']
         (client_id) [unique, name: 'apps_client_id_uidx']
+        (client_id, account_public_id) [name: 'apps_client_id_account_public_id_idx']
+        (account_public_id) [name: 'apps_account_public_id_idx']
         (name) [name: 'apps_name_idx']
         (account_id, name) [unique, name: 'apps_account_id_name_uidx']
         (account_id, type) [name: 'apps_account_id_type_idx']

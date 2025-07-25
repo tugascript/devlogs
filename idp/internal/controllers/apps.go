@@ -8,11 +8,12 @@ package controllers
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/tugascript/devlogs/idp/internal/exceptions"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
@@ -371,4 +372,101 @@ func (c *Controllers) ListApps(ctx *fiber.Ctx) error {
 		"order", queryParams.Order,
 		"name", queryParams.Name,
 	))
+}
+
+func (c *Controllers) updateWebApp(
+	ctx *fiber.Ctx,
+	requestID string,
+	accountClaims *tokens.AccountClaims,
+	appDTO *dtos.AppDTO,
+	baseBody *bodies.UpdateAppBodyBase,
+) error {
+	logger := c.buildLogger(requestID, appsLocation, "updateWebApp")
+
+	body := new(bodies.UpdateAppBodyWeb)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
+		ctx.UserContext(),
+		services.GetAccountIDByPublicIDAndVersionOptions{
+			RequestID: requestID,
+			PublicID:  accountClaims.AccountID,
+			Version:   accountClaims.AccountVersion,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	completeAppDTO, serviceErr := c.services.UpdateWebApp(
+		ctx.UserContext(),
+		appDTO,
+		services.UpdateWebAppOptions{
+			RequestID:           requestID,
+			AccountID:           accountID,
+			UsernameColumn:      body.UsernameColumn,
+			Name:                baseBody.Name,
+			ClientURI:           baseBody.ClientURI,
+			LogoURI:             baseBody.LogoURI,
+			TOSURI:              baseBody.TOSURI,
+			PolicyURI:           baseBody.PolicyURI,
+			SoftwareID:          baseBody.SoftwareID,
+			SoftwareVersion:     baseBody.SoftwareVersion,
+			CallbackURLs:        body.CallbackURLs,
+			LogoutURLs:          body.LogoutURLs,
+			AllowedOrigins:      body.AllowedOrigins,
+			CodeChallengeMethod: body.CodeChallengeMethod,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&completeAppDTO)
+}
+
+func (c *Controllers) UpdateApp(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, appsLocation, "UpdateApp")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.UpdateAppBodyBase)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
+	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+		return validateURLParamsErrorResponse(logger, ctx, err)
+	}
+
+	appDTO, serviceErr := c.services.GetAppByClientIDAndAccountPublicID(ctx.UserContext(), services.GetAppByClientIDAndAccountPublicIDOptions{
+		RequestID:       requestID,
+		AccountPublicID: accountClaims.AccountID,
+		ClientID:        urlParams.ClientID,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	switch appDTO.Type {
+	case database.AppTypeWeb:
+		return c.updateWebApp(ctx, requestID, &accountClaims, &appDTO, body)
+	}
+
+	return ctx.SendStatus(fiber.StatusNotImplemented)
 }

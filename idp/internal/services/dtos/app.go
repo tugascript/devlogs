@@ -8,8 +8,9 @@ package dtos
 
 import (
 	"fmt"
-	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 	"time"
+
+	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/utils"
@@ -115,6 +116,43 @@ func MapAppToDTO(app *database.App) AppDTO {
 		IDTokenTTL:      app.IDTokenTtl,
 		TokenTTL:        app.TokenTtl,
 		RefreshTokenTTL: app.RefreshTokenTtl,
+	}
+}
+
+func MapWebAppToDTO(
+	app *database.App,
+	authConfig *database.AppAuthCodeConfig,
+) AppDTO {
+	var allowedOrigins []string
+	if len(authConfig.AllowedOrigins) > 0 {
+		allowedOrigins = authConfig.AllowedOrigins
+	}
+
+	return AppDTO{
+		id:                  app.ID,
+		accountID:           app.AccountID,
+		version:             app.Version,
+		Type:                app.Type,
+		Name:                app.Name,
+		ClientID:            app.ClientID,
+		ClientURI:           app.ClientUri,
+		LogoURI:             app.LogoUri.String,
+		TosURI:              app.TosUri.String,
+		PolicyURI:           app.PolicyUri.String,
+		SoftwareID:          app.SoftwareID.String,
+		SoftwareVersion:     app.SoftwareVersion.String,
+		AuthMethods:         app.AuthMethods,
+		GrantTypes:          app.GrantTypes,
+		DefaultScopes:       app.DefaultScopes,
+		UsernameColumn:      app.UsernameColumn,
+		AuthProviders:       app.AuthProviders,
+		IDTokenTTL:          app.IDTokenTtl,
+		TokenTTL:            app.TokenTtl,
+		RefreshTokenTTL:     app.RefreshTokenTtl,
+		CallbackURIs:        authConfig.CallbackUris,
+		LogoutURIs:          authConfig.LogoutUris,
+		AllowedOrigins:      allowedOrigins,
+		CodeChallengeMethod: authConfig.CodeChallengeMethod,
 	}
 }
 

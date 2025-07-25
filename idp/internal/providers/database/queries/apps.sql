@@ -7,6 +7,7 @@
 -- name: CreateApp :one
 INSERT INTO "apps" (
   "account_id",
+  "account_public_id",
   "type",
   "name",
   "client_id",
@@ -22,7 +23,8 @@ INSERT INTO "apps" (
   $5,
   $6,
   $7,
-  $8
+  $8,
+  $9
 ) RETURNING *;
 
 
@@ -34,6 +36,11 @@ LIMIT 1;
 -- name: FindAppByClientID :one
 SELECT * FROM "apps"
 WHERE "client_id" = $1 LIMIT 1;
+
+-- name: FindAppByClientIDAndAccountPublicID :one
+SELECT * FROM "apps"
+WHERE "client_id" = $1 AND "account_public_id" = $2
+LIMIT 1;
 
 -- name: FindAppByClientIDAndVersion :one
 SELECT * FROM "apps"
@@ -52,8 +59,7 @@ SET "name" = $2,
     "tos_uri" = $6,
     "policy_uri" = $7,
     "software_id" = $8,
-    "software_version" = $9,
-    "auth_methods" = $10
+    "software_version" = $9
 WHERE "id" = $1
 RETURNING *;
 
@@ -61,38 +67,38 @@ RETURNING *;
 DELETE FROM "apps"
 WHERE "id" = $1;
 
--- name: FindPaginatedAppsByAccountIDOrderedByID :many
+-- name: FindPaginatedAppsByAccountPublicIDOrderedByID :many
 SELECT * FROM "apps"
-WHERE "account_id" = $1
+WHERE "account_public_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3;
 
--- name: FindPaginatedAppsByAccountIDOrderedByName :many
+-- name: FindPaginatedAppsByAccountPublicIDOrderedByName :many
 SELECT * FROM "apps"
-WHERE "account_id" = $1
+WHERE "account_public_id" = $1
 ORDER BY "name" ASC
 OFFSET $2 LIMIT $3;
 
--- name: CountAppsByAccountID :one
+-- name: CountAppsByAccountPublicID :one
 SELECT COUNT("id") FROM "apps"
-WHERE "account_id" = $1
+WHERE "account_public_id" = $1
 LIMIT 1;
 
--- name: FilterAppsByNameAndByAccountIDOrderedByID :many
+-- name: FilterAppsByNameAndByAccountPublicIDOrderedByID :many
 SELECT * FROM "apps"
-WHERE "account_id" = $1 AND "name" ILIKE $2
+WHERE "account_public_id" = $1 AND "name" ILIKE $2
 ORDER BY "id" DESC
 OFFSET $3 LIMIT $4;
 
--- name: FilterAppsByNameAndByAccountIDOrderedByName :many
+-- name: FilterAppsByNameAndByAccountPublicIDOrderedByName :many
 SELECT * FROM "apps"
-WHERE "account_id" = $1 AND "name" ILIKE $2
+WHERE "account_public_id" = $1 AND "name" ILIKE $2
 ORDER BY "name" ASC
 OFFSET $3 LIMIT $4;
 
--- name: CountFilteredAppsByNameAndByAccountID :one
+-- name: CountFilteredAppsByNameAndByAccountPublicID :one
 SELECT COUNT("id") FROM "apps"
-WHERE "account_id" = $1 AND "name" ILIKE $2
+WHERE "account_public_id" = $1 AND "name" ILIKE $2
 LIMIT 1;
 
 -- name: UpdateAppVersion :one

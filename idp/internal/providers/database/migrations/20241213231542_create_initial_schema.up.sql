@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-07-22T13:21:18.081Z
+-- Generated at: 2025-07-25T09:28:31.303Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -391,6 +391,7 @@ CREATE TABLE "user_credentials_keys" (
 CREATE TABLE "apps" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
+  "account_public_id" uuid NOT NULL,
   "type" app_type NOT NULL,
   "name" varchar(50) NOT NULL,
   "client_id" varchar(22) NOT NULL,
@@ -681,6 +682,10 @@ CREATE INDEX "apps_account_id_idx" ON "apps" ("account_id");
 CREATE INDEX "apps_type_idx" ON "apps" ("type");
 
 CREATE UNIQUE INDEX "apps_client_id_uidx" ON "apps" ("client_id");
+
+CREATE INDEX "apps_client_id_account_public_id_idx" ON "apps" ("client_id", "account_public_id");
+
+CREATE INDEX "apps_account_public_id_idx" ON "apps" ("account_public_id");
 
 CREATE INDEX "apps_name_idx" ON "apps" ("name");
 

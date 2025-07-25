@@ -567,24 +567,12 @@ func (s *Services) rotateAccountCredentialsKey(
 			return dtos.ClientCredentialsSecretDTO{}, serviceErr
 		}
 
-		return s.createAccountCredentialsKey(ctx, createAccountCredentialsKeyOptions{
-			requestID:            opts.requestID,
-			accountID:            opts.accountID,
-			accountPublicID:      opts.accountPublicID,
-			accountCredentialsID: opts.accountCredentialsID,
-			cryptoSuite:          opts.cryptoSuite,
-		})
+		return s.createAccountCredentialsKey(ctx, createAccountCredentialsKeyOptions(opts))
 	}
 
 	if isMoreThanHalfExpiry(currentKey.CreatedAt, currentKey.ExpiresAt) {
 		logger.InfoContext(ctx, "Current account credentials key is more than half expired, creating a new one")
-		return s.createAccountCredentialsKey(ctx, createAccountCredentialsKeyOptions{
-			requestID:            opts.requestID,
-			accountID:            opts.accountID,
-			accountPublicID:      opts.accountPublicID,
-			accountCredentialsID: opts.accountCredentialsID,
-			cryptoSuite:          opts.cryptoSuite,
-		})
+		return s.createAccountCredentialsKey(ctx, createAccountCredentialsKeyOptions(opts))
 	}
 
 	logger.WarnContext(ctx, "Current account credentials key is not more than half expired, returning it")
