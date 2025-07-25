@@ -20,3 +20,12 @@ INSERT INTO "app_auth_code_configs" (
     $5,
     $6
 ) RETURNING *;
+
+-- name: UpdateAppAuthCodeConfig :one
+UPDATE "app_auth_code_configs" SET
+    "callback_uris" = $3,
+    "logout_uris" = $4,
+    "allowed_origins" = $5,
+    "code_challenge_method" = $6
+WHERE "account_id" = $1 AND "app_id" = $2
+RETURNING *;

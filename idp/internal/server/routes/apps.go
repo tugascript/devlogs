@@ -19,6 +19,12 @@ func (r *Routes) AppsRoutes(app *fiber.App) {
 	appsWriteScope := r.controllers.ScopeMiddleware(tokens.AccountScopeAppsWrite)
 	appsReadScope := r.controllers.ScopeMiddleware(tokens.AccountScopeAppsRead)
 
+	router.Post(
+		paths.Base,
+		r.controllers.AccountAccessClaimsMiddleware,
+		appsWriteScope,
+		r.controllers.CreateApp,
+	)
 	router.Get(
 		paths.Base,
 		r.controllers.AccountAccessClaimsMiddleware,

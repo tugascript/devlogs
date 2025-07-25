@@ -309,10 +309,7 @@ func (s *Services) BuildGetEncAccountDEKfn(
 			}
 
 			logger.InfoContext(ctx, "DEK not found in database, creating new one...")
-			kekKID, serviceErr := s.GetOrCreateAccountKEK(ctx, GetOrCreateAccountKEKOptions{
-				RequestID: opts.RequestID,
-				AccountID: opts.AccountID,
-			})
+			kekKID, serviceErr := s.GetOrCreateAccountKEK(ctx, GetOrCreateAccountKEKOptions(opts))
 			if serviceErr != nil {
 				logger.ErrorContext(ctx, "Failed to get or create account KEK", "serviceError", serviceErr)
 				return "", "", uuid.Nil, serviceErr
