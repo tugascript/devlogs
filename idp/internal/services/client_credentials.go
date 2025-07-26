@@ -58,13 +58,13 @@ func (s *Services) clientCredentialsSecret(
 	secret, err := utils.GenerateBase64Secret(clientCredentialsSecretBytes)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate secret", "error", err)
-		return database.CreateCredentialsSecretParams{}, "", exceptions.NewServerError()
+		return database.CreateCredentialsSecretParams{}, "", exceptions.NewInternalServerError()
 	}
 
 	hashedSecret, err := utils.Argon2HashString(secret)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash secret", "error", err)
-		return database.CreateCredentialsSecretParams{}, "", exceptions.NewServerError()
+		return database.CreateCredentialsSecretParams{}, "", exceptions.NewInternalServerError()
 	}
 
 	return database.CreateCredentialsSecretParams{
@@ -101,7 +101,7 @@ func buildES256Jwk(
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate key pair", "error", err)
-		return "", nil, nil, exceptions.NewServerError()
+		return "", nil, nil, exceptions.NewInternalServerError()
 	}
 
 	pub := priv.Public().(*ecdsa.PublicKey)
@@ -111,7 +111,7 @@ func buildES256Jwk(
 	jsonJwk, err := json.Marshal(dbJwk)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to marshal jwk", "error", err)
-		return "", nil, nil, exceptions.NewServerError()
+		return "", nil, nil, exceptions.NewInternalServerError()
 	}
 
 	privateJWK := utils.EncodeP256JwkPrivate(priv, kid)
@@ -127,7 +127,7 @@ func buildEdDSAJwk(
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate key pair", "error", err)
-		return "", nil, nil, exceptions.NewServerError()
+		return "", nil, nil, exceptions.NewInternalServerError()
 	}
 
 	kid := utils.ExtractEd25519KeyID(pub)
@@ -135,7 +135,7 @@ func buildEdDSAJwk(
 	jsonJwk, err := json.Marshal(dbJwk)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to marshal jwk", "error", err)
-		return "", nil, nil, exceptions.NewServerError()
+		return "", nil, nil, exceptions.NewInternalServerError()
 	}
 
 	privateJWK := utils.EncodeEd25519JwkPrivate(priv, pub, kid)
@@ -162,7 +162,7 @@ func (s *Services) buildClientCredentialsJwk(
 		return buildEdDSAJwk(ctx, logger)
 	default:
 		logger.ErrorContext(ctx, "Unsupported crypto suite", "cryptoSuite", opts.cryptoSuite)
-		return "", nil, nil, exceptions.NewServerError()
+		return "", nil, nil, exceptions.NewInternalServerError()
 	}
 }
 
@@ -178,7 +178,7 @@ func (s *Services) clientCredentialsKey(
 	cryptoSuite, err := mapCryptoSuite(opts.cryptoSuite)
 	if err != nil {
 		logger.ErrorContext(ctx, "Invalid crypto suite", "error", err)
-		return database.CreateCredentialsKeyParams{}, nil, exceptions.NewServerError()
+		return database.CreateCredentialsKeyParams{}, nil, exceptions.NewInternalServerError()
 	}
 
 	kid, jsonJwk, privJwk, serviceErr := s.buildClientCredentialsJwk(ctx, buildClientCredentialsJwkOptions{

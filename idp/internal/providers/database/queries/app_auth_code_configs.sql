@@ -21,6 +21,10 @@ INSERT INTO "app_auth_code_configs" (
     $6
 ) RETURNING *;
 
+-- name: FindAppAuthCodeConfig :one
+SELECT * FROM "app_auth_code_configs"
+WHERE "app_id" = $1 LIMIT 1;
+
 -- name: UpdateAppAuthCodeConfig :one
 UPDATE "app_auth_code_configs" SET
     "callback_uris" = $3,

@@ -40,7 +40,7 @@ func (s *Services) createAndCacheGlobalKEK(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate global KEK", "error", err)
-		return uuid.Nil, exceptions.NewServerError()
+		return uuid.Nil, exceptions.NewInternalServerError()
 	}
 
 	if err := s.cache.SaveKEKUUID(ctx, cache.SaveKEKUUIDOptions{
@@ -67,7 +67,7 @@ func (s *Services) getAndCacheGlobalKEK(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get global KEK", "error", err)
-		return uuid.Nil, exceptions.NewServerError()
+		return uuid.Nil, exceptions.NewInternalServerError()
 	}
 	if ok {
 		return kek, nil
@@ -92,7 +92,7 @@ func (s *Services) getAndCacheGlobalKEK(
 			Prefix:    string(database.KekUsageGlobal),
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache global KEK", "error", err)
-			return uuid.Nil, exceptions.NewServerError()
+			return uuid.Nil, exceptions.NewInternalServerError()
 		}
 
 		logger.InfoContext(ctx, "Global KEK found in database", "kid", kekEntity.Kid)
@@ -111,7 +111,7 @@ func (s *Services) getAndCacheGlobalKEK(
 		},
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to rotate global KEK", "error", err)
-		return uuid.Nil, exceptions.NewServerError()
+		return uuid.Nil, exceptions.NewInternalServerError()
 	}
 
 	if err := s.cache.SaveKEKUUID(ctx, cache.SaveKEKUUIDOptions{
@@ -120,7 +120,7 @@ func (s *Services) getAndCacheGlobalKEK(
 		Prefix:    string(database.KekUsageGlobal),
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to cache global KEK", "error", err)
-		return uuid.Nil, exceptions.NewServerError()
+		return uuid.Nil, exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "Global KEK rotated successfully")
@@ -203,7 +203,7 @@ func (s *Services) createAndCacheAccountKEK(
 		Prefix:    fmt.Sprintf("%s:%d", database.KekUsageAccount, opts.accountID),
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to cache account KEK", "error", err)
-		serviceErr = exceptions.NewServerError()
+		serviceErr = exceptions.NewInternalServerError()
 		return uuid.Nil, serviceErr
 	}
 
@@ -229,7 +229,7 @@ func (s *Services) getAndCacheAccountKEK(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get account KEK", "error", err)
-		return uuid.Nil, exceptions.NewServerError()
+		return uuid.Nil, exceptions.NewInternalServerError()
 	}
 	if ok {
 		logger.InfoContext(ctx, "Account KEK found in cache", "kid", kek)
@@ -255,7 +255,7 @@ func (s *Services) getAndCacheAccountKEK(
 			Prefix:    prefix,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache account KEK", "error", err)
-			return uuid.Nil, exceptions.NewServerError()
+			return uuid.Nil, exceptions.NewInternalServerError()
 		}
 
 		logger.InfoContext(ctx, "Account KEK found in database", "kid", kekEntity.Kid)
@@ -274,7 +274,7 @@ func (s *Services) getAndCacheAccountKEK(
 		},
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to rotate account KEK", "error", err)
-		return uuid.Nil, exceptions.NewServerError()
+		return uuid.Nil, exceptions.NewInternalServerError()
 	}
 
 	if err := s.cache.SaveKEKUUID(ctx, cache.SaveKEKUUIDOptions{
@@ -283,7 +283,7 @@ func (s *Services) getAndCacheAccountKEK(
 		Prefix:    prefix,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to cache account KEK", "error", err)
-		return uuid.Nil, exceptions.NewServerError()
+		return uuid.Nil, exceptions.NewInternalServerError()
 	}
 
 	return kekEntity.Kid, nil

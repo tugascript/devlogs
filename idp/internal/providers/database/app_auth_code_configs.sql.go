@@ -66,6 +66,28 @@ func (q *Queries) CreateAppAuthCodeConfig(ctx context.Context, arg CreateAppAuth
 	return i, err
 }
 
+const findAppAuthCodeConfig = `-- name: FindAppAuthCodeConfig :one
+SELECT id, account_id, app_id, callback_uris, logout_uris, allowed_origins, code_challenge_method, created_at, updated_at FROM "app_auth_code_configs"
+WHERE "app_id" = $1 LIMIT 1
+`
+
+func (q *Queries) FindAppAuthCodeConfig(ctx context.Context, appID int32) (AppAuthCodeConfig, error) {
+	row := q.db.QueryRow(ctx, findAppAuthCodeConfig, appID)
+	var i AppAuthCodeConfig
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.AppID,
+		&i.CallbackUris,
+		&i.LogoutUris,
+		&i.AllowedOrigins,
+		&i.CodeChallengeMethod,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateAppAuthCodeConfig = `-- name: UpdateAppAuthCodeConfig :one
 UPDATE "app_auth_code_configs" SET
     "callback_uris" = $3,

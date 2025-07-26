@@ -87,7 +87,7 @@ func (s *Services) ProcessUserAuthHeader(
 	keyType, err := mapAuthTokenTypeToKeyType(opts.TokenType)
 	if err != nil {
 		logger.ErrorContext(ctx, "Unsupported token type", "error", err)
-		return tokens.UserAuthClaims{}, tokens.AppClaims{}, nil, exceptions.NewServerError()
+		return tokens.UserAuthClaims{}, tokens.AppClaims{}, nil, exceptions.NewInternalServerError()
 	}
 
 	userClaims, appClaims, scopes, _, _, err := s.jwt.VerifyUserAuthToken(
@@ -130,7 +130,7 @@ func (s *Services) ProcessUserPurposeHeader(
 	keyType, err := mapPurposeTokenTypeToKeyType(opts.TokenType)
 	if err != nil {
 		logger.ErrorContext(ctx, "Unsupported token type", "error", err)
-		return tokens.UserPurposeClaims{}, tokens.AppClaims{}, exceptions.NewServerError()
+		return tokens.UserPurposeClaims{}, tokens.AppClaims{}, exceptions.NewInternalServerError()
 	}
 
 	userClaims, appClaims, purpose, err := s.jwt.VerifyUserPurposeToken(
@@ -184,7 +184,7 @@ func (s *Services) sendUserConfirmationEmail(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create user token", "error", err)
-		return exceptions.NewServerError()
+		return exceptions.NewInternalServerError()
 	}
 
 	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
@@ -218,7 +218,7 @@ func (s *Services) sendUserConfirmationEmail(
 		ConfirmationToken: signedToken,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to publish confirmation email", "error", err)
-		return exceptions.NewServerError()
+		return exceptions.NewInternalServerError()
 	}
 
 	return nil
@@ -318,7 +318,7 @@ func (s *Services) generateFullUserAuthDTO(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create access token", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
 	signedAccessToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
@@ -358,7 +358,7 @@ func (s *Services) generateFullUserAuthDTO(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create refresh token", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
 	signedRefreshToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
@@ -607,14 +607,14 @@ func (s *Services) LoginUser(
 			AppID:     appDTO.ID(),
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to create app profile", "error", err)
-			return dtos.AuthDTO{}, exceptions.NewServerError()
+			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 		}
 	}
 
 	passwordVerified, err := utils.Argon2CompareHash(opts.Password, userDTO.Password())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify password", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 	if !passwordVerified {
 		logger.WarnContext(ctx, "Passwords do not match")
@@ -651,7 +651,7 @@ func (s *Services) LoginUser(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create two-factor authentication token", "error", err)
-			return dtos.AuthDTO{}, exceptions.NewServerError()
+			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 		}
 
 		signedTwoFAToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
@@ -686,7 +686,7 @@ func (s *Services) LoginUser(
 			})
 			if err != nil {
 				logger.ErrorContext(ctx, "Failed to add two-factor Code", "error", err)
-				return dtos.AuthDTO{}, exceptions.NewServerError()
+				return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 			}
 
 			if err := s.mail.PublishUser2FAEmail(ctx, mailer.User2FAEmailOptions{
@@ -696,7 +696,7 @@ func (s *Services) LoginUser(
 				Code:      code,
 			}); err != nil {
 				logger.ErrorContext(ctx, "Failed to publish 2FA email", "error", err)
-				return dtos.AuthDTO{}, exceptions.NewServerError()
+				return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 			}
 		}
 
@@ -757,7 +757,7 @@ func (s *Services) verifyUserTotp(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify TOTP Code", "error", err)
-		return false, exceptions.NewServerError()
+		return false, exceptions.NewInternalServerError()
 	}
 
 	if !verified {
@@ -794,7 +794,7 @@ func (s *Services) verifyUserEmailCode(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify two factor Code", "error", err)
-		return false, exceptions.NewServerError()
+		return false, exceptions.NewInternalServerError()
 	}
 
 	if !ok {
@@ -975,7 +975,7 @@ func (s *Services) LogoutUser(
 	if err != nil {
 		if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
 			logger.ErrorContext(ctx, "Failed to fetch revoked token", "error", err)
-			return exceptions.NewServerError()
+			return exceptions.NewInternalServerError()
 		}
 	} else {
 		logger.WarnContext(ctx, "Token is revoked", "revokedAt", blt.CreatedAt)
@@ -987,7 +987,7 @@ func (s *Services) LogoutUser(
 		ExpiresAt: exp,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to revoke token", "error", err)
-		return exceptions.NewServerError()
+		return exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "User logged out successfully")
@@ -1037,7 +1037,7 @@ func (s *Services) RefreshUserAccess(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	} else if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
 		logger.ErrorContext(ctx, "Failed to check blacklisted token", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
 	userDTO, serviceErr := s.GetUserByPublicIDAndVersion(ctx, GetUserByPublicIDAndVersionOptions{
@@ -1181,7 +1181,7 @@ func (s *Services) ForgotUserPassword(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create reset token", "error", err)
-		return dtos.MessageDTO{}, exceptions.NewServerError()
+		return dtos.MessageDTO{}, exceptions.NewInternalServerError()
 	}
 
 	signedResetToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
@@ -1215,7 +1215,7 @@ func (s *Services) ForgotUserPassword(
 		// TODO: add from app type ResetURI: appDTO.ResetURI,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to publish reset email", "error", err)
-		return dtos.MessageDTO{}, exceptions.NewServerError()
+		return dtos.MessageDTO{}, exceptions.NewInternalServerError()
 	}
 
 	return dtos.NewMessageDTO(forgotUserMessage), nil
@@ -1321,12 +1321,12 @@ func (s *Services) ResetUserPassword(
 	hashedPassword, err := utils.Argon2HashString(opts.Password)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash password", "error", err)
-		return dtos.MessageDTO{}, exceptions.NewServerError()
+		return dtos.MessageDTO{}, exceptions.NewInternalServerError()
 	}
 
 	if err := password.Scan(hashedPassword); err != nil {
 		logger.ErrorContext(ctx, "Failed pass password to text", "error", err)
-		return dtos.MessageDTO{}, exceptions.NewServerError()
+		return dtos.MessageDTO{}, exceptions.NewInternalServerError()
 	}
 
 	_, err = s.database.FindUserAuthProviderByUserIDAndProvider(ctx, database.FindUserAuthProviderByUserIDAndProviderParams{
@@ -1347,7 +1347,7 @@ func (s *Services) ResetUserPassword(
 	}
 	if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
 		logger.ErrorContext(ctx, "Failed to find user auth provider", "error", err)
-		return dtos.MessageDTO{}, exceptions.NewServerError()
+		return dtos.MessageDTO{}, exceptions.NewInternalServerError()
 	}
 
 	qrs, txn, err := s.database.BeginTx(ctx)

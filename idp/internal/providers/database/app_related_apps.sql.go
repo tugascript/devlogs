@@ -37,3 +37,69 @@ func (q *Queries) CreateAppRelatedApp(ctx context.Context, arg CreateAppRelatedA
 	_, err := q.db.Exec(ctx, createAppRelatedApp, arg.AppID, arg.RelatedAppID, arg.AccountID)
 	return err
 }
+
+const deleteAppRelatedAppsByAppIDAndRelatedAppIDs = `-- name: DeleteAppRelatedAppsByAppIDAndRelatedAppIDs :exec
+DELETE FROM "app_related_apps"
+WHERE "app_id" = $1 AND "related_app_id" IN ($2)
+`
+
+type DeleteAppRelatedAppsByAppIDAndRelatedAppIDsParams struct {
+	AppID         int32
+	RelatedAppIds []int32
+}
+
+func (q *Queries) DeleteAppRelatedAppsByAppIDAndRelatedAppIDs(ctx context.Context, arg DeleteAppRelatedAppsByAppIDAndRelatedAppIDsParams) error {
+	_, err := q.db.Exec(ctx, deleteAppRelatedAppsByAppIDAndRelatedAppIDs, arg.AppID, arg.RelatedAppIds)
+	return err
+}
+
+const findRelatedAppsByAppID = `-- name: FindRelatedAppsByAppID :many
+SELECT a.id, a.account_id, a.account_public_id, a.type, a.name, a.client_id, a.version, a.client_uri, a.logo_uri, a.tos_uri, a.policy_uri, a.software_id, a.software_version, a.auth_methods, a.grant_types, a.default_scopes, a.auth_providers, a.username_column, a.id_token_ttl, a.token_ttl, a.refresh_token_ttl, a.created_at, a.updated_at FROM "apps" a
+INNER JOIN "app_related_apps" ara ON a.id = ara.related_app_id
+WHERE ara.app_id = $1
+ORDER BY a.name ASC
+`
+
+func (q *Queries) FindRelatedAppsByAppID(ctx context.Context, appID int32) ([]App, error) {
+	rows, err := q.db.Query(ctx, findRelatedAppsByAppID, appID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []App{}
+	for rows.Next() {
+		var i App
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.AccountPublicID,
+			&i.Type,
+			&i.Name,
+			&i.ClientID,
+			&i.Version,
+			&i.ClientUri,
+			&i.LogoUri,
+			&i.TosUri,
+			&i.PolicyUri,
+			&i.SoftwareID,
+			&i.SoftwareVersion,
+			&i.AuthMethods,
+			&i.GrantTypes,
+			&i.DefaultScopes,
+			&i.AuthProviders,
+			&i.UsernameColumn,
+			&i.IDTokenTtl,
+			&i.TokenTtl,
+			&i.RefreshTokenTtl,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

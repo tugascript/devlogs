@@ -170,7 +170,7 @@ func (c *Controllers) ScopeMiddleware(scope tokens.AccountScope) func(*fiber.Ctx
 			return serviceErrorResponse(logger, ctx, serviceErr)
 		}
 
-		scopesHashset := utils.MapSliceToHashSet(scopes)
+		scopesHashset := utils.SliceToHashSet(scopes)
 		if scopesHashset.Contains(scope) || scopesHashset.Contains(tokens.AccountScopeAdmin) {
 			return ctx.Next()
 		}
@@ -187,7 +187,7 @@ func (c *Controllers) AdminScopeMiddleware(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	scopesHashset := utils.MapSliceToHashSet(scopes)
+	scopesHashset := utils.SliceToHashSet(scopes)
 	if !scopesHashset.Contains(tokens.AccountScopeAdmin) {
 		return serviceErrorResponse(logger, ctx, exceptions.NewForbiddenError())
 	}

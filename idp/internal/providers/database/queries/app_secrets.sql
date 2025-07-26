@@ -14,3 +14,24 @@ INSERT INTO "app_secrets" (
     $2,
     $3
 );
+
+-- name: FindPaginatedAppSecretsByAppID :many
+SELECT "csr".* FROM "credentials_secrets" "csr"
+LEFT JOIN "app_secrets" "as" ON "as"."credentials_secret_id" = "csr"."id"
+WHERE "as"."app_id" = $1
+ORDER BY "csr"."expires_at" DESC
+OFFSET $2 LIMIT $3;
+
+-- name: CountAppSecretsByAppID :one
+SELECT COUNT("csr"."id") FROM "credentials_secrets" "csr"
+LEFT JOIN "app_secrets" "as" ON "as"."credentials_secret_id" = "csr"."id"
+WHERE "as"."app_id" = $1
+LIMIT 1;
+
+-- name: FindAppSecretByAppIDAndSecretID :one
+SELECT "csr".* FROM "credentials_secrets" "csr"
+LEFT JOIN "app_secrets" "as" ON "as"."credentials_secret_id" = "csr"."id"
+WHERE 
+    "as"."app_id" = $1 AND 
+    "csr"."secret_id" = $2
+LIMIT 1;

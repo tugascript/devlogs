@@ -156,7 +156,7 @@ func (p *Providers) GetGoogleUserData(
 	body, status, err := getUserResponse(logger, ctx, googleUserURL, opts.Token)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get Google user data", "error", err)
-		return UserData{}, exceptions.NewServerError()
+		return UserData{}, exceptions.NewInternalServerError()
 	}
 
 	userRes := GoogleUserResponse{}
@@ -167,7 +167,7 @@ func (p *Providers) GetGoogleUserData(
 			return UserData{}, exceptions.NewUnauthorizedError()
 		}
 
-		return UserData{}, exceptions.NewServerError()
+		return UserData{}, exceptions.NewInternalServerError()
 	}
 
 	if opts.Scopes != nil {
@@ -192,13 +192,13 @@ func (p *Providers) GetGoogleUserData(
 					return UserData{}, exceptions.NewForbiddenError()
 				}
 
-				return UserData{}, exceptions.NewServerError()
+				return UserData{}, exceptions.NewInternalServerError()
 			}
 
 			meRes := GoogleMeResponse{}
 			if err := json.Unmarshal(body, &meRes); err != nil {
 				logger.ErrorContext(ctx, "Failed to parse Google ME data", "error", err)
-				return UserData{}, exceptions.NewServerError()
+				return UserData{}, exceptions.NewInternalServerError()
 			}
 
 			if len(meRes.Addresses) > 0 {
@@ -235,13 +235,13 @@ func (p *Providers) GetGoogleUserMap(
 			return "", nil, exceptions.NewUnauthorizedError()
 		}
 
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 
 	userMap := make(map[string]any)
 	if err = json.Unmarshal(body, &userMap); err != nil {
 		logger.ErrorContext(ctx, "Failed to unmarshal user data", "error", err)
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 
 	if len(userMap) == 0 {
@@ -271,13 +271,13 @@ func (p *Providers) GetGoogleUserMap(
 					return "", nil, exceptions.NewForbiddenError()
 				}
 
-				return "", nil, exceptions.NewServerError()
+				return "", nil, exceptions.NewInternalServerError()
 			}
 
 			meRes := GoogleMeResponse{}
 			if err := json.Unmarshal(body, &meRes); err != nil {
 				logger.ErrorContext(ctx, "Failed to parse Google ME data", "error", err)
-				return "", nil, exceptions.NewServerError()
+				return "", nil, exceptions.NewInternalServerError()
 			}
 
 			if len(meRes.Addresses) > 0 {

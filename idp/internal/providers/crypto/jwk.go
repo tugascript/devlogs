@@ -94,7 +94,7 @@ func (e *Crypto) GenerateEd25519KeyPair(
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate key pair", "error", err)
-		return KeyPair{}, exceptions.NewServerError()
+		return KeyPair{}, exceptions.NewInternalServerError()
 	}
 
 	dekID, encryptedKey, serviceErr := e.EncryptWithDEK(
@@ -114,7 +114,7 @@ func (e *Crypto) GenerateEd25519KeyPair(
 	publicJwk := utils.EncodeEd25519Jwk(pub, kid)
 	if _, err := opts.StoreFN(dekID, utils.SupportedCryptoSuiteEd25519, kid, encryptedKey, &publicJwk); err != nil {
 		logger.ErrorContext(ctx, "Failed to store private key", "error", err)
-		return KeyPair{}, exceptions.NewServerError()
+		return KeyPair{}, exceptions.NewInternalServerError()
 	}
 
 	if ok := e.localCache.SetWithTTL(
@@ -124,7 +124,7 @@ func (e *Crypto) GenerateEd25519KeyPair(
 		e.jwkTTL,
 	); !ok {
 		logger.ErrorContext(ctx, "Failed to cache private key", "kid", kid)
-		return KeyPair{}, exceptions.NewServerError()
+		return KeyPair{}, exceptions.NewInternalServerError()
 
 	}
 	return KeyPair{
@@ -188,7 +188,7 @@ func (e *Crypto) getDecryptedEd25519PrivateKey(
 	privKey, err := decodeEd25519PrivateKeyBytes(base64PrivKey)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decode private key", "error", err)
-		return nil, exceptions.NewServerError()
+		return nil, exceptions.NewInternalServerError()
 	}
 
 	if ok := e.localCache.SetWithTTL(
@@ -198,7 +198,7 @@ func (e *Crypto) getDecryptedEd25519PrivateKey(
 		e.jwkTTL,
 	); !ok {
 		logger.ErrorContext(ctx, "Failed to cache private key")
-		return nil, exceptions.NewServerError()
+		return nil, exceptions.NewInternalServerError()
 	}
 
 	logger.DebugContext(ctx, "Ed25519 private key decrypted and cached")
@@ -228,7 +228,7 @@ func (e *Crypto) GenerateES256KeyPair(
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate ES256 private key", "error", err)
-		return KeyPair{}, exceptions.NewServerError()
+		return KeyPair{}, exceptions.NewInternalServerError()
 	}
 
 	encodedPrivateKey := encodeES256PrivateKeyBytes(priv)
@@ -249,7 +249,7 @@ func (e *Crypto) GenerateES256KeyPair(
 	publicJwk := utils.EncodeP256Jwk(&priv.PublicKey, kid)
 	if _, err := opts.StoreFN(dekID, utils.SupportedCryptoSuiteES256, kid, encryptedPrivateKey, &publicJwk); err != nil {
 		logger.ErrorContext(ctx, "Failed to store private key", "error", err)
-		return KeyPair{}, exceptions.NewServerError()
+		return KeyPair{}, exceptions.NewInternalServerError()
 	}
 
 	if ok := e.localCache.SetWithTTL(
@@ -259,7 +259,7 @@ func (e *Crypto) GenerateES256KeyPair(
 		e.jwkTTL,
 	); !ok {
 		logger.ErrorContext(ctx, "Failed to cache private key", "kid", kid)
-		return KeyPair{}, exceptions.NewServerError()
+		return KeyPair{}, exceptions.NewInternalServerError()
 	}
 
 	return KeyPair{
@@ -326,7 +326,7 @@ func (e *Crypto) getDecryptedES256PrivateKey(
 		privKey, err := decodeES256PrivateKeyBytes(string(cachedKey))
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to decode private key", "error", err)
-			return ecdsa.PrivateKey{}, exceptions.NewServerError()
+			return ecdsa.PrivateKey{}, exceptions.NewInternalServerError()
 		}
 
 		return privKey, nil
@@ -351,7 +351,7 @@ func (e *Crypto) getDecryptedES256PrivateKey(
 	privKey, err := decodeES256PrivateKeyBytes(base64PrivKey)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decode private key", "error", err)
-		return ecdsa.PrivateKey{}, exceptions.NewServerError()
+		return ecdsa.PrivateKey{}, exceptions.NewInternalServerError()
 	}
 
 	if ok := e.localCache.SetWithTTL(
@@ -361,7 +361,7 @@ func (e *Crypto) getDecryptedES256PrivateKey(
 		e.jwkTTL,
 	); !ok {
 		logger.ErrorContext(ctx, "Failed to cache private key")
-		return ecdsa.PrivateKey{}, exceptions.NewServerError()
+		return ecdsa.PrivateKey{}, exceptions.NewInternalServerError()
 	}
 
 	logger.DebugContext(ctx, "ES256 private key decrypted and cached")
@@ -417,7 +417,7 @@ func (e *Crypto) SignToken(
 		signedToken, err := opts.Token.SignedString(privKey)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to sign token", "error", err)
-			return "", exceptions.NewServerError()
+			return "", exceptions.NewInternalServerError()
 		}
 
 		return signedToken, nil
@@ -446,12 +446,12 @@ func (e *Crypto) SignToken(
 		signedToken, err := opts.Token.SignedString(&privKey)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to sign token", "error", err)
-			return "", exceptions.NewServerError()
+			return "", exceptions.NewInternalServerError()
 		}
 
 		return signedToken, nil
 	default:
 		logger.ErrorContext(ctx, "Unsupported signing method", "method", opts.Token.Method.Alg())
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 }

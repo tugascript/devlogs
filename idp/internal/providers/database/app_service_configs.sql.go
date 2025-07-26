@@ -16,14 +16,16 @@ INSERT INTO "app_service_configs" (
     "app_id",
     "auth_methods",
     "grant_types",
-    "allowed_domains"
+    "allowed_domains",
+    "issuers"
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
-    $5
-) RETURNING id, account_id, app_id, auth_methods, grant_types, allowed_domains, created_at, updated_at
+    $5,
+    $6
+) RETURNING id, account_id, app_id, issuers, auth_methods, grant_types, allowed_domains, created_at, updated_at
 `
 
 type CreateAppServiceConfigParams struct {
@@ -32,6 +34,7 @@ type CreateAppServiceConfigParams struct {
 	AuthMethods    []AuthMethod
 	GrantTypes     []GrantType
 	AllowedDomains []string
+	Issuers        []string
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -46,12 +49,74 @@ func (q *Queries) CreateAppServiceConfig(ctx context.Context, arg CreateAppServi
 		arg.AuthMethods,
 		arg.GrantTypes,
 		arg.AllowedDomains,
+		arg.Issuers,
 	)
 	var i AppServiceConfig
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
 		&i.AppID,
+		&i.Issuers,
+		&i.AuthMethods,
+		&i.GrantTypes,
+		&i.AllowedDomains,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findAppServiceConfig = `-- name: FindAppServiceConfig :one
+SELECT id, account_id, app_id, issuers, auth_methods, grant_types, allowed_domains, created_at, updated_at FROM "app_service_configs"
+WHERE "app_id" = $1 LIMIT 1
+`
+
+func (q *Queries) FindAppServiceConfig(ctx context.Context, appID int32) (AppServiceConfig, error) {
+	row := q.db.QueryRow(ctx, findAppServiceConfig, appID)
+	var i AppServiceConfig
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.AppID,
+		&i.Issuers,
+		&i.AuthMethods,
+		&i.GrantTypes,
+		&i.AllowedDomains,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAppServiceConfig = `-- name: UpdateAppServiceConfig :one
+UPDATE "app_service_configs"
+SET "allowed_domains" = $3,
+    "issuers" = $4,
+    "updated_at" = now()
+WHERE "account_id" = $1 AND "app_id" = $2
+RETURNING id, account_id, app_id, issuers, auth_methods, grant_types, allowed_domains, created_at, updated_at
+`
+
+type UpdateAppServiceConfigParams struct {
+	AccountID      int32
+	AppID          int32
+	AllowedDomains []string
+	Issuers        []string
+}
+
+func (q *Queries) UpdateAppServiceConfig(ctx context.Context, arg UpdateAppServiceConfigParams) (AppServiceConfig, error) {
+	row := q.db.QueryRow(ctx, updateAppServiceConfig,
+		arg.AccountID,
+		arg.AppID,
+		arg.AllowedDomains,
+		arg.Issuers,
+	)
+	var i AppServiceConfig
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.AppID,
+		&i.Issuers,
 		&i.AuthMethods,
 		&i.GrantTypes,
 		&i.AllowedDomains,

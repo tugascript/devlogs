@@ -42,7 +42,7 @@ func mapAccountCredentialsScope(scope string) (database.AccountCredentialsScope,
 
 // NOTE: using a map will lead to a null pointer dereference even if the slice is not empty
 func mapAccountCredentialsScopes(scopes []string) ([]database.AccountCredentialsScope, *exceptions.ServiceError) {
-	scopesSet := utils.MapSliceToHashSet(scopes)
+	scopesSet := utils.SliceToHashSet(scopes)
 	if scopesSet.IsEmpty() {
 		return nil, exceptions.NewValidationError("scopes cannot be empty")
 	}
@@ -114,7 +114,7 @@ func (s *Services) CreateAccountCredentials(
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count account credentials by alias", "error", err)
-		return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
+		return dtos.AccountCredentialsDTO{}, exceptions.NewInternalServerError()
 	}
 	if count > 0 {
 		logger.WarnContext(ctx, "Account credentials alias already exists", "alias", alias)
@@ -222,7 +222,7 @@ func (s *Services) CreateAccountCredentials(
 		return dtos.MapAccountCredentialsToDTOWithSecret(&accountCredentials, clientSecret.SecretID, secret, dbPrms.ExpiresAt), nil
 	default:
 		logger.ErrorContext(ctx, "Invalid auth method", "authMethods", opts.AuthMethods)
-		serviceErr = exceptions.NewServerError()
+		serviceErr = exceptions.NewInternalServerError()
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 }
@@ -353,13 +353,13 @@ func (s *Services) ListAccountCredentialsByAccountPublicID(
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to list account keys", "error", err)
-		return nil, 0, exceptions.NewServerError()
+		return nil, 0, exceptions.NewInternalServerError()
 	}
 
 	count, err := s.database.CountAccountCredentialsByAccountPublicID(ctx, opts.AccountPublicID)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count account keys", "error", err)
-		return nil, 0, exceptions.NewServerError()
+		return nil, 0, exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "Successfully listed account keys by account id")
@@ -416,7 +416,7 @@ func (s *Services) UpdateAccountCredentials(
 		)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to count account credentials by alias", "error", err)
-			return dtos.AccountCredentialsDTO{}, exceptions.NewServerError()
+			return dtos.AccountCredentialsDTO{}, exceptions.NewInternalServerError()
 		}
 		if count > 0 {
 			logger.WarnContext(ctx, "Account credentials alias already exists", "alias", alias)
@@ -706,7 +706,7 @@ func (s *Services) RotateAccountCredentialsSecret(
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
-	amHashSet := utils.MapSliceToHashSet(accountCredentialsDTO.AuthMethods)
+	amHashSet := utils.SliceToHashSet(accountCredentialsDTO.AuthMethods)
 	if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
 		return s.rotateAccountCredentialsKey(ctx, rotateAccountCredentialsKeyOptions{
 			requestID:            opts.RequestID,
@@ -754,7 +754,7 @@ func (s *Services) listAccountCredentialsKeys(
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to find account credentials keys", "error", err)
-		return nil, 0, exceptions.NewServerError()
+		return nil, 0, exceptions.NewInternalServerError()
 	}
 
 	count, err := s.database.CountAccountCredentialKeysByAccountCredentialID(
@@ -763,7 +763,7 @@ func (s *Services) listAccountCredentialsKeys(
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count account credentials keys", "error", err)
-		return nil, 0, exceptions.NewServerError()
+		return nil, 0, exceptions.NewInternalServerError()
 	}
 
 	return utils.MapSlice(keys, dtos.MapCredentialsKeyToDTO), count, nil
@@ -795,7 +795,7 @@ func (s *Services) listAccountCredentialsSecrets(
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to find account credentials secrets", "error", err)
-		return nil, 0, exceptions.NewServerError()
+		return nil, 0, exceptions.NewInternalServerError()
 	}
 
 	count, err := s.database.CountAccountCredentialSecretsByAccountCredentialID(
@@ -804,7 +804,7 @@ func (s *Services) listAccountCredentialsSecrets(
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count account credentials secrets", "error", err)
-		return nil, 0, exceptions.NewServerError()
+		return nil, 0, exceptions.NewInternalServerError()
 	}
 
 	return utils.MapSlice(secrets, dtos.MapCredentialsSecretToDTO), count, nil
@@ -840,7 +840,7 @@ func (s *Services) ListAccountCredentialsSecretsOrKeys(
 		return nil, 0, serviceErr
 	}
 
-	amHashSet := utils.MapSliceToHashSet(accountCredentialsDTO.AuthMethods)
+	amHashSet := utils.SliceToHashSet(accountCredentialsDTO.AuthMethods)
 	if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
 		return s.listAccountCredentialsKeys(ctx, listAccountCredentialsKeysOptions{
 			requestID:            opts.RequestID,
@@ -966,7 +966,7 @@ func (s *Services) GetAccountCredentialsSecretOrKey(
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
-	amHashSet := utils.MapSliceToHashSet(accountCredentialsDTO.AuthMethods)
+	amHashSet := utils.SliceToHashSet(accountCredentialsDTO.AuthMethods)
 	if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
 		return s.getAccountCredentialsKeyByID(ctx, getAccountCredentialsKeyByIDOptions{
 			requestID:            opts.RequestID,
@@ -1077,7 +1077,7 @@ func (s *Services) RevokeAccountCredentialsSecretOrKey(
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
-	amHashSet := utils.MapSliceToHashSet(accountCredentialsDTO.AuthMethods)
+	amHashSet := utils.SliceToHashSet(accountCredentialsDTO.AuthMethods)
 	if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
 		return s.revokeAccountCredentialsKey(ctx, revokeAccountCredentialsKeyOptions{
 			requestID:            opts.RequestID,
@@ -1124,7 +1124,7 @@ func (s *Services) listActiveAccountCredentialsKeys(
 		jwk, err := utils.JsonToJWK(k.PublicKey)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to decode public key", "error", err)
-			return nil, exceptions.NewServerError()
+			return nil, exceptions.NewInternalServerError()
 		}
 
 		return jwk, nil
@@ -1158,7 +1158,7 @@ func (s *Services) ListActiveAccountCredentialsKeysWithCache(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get cached account credentials keys", "error", err)
-		return dtos.JWKsDTO{}, "", exceptions.NewServerError()
+		return dtos.JWKsDTO{}, "", exceptions.NewInternalServerError()
 	}
 	if etag != "" {
 		logger.InfoContext(ctx, "Found cached account credentials keys", "etag", etag)
@@ -1181,7 +1181,7 @@ func (s *Services) ListActiveAccountCredentialsKeysWithCache(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to cache account credentials keys", "error", err)
-		return dtos.JWKsDTO{}, "", exceptions.NewServerError()
+		return dtos.JWKsDTO{}, "", exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "Listed and cached account credentials keys", "etag", etag)

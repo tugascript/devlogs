@@ -43,13 +43,25 @@ func (h *HashSet[T]) IsEmpty() bool {
 	return len(h.items) == 0
 }
 
-func MapSliceToHashSet[T comparable](s []T) HashSet[T] {
+func SliceToHashSet[T comparable](s []T) HashSet[T] {
 	h := HashSet[T]{
 		items: make(map[T]struct{}),
 	}
 
 	for _, item := range s {
 		h.Add(item)
+	}
+
+	return h
+}
+
+func MapSliceToHashSet[T any, U comparable](s []T, f func(*T) U) HashSet[U] {
+	h := HashSet[U]{
+		items: make(map[U]struct{}),
+	}
+
+	for _, item := range s {
+		h.Add(f(&item))
 	}
 
 	return h

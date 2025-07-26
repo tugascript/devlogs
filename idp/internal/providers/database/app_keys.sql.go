@@ -9,6 +9,20 @@ import (
 	"context"
 )
 
+const countAppKeysByAppID = `-- name: CountAppKeysByAppID :one
+SELECT COUNT("ckr"."id") FROM "credentials_keys" "ckr"
+LEFT JOIN "app_keys" "ak" ON "ak"."credentials_key_id" = "ckr"."id"
+WHERE "ak"."app_id" = $1
+LIMIT 1
+`
+
+func (q *Queries) CountAppKeysByAppID(ctx context.Context, appID int32) (int64, error) {
+	row := q.db.QueryRow(ctx, countAppKeysByAppID, appID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAppKey = `-- name: CreateAppKey :exec
 
 INSERT INTO "app_keys" (
@@ -36,4 +50,81 @@ type CreateAppKeyParams struct {
 func (q *Queries) CreateAppKey(ctx context.Context, arg CreateAppKeyParams) error {
 	_, err := q.db.Exec(ctx, createAppKey, arg.AppID, arg.CredentialsKeyID, arg.AccountID)
 	return err
+}
+
+const findAppKeyByAppIDAndPublicKID = `-- name: FindAppKeyByAppIDAndPublicKID :one
+SELECT ckr.id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.usage, ckr.account_id, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
+LEFT JOIN "app_keys" "ak" ON "ak"."credentials_key_id" = "ckr"."id"
+WHERE 
+    "ak"."app_id" = $1 AND 
+    "ckr"."public_kid" = $2
+LIMIT 1
+`
+
+type FindAppKeyByAppIDAndPublicKIDParams struct {
+	AppID     int32
+	PublicKid string
+}
+
+func (q *Queries) FindAppKeyByAppIDAndPublicKID(ctx context.Context, arg FindAppKeyByAppIDAndPublicKIDParams) (CredentialsKey, error) {
+	row := q.db.QueryRow(ctx, findAppKeyByAppIDAndPublicKID, arg.AppID, arg.PublicKid)
+	var i CredentialsKey
+	err := row.Scan(
+		&i.ID,
+		&i.PublicKid,
+		&i.PublicKey,
+		&i.CryptoSuite,
+		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findPaginatedAppKeysByAppID = `-- name: FindPaginatedAppKeysByAppID :many
+SELECT ckr.id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.usage, ckr.account_id, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
+LEFT JOIN "app_keys" "ak" ON "ak"."credentials_key_id" = "ckr"."id"
+WHERE "ak"."app_id" = $1
+ORDER BY "ckr"."expires_at" DESC
+OFFSET $2 LIMIT $3
+`
+
+type FindPaginatedAppKeysByAppIDParams struct {
+	AppID  int32
+	Offset int32
+	Limit  int32
+}
+
+func (q *Queries) FindPaginatedAppKeysByAppID(ctx context.Context, arg FindPaginatedAppKeysByAppIDParams) ([]CredentialsKey, error) {
+	rows, err := q.db.Query(ctx, findPaginatedAppKeysByAppID, arg.AppID, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CredentialsKey{}
+	for rows.Next() {
+		var i CredentialsKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.PublicKid,
+			&i.PublicKey,
+			&i.CryptoSuite,
+			&i.IsRevoked,
+			&i.Usage,
+			&i.AccountID,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

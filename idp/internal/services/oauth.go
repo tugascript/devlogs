@@ -73,7 +73,7 @@ func (s *Services) AccountOAuthURL(ctx context.Context, opts AccountOAuthURLOpti
 		oauthUrl, state, serviceErr = s.oauthProviders.GetMicrosoftAuthorizationURL(ctx, authUrlOpts)
 	default:
 		logger.ErrorContext(ctx, "Provider must be 'apple', 'facebook', 'github', 'google' and 'microsoft'")
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get authorization url or State", "error", serviceErr)
@@ -87,7 +87,7 @@ func (s *Services) AccountOAuthURL(ctx context.Context, opts AccountOAuthURLOpti
 		DurationSeconds: s.jwt.GetOAuthTTL(),
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to cache State", "error", err)
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "Got authorization url successfully")
@@ -114,7 +114,7 @@ func (s *Services) extOAuthToken(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify oauth State", "error", err)
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 	if !ok {
 		logger.WarnContext(ctx, "OAuth State is invalid")
@@ -140,7 +140,7 @@ func (s *Services) extOAuthToken(
 		token, serviceErr = s.oauthProviders.GetMicrosoftAccessToken(ctx, accessTokenOpts)
 	default:
 		logger.ErrorContext(ctx, "Provider must be 'facebook', 'github', 'google' and 'microsoft'")
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 	if serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to get oauth access token", "error", serviceErr)
@@ -180,7 +180,7 @@ func (s *Services) extOAuthUser(
 		userData, serviceErr = s.oauthProviders.GetMicrosoftUserData(ctx, userDataOpts)
 	default:
 		logger.ErrorContext(ctx, "Provider must be 'github' or 'google'")
-		return oauth.UserData{}, exceptions.NewServerError()
+		return oauth.UserData{}, exceptions.NewInternalServerError()
 	}
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to fetch userData data", "error", serviceErr)
@@ -213,7 +213,7 @@ func (s *Services) saveExtAccount(
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
 			logger.ErrorContext(ctx, "Failed to get account by email", "error", serviceErr)
-			return dtos.AccountDTO{}, exceptions.NewServerError()
+			return dtos.AccountDTO{}, exceptions.NewInternalServerError()
 		}
 
 		accountDto, serviceErr := s.CreateAccount(ctx, CreateAccountOptions{
@@ -226,7 +226,7 @@ func (s *Services) saveExtAccount(
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to create account", "error", serviceErr)
-			return dtos.AccountDTO{}, exceptions.NewServerError()
+			return dtos.AccountDTO{}, exceptions.NewInternalServerError()
 		}
 
 		return accountDto, nil
@@ -281,7 +281,7 @@ func (s *Services) generateOAuthQueryParams(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate oauth Code", "error", err)
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 
 	queryParams := make(url.Values)
@@ -394,7 +394,7 @@ func (s *Services) AppleLoginAccount(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify oauth State", "error", err)
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 	if !ok {
 		logger.WarnContext(ctx, "OAuth State is invalid")
@@ -452,7 +452,7 @@ func (s *Services) AppleLoginAccount(
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to generate OAuth Token", "serviceError", serviceErr)
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 
 	return s.generateOAuthQueryParams(ctx, logger, generateOAuthQueryParams{
@@ -492,7 +492,7 @@ func (s *Services) OAuthLoginAccount(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify OAuth Code", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 	if !ok {
 		logger.WarnContext(ctx, "OAuth Code verification failed")
@@ -562,7 +562,7 @@ func (s *Services) ProcessAccountCredentialsScope(
 
 	scopesSlice := strings.Split(opts.Scope, " ")
 	sliceLen := len(scopesSlice)
-	scopesMap := utils.MapSliceToHashSet(scopesSlice)
+	scopesMap := utils.SliceToHashSet(scopesSlice)
 	mapSize := scopesMap.Size()
 	if sliceLen > mapSize {
 		logger.WarnContext(ctx, "Scopes contain duplicates",
@@ -753,7 +753,7 @@ func (s *Services) generateClientCredentialsAuthentication(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create access token", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
 	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
@@ -943,7 +943,7 @@ func (s *Services) ClientCredentialsAccountLogin(
 	verified, err := utils.Argon2CompareHash(secret, secretEnt.ClientSecret)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare account credentials secret", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 	if !verified {
 		logger.WarnContext(ctx, "Account credentials secret is invalid")

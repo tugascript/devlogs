@@ -20,11 +20,11 @@ func (s *Services) HealthCheck(ctx context.Context, requestID string) *exception
 
 	if err := s.database.Ping(ctx); err != nil {
 		logger.ErrorContext(ctx, "Failed to ping database", "error", err)
-		return exceptions.NewServerError()
+		return exceptions.NewInternalServerError()
 	}
 	if err := s.cache.Ping(ctx); err != nil {
 		logger.ErrorContext(ctx, "Failed to ping cache", "error", err)
-		return exceptions.NewServerError()
+		return exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "Service is healthy")

@@ -59,12 +59,12 @@ func (s *Services) CreateAppUser(
 		hashedPassword, err := utils.Argon2HashString(opts.Password)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to hash password", "error", err)
-			return dtos.UserDTO{}, exceptions.NewServerError()
+			return dtos.UserDTO{}, exceptions.NewInternalServerError()
 		}
 
 		if err := password.Scan(hashedPassword); err != nil {
 			logger.ErrorContext(ctx, "Failed pass password to text", "error", err)
-			return dtos.UserDTO{}, exceptions.NewServerError()
+			return dtos.UserDTO{}, exceptions.NewInternalServerError()
 		}
 	}
 
@@ -90,7 +90,7 @@ func (s *Services) CreateAppUser(
 	data, err := json.Marshal(opts.UserData.Interface())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to marshal user data", "error", err)
-		return dtos.UserDTO{}, exceptions.NewServerError()
+		return dtos.UserDTO{}, exceptions.NewInternalServerError()
 	}
 
 	qrs, txn, err := s.database.BeginTx(ctx)

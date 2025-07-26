@@ -31,6 +31,18 @@ func (r *Routes) AppsRoutes(app *fiber.App) {
 		appsReadScope,
 		r.controllers.ListApps,
 	)
+	router.Get(
+		paths.AppsSingle,
+		r.controllers.AccountAccessClaimsMiddleware,
+		appsReadScope,
+		r.controllers.GetAppWithRelatedConfigs,
+	)
+	router.Put(
+		paths.AppsSingle,
+		r.controllers.AccountAccessClaimsMiddleware,
+		appsWriteScope,
+		r.controllers.UpdateApp,
+	)
 	router.Delete(
 		paths.AppsSingle,
 		r.controllers.AccountAccessClaimsMiddleware,

@@ -14,3 +14,13 @@ INSERT INTO "app_related_apps" (
     $2,
     $3
 );
+
+-- name: FindRelatedAppsByAppID :many
+SELECT a.* FROM "apps" a
+INNER JOIN "app_related_apps" ara ON a.id = ara.related_app_id
+WHERE ara.app_id = $1
+ORDER BY a.name ASC;
+
+-- name: DeleteAppRelatedAppsByAppIDAndRelatedAppIDs :exec
+DELETE FROM "app_related_apps"
+WHERE "app_id" = $1 AND "related_app_id" IN (sqlc.slice('related_app_ids'));

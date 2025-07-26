@@ -194,13 +194,13 @@ func (p *Providers) GetGithubUserData(
 			return UserData{}, exceptions.NewUnauthorizedError()
 		}
 
-		return UserData{}, exceptions.NewServerError()
+		return UserData{}, exceptions.NewInternalServerError()
 	}
 
 	userRes := GitHubUserResponse{}
 	if err := json.Unmarshal(body, &userRes); err != nil {
 		logger.ErrorContext(ctx, "Failed to parse GitHub user data", "error", err)
-		return UserData{}, exceptions.NewServerError()
+		return UserData{}, exceptions.NewInternalServerError()
 	}
 
 	return userRes.ToUserData(), nil
@@ -225,13 +225,13 @@ func (p *Providers) GetGithubUserMap(
 			return "", nil, exceptions.NewUnauthorizedError()
 		}
 
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 
 	userMap := make(map[string]any)
 	if err = json.Unmarshal(body, &userMap); err != nil {
 		logger.ErrorContext(ctx, "Failed to unmarshal user data", "error", err)
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 
 	if len(userMap) == 0 {

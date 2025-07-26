@@ -15,13 +15,15 @@ INSERT INTO "app_server_configs" (
     "account_id",
     "app_id",
     "confirmation_url",
-    "reset_password_url"
+    "reset_password_url",
+    "issuers"
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
-) RETURNING id, account_id, app_id, confirmation_url, reset_password_url, created_at, updated_at
+    $4,
+    $5
+) RETURNING id, account_id, app_id, issuers, confirmation_url, reset_password_url, created_at, updated_at
 `
 
 type CreateAppServerConfigParams struct {
@@ -29,6 +31,7 @@ type CreateAppServerConfigParams struct {
 	AppID            int32
 	ConfirmationUrl  string
 	ResetPasswordUrl string
+	Issuers          []string
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -42,12 +45,75 @@ func (q *Queries) CreateAppServerConfig(ctx context.Context, arg CreateAppServer
 		arg.AppID,
 		arg.ConfirmationUrl,
 		arg.ResetPasswordUrl,
+		arg.Issuers,
 	)
 	var i AppServerConfig
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
 		&i.AppID,
+		&i.Issuers,
+		&i.ConfirmationUrl,
+		&i.ResetPasswordUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findAppServerConfig = `-- name: FindAppServerConfig :one
+SELECT id, account_id, app_id, issuers, confirmation_url, reset_password_url, created_at, updated_at FROM "app_server_configs"
+WHERE "app_id" = $1 LIMIT 1
+`
+
+func (q *Queries) FindAppServerConfig(ctx context.Context, appID int32) (AppServerConfig, error) {
+	row := q.db.QueryRow(ctx, findAppServerConfig, appID)
+	var i AppServerConfig
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.AppID,
+		&i.Issuers,
+		&i.ConfirmationUrl,
+		&i.ResetPasswordUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAppServerConfig = `-- name: UpdateAppServerConfig :one
+UPDATE "app_server_configs"
+SET "confirmation_url" = $3,
+    "reset_password_url" = $4,
+    "issuers" = $5,
+    "updated_at" = now()
+WHERE "account_id" = $1 AND "app_id" = $2
+RETURNING id, account_id, app_id, issuers, confirmation_url, reset_password_url, created_at, updated_at
+`
+
+type UpdateAppServerConfigParams struct {
+	AccountID        int32
+	AppID            int32
+	ConfirmationUrl  string
+	ResetPasswordUrl string
+	Issuers          []string
+}
+
+func (q *Queries) UpdateAppServerConfig(ctx context.Context, arg UpdateAppServerConfigParams) (AppServerConfig, error) {
+	row := q.db.QueryRow(ctx, updateAppServerConfig,
+		arg.AccountID,
+		arg.AppID,
+		arg.ConfirmationUrl,
+		arg.ResetPasswordUrl,
+		arg.Issuers,
+	)
+	var i AppServerConfig
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.AppID,
+		&i.Issuers,
 		&i.ConfirmationUrl,
 		&i.ResetPasswordUrl,
 		&i.CreatedAt,

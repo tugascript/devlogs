@@ -46,7 +46,7 @@ func (s *Services) setAccountUsername(
 	count, err := s.database.CountAccountsByUsername(context.Background(), username)
 	if err != nil {
 		logger.Error("Failed to count accounts by username", "error", err)
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 	if count > 0 {
 		logger.Warn("Username already in use", "username", username)
@@ -85,12 +85,12 @@ func (s *Services) CreateAccount(
 		hashedPassword, err := utils.Argon2HashString(opts.Password)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to hash password", "error", err)
-			return dtos.AccountDTO{}, exceptions.NewServerError()
+			return dtos.AccountDTO{}, exceptions.NewInternalServerError()
 		}
 
 		if err := password.Scan(hashedPassword); err != nil {
 			logger.ErrorContext(ctx, "Failed pass password to text", "error", err)
-			return dtos.AccountDTO{}, exceptions.NewServerError()
+			return dtos.AccountDTO{}, exceptions.NewInternalServerError()
 		}
 
 		email = utils.Lowered(opts.Email)
@@ -102,7 +102,7 @@ func (s *Services) CreateAccount(
 		return dtos.AccountDTO{}, exceptions.NewValidationError("custom auth provider not supported for account creation")
 	default:
 		logger.ErrorContext(ctx, "Provider must be 'email', 'apple', 'facebook', 'github', 'google' or 'microsoft'")
-		return dtos.AccountDTO{}, exceptions.NewServerError()
+		return dtos.AccountDTO{}, exceptions.NewInternalServerError()
 	}
 
 	count, err := s.database.CountAccountsByEmail(ctx, email)
@@ -133,7 +133,7 @@ func (s *Services) CreateAccount(
 	publicID, err := uuid.NewRandom()
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate public ID", "error", err)
-		return dtos.AccountDTO{}, exceptions.NewServerError()
+		return dtos.AccountDTO{}, exceptions.NewInternalServerError()
 	}
 
 	givenName := utils.Capitalized(opts.GivenName)
@@ -387,7 +387,7 @@ func (s *Services) UpdateAccountEmail(
 	ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare password hash", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 	if !ok {
 		logger.WarnContext(ctx, "Invalid password provided")
@@ -397,7 +397,7 @@ func (s *Services) UpdateAccountEmail(
 	count, err = s.database.CountAccountsByEmail(ctx, newEmail)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count accounts by email", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 	if count > 0 {
 		logger.WarnContext(ctx, "Email already in use")
@@ -416,7 +416,7 @@ func (s *Services) UpdateAccountEmail(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to cache email update request", "error", err)
-			return dtos.AuthDTO{}, exceptions.NewServerError()
+			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 		}
 
 		authDTO, serviceErr := s.generate2FAAuth(
@@ -476,7 +476,7 @@ func (s *Services) ConfirmUpdateAccountEmail(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get email update request", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 	if !exists {
 		logger.WarnContext(ctx, "Email update request not found")
@@ -590,7 +590,7 @@ func (s *Services) UpdateAccountPassword(
 	ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare password hash", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 	if !ok {
 		logger.WarnContext(ctx, "Invalid password provided")
@@ -609,7 +609,7 @@ func (s *Services) UpdateAccountPassword(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to cache password update request", "error", err)
-			return dtos.AuthDTO{}, exceptions.NewServerError()
+			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 		}
 
 		authDTO, serviceErr := s.generate2FAAuth(
@@ -630,7 +630,7 @@ func (s *Services) UpdateAccountPassword(
 	hashedPassword, err := utils.Argon2HashString(opts.NewPassword)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash new password", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
 	account, err := s.updateAccountPasswordInDB(ctx, logger, accountDTO.ID(), hashedPassword)
@@ -683,7 +683,7 @@ func (s *Services) ConfirmUpdateAccountPassword(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get password update request", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 	if !exists {
 		logger.WarnContext(ctx, "Password update request not found")
@@ -763,7 +763,7 @@ func (s *Services) CreateAccountPassword(
 	hashedPassword, err := utils.Argon2HashString(opts.Password)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash password", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
 	var password pgtype.Text
@@ -909,7 +909,7 @@ func (s *Services) UpdateAccountUsername(
 		ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to compare password hash", "error", err)
-			return dtos.AuthDTO{}, exceptions.NewServerError()
+			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 		}
 		if !ok {
 			logger.WarnContext(ctx, "Invalid password provided")
@@ -938,7 +938,7 @@ func (s *Services) UpdateAccountUsername(
 			DurationSeconds: s.jwt.GetOAuthTTL(),
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache username update request", "error", err)
-			return dtos.AuthDTO{}, exceptions.NewServerError()
+			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 		}
 
 		authDTO, serviceErr := s.generate2FAAuth(
@@ -1000,7 +1000,7 @@ func (s *Services) ConfirmUpdateAccountUsername(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get username update request", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewServerError()
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 	if newUsername == "" {
 		logger.WarnContext(ctx, "Username update request not found")
@@ -1092,7 +1092,7 @@ func (s *Services) DeleteAccount(
 		ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to compare password hash", "error", err)
-			return false, dtos.AuthDTO{}, exceptions.NewServerError()
+			return false, dtos.AuthDTO{}, exceptions.NewInternalServerError()
 		}
 		if !ok {
 			logger.WarnContext(ctx, "Invalid password provided")
@@ -1110,7 +1110,7 @@ func (s *Services) DeleteAccount(
 			DurationSeconds: s.jwt.GetOAuthTTL(),
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache delete account request", "error", err)
-			return false, dtos.AuthDTO{}, exceptions.NewServerError()
+			return false, dtos.AuthDTO{}, exceptions.NewInternalServerError()
 		}
 
 		authDTO, serviceErr := s.generate2FAAuth(
@@ -1160,7 +1160,7 @@ func (s *Services) ConfirmDeleteAccount(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get delete account request", "error", err)
-		return exceptions.NewServerError()
+		return exceptions.NewInternalServerError()
 	}
 	if !exists {
 		logger.WarnContext(ctx, "Delete account request not found")
@@ -1237,7 +1237,7 @@ func (s *Services) GetAndCacheAccountIDByUsername(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get account ID from cache", "error", err)
-		return 0, exceptions.NewServerError()
+		return 0, exceptions.NewInternalServerError()
 	}
 	if accountID != 0 {
 		logger.InfoContext(ctx, "Got account ID from cache successfully")
@@ -1256,7 +1256,7 @@ func (s *Services) GetAndCacheAccountIDByUsername(
 		ID:        accountID,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to cache account ID by username", "error", err)
-		return 0, exceptions.NewServerError()
+		return 0, exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "Cached account ID by username successfully")

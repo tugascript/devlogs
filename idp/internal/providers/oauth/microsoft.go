@@ -104,13 +104,13 @@ func (p *Providers) GetMicrosoftUserData(
 			return UserData{}, exceptions.NewUnauthorizedError()
 		}
 
-		return UserData{}, exceptions.NewServerError()
+		return UserData{}, exceptions.NewInternalServerError()
 	}
 
 	userRes := MicrosoftUserResponse{}
 	if err := json.Unmarshal(body, &userRes); err != nil {
 		logger.ErrorContext(ctx, "Failed to parse Microsoft user data", "error", err)
-		return UserData{}, exceptions.NewServerError()
+		return UserData{}, exceptions.NewInternalServerError()
 	}
 
 	return userRes.ToUserData(), nil
@@ -135,13 +135,13 @@ func (p *Providers) GetMicrosoftUserMap(
 			return "", nil, exceptions.NewUnauthorizedError()
 		}
 
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 
 	userMap := map[string]any{}
 	if err := json.Unmarshal(body, &userMap); err != nil {
 		logger.ErrorContext(ctx, "Failed to parse Microsoft user data", "error", err)
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 
 	email, ok := userMap["mail"].(string)
@@ -149,7 +149,7 @@ func (p *Providers) GetMicrosoftUserMap(
 		email, ok = userMap["userPrincipalName"].(string)
 		if !ok {
 			logger.ErrorContext(ctx, "Failed to get email from Microsoft user data")
-			return "", nil, exceptions.NewServerError()
+			return "", nil, exceptions.NewInternalServerError()
 		}
 	}
 	if email == "" {

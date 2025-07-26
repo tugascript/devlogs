@@ -756,6 +756,7 @@ Table app_server_configs as ASC {
     account_id integer [not null]
     app_id integer [not null]
 
+    issuers "varchar(250)[]" [not null]
     confirmation_url varchar(250) [not null]
     reset_password_url varchar(250) [not null]
 
@@ -795,6 +796,7 @@ Table app_service_configs as ASCONF {
     account_id integer [not null]
     app_id integer [not null]
 
+    issuers "varchar(250)[]" [not null]
     auth_methods "auth_method[]" [not null]
     grant_types "grant_type[]" [not null]
     allowed_domains "varchar(250)[]" [not null]

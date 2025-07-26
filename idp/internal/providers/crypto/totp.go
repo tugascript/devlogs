@@ -354,7 +354,7 @@ func (e *Crypto) VerifyTotpRecoveryCode(
 	hashedCodes := make(map[string]recoveryCode, recoveryCodesCount)
 	if err := json.Unmarshal(hashedCodesJson, &hashedCodes); err != nil {
 		logger.ErrorContext(ctx, "Failed to unmarshal hashed codes", "error", err)
-		return false, TotpKey{}, exceptions.NewServerError()
+		return false, TotpKey{}, exceptions.NewInternalServerError()
 	}
 
 	codeID := getRecoveryCodeID(opts.RecoveryCode)
@@ -367,7 +367,7 @@ func (e *Crypto) VerifyTotpRecoveryCode(
 	ok, err := utils.Argon2CompareHash(opts.RecoveryCode, hashedCode.HashedCode)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare hash", "error", err)
-		return false, TotpKey{}, exceptions.NewServerError()
+		return false, TotpKey{}, exceptions.NewInternalServerError()
 	}
 	if !ok {
 		logger.DebugContext(ctx, "Recovery code does not match")
@@ -396,7 +396,7 @@ func (e *Crypto) VerifyTotpRecoveryCode(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate TOTP key", "error", err)
-		return false, TotpKey{}, exceptions.NewServerError()
+		return false, TotpKey{}, exceptions.NewInternalServerError()
 	}
 
 	return true, totpKey, nil
