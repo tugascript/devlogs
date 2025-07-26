@@ -14,3 +14,24 @@ INSERT INTO "app_keys" (
     $2,
     $3
 );
+
+-- name: FindPaginatedAppKeysByAppID :many
+SELECT "ckr".* FROM "credentials_keys" "ckr"
+LEFT JOIN "app_keys" "ak" ON "ak"."credentials_key_id" = "ckr"."id"
+WHERE "ak"."app_id" = $1
+ORDER BY "ckr"."expires_at" DESC
+OFFSET $2 LIMIT $3;
+
+-- name: CountAppKeysByAppID :one
+SELECT COUNT("ckr"."id") FROM "credentials_keys" "ckr"
+LEFT JOIN "app_keys" "ak" ON "ak"."credentials_key_id" = "ckr"."id"
+WHERE "ak"."app_id" = $1
+LIMIT 1;
+
+-- name: FindAppKeyByAppIDAndPublicKID :one
+SELECT "ckr".* FROM "credentials_keys" "ckr"
+LEFT JOIN "app_keys" "ak" ON "ak"."credentials_key_id" = "ckr"."id"
+WHERE 
+    "ak"."app_id" = $1 AND 
+    "ckr"."public_kid" = $2
+LIMIT 1;

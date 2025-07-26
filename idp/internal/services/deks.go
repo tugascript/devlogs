@@ -41,7 +41,7 @@ func (s *Services) createDEK(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate DEK", "error", err)
-		return exceptions.NewServerError()
+		return exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "DEK created successfully", "dekKID", dekID)
@@ -65,7 +65,7 @@ func (s *Services) buildStoreGlobalDEKfn(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create DEK", "error", err)
-			return 0, exceptions.NewServerError()
+			return 0, exceptions.NewInternalServerError()
 		}
 
 		if err := s.cache.SaveEncDEK(ctx, cache.SaveEncDEKOptions{
@@ -76,7 +76,7 @@ func (s *Services) buildStoreGlobalDEKfn(
 			Suffix:    "global",
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache DEK", "error", err)
-			return 0, exceptions.NewServerError()
+			return 0, exceptions.NewInternalServerError()
 		}
 
 		data["dekID"] = dekID
@@ -99,7 +99,7 @@ func (s *Services) BuildGetEncGlobalDEKFn(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get global DEK", "error", err)
-			return "", "", uuid.Nil, exceptions.NewServerError()
+			return "", "", uuid.Nil, exceptions.NewInternalServerError()
 		}
 		if ok {
 			logger.InfoContext(ctx, "Global DEK found in cache", "dek_kid", kid)
@@ -133,13 +133,13 @@ func (s *Services) BuildGetEncGlobalDEKFn(
 			kid, ok := data["dekID"]
 			if !ok {
 				logger.ErrorContext(ctx, "Global DEK not found in data map", "dekKID", kid)
-				return "", "", uuid.Nil, exceptions.NewServerError()
+				return "", "", uuid.Nil, exceptions.NewInternalServerError()
 			}
 
 			dek, ok := data["encryptedDEK"]
 			if !ok {
 				logger.ErrorContext(ctx, "Global DEK not found in data map", "dekKID", kid)
-				return "", "", uuid.Nil, exceptions.NewServerError()
+				return "", "", uuid.Nil, exceptions.NewInternalServerError()
 			}
 
 			logger.InfoContext(ctx, "Created new DEK", "dekKID", kid)
@@ -165,7 +165,7 @@ func (s *Services) BuildGetGlobalDecDEKFn(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get DEK for decryption", "error", err)
-			return "", uuid.Nil, false, exceptions.NewServerError()
+			return "", uuid.Nil, false, exceptions.NewInternalServerError()
 		}
 
 		now := time.Now()
@@ -189,7 +189,7 @@ func (s *Services) BuildGetGlobalDecDEKFn(
 			Prefix:    "global",
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache DEK", "error", err)
-			return "", uuid.Nil, false, exceptions.NewServerError()
+			return "", uuid.Nil, false, exceptions.NewInternalServerError()
 		}
 
 		logger.InfoContext(ctx, "DEK found in database", "dekKID", dekEnt.Kid)
@@ -252,7 +252,7 @@ func (s *Services) buildStoreAccountDEKfn(
 			Suffix:    fmt.Sprintf("account:%d", opts.accountID),
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache DEK", "error", err)
-			serviceErr = exceptions.NewServerError()
+			serviceErr = exceptions.NewInternalServerError()
 			return 0, serviceErr
 		}
 
@@ -286,7 +286,7 @@ func (s *Services) BuildGetEncAccountDEKfn(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get account DEK", "error", err)
-			return "", "", uuid.Nil, exceptions.NewServerError()
+			return "", "", uuid.Nil, exceptions.NewInternalServerError()
 		}
 		if found {
 			logger.InfoContext(ctx, "Account DEK found in cache", "dek_kid", kid)
@@ -335,13 +335,13 @@ func (s *Services) BuildGetEncAccountDEKfn(
 			kid, ok := data["dekID"]
 			if !ok {
 				logger.ErrorContext(ctx, "Global DEK not found in data map", "dekKID", kid)
-				return "", "", uuid.Nil, exceptions.NewServerError()
+				return "", "", uuid.Nil, exceptions.NewInternalServerError()
 			}
 
 			dek, ok := data["encryptedDEK"]
 			if !ok {
 				logger.ErrorContext(ctx, "Global DEK not found in data map", "dekKID", kid)
-				return "", "", uuid.Nil, exceptions.NewServerError()
+				return "", "", uuid.Nil, exceptions.NewInternalServerError()
 			}
 
 			logger.InfoContext(ctx, "Created and cached new DEK", "dekKID", kid)
@@ -356,7 +356,7 @@ func (s *Services) BuildGetEncAccountDEKfn(
 			Suffix:    suffix,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache global DEK", "error", err)
-			return "", "", uuid.Nil, exceptions.NewServerError()
+			return "", "", uuid.Nil, exceptions.NewInternalServerError()
 		}
 
 		return dekEnt.Kid, dekEnt.Dek, dekEnt.KekKid, nil
@@ -387,7 +387,7 @@ func (s *Services) BuildGetDecAccountDEKFn(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get DEK for decryption", "error", err)
-			return "", uuid.Nil, false, exceptions.NewServerError()
+			return "", uuid.Nil, false, exceptions.NewInternalServerError()
 		}
 
 		now := time.Now()
@@ -418,7 +418,7 @@ func (s *Services) BuildGetDecAccountDEKFn(
 			Prefix:    prefix,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache DEK", "error", err)
-			return "", uuid.Nil, false, exceptions.NewServerError()
+			return "", uuid.Nil, false, exceptions.NewInternalServerError()
 		}
 
 		logger.InfoContext(ctx, "DEK found in database", "dekKID", dekEnt.Kid)

@@ -48,7 +48,7 @@ func (u *UserDTO) EmailVerified() bool {
 func MapUserToDTO(user *database.User) (UserDTO, *exceptions.ServiceError) {
 	data := make(DataDTO)
 	if err := json.Unmarshal(user.UserData, &data); err != nil {
-		return UserDTO{}, exceptions.NewServerError()
+		return UserDTO{}, exceptions.NewInternalServerError()
 	}
 
 	return UserDTO{

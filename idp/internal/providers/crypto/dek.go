@@ -107,12 +107,12 @@ func (e *Crypto) getDecryptedDEK(
 	dek, err := e.decrypt(ctx, requestID, kekID, encryptedDEK)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt DEK", "error", err)
-		return nil, exceptions.NewServerError()
+		return nil, exceptions.NewInternalServerError()
 	}
 
 	if ok := e.localCache.SetWithTTL(dekID, dek, dekCacheCost, e.dekTTL); !ok {
 		logger.ErrorContext(ctx, "Failed to cache DEK")
-		return nil, exceptions.NewServerError()
+		return nil, exceptions.NewInternalServerError()
 	}
 
 	logger.DebugContext(ctx, "DEK decrypted successfully")
@@ -155,7 +155,7 @@ func (e *Crypto) EncryptWithDEK(
 	ciphertext, err := utils.Encrypt(opts.PlainText, dek)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to encrypt with DEK", "error", err)
-		return "", "", exceptions.NewServerError()
+		return "", "", exceptions.NewInternalServerError()
 	}
 
 	logger.DebugContext(ctx, "Encrypted with DEK successfully", "dekID", dekID)
@@ -191,7 +191,7 @@ func (e *Crypto) DecryptWithDEK(ctx context.Context, opts DecryptWithDEKOptions)
 	dekID, ciphertext, err := splitDEKCiphertext(opts.Ciphertext)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to split DEK ciphertext", "error", err)
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 
 	encDek, kekKID, isExpired, serviceErr := opts.GetDecryptDEKfn(dekID)
@@ -209,7 +209,7 @@ func (e *Crypto) DecryptWithDEK(ctx context.Context, opts DecryptWithDEKOptions)
 	secret, err := utils.Decrypt(ciphertext, dek)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt secret", "error", err)
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 
 	if isExpired {

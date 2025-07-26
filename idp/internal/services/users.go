@@ -73,7 +73,7 @@ func (s *Services) CreateUser(
 	publicID, err := uuid.NewRandom()
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate user public ID", "error", err)
-		return dtos.UserDTO{}, exceptions.NewServerError()
+		return dtos.UserDTO{}, exceptions.NewInternalServerError()
 	}
 
 	email := utils.Lowered(opts.Email)
@@ -98,18 +98,18 @@ func (s *Services) CreateUser(
 	data, err := json.Marshal(opts.UserData.Interface())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to marshal user data", "error", err)
-		return dtos.UserDTO{}, exceptions.NewServerError()
+		return dtos.UserDTO{}, exceptions.NewInternalServerError()
 	}
 
 	var password pgtype.Text
 	hashedPassword, err := utils.Argon2HashString(opts.Password)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash password", "error", err)
-		return dtos.UserDTO{}, exceptions.NewServerError()
+		return dtos.UserDTO{}, exceptions.NewInternalServerError()
 	}
 	if err := password.Scan(hashedPassword); err != nil {
 		logger.ErrorContext(ctx, "Failed to set password", "error", err)
-		return dtos.UserDTO{}, exceptions.NewServerError()
+		return dtos.UserDTO{}, exceptions.NewInternalServerError()
 	}
 
 	qrs, txn, err := s.database.BeginTx(ctx)
@@ -217,7 +217,7 @@ func (s *Services) ListUsers(
 	userDTOs, serviceErr := utils.MapSliceWithErr(users, dtos.MapUserToDTO)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map users to DTOs", "error", serviceErr)
-		return nil, 0, exceptions.NewServerError()
+		return nil, 0, exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "Listed users successfully")
@@ -303,7 +303,7 @@ func (s *Services) FilterUsers(
 	userDTOs, serviceErr := utils.MapSliceWithErr(users, dtos.MapUserToDTO)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map users to DTOs", "error", serviceErr)
-		return nil, 0, exceptions.NewServerError()
+		return nil, 0, exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "Filtered users successfully")
@@ -496,7 +496,7 @@ func (s *Services) UpdateUser(
 	data, err := json.Marshal(opts.UserData.Interface())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to marshal user data", "error", err)
-		return dtos.UserDTO{}, exceptions.NewServerError()
+		return dtos.UserDTO{}, exceptions.NewInternalServerError()
 	}
 
 	user, err := s.database.UpdateUser(ctx, database.UpdateUserParams{
@@ -552,11 +552,11 @@ func (s *Services) UpdateUserPassword(
 	hashedPassword, err := utils.Argon2HashString(opts.Password)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to hash password", "error", err)
-		return dtos.UserDTO{}, exceptions.NewServerError()
+		return dtos.UserDTO{}, exceptions.NewInternalServerError()
 	}
 	if err := password.Scan(hashedPassword); err != nil {
 		logger.ErrorContext(ctx, "Failed to set password", "error", err)
-		return dtos.UserDTO{}, exceptions.NewServerError()
+		return dtos.UserDTO{}, exceptions.NewInternalServerError()
 	}
 
 	user, err := s.database.UpdateUserPassword(ctx, database.UpdateUserPasswordParams{

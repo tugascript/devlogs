@@ -80,13 +80,13 @@ func (p *Providers) GetAppleIDToken(ctx context.Context, opts AccessTokenOptions
 	idToken := token.Extra("id_token")
 	if idToken == nil {
 		logger.ErrorContext(ctx, "AccountID token not present on exchange request")
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 
 	idTokenStr, ok := idToken.(string)
 	if !ok || idTokenStr == "" {
 		logger.ErrorContext(ctx, "AccountID token is not a string")
-		return "", exceptions.NewServerError()
+		return "", exceptions.NewInternalServerError()
 	}
 
 	logger.DebugContext(ctx, "AccountID token exchanged successfully")
@@ -128,7 +128,7 @@ func (p *Providers) ValidateAppleIDToken(
 	req, err := http.NewRequest(http.MethodGet, appleKeysURL, nil)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to build Keys request", "error", err)
-		return false, exceptions.NewServerError()
+		return false, exceptions.NewInternalServerError()
 	}
 
 	req.Header.Set("Accept", "application/json")
@@ -137,7 +137,7 @@ func (p *Providers) ValidateAppleIDToken(
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to request the token data", "error", err)
-		return false, exceptions.NewServerError()
+		return false, exceptions.NewInternalServerError()
 	}
 
 	if res.StatusCode != http.StatusOK {
@@ -147,14 +147,14 @@ func (p *Providers) ValidateAppleIDToken(
 			return false, exceptions.NewUnauthorizedError()
 		}
 
-		return false, exceptions.NewServerError()
+		return false, exceptions.NewInternalServerError()
 	}
 
 	logger.DebugContext(ctx, "Reading the body...")
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to read the body", "error", err)
-		return false, exceptions.NewServerError()
+		return false, exceptions.NewInternalServerError()
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
@@ -165,12 +165,12 @@ func (p *Providers) ValidateAppleIDToken(
 	jwksRes := AppleJWKsResponse{}
 	if err := json.Unmarshal(body, &jwksRes); err != nil {
 		logger.ErrorContext(ctx, "Failed to parse Apple JWKs data", "error", err)
-		return false, exceptions.NewServerError()
+		return false, exceptions.NewInternalServerError()
 	}
 
 	if len(jwksRes.Keys) == 0 {
 		logger.ErrorContext(ctx, "No public JWKs found")
-		return false, exceptions.NewServerError()
+		return false, exceptions.NewInternalServerError()
 	}
 
 	claims := AppleIDTokenClaims{}
@@ -202,7 +202,7 @@ func (p *Providers) ValidateAppleIDToken(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify AccountID token", "error", err)
-		return false, exceptions.NewServerError()
+		return false, exceptions.NewInternalServerError()
 	}
 
 	var emailVerified bool

@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-07-25T09:28:31.303Z
+-- Generated at: 2025-07-26T03:29:55.583Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -446,6 +446,7 @@ CREATE TABLE "app_server_configs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "app_id" integer NOT NULL,
+  "issuers" varchar(250)[] NOT NULL,
   "confirmation_url" varchar(250) NOT NULL,
   "reset_password_url" varchar(250) NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
@@ -465,6 +466,7 @@ CREATE TABLE "app_service_configs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "app_id" integer NOT NULL,
+  "issuers" varchar(250)[] NOT NULL,
   "auth_methods" auth_method[] NOT NULL,
   "grant_types" grant_type[] NOT NULL,
   "allowed_domains" varchar(250)[] NOT NULL,

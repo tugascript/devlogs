@@ -148,7 +148,7 @@ func getAuthorizationURL(
 	state, err := utils.GenerateHexSecret(16)
 	if err != nil {
 		opts.logger.ErrorContext(ctx, "Failed to generate state", "error", err)
-		return "", "", exceptions.NewServerError()
+		return "", "", exceptions.NewInternalServerError()
 	}
 
 	cfg := getConfig(opts.cfg, opts.redirectURL, opts.oas, opts.scopes)

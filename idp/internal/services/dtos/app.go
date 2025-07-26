@@ -72,8 +72,9 @@ type AppDTO struct {
 	ClientSecretJWK utils.JWK `json:"client_secret_jwk,omitempty"`
 	ClientSecretExp int64     `json:"client_secret_exp,omitempty"`
 
-	ConfirmationURL  string `json:"confirmation_url,omitempty"`
-	ResetPasswordURL string `json:"reset_password_url,omitempty"`
+	Issuers          []string `json:"issuers,omitempty"`
+	ConfirmationURL  string   `json:"confirmation_url,omitempty"`
+	ResetPasswordURL string   `json:"reset_password_url,omitempty"`
 
 	RelatedApps []RelatedAppDTO `json:"related_apps,omitempty"`
 
@@ -304,42 +305,6 @@ func MapNativeAppToDTO(
 	}
 }
 
-func MapBackendAppWithSecretToDTO(
-	app *database.App,
-	serverCfg *database.AppServerConfig,
-	secretID string,
-	secret string,
-	expiresAt time.Time,
-) AppDTO {
-	return AppDTO{
-		id:               app.ID,
-		accountID:        app.AccountID,
-		version:          app.Version,
-		Type:             app.Type,
-		Name:             app.Name,
-		ClientID:         app.ClientID,
-		ClientURI:        app.ClientUri,
-		LogoURI:          app.LogoUri.String,
-		TosURI:           app.TosUri.String,
-		PolicyURI:        app.PolicyUri.String,
-		SoftwareID:       app.SoftwareID.String,
-		SoftwareVersion:  app.SoftwareVersion.String,
-		AuthMethods:      app.AuthMethods,
-		GrantTypes:       app.GrantTypes,
-		DefaultScopes:    app.DefaultScopes,
-		UsernameColumn:   app.UsernameColumn,
-		AuthProviders:    app.AuthProviders,
-		IDTokenTTL:       app.IDTokenTtl,
-		TokenTTL:         app.TokenTtl,
-		RefreshTokenTTL:  app.RefreshTokenTtl,
-		ClientSecretID:   secret,
-		ClientSecret:     fmt.Sprintf("%s.%s", secretID, secret),
-		ClientSecretExp:  expiresAt.Unix(),
-		ConfirmationURL:  serverCfg.ConfirmationUrl,
-		ResetPasswordURL: serverCfg.ResetPasswordUrl,
-	}
-}
-
 func MapBackendAppWithJWKToDTO(
 	app *database.App,
 	serverCfg *database.AppServerConfig,
@@ -372,6 +337,7 @@ func MapBackendAppWithJWKToDTO(
 		ClientSecretExp:  exp.Unix(),
 		ConfirmationURL:  serverCfg.ConfirmationUrl,
 		ResetPasswordURL: serverCfg.ResetPasswordUrl,
+		Issuers:          serverCfg.Issuers,
 	}
 }
 
@@ -440,15 +406,44 @@ func MapServiceAppWithJWKToDTO(
 		ClientSecretID:   jwk.GetKeyID(),
 		ClientSecretJWK:  jwk,
 		ClientSecretExp:  exp.Unix(),
+		Issuers:          serviceCfg.Issuers,
 	}
 }
 
-func MapServiceAppWithSecretToDTO(
+func MapBackendAppToDTO(
+	app *database.App,
+	serverCfg *database.AppServerConfig,
+) AppDTO {
+	return AppDTO{
+		id:               app.ID,
+		accountID:        app.AccountID,
+		version:          app.Version,
+		Type:             app.Type,
+		Name:             app.Name,
+		ClientID:         app.ClientID,
+		ClientURI:        app.ClientUri,
+		LogoURI:          app.LogoUri.String,
+		TosURI:           app.TosUri.String,
+		PolicyURI:        app.PolicyUri.String,
+		SoftwareID:       app.SoftwareID.String,
+		SoftwareVersion:  app.SoftwareVersion.String,
+		AuthMethods:      app.AuthMethods,
+		GrantTypes:       app.GrantTypes,
+		DefaultScopes:    app.DefaultScopes,
+		UsernameColumn:   app.UsernameColumn,
+		AuthProviders:    app.AuthProviders,
+		IDTokenTTL:       app.IDTokenTtl,
+		TokenTTL:         app.TokenTtl,
+		RefreshTokenTTL:  app.RefreshTokenTtl,
+		ConfirmationURL:  serverCfg.ConfirmationUrl,
+		ResetPasswordURL: serverCfg.ResetPasswordUrl,
+		Issuers:          serverCfg.Issuers,
+	}
+}
+
+func MapServiceAppToDTO(
 	app *database.App,
 	serviceCfg *database.AppServiceConfig,
-	secretID string,
-	secret string,
-	expiresAt time.Time,
 ) AppDTO {
 	return AppDTO{
 		id:               app.ID,
@@ -474,8 +469,6 @@ func MapServiceAppWithSecretToDTO(
 		AllowedDomains:   serviceCfg.AllowedDomains,
 		UsersAuthMethods: serviceCfg.AuthMethods,
 		UsersGrantTypes:  serviceCfg.GrantTypes,
-		ClientSecretID:   secret,
-		ClientSecret:     fmt.Sprintf("%s.%s", secretID, secret),
-		ClientSecretExp:  expiresAt.Unix(),
+		Issuers:          serviceCfg.Issuers,
 	}
 }

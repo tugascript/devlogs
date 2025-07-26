@@ -9,6 +9,20 @@ import (
 	"context"
 )
 
+const countAppSecretsByAppID = `-- name: CountAppSecretsByAppID :one
+SELECT COUNT("csr"."id") FROM "credentials_secrets" "csr"
+LEFT JOIN "app_secrets" "as" ON "as"."credentials_secret_id" = "csr"."id"
+WHERE "as"."app_id" = $1
+LIMIT 1
+`
+
+func (q *Queries) CountAppSecretsByAppID(ctx context.Context, appID int32) (int64, error) {
+	row := q.db.QueryRow(ctx, countAppSecretsByAppID, appID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAppSecret = `-- name: CreateAppSecret :exec
 
 INSERT INTO "app_secrets" (
@@ -36,4 +50,79 @@ type CreateAppSecretParams struct {
 func (q *Queries) CreateAppSecret(ctx context.Context, arg CreateAppSecretParams) error {
 	_, err := q.db.Exec(ctx, createAppSecret, arg.AppID, arg.CredentialsSecretID, arg.AccountID)
 	return err
+}
+
+const findAppSecretByAppIDAndSecretID = `-- name: FindAppSecretByAppIDAndSecretID :one
+SELECT csr.id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
+LEFT JOIN "app_secrets" "as" ON "as"."credentials_secret_id" = "csr"."id"
+WHERE 
+    "as"."app_id" = $1 AND 
+    "csr"."secret_id" = $2
+LIMIT 1
+`
+
+type FindAppSecretByAppIDAndSecretIDParams struct {
+	AppID    int32
+	SecretID string
+}
+
+func (q *Queries) FindAppSecretByAppIDAndSecretID(ctx context.Context, arg FindAppSecretByAppIDAndSecretIDParams) (CredentialsSecret, error) {
+	row := q.db.QueryRow(ctx, findAppSecretByAppIDAndSecretID, arg.AppID, arg.SecretID)
+	var i CredentialsSecret
+	err := row.Scan(
+		&i.ID,
+		&i.SecretID,
+		&i.ClientSecret,
+		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findPaginatedAppSecretsByAppID = `-- name: FindPaginatedAppSecretsByAppID :many
+SELECT csr.id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
+LEFT JOIN "app_secrets" "as" ON "as"."credentials_secret_id" = "csr"."id"
+WHERE "as"."app_id" = $1
+ORDER BY "csr"."expires_at" DESC
+OFFSET $2 LIMIT $3
+`
+
+type FindPaginatedAppSecretsByAppIDParams struct {
+	AppID  int32
+	Offset int32
+	Limit  int32
+}
+
+func (q *Queries) FindPaginatedAppSecretsByAppID(ctx context.Context, arg FindPaginatedAppSecretsByAppIDParams) ([]CredentialsSecret, error) {
+	rows, err := q.db.Query(ctx, findPaginatedAppSecretsByAppID, arg.AppID, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CredentialsSecret{}
+	for rows.Next() {
+		var i CredentialsSecret
+		if err := rows.Scan(
+			&i.ID,
+			&i.SecretID,
+			&i.ClientSecret,
+			&i.IsRevoked,
+			&i.Usage,
+			&i.AccountID,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

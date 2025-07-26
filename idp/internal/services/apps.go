@@ -25,6 +25,8 @@ var deviceGrantTypes = []database.GrantType{
 	database.GrantTypeUrnIetfParamsOauthGrantTypeDeviceCode,
 	database.GrantTypeRefreshToken,
 }
+var privateKeyGrantTypes = []database.GrantType{database.GrantTypeUrnIetfParamsOauthGrantTypeJwtBearer}
+var privateKeyAuthMethods = []database.AuthMethod{database.AuthMethodPrivateKeyJwt}
 var noneAuthMethod = []database.AuthMethod{database.AuthMethodNone}
 
 type GetAppByClientIDAndAccountPublicIDOptions struct {
@@ -781,7 +783,7 @@ type CreateBackendAppOptions struct {
 	AccountVersion   int32
 	Name             string
 	UsernameColumn   string
-	AuthMethods      string
+	Issuers          []string
 	Algorithm        string
 	ClientURI        string
 	ConfirmationURL  string
@@ -798,12 +800,6 @@ func (s *Services) CreateBackendApp(
 		"name", opts.Name,
 	)
 	logger.InfoContext(ctx, "Creating web app...")
-
-	authMethods, serviceErr := mapAuthMethod(opts.AuthMethods)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map auth method", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
 
 	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
 	if serviceErr != nil {
@@ -850,8 +846,8 @@ func (s *Services) CreateBackendApp(
 		UsernameColumn:  usernameColumn,
 		ClientID:        clientID,
 		ClientUri:       utils.ProcessURL(opts.ClientURI),
-		AuthMethods:     authMethods,
-		GrantTypes:      authCodeAppGrantTypes,
+		AuthMethods:     privateKeyAuthMethods,
+		GrantTypes:      privateKeyGrantTypes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -864,6 +860,9 @@ func (s *Services) CreateBackendApp(
 		AppID:            app.ID,
 		ConfirmationUrl:  utils.ProcessURL(opts.ConfirmationURL),
 		ResetPasswordUrl: utils.ProcessURL(opts.ResetPasswordURL),
+		Issuers: utils.MapSlice(opts.Issuers, func(issuer *string) string {
+			return utils.ProcessURL(*issuer)
+		}),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app server config", "error", err)
@@ -871,88 +870,38 @@ func (s *Services) CreateBackendApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	switch opts.AuthMethods {
-	case AuthMethodPrivateKeyJwt:
-		var dbPrms database.CreateCredentialsKeyParams
-		var jwk utils.JWK
-		dbPrms, jwk, serviceErr = s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
-			requestID:       opts.RequestID,
-			accountID:       accountID,
-			accountPublicID: opts.AccountPublicID,
-			expiresIn:       s.accountCCExpDays,
-			usage:           database.CredentialsUsageApp,
-			cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
-		})
-		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		var clientKey database.CredentialsKey
-		clientKey, err = qrs.CreateCredentialsKey(ctx, dbPrms)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create client key", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		if err = qrs.CreateAppKey(ctx, database.CreateAppKeyParams{
-			AccountID:        accountID,
-			AppID:            app.ID,
-			CredentialsKeyID: clientKey.ID,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to create app key", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		logger.InfoContext(ctx, "Created web app successfully with private key JWT auth method successfully")
-		return dtos.MapBackendAppWithJWKToDTO(&app, &serverConfig, jwk, clientKey.ExpiresAt), nil
-	case AuthMethodBothClientSecrets, AuthMethodClientSecretPost, AuthMethodClientSecretBasic:
-		var dbPrms database.CreateCredentialsSecretParams
-		var secret string
-		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
-			requestID: opts.RequestID,
-			accountID: accountID,
-			expiresIn: s.accountCCExpDays,
-			usage:     database.CredentialsUsageApp,
-		})
-		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		var clientSecret database.CredentialsSecret
-		clientSecret, err = qrs.CreateCredentialsSecret(ctx, dbPrms)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		if err = qrs.CreateAppSecret(ctx, database.CreateAppSecretParams{
-			AppID:               app.ID,
-			CredentialsSecretID: clientSecret.ID,
-			AccountID:           accountID,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to create app secret", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		logger.InfoContext(ctx, "Created web app successfully with client secret auth method successfully")
-		return dtos.MapBackendAppWithSecretToDTO(
-			&app,
-			&serverConfig,
-			clientSecret.SecretID,
-			secret,
-			clientSecret.ExpiresAt,
-		), nil
-	default:
-		logger.ErrorContext(ctx, "Unsupported auth method", "authMethod", opts.AuthMethods)
-		serviceErr = exceptions.NewValidationError("Unsupported auth method")
+	dbPrms, jwk, serviceErr := s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
+		requestID:       opts.RequestID,
+		accountID:       accountID,
+		accountPublicID: opts.AccountPublicID,
+		expiresIn:       s.accountCCExpDays,
+		usage:           database.CredentialsUsageApp,
+		cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
 	}
+
+	clientKey, err := qrs.CreateCredentialsKey(ctx, dbPrms)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create client key", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	if err = qrs.CreateAppKey(ctx, database.CreateAppKeyParams{
+		AccountID:        accountID,
+		AppID:            app.ID,
+		CredentialsKeyID: clientKey.ID,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to create app key", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Created web app successfully with private key JWT auth method successfully")
+	return dtos.MapBackendAppWithJWKToDTO(&app, &serverConfig, jwk, clientKey.ExpiresAt), nil
 }
 
 type CreateDeviceAppOptions struct {
@@ -1109,7 +1058,7 @@ type CreateServiceAppOptions struct {
 	AccountPublicID  uuid.UUID
 	Name             string
 	AccountVersion   int32
-	AuthMethods      string
+	Issuers          []string
 	Algorithm        string
 	ClientURI        string
 	UsersAuthMethods string
@@ -1126,18 +1075,6 @@ func (s *Services) CreateServiceApp(
 		"name", opts.Name,
 	)
 	logger.InfoContext(ctx, "Creating service app...")
-
-	authMethods, serviceErr := mapAuthMethod(opts.AuthMethods)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map auth method", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	grantTypes, serviceErr := mapServiceGrantTypesFromAuthMethods(opts.AuthMethods)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map service grant types", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
 
 	userAuthMethods, serviceErr := mapAuthMethod(opts.UsersAuthMethods)
 	if serviceErr != nil {
@@ -1193,8 +1130,8 @@ func (s *Services) CreateServiceApp(
 		Name:            name,
 		UsernameColumn:  database.AppUsernameColumnEmail,
 		ClientID:        clientID,
-		AuthMethods:     authMethods,
-		GrantTypes:      grantTypes,
+		AuthMethods:     privateKeyAuthMethods,
+		GrantTypes:      privateKeyGrantTypes,
 		ClientUri:       utils.ProcessURL(opts.ClientURI),
 	})
 	if err != nil {
@@ -1209,6 +1146,9 @@ func (s *Services) CreateServiceApp(
 		AuthMethods:    userAuthMethods,
 		GrantTypes:     userGrantTypes,
 		AllowedDomains: utils.ToEmptySlice(opts.AllowedDomains),
+		Issuers: utils.MapSlice(opts.Issuers, func(issuer *string) string {
+			return utils.ProcessURL(*issuer)
+		}),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app service config", "error", err)
@@ -1216,88 +1156,38 @@ func (s *Services) CreateServiceApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	switch opts.AuthMethods {
-	case AuthMethodPrivateKeyJwt:
-		var dbPrms database.CreateCredentialsKeyParams
-		var jwk utils.JWK
-		dbPrms, jwk, serviceErr = s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
-			requestID:       opts.RequestID,
-			accountID:       accountID,
-			accountPublicID: opts.AccountPublicID,
-			expiresIn:       s.accountCCExpDays,
-			usage:           database.CredentialsUsageApp,
-			cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
-		})
-		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		var clientKey database.CredentialsKey
-		clientKey, err = qrs.CreateCredentialsKey(ctx, dbPrms)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create client key", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		if err = qrs.CreateAppKey(ctx, database.CreateAppKeyParams{
-			AccountID:        accountID,
-			AppID:            app.ID,
-			CredentialsKeyID: clientKey.ID,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to create app key", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		logger.InfoContext(ctx, "Created service app successfully with private key JWT auth method")
-		return dtos.MapServiceAppWithJWKToDTO(&app, &appService, jwk, clientKey.ExpiresAt), nil
-	case AuthMethodBothClientSecrets, AuthMethodClientSecretPost, AuthMethodClientSecretBasic:
-		var dbPrms database.CreateCredentialsSecretParams
-		var secret string
-		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
-			requestID: opts.RequestID,
-			accountID: accountID,
-			expiresIn: s.accountCCExpDays,
-			usage:     database.CredentialsUsageApp,
-		})
-		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		var clientSecret database.CredentialsSecret
-		clientSecret, err = qrs.CreateCredentialsSecret(ctx, dbPrms)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		if err = qrs.CreateAppSecret(ctx, database.CreateAppSecretParams{
-			AppID:               app.ID,
-			CredentialsSecretID: clientSecret.ID,
-			AccountID:           accountID,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to create app secret", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		logger.InfoContext(ctx, "Created service app successfully with client secret auth method")
-		return dtos.MapServiceAppWithSecretToDTO(
-			&app,
-			&appService,
-			clientSecret.SecretID,
-			secret,
-			clientSecret.ExpiresAt,
-		), nil
-	default:
-		logger.ErrorContext(ctx, "Unsupported auth method", "authMethod", opts.AuthMethods)
-		serviceErr = exceptions.NewValidationError("Unsupported auth method")
+	dbPrms, jwk, serviceErr := s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
+		requestID:       opts.RequestID,
+		accountID:       accountID,
+		accountPublicID: opts.AccountPublicID,
+		expiresIn:       s.accountCCExpDays,
+		usage:           database.CredentialsUsageApp,
+		cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
 	}
+
+	clientKey, err := qrs.CreateCredentialsKey(ctx, dbPrms)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create client key", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	if err = qrs.CreateAppKey(ctx, database.CreateAppKeyParams{
+		AccountID:        accountID,
+		AppID:            app.ID,
+		CredentialsKeyID: clientKey.ID,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to create app key", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Created service app successfully with private key JWT auth method")
+	return dtos.MapServiceAppWithJWKToDTO(&app, &appService, jwk, clientKey.ExpiresAt), nil
 }
 
 func buildOptionalURL(url string) (pgtype.Text, error) {
@@ -1491,4 +1381,765 @@ func (s *Services) UpdateWebApp(
 
 	logger.InfoContext(ctx, "Updated web app successfully")
 	return dtos.MapWebAppToDTO(&app, &appAuthCodeConfig), nil
+}
+
+type UpdateSPAAppOptions struct {
+	RequestID           string
+	AccountID           int32
+	UsernameColumn      string
+	Name                string
+	ClientURI           string
+	LogoURI             string
+	TOSURI              string
+	PolicyURI           string
+	SoftwareID          string
+	SoftwareVersion     string
+	CallbackURLs        []string
+	LogoutURLs          []string
+	AllowedOrigins      []string
+	CodeChallengeMethod string
+}
+
+func (s *Services) UpdateSPAApp(
+	ctx context.Context,
+	appDTO *dtos.AppDTO,
+	opts UpdateSPAAppOptions,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "UpdateSPAApp").With(
+		"appID", appDTO.ID(),
+		"appName", appDTO.Name,
+	)
+	logger.InfoContext(ctx, "Updating SPA app...")
+
+	name := utils.Capitalized(opts.Name)
+	if appDTO.Name != name {
+		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			name:      name,
+		}); serviceErr != nil {
+			logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
+		}
+	}
+
+	codeChallengeMethod, serviceErr := mapMandatoryCodeChallengeMethod(opts.CodeChallengeMethod)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map code challenge method", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return dtos.AppDTO{}, exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	app, err := s.updateBaseApp(ctx, appDTO, qrs, updateBaseAppOptions{
+		requestID:       opts.RequestID,
+		usernameColumn:  usernameColumn,
+		name:            opts.Name,
+		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	appAuthCodeConfig, err := qrs.UpdateAppAuthCodeConfig(ctx, database.UpdateAppAuthCodeConfigParams{
+		AccountID: app.AccountID,
+		AppID:     app.ID,
+		CallbackUris: utils.MapSlice(utils.ToEmptySlice(opts.CallbackURLs), func(s *string) string {
+			return utils.ProcessURL(*s)
+		}),
+		LogoutUris: utils.MapSlice(utils.ToEmptySlice(opts.LogoutURLs), func(s *string) string {
+			return utils.ProcessURL(*s)
+		}),
+		AllowedOrigins: utils.MapSlice(utils.ToEmptySlice(opts.AllowedOrigins), func(s *string) string {
+			return utils.ProcessURL(*s)
+		}),
+		CodeChallengeMethod: codeChallengeMethod,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update app auth code config", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Updated SPA app successfully")
+	return dtos.MapSPAAppToDTO(&app, &appAuthCodeConfig), nil
+}
+
+type UpdateNativeAppOptions struct {
+	RequestID           string
+	AccountID           int32
+	UsernameColumn      string
+	Name                string
+	ClientURI           string
+	LogoURI             string
+	TOSURI              string
+	PolicyURI           string
+	SoftwareID          string
+	SoftwareVersion     string
+	CallbackURIs        []string
+	LogoutURIs          []string
+	CodeChallengeMethod string
+}
+
+func (s *Services) UpdateNativeApp(
+	ctx context.Context,
+	appDTO *dtos.AppDTO,
+	opts UpdateNativeAppOptions,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "UpdateNativeApp").With(
+		"appID", appDTO.ID(),
+		"appName", appDTO.Name,
+	)
+	logger.InfoContext(ctx, "Updating native app...")
+
+	name := utils.Capitalized(opts.Name)
+	if appDTO.Name != name {
+		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			name:      name,
+		}); serviceErr != nil {
+			logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
+		}
+	}
+
+	codeChallengeMethod, serviceErr := mapMandatoryCodeChallengeMethod(opts.CodeChallengeMethod)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map code challenge method", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return dtos.AppDTO{}, exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	app, err := s.updateBaseApp(ctx, appDTO, qrs, updateBaseAppOptions{
+		requestID:       opts.RequestID,
+		usernameColumn:  usernameColumn,
+		name:            opts.Name,
+		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	appAuthCodeConfig, err := qrs.UpdateAppAuthCodeConfig(ctx, database.UpdateAppAuthCodeConfigParams{
+		AccountID: app.AccountID,
+		AppID:     app.ID,
+		CallbackUris: utils.MapSlice(utils.ToEmptySlice(opts.CallbackURIs), func(s *string) string {
+			return utils.ProcessURL(*s)
+		}),
+		LogoutUris: utils.MapSlice(utils.ToEmptySlice(opts.LogoutURIs), func(s *string) string {
+			return utils.ProcessURL(*s)
+		}),
+		AllowedOrigins:      make([]string, 0),
+		CodeChallengeMethod: codeChallengeMethod,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update app auth code config", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Updated native app successfully")
+	return dtos.MapNativeAppToDTO(&app, &appAuthCodeConfig), nil
+}
+
+type UpdateBackendAppOptions struct {
+	RequestID        string
+	AccountID        int32
+	UsernameColumn   string
+	Name             string
+	ClientURI        string
+	LogoURI          string
+	TOSURI           string
+	PolicyURI        string
+	SoftwareID       string
+	SoftwareVersion  string
+	ConfirmationURL  string
+	ResetPasswordURL string
+	Issuers          []string
+}
+
+func (s *Services) UpdateBackendApp(
+	ctx context.Context,
+	appDTO *dtos.AppDTO,
+	opts UpdateBackendAppOptions,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "UpdateBackendApp").With(
+		"appID", appDTO.ID(),
+		"appName", appDTO.Name,
+	)
+	logger.InfoContext(ctx, "Updating backend app...")
+
+	name := utils.Capitalized(opts.Name)
+	if appDTO.Name != name {
+		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			name:      name,
+		}); serviceErr != nil {
+			logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
+		}
+	}
+
+	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return dtos.AppDTO{}, exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	app, err := s.updateBaseApp(ctx, appDTO, qrs, updateBaseAppOptions{
+		requestID:       opts.RequestID,
+		usernameColumn:  usernameColumn,
+		name:            opts.Name,
+		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	serverConfig, err := qrs.UpdateAppServerConfig(ctx, database.UpdateAppServerConfigParams{
+		AccountID:        app.AccountID,
+		AppID:            app.ID,
+		ConfirmationUrl:  utils.ProcessURL(opts.ConfirmationURL),
+		ResetPasswordUrl: utils.ProcessURL(opts.ResetPasswordURL),
+		Issuers: utils.MapSlice(opts.Issuers, func(issuer *string) string {
+			return utils.ProcessURL(*issuer)
+		}),
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update app server config", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Updated backend app successfully")
+	return dtos.MapBackendAppToDTO(&app, &serverConfig), nil
+}
+
+type UpdateDeviceAppOptions struct {
+	RequestID       string
+	AccountID       int32
+	UsernameColumn  string
+	Name            string
+	ClientURI       string
+	LogoURI         string
+	TOSURI          string
+	PolicyURI       string
+	SoftwareID      string
+	SoftwareVersion string
+	BackendDomain   string
+	AssociatedApps  []string
+}
+
+func (s *Services) UpdateDeviceApp(
+	ctx context.Context,
+	appDTO *dtos.AppDTO,
+	opts UpdateDeviceAppOptions,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "UpdateDeviceApp").With(
+		"appID", appDTO.ID(),
+		"appName", appDTO.Name,
+	)
+	logger.InfoContext(ctx, "Updating device app...")
+
+	name := utils.Capitalized(opts.Name)
+	if appDTO.Name != name {
+		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			name:      name,
+		}); serviceErr != nil {
+			logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
+		}
+	}
+
+	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	relatedApps, err := s.database.FindRelatedAppsByAppID(ctx, appDTO.ID())
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to find related apps", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	toDeleteIDs := make([]int32, 0)
+	associatedAppSet := utils.SliceToHashSet(opts.AssociatedApps)
+	for _, ra := range relatedApps {
+		if !associatedAppSet.Contains(ra.ClientID) {
+			toDeleteIDs = append(toDeleteIDs, ra.ID)
+		}
+	}
+
+	toAddClientIDs := make([]string, 0)
+	relatedAppsSet := utils.MapSliceToHashSet(relatedApps, func(ra *database.App) string {
+		return ra.ClientID
+	})
+	for _, clientID := range opts.AssociatedApps {
+		if !relatedAppsSet.Contains(clientID) {
+			toAddClientIDs = append(toAddClientIDs, clientID)
+		}
+	}
+
+	toAddApps := make([]database.App, 0)
+	if len(toAddClientIDs) > 0 {
+		toAddApps, err = s.database.FindAppsByClientIDsAndAccountID(ctx, database.FindAppsByClientIDsAndAccountIDParams{
+			AccountID: opts.AccountID,
+			Limit:     int32(len(toAddClientIDs)),
+			ClientIds: toAddClientIDs,
+		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to find related apps to add", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		if len(toAddApps) != len(toAddClientIDs) {
+			logger.WarnContext(ctx, "Not all related apps found for adding", "expectedCount", len(toAddClientIDs), "foundCount", len(toAddApps))
+			return dtos.AppDTO{}, exceptions.NewValidationError("Not all related apps found for adding")
+		}
+
+		for _, ra := range toAddApps {
+			if ra.Type != database.AppTypeWeb && ra.Type != database.AppTypeSpa {
+				logger.WarnContext(ctx, "Related app is not a web or spa app", "appID", ra.ID)
+				return dtos.AppDTO{}, exceptions.NewValidationError("Related app must be a web or SPA app")
+			}
+		}
+	}
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return dtos.AppDTO{}, exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	app, err := s.updateBaseApp(ctx, appDTO, qrs, updateBaseAppOptions{
+		requestID:       opts.RequestID,
+		usernameColumn:  usernameColumn,
+		name:            opts.Name,
+		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	if len(toDeleteIDs) > 0 {
+		if err = qrs.DeleteAppRelatedAppsByAppIDAndRelatedAppIDs(
+			ctx,
+			database.DeleteAppRelatedAppsByAppIDAndRelatedAppIDsParams{
+				AppID:         app.ID,
+				RelatedAppIds: toDeleteIDs,
+			},
+		); err != nil {
+			logger.ErrorContext(ctx, "Failed to delete related apps", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+	}
+	if len(toAddApps) > 0 {
+		for _, ra := range toAddApps {
+			if err = qrs.CreateAppRelatedApp(ctx, database.CreateAppRelatedAppParams{
+				AccountID:    opts.AccountID,
+				AppID:        app.ID,
+				RelatedAppID: ra.ID,
+			}); err != nil {
+				logger.ErrorContext(ctx, "Failed to create app device config", "error", err)
+				serviceErr = exceptions.FromDBError(err)
+				return dtos.AppDTO{}, serviceErr
+			}
+		}
+	}
+	if len(toDeleteIDs) == 0 && len(toAddClientIDs) == 0 {
+		logger.InfoContext(ctx, "Updated device app successfully")
+		return dtos.MapDeviceAppToDTO(&app, relatedApps, opts.BackendDomain), nil
+	}
+
+	relatedApps, err = qrs.FindRelatedAppsByAppID(ctx, app.ID)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to find related apps after update", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Updated device app successfully")
+	return dtos.MapDeviceAppToDTO(&app, relatedApps, opts.BackendDomain), nil
+}
+
+type UpdateServiceAppOptions struct {
+	RequestID       string
+	AccountID       int32
+	Name            string
+	ClientURI       string
+	LogoURI         string
+	TOSURI          string
+	PolicyURI       string
+	SoftwareID      string
+	SoftwareVersion string
+	AllowedDomains  []string
+	Issuers         []string
+}
+
+func (s *Services) UpdateServiceApp(
+	ctx context.Context,
+	appDTO *dtos.AppDTO,
+	opts UpdateServiceAppOptions,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "UpdateServiceApp").With(
+		"appID", appDTO.ID(),
+		"appName", appDTO.Name,
+	)
+	logger.InfoContext(ctx, "Updating service app...")
+
+	name := utils.Capitalized(opts.Name)
+	if appDTO.Name != name {
+		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			name:      name,
+		}); serviceErr != nil {
+			logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
+		}
+	}
+
+	var serviceErr *exceptions.ServiceError
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return dtos.AppDTO{}, exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	app, err := s.updateBaseApp(ctx, appDTO, qrs, updateBaseAppOptions{
+		requestID:       opts.RequestID,
+		usernameColumn:  database.AppUsernameColumnEmail, // Service apps always use email
+		name:            opts.Name,
+		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	serviceConfig, err := qrs.UpdateAppServiceConfig(ctx, database.UpdateAppServiceConfigParams{
+		AccountID:      app.AccountID,
+		AppID:          app.ID,
+		AllowedDomains: utils.ToEmptySlice(opts.AllowedDomains),
+		Issuers: utils.MapSlice(opts.Issuers, func(issuer *string) string {
+			return utils.ProcessURL(*issuer)
+		}),
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update app service config", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Updated service app successfully")
+	return dtos.MapServiceAppToDTO(&app, &serviceConfig), nil
+}
+
+type GetAppWithRelatedConfigsOptions struct {
+	RequestID       string
+	AppClientID     string
+	AccountPublicID uuid.UUID
+	BackendDomain   string
+}
+
+func (s *Services) GetAppWithRelatedConfigs(
+	ctx context.Context,
+	opts GetAppWithRelatedConfigsOptions,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "GetAppWithRelatedConfigs").With(
+		"appClientID", opts.AppClientID,
+		"accountPublicID", opts.AccountPublicID,
+	)
+	logger.InfoContext(ctx, "Getting app with related configs...")
+
+	app, err := s.database.FindAppByClientIDAndAccountPublicID(ctx, database.FindAppByClientIDAndAccountPublicIDParams{
+		ClientID:        opts.AppClientID,
+		AccountPublicID: opts.AccountPublicID,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to find app", "error", err)
+		return dtos.AppDTO{}, exceptions.FromDBError(err)
+	}
+
+	switch app.Type {
+	case database.AppTypeWeb, database.AppTypeSpa, database.AppTypeNative:
+		authCodeConfig, err := s.database.FindAppAuthCodeConfig(ctx, app.ID)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to find app auth code config", "error", err)
+			return dtos.AppDTO{}, exceptions.FromDBError(err)
+		}
+
+		if app.Type == database.AppTypeWeb {
+			logger.InfoContext(ctx, "Found app auth code config for web app")
+			return dtos.MapWebAppToDTO(&app, &authCodeConfig), nil
+		}
+		if app.Type == database.AppTypeSpa {
+			logger.InfoContext(ctx, "Found app auth code config for spa app")
+			return dtos.MapSPAAppToDTO(&app, &authCodeConfig), nil
+		}
+
+		logger.InfoContext(ctx, "Found app auth code config for native app")
+		return dtos.MapNativeAppToDTO(&app, &authCodeConfig), nil
+	case database.AppTypeBackend:
+		serverConfig, err := s.database.FindAppServerConfig(ctx, app.ID)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to find app server config", "error", err)
+			return dtos.AppDTO{}, exceptions.FromDBError(err)
+		}
+		return dtos.MapBackendAppToDTO(&app, &serverConfig), nil
+	case database.AppTypeDevice:
+		relatedApps, err := s.database.FindRelatedAppsByAppID(ctx, app.ID)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to find related apps", "error", err)
+			return dtos.AppDTO{}, exceptions.FromDBError(err)
+		}
+		return dtos.MapDeviceAppToDTO(&app, relatedApps, opts.BackendDomain), nil
+	case database.AppTypeService:
+		serviceConfig, err := s.database.FindAppServiceConfig(ctx, app.ID)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to find app service config", "error", err)
+			return dtos.AppDTO{}, exceptions.FromDBError(err)
+		}
+		return dtos.MapServiceAppToDTO(&app, &serviceConfig), nil
+	default:
+		logger.ErrorContext(ctx, "Invalid app type", "appType", app.Type)
+		return dtos.AppDTO{}, exceptions.NewInternalServerError()
+	}
+}
+
+type listAppKeysOptions struct {
+	requestID string
+	appID     int32
+	offset    int32
+	limit     int32
+}
+
+func (s *Services) listAppKeys(
+	ctx context.Context,
+	opts listAppKeysOptions,
+) ([]dtos.ClientCredentialsSecretDTO, int64, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, appsLocation, "listAppKeys").With(
+		"appID", opts.appID,
+	)
+	logger.InfoContext(ctx, "Listing app keys...")
+
+	keys, err := s.database.FindPaginatedAppKeysByAppID(
+		ctx,
+		database.FindPaginatedAppKeysByAppIDParams{
+			AppID:  opts.appID,
+			Offset: opts.offset,
+			Limit:  opts.limit,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to find app keys", "error", err)
+		return nil, 0, exceptions.NewInternalServerError()
+	}
+
+	count, err := s.database.CountAppKeysByAppID(
+		ctx,
+		opts.appID,
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count app keys", "error", err)
+		return nil, 0, exceptions.NewInternalServerError()
+	}
+
+	logger.InfoContext(ctx, "App keys retrieved successfully")
+	return utils.MapSlice(keys, dtos.MapCredentialsKeyToDTO), count, nil
+}
+
+type listAppSecretsOptions struct {
+	requestID string
+	appID     int32
+	offset    int32
+	limit     int32
+}
+
+func (s *Services) listAppSecrets(
+	ctx context.Context,
+	opts listAppSecretsOptions,
+) ([]dtos.ClientCredentialsSecretDTO, int64, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, appsLocation, "listAppSecrets").With(
+		"appID", opts.appID,
+	)
+	logger.InfoContext(ctx, "Listing app secrets...")
+
+	secrets, err := s.database.FindPaginatedAppSecretsByAppID(
+		ctx,
+		database.FindPaginatedAppSecretsByAppIDParams{
+			AppID:  opts.appID,
+			Offset: opts.offset,
+			Limit:  opts.limit,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to find app secrets", "error", err)
+		return nil, 0, exceptions.NewInternalServerError()
+	}
+
+	count, err := s.database.CountAppSecretsByAppID(
+		ctx,
+		opts.appID,
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count app secrets", "error", err)
+		return nil, 0, exceptions.NewInternalServerError()
+	}
+
+	logger.InfoContext(ctx, "App secrets retrieved successfully")
+	return utils.MapSlice(secrets, dtos.MapCredentialsSecretToDTO), count, nil
+}
+
+type ListAppCredentialsSecretsOrKeysOptions struct {
+	RequestID       string
+	AppClientID     string
+	AccountPublicID uuid.UUID
+	Offset          int32
+	Limit           int32
+}
+
+func (s *Services) ListAppCredentialsSecretsOrKeys(
+	ctx context.Context,
+	opts ListAppCredentialsSecretsOrKeysOptions,
+) ([]dtos.ClientCredentialsSecretDTO, int64, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "ListAppCredentialsSecretsOrKeys").With(
+		"appClientID", opts.AppClientID,
+		"accountPublicID", opts.AccountPublicID,
+	)
+	logger.InfoContext(ctx, "Listing app credentials secrets or keys...")
+
+	appDTO, serviceErr := s.GetAppByClientIDAndAccountPublicID(
+		ctx,
+		GetAppByClientIDAndAccountPublicIDOptions{
+			RequestID:       opts.RequestID,
+			AccountPublicID: opts.AccountPublicID,
+			ClientID:        opts.AppClientID,
+		},
+	)
+	if serviceErr != nil {
+		return nil, 0, serviceErr
+	}
+	switch appDTO.Type {
+	case database.AppTypeSpa, database.AppTypeNative, database.AppTypeDevice:
+		return nil, 0, exceptions.NewConflictError("App type does not support secrets or keys")
+	case database.AppTypeBackend, database.AppTypeService:
+		if len(appDTO.AuthMethods) != 1 || appDTO.AuthMethods[0] != database.AuthMethodPrivateKeyJwt {
+			return nil, 0, exceptions.NewConflictError("App type does not support secrets or keys")
+		}
+		return s.listAppKeys(ctx, listAppKeysOptions{
+			requestID: opts.RequestID,
+			appID:     appDTO.ID(),
+			offset:    opts.Offset,
+			limit:     opts.Limit,
+		})
+	case database.AppTypeWeb:
+		amHashSet := utils.SliceToHashSet(appDTO.AuthMethods)
+		if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
+			return s.listAppKeys(ctx, listAppKeysOptions{
+				requestID: opts.RequestID,
+				appID:     appDTO.ID(),
+				offset:    opts.Offset,
+				limit:     opts.Limit,
+			})
+		}
+		if amHashSet.Contains(database.AuthMethodClientSecretBasic) || amHashSet.Contains(database.AuthMethodClientSecretPost) {
+			return s.listAppSecrets(ctx, listAppSecretsOptions{
+				requestID: opts.RequestID,
+				appID:     appDTO.ID(),
+				offset:    opts.Offset,
+				limit:     opts.Limit,
+			})
+		}
+
+		logger.WarnContext(ctx, "No auth method to list secrets or keys")
+		return nil, 0, exceptions.NewConflictError("No auth method to list secrets")
+	default:
+		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.Type)
+		return nil, 0, exceptions.NewInternalServerError()
+	}
 }

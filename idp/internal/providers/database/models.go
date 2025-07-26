@@ -952,6 +952,7 @@ type AppServerConfig struct {
 	ID               int32
 	AccountID        int32
 	AppID            int32
+	Issuers          []string
 	ConfirmationUrl  string
 	ResetPasswordUrl string
 	CreatedAt        time.Time
@@ -962,6 +963,7 @@ type AppServiceConfig struct {
 	ID             int32
 	AccountID      int32
 	AppID          int32
+	Issuers        []string
 	AuthMethods    []AuthMethod
 	GrantTypes     []GrantType
 	AllowedDomains []string

@@ -84,7 +84,7 @@ func (s *Services) WellKnownOIDCConfigurationWithCache(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting well known OIDC configuration from cache", "error", err)
-		return dtos.WellKnownOIDCConfigurationDTO{}, "", exceptions.NewServerError()
+		return dtos.WellKnownOIDCConfigurationDTO{}, "", exceptions.NewInternalServerError()
 	}
 	if etag != "" && configDTO != nil {
 		logger.InfoContext(ctx, "Got well known OIDC configuration from cache successfully")
@@ -103,7 +103,7 @@ func (s *Services) WellKnownOIDCConfigurationWithCache(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Error adding well known OIDC configuration to cache", "error", err)
-		return dtos.WellKnownOIDCConfigurationDTO{}, "", exceptions.NewServerError()
+		return dtos.WellKnownOIDCConfigurationDTO{}, "", exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "Added well known OIDC configuration to cache successfully")

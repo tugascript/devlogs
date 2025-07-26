@@ -205,13 +205,13 @@ func (p *Providers) GetFacebookUserData(
 			return UserData{}, exceptions.NewUnauthorizedError()
 		}
 
-		return UserData{}, exceptions.NewServerError()
+		return UserData{}, exceptions.NewInternalServerError()
 	}
 
 	userRes := FacebookUserResponse{}
 	if err := json.Unmarshal(body, &userRes); err != nil {
 		logger.ErrorContext(ctx, "Failed to parse Facebook user data", "error", err)
-		return UserData{}, exceptions.NewServerError()
+		return UserData{}, exceptions.NewInternalServerError()
 	}
 
 	return userRes.ToUserData(), nil
@@ -242,13 +242,13 @@ func (p *Providers) GetFacebookUserMap(
 			return "", nil, exceptions.NewUnauthorizedError()
 		}
 
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 
 	userRes := make(map[string]any)
 	if err := json.Unmarshal(body, &userRes); err != nil {
 		logger.ErrorContext(ctx, "Failed to parse Facebook user data", "error", err)
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 
 	if len(userRes) == 0 {
@@ -259,7 +259,7 @@ func (p *Providers) GetFacebookUserMap(
 	email, ok := userRes["email"].(string)
 	if !ok {
 		logger.ErrorContext(ctx, "Failed to get email from user data")
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 	if email == "" {
 		logger.WarnContext(ctx, "Empty email in user data")

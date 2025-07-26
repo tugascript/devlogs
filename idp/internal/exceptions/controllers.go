@@ -40,7 +40,7 @@ type ErrorResponse struct {
 
 func NewErrorResponse(err *ServiceError) ErrorResponse {
 	switch err.Code {
-	case CodeServerError:
+	case CodeInternalServerError:
 		return ErrorResponse{
 			Code:    StatusServerError,
 			Message: err.Message,
@@ -282,7 +282,7 @@ func NewRequestErrorStatus(code string) int {
 		return http.StatusForbidden
 	case CodeUnauthorized:
 		return http.StatusUnauthorized
-	case CodeUnknown, CodeServerError:
+	case CodeUnknown, CodeInternalServerError:
 		return http.StatusInternalServerError
 	case CodeUnsupportedMediaType:
 		return http.StatusUnsupportedMediaType

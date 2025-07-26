@@ -19,7 +19,7 @@ const (
 	CodeInvalidEnum          string = "INVALID_ENUM"
 	CodeNotFound             string = "NOT_FOUND"
 	CodeUnknown              string = "UNKNOWN"
-	CodeServerError          string = "SERVER_ERROR"
+	CodeInternalServerError  string = "INTERNAL_SERVER_ERROR"
 	CodeUnauthorized         string = "UNAUTHORIZED"
 	CodeForbidden            string = "FORBIDDEN"
 	CodeUnsupportedMediaType string = "UNSUPPORTED_MEDIA_TYPE"
@@ -67,8 +67,8 @@ func NewValidationError(message string) *ServiceError {
 	return NewError(CodeValidation, message)
 }
 
-func NewServerError() *ServiceError {
-	return NewError(CodeServerError, MessageUnknown)
+func NewInternalServerError() *ServiceError {
+	return NewError(CodeInternalServerError, MessageUnknown)
 }
 
 func NewConflictError(message string) *ServiceError {

@@ -83,7 +83,7 @@ func (s *Services) createJWK(
 	if opts.cryptoSuite == utils.SupportedCryptoSuiteES256 {
 		if _, err := s.crypto.GenerateES256KeyPair(ctx, encOpts); err != nil {
 			logger.ErrorContext(ctx, "Failed to generate ES256 key pair", "error", err)
-			return exceptions.NewServerError()
+			return exceptions.NewInternalServerError()
 		}
 
 		return nil
@@ -91,7 +91,7 @@ func (s *Services) createJWK(
 
 	if _, err := s.crypto.GenerateEd25519KeyPair(ctx, encOpts); err != nil {
 		logger.ErrorContext(ctx, "Failed to generate Ed25519 key pair", "error", err)
-		return exceptions.NewServerError()
+		return exceptions.NewInternalServerError()
 	}
 
 	return nil
@@ -113,13 +113,13 @@ func (s *Services) buildStoreGlobalJWKfn(
 		dbCryptoSuite, err := mapCryptoSuite(cryptoSuite)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
-			return 0, exceptions.NewServerError()
+			return 0, exceptions.NewInternalServerError()
 		}
 
 		pubKeyBytes, err := pubKey.MarshalJSON()
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to encode public key to JSON", "error", err)
-			return 0, exceptions.NewServerError()
+			return 0, exceptions.NewInternalServerError()
 		}
 
 		logger.InfoContext(ctx, "Storing global JWK", "kid", kid, "cryptoSuite", dbCryptoSuite)
@@ -147,7 +147,7 @@ func (s *Services) buildStoreGlobalJWKfn(
 			EncPrivKey:  encryptedKey,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to save JWK private key to cache", "error", err)
-			return 0, exceptions.NewServerError()
+			return 0, exceptions.NewInternalServerError()
 		}
 
 		logger.InfoContext(ctx, "JWK saved and cached successfully", "kid", kid, "cryptoSuite", dbCryptoSuite)
@@ -185,7 +185,7 @@ func (s *Services) BuildGetGlobalEncryptedJWKFn(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get JWK private key from cache", "error", err)
-			return "", "", "", exceptions.NewServerError()
+			return "", "", "", exceptions.NewInternalServerError()
 		}
 
 		if found {
@@ -225,13 +225,13 @@ func (s *Services) BuildGetGlobalEncryptedJWKFn(
 			jwkKID, ok := data["kid"]
 			if !ok {
 				logger.ErrorContext(ctx, "Failed to get JWK KID from data map")
-				return "", "", "", exceptions.NewServerError()
+				return "", "", "", exceptions.NewInternalServerError()
 			}
 
 			encPrivKey, ok := data["encryptedKey"]
 			if !ok {
 				logger.ErrorContext(ctx, "Failed to get encrypted private key from data map")
-				return "", "", "", exceptions.NewServerError()
+				return "", "", "", exceptions.NewInternalServerError()
 			}
 
 			logger.InfoContext(ctx, "JWK private key cached successfully", "kid", jwkKID)
@@ -242,7 +242,7 @@ func (s *Services) BuildGetGlobalEncryptedJWKFn(
 		dbCryptoSuite, err := mapDBCryptoSuite(jwkEnt.CryptoSuite)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
-			return "", "", "", exceptions.NewServerError()
+			return "", "", "", exceptions.NewInternalServerError()
 		}
 
 		if dbCryptoSuite != cryptoSuite {
@@ -250,7 +250,7 @@ func (s *Services) BuildGetGlobalEncryptedJWKFn(
 				"entityCryptoSuite", dbCryptoSuite,
 				"cryptoSuite", cryptoSuite,
 			)
-			return "", "", "", exceptions.NewServerError()
+			return "", "", "", exceptions.NewInternalServerError()
 		}
 
 		logger.InfoContext(ctx, "Saving JWK private key to cache", "kid", jwkEnt.Kid)
@@ -262,7 +262,7 @@ func (s *Services) BuildGetGlobalEncryptedJWKFn(
 			EncPrivKey:  jwkEnt.PrivateKey,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to save JWK private key to cache", "error", err)
-			return "", "", "", exceptions.NewServerError()
+			return "", "", "", exceptions.NewInternalServerError()
 		}
 
 		logger.InfoContext(ctx, "JWK cached successfully", "kid", jwkEnt.Kid)
@@ -303,7 +303,7 @@ func (s *Services) BuildGetGlobalPublicKeyFn(
 		dbCryptoSuite, err := mapCryptoSuite(cryptoSuite)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
-			return nil, exceptions.NewServerError()
+			return nil, exceptions.NewInternalServerError()
 		}
 
 		jwkEnt, err := s.database.FindTokenSigningKeyByKID(ctx, kid)
@@ -361,7 +361,7 @@ func (s *Services) GetAndCacheGlobalDistributedJWK(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get public JWKs from cache", "error", err)
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 	if found {
 		logger.InfoContext(ctx, "Public JWKs found in cache", "etag", etag)
@@ -381,7 +381,7 @@ func (s *Services) GetAndCacheGlobalDistributedJWK(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to save public JWKs to cache", "error", err)
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 
 	jwks, err = utils.MapSliceWithErr(publicJwks, func(jwkBytes *[]byte) (utils.JWK, error) {
@@ -389,7 +389,7 @@ func (s *Services) GetAndCacheGlobalDistributedJWK(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to convert JWK bytes to JWK", "error", err)
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "Global distributed JWKs cached successfully", "etag", etag, "count", len(jwks))
@@ -419,13 +419,13 @@ func (s *Services) buildStoreAccountJWKfn(
 		dbCryptoSuite, err := mapCryptoSuite(cryptoSuite)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
-			return 0, exceptions.NewServerError()
+			return 0, exceptions.NewInternalServerError()
 		}
 
 		pubKeyBytes, err := pubKey.MarshalJSON()
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to encode public key to JSON", "error", err)
-			return 0, exceptions.NewServerError()
+			return 0, exceptions.NewInternalServerError()
 		}
 
 		var serviceErr *exceptions.ServiceError
@@ -472,7 +472,7 @@ func (s *Services) buildStoreAccountJWKfn(
 			EncPrivKey:  encryptedKey,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to save JWK private key to cache", "error", err)
-			serviceErr = exceptions.NewServerError()
+			serviceErr = exceptions.NewInternalServerError()
 			return 0, serviceErr
 		}
 
@@ -513,7 +513,7 @@ func (s *Services) BuildGetEncryptedAccountJWKFn(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get JWK from cache", "error", err)
-			return "", "", "", exceptions.NewServerError()
+			return "", "", "", exceptions.NewInternalServerError()
 		}
 
 		if found {
@@ -560,13 +560,13 @@ func (s *Services) BuildGetEncryptedAccountJWKFn(
 			kid, ok := data["kid"]
 			if !ok {
 				logger.ErrorContext(ctx, "Failed to get JWK KID from data map")
-				return "", "", "", exceptions.NewServerError()
+				return "", "", "", exceptions.NewInternalServerError()
 			}
 
 			encPrivKey, ok := data["encryptedKey"]
 			if !ok {
 				logger.ErrorContext(ctx, "Failed to get encrypted private key from data map")
-				return "", "", "", exceptions.NewServerError()
+				return "", "", "", exceptions.NewInternalServerError()
 			}
 
 			logger.InfoContext(ctx, "JWK private key cached successfully", "kid", kid)
@@ -577,7 +577,7 @@ func (s *Services) BuildGetEncryptedAccountJWKFn(
 		dbCryptoSuite, err := mapDBCryptoSuite(jwkEnt.CryptoSuite)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
-			return "", "", "", exceptions.NewServerError()
+			return "", "", "", exceptions.NewInternalServerError()
 		}
 
 		if dbCryptoSuite != cryptoSuite {
@@ -585,7 +585,7 @@ func (s *Services) BuildGetEncryptedAccountJWKFn(
 				"entityCryptoSuite", dbCryptoSuite,
 				"cryptoSuite", cryptoSuite,
 			)
-			return "", "", "", exceptions.NewServerError()
+			return "", "", "", exceptions.NewInternalServerError()
 		}
 
 		logger.InfoContext(ctx, "Saving JWK private key to cache", "kid", jwkEnt.Kid)
@@ -597,7 +597,7 @@ func (s *Services) BuildGetEncryptedAccountJWKFn(
 			EncPrivKey:  jwkEnt.PrivateKey,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to save JWK private key to cache", "error", err)
-			return "", "", "", exceptions.NewServerError()
+			return "", "", "", exceptions.NewInternalServerError()
 		}
 
 		logger.InfoContext(ctx, "JWK private key cached successfully", "kid", jwkEnt.Kid)
@@ -636,7 +636,7 @@ func (s *Services) buildVerifyAccountKeyFn(
 		dbCryptoSuite, err := mapCryptoSuite(cryptoSuite)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
-			return nil, exceptions.NewServerError()
+			return nil, exceptions.NewInternalServerError()
 		}
 
 		jwkEnt, err := s.database.FindAccountTokenSigningKeyByAccountIDAndKID(
@@ -705,7 +705,7 @@ func (s *Services) GetAndCacheAccountDistributedJWK(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get public JWKs from cache", "error", err)
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 	if found {
 		logger.InfoContext(ctx, "Public JWKs found in cache", "etag", etag)
@@ -725,7 +725,7 @@ func (s *Services) GetAndCacheAccountDistributedJWK(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to save public JWKs to cache", "error", err)
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 
 	jwks, err = utils.MapSliceWithErr(publicJwks, func(jwkBytes *[]byte) (utils.JWK, error) {
@@ -733,7 +733,7 @@ func (s *Services) GetAndCacheAccountDistributedJWK(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to convert JWK bytes to JWK", "error", err)
-		return "", nil, exceptions.NewServerError()
+		return "", nil, exceptions.NewInternalServerError()
 	}
 
 	logger.InfoContext(ctx, "Account distributed JWKs cached successfully", "etag", etag, "count", len(jwks))
