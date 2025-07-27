@@ -317,6 +317,78 @@ func mapAppTypeToDB(appType string) (database.AppType, *exceptions.ServiceError)
 	}
 }
 
+type FilterAccountAppsByTypeOptions struct {
+	RequestID       string
+	AccountPublicID uuid.UUID
+	Offset          int32
+	Limit           int32
+	Order           string
+	Type            string
+}
+
+func (s *Services) FilterAccountAppsByType(
+	ctx context.Context,
+	opts FilterAccountAppsByTypeOptions,
+) ([]dtos.AppDTO, int64, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "FilterAccountAppsByType").With(
+		"accountPublicID", opts.AccountPublicID,
+		"offset", opts.Offset,
+		"limit", opts.Limit,
+		"type", opts.Type,
+		"order", opts.Order,
+	)
+	logger.InfoContext(ctx, "Filtering account apps by type...")
+
+	appType, serviceErr := mapAppTypeToDB(opts.Type)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map app type", "serviceError", serviceErr)
+		return nil, 0, serviceErr
+	}
+
+	order := utils.Lowered(opts.Order)
+	var apps []database.App
+	var err error
+
+	switch order {
+	case "date":
+		apps, err = s.database.FilterAppsByTypeAndByAccountPublicIDOrderedByID(ctx,
+			database.FilterAppsByTypeAndByAccountPublicIDOrderedByIDParams{
+				AccountPublicID: opts.AccountPublicID,
+				Type:            appType,
+				Offset:          opts.Offset,
+				Limit:           opts.Limit,
+			},
+		)
+	case "name":
+		apps, err = s.database.FilterAppsByTypeAndByAccountPublicIDOrderedByName(ctx,
+			database.FilterAppsByTypeAndByAccountPublicIDOrderedByNameParams{
+				AccountPublicID: opts.AccountPublicID,
+				Type:            appType,
+				Offset:          opts.Offset,
+				Limit:           opts.Limit,
+			},
+		)
+	}
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to filter account apps by type", "error", err)
+		return nil, 0, exceptions.FromDBError(err)
+	}
+
+	count, err := s.database.CountFilteredAppsByTypeAndByAccountPublicID(ctx,
+		database.CountFilteredAppsByTypeAndByAccountPublicIDParams{
+			AccountPublicID: opts.AccountPublicID,
+			Type:            appType,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count filtered apps by type", "error", err)
+		return nil, 0, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Account apps filtered by type successfully")
+	return utils.MapSlice(apps, dtos.MapAppToDTO), count, nil
+}
+
 type FilterAccountAppsByNameAndTypeOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
@@ -399,78 +471,6 @@ func (s *Services) FilterAccountAppsByNameAndType(
 	return utils.MapSlice(apps, dtos.MapAppToDTO), count, nil
 }
 
-type FilterAccountAppsByTypeOptions struct {
-	RequestID       string
-	AccountPublicID uuid.UUID
-	Offset          int32
-	Limit           int32
-	Order           string
-	Type            string
-}
-
-func (s *Services) FilterAccountAppsByType(
-	ctx context.Context,
-	opts FilterAccountAppsByTypeOptions,
-) ([]dtos.AppDTO, int64, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, appsLocation, "FilterAccountAppsByType").With(
-		"accountPublicID", opts.AccountPublicID,
-		"offset", opts.Offset,
-		"limit", opts.Limit,
-		"type", opts.Type,
-		"order", opts.Order,
-	)
-	logger.InfoContext(ctx, "Filtering account apps by type...")
-
-	appType, serviceErr := mapAppTypeToDB(opts.Type)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map app type", "serviceError", serviceErr)
-		return nil, 0, serviceErr
-	}
-
-	order := utils.Lowered(opts.Order)
-	var apps []database.App
-	var err error
-
-	switch order {
-	case "date":
-		apps, err = s.database.FilterAppsByTypeAndByAccountPublicIDOrderedByID(ctx,
-			database.FilterAppsByTypeAndByAccountPublicIDOrderedByIDParams{
-				AccountPublicID: opts.AccountPublicID,
-				Type:            appType,
-				Offset:          opts.Offset,
-				Limit:           opts.Limit,
-			},
-		)
-	case "name":
-		apps, err = s.database.FilterAppsByTypeAndByAccountPublicIDOrderedByName(ctx,
-			database.FilterAppsByTypeAndByAccountPublicIDOrderedByNameParams{
-				AccountPublicID: opts.AccountPublicID,
-				Type:            appType,
-				Offset:          opts.Offset,
-				Limit:           opts.Limit,
-			},
-		)
-	}
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to filter account apps by type", "error", err)
-		return nil, 0, exceptions.FromDBError(err)
-	}
-
-	count, err := s.database.CountFilteredAppsByTypeAndByAccountPublicID(ctx,
-		database.CountFilteredAppsByTypeAndByAccountPublicIDParams{
-			AccountPublicID: opts.AccountPublicID,
-			Type:            appType,
-		},
-	)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to count filtered apps by type", "error", err)
-		return nil, 0, exceptions.FromDBError(err)
-	}
-
-	logger.InfoContext(ctx, "Account apps filtered by type successfully")
-	return utils.MapSlice(apps, dtos.MapAppToDTO), count, nil
-}
-
 func mapUsernameColumn(col string) (database.AppUsernameColumn, *exceptions.ServiceError) {
 	switch col {
 	case "email", "":
@@ -528,6 +528,117 @@ func mapWebCodeChallengeMethod(method string) (database.CodeChallengeMethod, *ex
 	default:
 		return "", exceptions.NewValidationError("Unsupported code challenge method")
 	}
+}
+
+type createAppOptions struct {
+	requestID       string
+	accountID       int32
+	accountPublicID uuid.UUID
+	appType         database.AppType
+	name            string
+	clientURI       string
+	usernameColumn  database.AppUsernameColumn
+	authMethods     []database.AuthMethod
+	grantTypes      []database.GrantType
+}
+
+func (s *Services) createApp(
+	ctx context.Context,
+	qrs *database.Queries,
+	opts createAppOptions,
+) (database.App, error) {
+	logger := s.buildLogger(opts.requestID, appsLocation, "createApp").With(
+		"accountPublicId", opts.accountPublicID,
+		"name", opts.name,
+		"appType", opts.appType,
+	)
+	logger.InfoContext(ctx, "Creating app...")
+
+	clientID := utils.Base62UUID()
+	app, err := qrs.CreateApp(ctx, database.CreateAppParams{
+		AccountID:       opts.accountID,
+		AccountPublicID: opts.accountPublicID,
+		Type:            opts.appType,
+		Name:            opts.name,
+		ClientID:        clientID,
+		ClientUri:       utils.ProcessURL(opts.clientURI),
+		UsernameColumn:  opts.usernameColumn,
+		AuthMethods:     opts.authMethods,
+		GrantTypes:      opts.grantTypes,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create app", "error", err)
+		return database.App{}, err
+	}
+
+	logger.InfoContext(ctx, "App created successfully")
+	return app, nil
+}
+
+type createAppWithAuthCodeConfigOptions struct {
+	requestID           string
+	accountID           int32
+	accountPublicID     uuid.UUID
+	appType             database.AppType
+	name                string
+	clientURI           string
+	usernameColumn      database.AppUsernameColumn
+	authMethods         []database.AuthMethod
+	grantTypes          []database.GrantType
+	codeChallengeMethod database.CodeChallengeMethod
+	callbackURIs        []string
+	logoutURIs          []string
+	allowedOrigins      []string
+}
+
+func (s *Services) createAppWithAuthConfig(
+	ctx context.Context,
+	qrs *database.Queries,
+	opts createAppWithAuthCodeConfigOptions,
+) (database.App, database.AppAuthCodeConfig, error) {
+	logger := s.buildLogger(opts.requestID, appsLocation, "createAppWithAuthConfig").With(
+		"accountPublicId", opts.accountPublicID,
+		"name", opts.name,
+		"appType", opts.appType,
+	)
+
+	app, err := s.createApp(ctx, qrs, createAppOptions{
+		requestID:       opts.requestID,
+		accountID:       opts.accountID,
+		accountPublicID: opts.accountPublicID,
+		appType:         opts.appType,
+		name:            opts.name,
+		clientURI:       opts.clientURI,
+		usernameColumn:  opts.usernameColumn,
+		authMethods:     opts.authMethods,
+		grantTypes:      opts.grantTypes,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create app", "error", err)
+		return database.App{}, database.AppAuthCodeConfig{}, err
+	}
+
+	authConfig, err := qrs.CreateAppAuthCodeConfig(ctx, database.CreateAppAuthCodeConfigParams{
+		AccountID:           opts.accountID,
+		AppID:               app.ID,
+		CodeChallengeMethod: opts.codeChallengeMethod,
+		CallbackUris: utils.MapSlice(opts.callbackURIs, func(uri *string) string {
+			return utils.ProcessURL(*uri)
+		}),
+		LogoutUris: utils.MapSlice(opts.logoutURIs, func(uri *string) string {
+			return utils.ProcessURL(*uri)
+		}),
+		AllowedOrigins: utils.MapSlice(opts.allowedOrigins, func(uri *string) string {
+			return utils.ProcessURL(*uri)
+		}),
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create app callback/logout URIs", "error", err)
+		return database.App{}, database.AppAuthCodeConfig{}, err
+	}
+
+	logger.InfoContext(ctx, "App with auth code config created successfully")
+	return app, authConfig, nil
 }
 
 type CreateWebAppOptions struct {
@@ -604,40 +715,23 @@ func (s *Services) CreateWebApp(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	clientID := utils.Base62UUID()
-	app, err := qrs.CreateApp(ctx, database.CreateAppParams{
-		AccountID:       accountID,
-		AccountPublicID: opts.AccountPublicID,
-		Type:            database.AppTypeWeb,
-		Name:            name,
-		UsernameColumn:  usernameColumn,
-		ClientID:        clientID,
-		AuthMethods:     authMethods,
-		GrantTypes:      authCodeAppGrantTypes,
-		ClientUri:       utils.ProcessURL(opts.ClientURI),
+	app, authConfig, err := s.createAppWithAuthConfig(ctx, qrs, createAppWithAuthCodeConfigOptions{
+		requestID:           opts.RequestID,
+		accountID:           accountID,
+		accountPublicID:     opts.AccountPublicID,
+		appType:             database.AppTypeWeb,
+		name:                name,
+		clientURI:           opts.ClientURI,
+		usernameColumn:      usernameColumn,
+		authMethods:         authMethods,
+		grantTypes:          authCodeAppGrantTypes,
+		codeChallengeMethod: codeChallengeMethod,
+		callbackURIs:        opts.CallbackURIs,
+		logoutURIs:          opts.LogoutURIs,
+		allowedOrigins:      opts.AllowedOrigins,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create app", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	authConfig, err := qrs.CreateAppAuthCodeConfig(ctx, database.CreateAppAuthCodeConfigParams{
-		AccountID:           accountID,
-		AppID:               app.ID,
-		CodeChallengeMethod: codeChallengeMethod,
-		CallbackUris: utils.MapSlice(opts.CallbackURIs, func(uri *string) string {
-			return utils.ProcessURL(*uri)
-		}),
-		LogoutUris: utils.MapSlice(opts.LogoutURIs, func(uri *string) string {
-			return utils.ProcessURL(*uri)
-		}),
-		AllowedOrigins: utils.MapSlice(opts.AllowedOrigins, func(uri *string) string {
-			return utils.ProcessURL(*uri)
-		}),
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create app callback/logout URIs", "error", err)
+		logger.ErrorContext(ctx, "Failed to create app and auth config", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.AppDTO{}, serviceErr
 	}
@@ -803,40 +897,23 @@ func (s *Services) CreateSPAApp(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	clientID := utils.Base62UUID()
-	app, err := qrs.CreateApp(ctx, database.CreateAppParams{
-		AccountID:       accountID,
-		AccountPublicID: opts.AccountPublicID,
-		Type:            database.AppTypeSpa,
-		Name:            name,
-		UsernameColumn:  usernameColumn,
-		ClientID:        clientID,
-		AuthMethods:     noneAuthMethod,
-		GrantTypes:      authCodeAppGrantTypes,
-		ClientUri:       utils.ProcessURL(opts.ClientURI),
+	app, authConfig, err := s.createAppWithAuthConfig(ctx, qrs, createAppWithAuthCodeConfigOptions{
+		requestID:           opts.RequestID,
+		accountID:           accountID,
+		accountPublicID:     opts.AccountPublicID,
+		appType:             database.AppTypeSpa,
+		name:                name,
+		clientURI:           opts.ClientURI,
+		usernameColumn:      usernameColumn,
+		authMethods:         noneAuthMethod,
+		grantTypes:          authCodeAppGrantTypes,
+		codeChallengeMethod: codeChallengeMethod,
+		callbackURIs:        opts.CallbackURIs,
+		logoutURIs:          opts.LogoutURIs,
+		allowedOrigins:      opts.AllowedOrigins,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create app", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	authConfig, err := qrs.CreateAppAuthCodeConfig(ctx, database.CreateAppAuthCodeConfigParams{
-		AccountID:           accountID,
-		AppID:               app.ID,
-		CodeChallengeMethod: codeChallengeMethod,
-		CallbackUris: utils.MapSlice(opts.CallbackURIs, func(uri *string) string {
-			return utils.ProcessURL(*uri)
-		}),
-		LogoutUris: utils.MapSlice(opts.LogoutURIs, func(uri *string) string {
-			return utils.ProcessURL(*uri)
-		}),
-		AllowedOrigins: utils.MapSlice(opts.AllowedOrigins, func(uri *string) string {
-			return utils.ProcessURL(*uri)
-		}),
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create app callback/logout URIs", "error", err)
+		logger.ErrorContext(ctx, "Failed to create app and auth config", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.AppDTO{}, serviceErr
 	}
@@ -910,38 +987,23 @@ func (s *Services) CreateNativeApp(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	clientID := utils.Base62UUID()
-	app, err := qrs.CreateApp(ctx, database.CreateAppParams{
-		AccountID:       accountID,
-		AccountPublicID: opts.AccountPublicID,
-		Type:            database.AppTypeNative,
-		Name:            name,
-		UsernameColumn:  usernameColumn,
-		ClientID:        clientID,
-		ClientUri:       utils.ProcessURL(opts.ClientURI),
-		AuthMethods:     noneAuthMethod,
-		GrantTypes:      authCodeAppGrantTypes,
+	app, authConfig, err := s.createAppWithAuthConfig(ctx, qrs, createAppWithAuthCodeConfigOptions{
+		requestID:           opts.RequestID,
+		accountID:           accountID,
+		accountPublicID:     opts.AccountPublicID,
+		appType:             database.AppTypeNative,
+		name:                name,
+		clientURI:           opts.ClientURI,
+		usernameColumn:      usernameColumn,
+		authMethods:         noneAuthMethod,
+		grantTypes:          authCodeAppGrantTypes,
+		codeChallengeMethod: codeChallengeMethod,
+		callbackURIs:        opts.CallbackURIs,
+		logoutURIs:          opts.LogoutURIs,
+		allowedOrigins:      make([]string, 0),
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create app", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	authConfig, err := qrs.CreateAppAuthCodeConfig(ctx, database.CreateAppAuthCodeConfigParams{
-		AccountID:           accountID,
-		AppID:               app.ID,
-		CodeChallengeMethod: codeChallengeMethod,
-		CallbackUris: utils.MapSlice(opts.CallbackURIs, func(uri *string) string {
-			return utils.ProcessURL(*uri)
-		}),
-		LogoutUris: utils.MapSlice(opts.LogoutURIs, func(uri *string) string {
-			return utils.ProcessURL(*uri)
-		}),
-		AllowedOrigins: make([]string, 0),
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create app callback/logout URIs", "error", err)
+		logger.ErrorContext(ctx, "Failed to create app and auth config", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.AppDTO{}, serviceErr
 	}
@@ -1010,17 +1072,16 @@ func (s *Services) CreateBackendApp(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	clientID := utils.Base62UUID()
-	app, err := qrs.CreateApp(ctx, database.CreateAppParams{
-		AccountID:       accountID,
-		AccountPublicID: opts.AccountPublicID,
-		Type:            database.AppTypeBackend,
-		Name:            name,
-		UsernameColumn:  usernameColumn,
-		ClientID:        clientID,
-		ClientUri:       utils.ProcessURL(opts.ClientURI),
-		AuthMethods:     privateKeyAuthMethods,
-		GrantTypes:      privateKeyGrantTypes,
+	app, err := s.createApp(ctx, qrs, createAppOptions{
+		requestID:       opts.RequestID,
+		accountID:       accountID,
+		accountPublicID: opts.AccountPublicID,
+		appType:         database.AppTypeBackend,
+		name:            name,
+		clientURI:       opts.ClientURI,
+		usernameColumn:  usernameColumn,
+		authMethods:     privateKeyAuthMethods,
+		grantTypes:      privateKeyGrantTypes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -1295,17 +1356,16 @@ func (s *Services) CreateServiceApp(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	clientID := utils.Base62UUID()
-	app, err := qrs.CreateApp(ctx, database.CreateAppParams{
-		AccountID:       accountID,
-		AccountPublicID: opts.AccountPublicID,
-		Type:            database.AppTypeService,
-		Name:            name,
-		UsernameColumn:  database.AppUsernameColumnEmail,
-		ClientID:        clientID,
-		AuthMethods:     privateKeyAuthMethods,
-		GrantTypes:      privateKeyGrantTypes,
-		ClientUri:       utils.ProcessURL(opts.ClientURI),
+	app, err := s.createApp(ctx, qrs, createAppOptions{
+		requestID:       opts.RequestID,
+		accountID:       accountID,
+		accountPublicID: opts.AccountPublicID,
+		appType:         database.AppTypeService,
+		name:            name,
+		clientURI:       opts.ClientURI,
+		usernameColumn:  database.AppUsernameColumnEmail,
+		authMethods:     privateKeyAuthMethods,
+		grantTypes:      privateKeyGrantTypes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -1376,7 +1436,7 @@ func buildOptionalURL(url string) (pgtype.Text, error) {
 	return pgURL, nil
 }
 
-type updateBaseAppOptions struct {
+type updateAppOptions struct {
 	requestID       string
 	usernameColumn  database.AppUsernameColumn
 	name            string
@@ -1388,13 +1448,13 @@ type updateBaseAppOptions struct {
 	softwareVersion string
 }
 
-func (s *Services) updateBaseApp(
+func (s *Services) updateApp(
 	ctx context.Context,
 	appDTO *dtos.AppDTO,
 	qrs *database.Queries,
-	opts updateBaseAppOptions,
+	opts updateAppOptions,
 ) (database.App, error) {
-	logger := s.buildLogger(opts.requestID, appsLocation, "updateBaseApp").With(
+	logger := s.buildLogger(opts.requestID, appsLocation, "updateApp").With(
 		"appID", appDTO.ID(),
 		"appName", appDTO.Name,
 	)
@@ -1452,6 +1512,74 @@ func (s *Services) updateBaseApp(
 
 	logger.InfoContext(ctx, "Updated base app successfully")
 	return app, nil
+}
+
+type updateAppWithAuthCodeConfigOptions struct {
+	requestID           string
+	usernameColumn      database.AppUsernameColumn
+	name                string
+	clientURI           string
+	logoURI             string
+	tosURI              string
+	policyURI           string
+	softwareID          string
+	softwareVersion     string
+	callbackURIs        []string
+	logoutURIs          []string
+	allowedOrigins      []string
+	codeChallengeMethod database.CodeChallengeMethod
+}
+
+func (s *Services) updateAppWithAuthCodeConfig(
+	ctx context.Context,
+	appDTO *dtos.AppDTO,
+	qrs *database.Queries,
+	opts updateAppWithAuthCodeConfigOptions,
+) (database.App, database.AppAuthCodeConfig, error) {
+	logger := s.buildLogger(opts.requestID, appsLocation, "updateAppWithAuthCodeConfig").With(
+		"appID", appDTO.ID(),
+		"appName", appDTO.Name,
+		"appType", appDTO.Type,
+	)
+	logger.InfoContext(ctx, "Updating app with auth code config...")
+
+	app, err := s.updateApp(ctx, appDTO, qrs, updateAppOptions{
+		requestID:       opts.requestID,
+		usernameColumn:  opts.usernameColumn,
+		name:            opts.name,
+		clientURI:       opts.clientURI,
+		logoURI:         opts.logoURI,
+		tosURI:          opts.tosURI,
+		policyURI:       opts.policyURI,
+		softwareID:      opts.softwareID,
+		softwareVersion: opts.softwareVersion,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
+		return database.App{}, database.AppAuthCodeConfig{}, err
+	}
+
+	appAuthCodeConfig, err := qrs.UpdateAppAuthCodeConfig(ctx, database.UpdateAppAuthCodeConfigParams{
+		AccountID: app.AccountID,
+		AppID:     app.ID,
+		CallbackUris: utils.MapSlice(opts.callbackURIs, func(s *string) string {
+			return utils.ProcessURL(*s)
+		}),
+		LogoutUris: utils.MapSlice(opts.logoutURIs, func(s *string) string {
+			return utils.ProcessURL(*s)
+		}),
+		AllowedOrigins: utils.MapSlice(opts.allowedOrigins, func(s *string) string {
+			return utils.ProcessURL(*s)
+		}),
+		CodeChallengeMethod: opts.codeChallengeMethod,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to update app auth code config", "error", err)
+		return database.App{}, database.AppAuthCodeConfig{}, err
+	}
+
+	logger.InfoContext(ctx, "Updated app with auth code config successfully")
+	return app, appAuthCodeConfig, nil
 }
 
 type UpdateWebAppOptions struct {
@@ -1515,39 +1643,23 @@ func (s *Services) UpdateWebApp(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	app, err := s.updateBaseApp(ctx, appDTO, qrs, updateBaseAppOptions{
-		requestID:       opts.RequestID,
-		usernameColumn:  usernameColumn,
-		name:            opts.Name,
-		clientURI:       opts.ClientURI,
-		logoURI:         opts.LogoURI,
-		tosURI:          opts.TOSURI,
-		policyURI:       opts.PolicyURI,
-		softwareID:      opts.SoftwareID,
-		softwareVersion: opts.SoftwareVersion,
+	app, appAuthCodeConfig, err := s.updateAppWithAuthCodeConfig(ctx, appDTO, qrs, updateAppWithAuthCodeConfigOptions{
+		requestID:           opts.RequestID,
+		usernameColumn:      usernameColumn,
+		name:                opts.Name,
+		clientURI:           opts.ClientURI,
+		logoURI:             opts.LogoURI,
+		tosURI:              opts.TOSURI,
+		policyURI:           opts.PolicyURI,
+		softwareID:          opts.SoftwareID,
+		softwareVersion:     opts.SoftwareVersion,
+		callbackURIs:        opts.CallbackURLs,
+		logoutURIs:          opts.LogoutURLs,
+		allowedOrigins:      opts.AllowedOrigins,
+		codeChallengeMethod: codeChallengeMethod,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	appAuthCodeConfig, err := qrs.UpdateAppAuthCodeConfig(ctx, database.UpdateAppAuthCodeConfigParams{
-		AccountID: app.AccountID,
-		AppID:     app.ID,
-		CallbackUris: utils.MapSlice(utils.ToEmptySlice(opts.CallbackURLs), func(s *string) string {
-			return utils.ProcessURL(*s)
-		}),
-		LogoutUris: utils.MapSlice(utils.ToEmptySlice(opts.LogoutURLs), func(s *string) string {
-			return utils.ProcessURL(*s)
-		}),
-		AllowedOrigins: utils.MapSlice(utils.ToEmptySlice(opts.AllowedOrigins), func(s *string) string {
-			return utils.ProcessURL(*s)
-		}),
-		CodeChallengeMethod: codeChallengeMethod,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to update app auth code config", "error", err)
+		logger.ErrorContext(ctx, "Failed to update app and auth code config", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.AppDTO{}, serviceErr
 	}
@@ -1617,39 +1729,23 @@ func (s *Services) UpdateSPAApp(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	app, err := s.updateBaseApp(ctx, appDTO, qrs, updateBaseAppOptions{
-		requestID:       opts.RequestID,
-		usernameColumn:  usernameColumn,
-		name:            opts.Name,
-		clientURI:       opts.ClientURI,
-		logoURI:         opts.LogoURI,
-		tosURI:          opts.TOSURI,
-		policyURI:       opts.PolicyURI,
-		softwareID:      opts.SoftwareID,
-		softwareVersion: opts.SoftwareVersion,
+	app, appAuthCodeConfig, err := s.updateAppWithAuthCodeConfig(ctx, appDTO, qrs, updateAppWithAuthCodeConfigOptions{
+		requestID:           opts.RequestID,
+		usernameColumn:      usernameColumn,
+		name:                opts.Name,
+		clientURI:           opts.ClientURI,
+		logoURI:             opts.LogoURI,
+		tosURI:              opts.TOSURI,
+		policyURI:           opts.PolicyURI,
+		softwareID:          opts.SoftwareID,
+		softwareVersion:     opts.SoftwareVersion,
+		callbackURIs:        opts.CallbackURLs,
+		logoutURIs:          opts.LogoutURLs,
+		allowedOrigins:      opts.AllowedOrigins,
+		codeChallengeMethod: codeChallengeMethod,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	appAuthCodeConfig, err := qrs.UpdateAppAuthCodeConfig(ctx, database.UpdateAppAuthCodeConfigParams{
-		AccountID: app.AccountID,
-		AppID:     app.ID,
-		CallbackUris: utils.MapSlice(utils.ToEmptySlice(opts.CallbackURLs), func(s *string) string {
-			return utils.ProcessURL(*s)
-		}),
-		LogoutUris: utils.MapSlice(utils.ToEmptySlice(opts.LogoutURLs), func(s *string) string {
-			return utils.ProcessURL(*s)
-		}),
-		AllowedOrigins: utils.MapSlice(utils.ToEmptySlice(opts.AllowedOrigins), func(s *string) string {
-			return utils.ProcessURL(*s)
-		}),
-		CodeChallengeMethod: codeChallengeMethod,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to update app auth code config", "error", err)
+		logger.ErrorContext(ctx, "Failed to update app and auth code config", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.AppDTO{}, serviceErr
 	}
@@ -1718,37 +1814,23 @@ func (s *Services) UpdateNativeApp(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	app, err := s.updateBaseApp(ctx, appDTO, qrs, updateBaseAppOptions{
-		requestID:       opts.RequestID,
-		usernameColumn:  usernameColumn,
-		name:            opts.Name,
-		clientURI:       opts.ClientURI,
-		logoURI:         opts.LogoURI,
-		tosURI:          opts.TOSURI,
-		policyURI:       opts.PolicyURI,
-		softwareID:      opts.SoftwareID,
-		softwareVersion: opts.SoftwareVersion,
+	app, appAuthCodeConfig, err := s.updateAppWithAuthCodeConfig(ctx, appDTO, qrs, updateAppWithAuthCodeConfigOptions{
+		requestID:           opts.RequestID,
+		usernameColumn:      usernameColumn,
+		name:                opts.Name,
+		clientURI:           opts.ClientURI,
+		logoURI:             opts.LogoURI,
+		tosURI:              opts.TOSURI,
+		policyURI:           opts.PolicyURI,
+		softwareID:          opts.SoftwareID,
+		softwareVersion:     opts.SoftwareVersion,
+		callbackURIs:        opts.CallbackURIs,
+		logoutURIs:          opts.LogoutURIs,
+		allowedOrigins:      make([]string, 0),
+		codeChallengeMethod: codeChallengeMethod,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	appAuthCodeConfig, err := qrs.UpdateAppAuthCodeConfig(ctx, database.UpdateAppAuthCodeConfigParams{
-		AccountID: app.AccountID,
-		AppID:     app.ID,
-		CallbackUris: utils.MapSlice(utils.ToEmptySlice(opts.CallbackURIs), func(s *string) string {
-			return utils.ProcessURL(*s)
-		}),
-		LogoutUris: utils.MapSlice(utils.ToEmptySlice(opts.LogoutURIs), func(s *string) string {
-			return utils.ProcessURL(*s)
-		}),
-		AllowedOrigins:      make([]string, 0),
-		CodeChallengeMethod: codeChallengeMethod,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to update app auth code config", "error", err)
+		logger.ErrorContext(ctx, "Failed to update app and auth code config", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.AppDTO{}, serviceErr
 	}
@@ -1811,7 +1893,7 @@ func (s *Services) UpdateBackendApp(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	app, err := s.updateBaseApp(ctx, appDTO, qrs, updateBaseAppOptions{
+	app, err := s.updateApp(ctx, appDTO, qrs, updateAppOptions{
 		requestID:       opts.RequestID,
 		usernameColumn:  usernameColumn,
 		name:            opts.Name,
@@ -1951,7 +2033,7 @@ func (s *Services) UpdateDeviceApp(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	app, err := s.updateBaseApp(ctx, appDTO, qrs, updateBaseAppOptions{
+	app, err := s.updateApp(ctx, appDTO, qrs, updateAppOptions{
 		requestID:       opts.RequestID,
 		usernameColumn:  usernameColumn,
 		name:            opts.Name,
@@ -2057,7 +2139,7 @@ func (s *Services) UpdateServiceApp(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	app, err := s.updateBaseApp(ctx, appDTO, qrs, updateBaseAppOptions{
+	app, err := s.updateApp(ctx, appDTO, qrs, updateAppOptions{
 		requestID:       opts.RequestID,
 		usernameColumn:  database.AppUsernameColumnEmail, // Service apps always use email
 		name:            opts.Name,
@@ -2630,7 +2712,6 @@ func (s *Services) rotateAppKey(
 		s.database.FinalizeTx(ctx, txn, err, nil)
 	}()
 
-	// Create new key
 	dbPrms, jwk, serviceErr := s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
 		requestID:       opts.requestID,
 		accountID:       opts.accountID,
@@ -2688,7 +2769,6 @@ func (s *Services) rotateAppSecret(
 		s.database.FinalizeTx(ctx, txn, err, nil)
 	}()
 
-	// Create new secret
 	dbPrms, secret, serviceErr := s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
 		requestID: opts.requestID,
 		accountID: opts.accountID,
