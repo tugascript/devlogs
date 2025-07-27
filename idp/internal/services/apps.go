@@ -172,8 +172,8 @@ func (s *Services) DeleteApp(ctx context.Context, opts DeleteAppOptions) *except
 type ListAccountAppsOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
-	Offset          int64
-	Limit           int64
+	Offset          int32
+	Limit           int32
 	Order           string
 }
 
@@ -197,16 +197,16 @@ func (s *Services) ListAccountApps(
 		apps, err = s.database.FindPaginatedAppsByAccountPublicIDOrderedByID(ctx,
 			database.FindPaginatedAppsByAccountPublicIDOrderedByIDParams{
 				AccountPublicID: opts.AccountPublicID,
-				Offset:          int32(opts.Offset),
-				Limit:           int32(opts.Limit),
+				Offset:          opts.Offset,
+				Limit:           opts.Limit,
 			},
 		)
 	case "name":
 		apps, err = s.database.FindPaginatedAppsByAccountPublicIDOrderedByName(ctx,
 			database.FindPaginatedAppsByAccountPublicIDOrderedByNameParams{
 				AccountPublicID: opts.AccountPublicID,
-				Offset:          int32(opts.Offset),
-				Limit:           int32(opts.Limit),
+				Offset:          opts.Offset,
+				Limit:           opts.Limit,
 			},
 		)
 	default:
@@ -228,27 +228,27 @@ func (s *Services) ListAccountApps(
 	return utils.MapSlice(apps, dtos.MapAppToDTO), count, nil
 }
 
-type FilterAccountAppsOptions struct {
+type FilterAccountAppsByNameOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
-	Offset          int64
-	Limit           int64
+	Offset          int32
+	Limit           int32
 	Order           string
 	Name            string
 }
 
-func (s *Services) FilterAccountApps(
+func (s *Services) FilterAccountAppsByName(
 	ctx context.Context,
-	opts FilterAccountAppsOptions,
+	opts FilterAccountAppsByNameOptions,
 ) ([]dtos.AppDTO, int64, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, appsLocation, "FilterAccountApps").With(
+	logger := s.buildLogger(opts.RequestID, appsLocation, "FilterAccountAppsByName").With(
 		"accountPublicID", opts.AccountPublicID,
 		"offset", opts.Offset,
 		"limit", opts.Limit,
 		"name", opts.Name,
 		"order", opts.Order,
 	)
-	logger.InfoContext(ctx, "Filtering account apps...")
+	logger.InfoContext(ctx, "Filtering account apps by name...")
 
 	name := utils.DbSearch(opts.Name)
 	order := utils.Lowered(opts.Order)
@@ -261,8 +261,8 @@ func (s *Services) FilterAccountApps(
 			database.FilterAppsByNameAndByAccountPublicIDOrderedByIDParams{
 				AccountPublicID: opts.AccountPublicID,
 				Name:            name,
-				Offset:          int32(opts.Offset),
-				Limit:           int32(opts.Limit),
+				Offset:          opts.Offset,
+				Limit:           opts.Limit,
 			},
 		)
 	case "name":
@@ -270,8 +270,8 @@ func (s *Services) FilterAccountApps(
 			database.FilterAppsByNameAndByAccountPublicIDOrderedByNameParams{
 				AccountPublicID: opts.AccountPublicID,
 				Name:            name,
-				Offset:          int32(opts.Offset),
-				Limit:           int32(opts.Limit),
+				Offset:          opts.Offset,
+				Limit:           opts.Limit,
 			},
 		)
 	default:
@@ -295,6 +295,179 @@ func (s *Services) FilterAccountApps(
 	}
 
 	logger.InfoContext(ctx, "Account apps filtered successfully")
+	return utils.MapSlice(apps, dtos.MapAppToDTO), count, nil
+}
+
+func mapAppTypeToDB(appType string) (database.AppType, *exceptions.ServiceError) {
+	switch utils.Lowered(appType) {
+	case "web":
+		return database.AppTypeWeb, nil
+	case "spa":
+		return database.AppTypeSpa, nil
+	case "native":
+		return database.AppTypeNative, nil
+	case "backend":
+		return database.AppTypeBackend, nil
+	case "device":
+		return database.AppTypeDevice, nil
+	case "service":
+		return database.AppTypeService, nil
+	default:
+		return "", exceptions.NewValidationError("Unsupported app type")
+	}
+}
+
+type FilterAccountAppsByNameAndTypeOptions struct {
+	RequestID       string
+	AccountPublicID uuid.UUID
+	Offset          int32
+	Limit           int32
+	Order           string
+	Name            string
+	Type            string
+}
+
+func (s *Services) FilterAccountAppsByNameAndType(
+	ctx context.Context,
+	opts FilterAccountAppsByNameAndTypeOptions,
+) ([]dtos.AppDTO, int64, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "FilterAccountAppsByNameAndType").With(
+		"accountPublicID", opts.AccountPublicID,
+		"offset", opts.Offset,
+		"limit", opts.Limit,
+		"name", opts.Name,
+		"type", opts.Type,
+		"order", opts.Order,
+	)
+	logger.InfoContext(ctx, "Filtering account apps by name and type...")
+
+	appType, serviceErr := mapAppTypeToDB(opts.Type)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map app type", "serviceError", serviceErr)
+		return nil, 0, serviceErr
+	}
+
+	name := utils.DbSearch(opts.Name)
+	order := utils.Lowered(opts.Order)
+
+	var apps []database.App
+	var err error
+
+	switch order {
+	case "date":
+		apps, err = s.database.FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByID(ctx,
+			database.FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByIDParams{
+				AccountPublicID: opts.AccountPublicID,
+				Name:            name,
+				Offset:          opts.Offset,
+				Limit:           opts.Limit,
+				Type:            appType,
+			},
+		)
+	case "name":
+		apps, err = s.database.FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByName(ctx,
+			database.FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByNameParams{
+				AccountPublicID: opts.AccountPublicID,
+				Name:            name,
+				Offset:          opts.Offset,
+				Limit:           opts.Limit,
+				Type:            appType,
+			},
+		)
+	default:
+		logger.WarnContext(ctx, "Unknown order type, failing", "order", order)
+		return nil, 0, exceptions.NewValidationError("Unknown order type")
+	}
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to filter account apps", "error", err)
+		return nil, 0, exceptions.FromDBError(err)
+	}
+
+	count, err := s.database.CountFilteredAppsByNameAndTypeAndByAccountPublicID(ctx,
+		database.CountFilteredAppsByNameAndTypeAndByAccountPublicIDParams{
+			AccountPublicID: opts.AccountPublicID,
+			Name:            name,
+			Type:            appType,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count filtered apps by name and type", "error", err)
+		return nil, 0, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Account apps filtered by name and type successfully")
+	return utils.MapSlice(apps, dtos.MapAppToDTO), count, nil
+}
+
+type FilterAccountAppsByTypeOptions struct {
+	RequestID       string
+	AccountPublicID uuid.UUID
+	Offset          int32
+	Limit           int32
+	Order           string
+	Type            string
+}
+
+func (s *Services) FilterAccountAppsByType(
+	ctx context.Context,
+	opts FilterAccountAppsByTypeOptions,
+) ([]dtos.AppDTO, int64, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "FilterAccountAppsByType").With(
+		"accountPublicID", opts.AccountPublicID,
+		"offset", opts.Offset,
+		"limit", opts.Limit,
+		"type", opts.Type,
+		"order", opts.Order,
+	)
+	logger.InfoContext(ctx, "Filtering account apps by type...")
+
+	appType, serviceErr := mapAppTypeToDB(opts.Type)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map app type", "serviceError", serviceErr)
+		return nil, 0, serviceErr
+	}
+
+	order := utils.Lowered(opts.Order)
+	var apps []database.App
+	var err error
+
+	switch order {
+	case "date":
+		apps, err = s.database.FilterAppsByTypeAndByAccountPublicIDOrderedByID(ctx,
+			database.FilterAppsByTypeAndByAccountPublicIDOrderedByIDParams{
+				AccountPublicID: opts.AccountPublicID,
+				Type:            appType,
+				Offset:          opts.Offset,
+				Limit:           opts.Limit,
+			},
+		)
+	case "name":
+		apps, err = s.database.FilterAppsByTypeAndByAccountPublicIDOrderedByName(ctx,
+			database.FilterAppsByTypeAndByAccountPublicIDOrderedByNameParams{
+				AccountPublicID: opts.AccountPublicID,
+				Type:            appType,
+				Offset:          opts.Offset,
+				Limit:           opts.Limit,
+			},
+		)
+	}
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to filter account apps by type", "error", err)
+		return nil, 0, exceptions.FromDBError(err)
+	}
+
+	count, err := s.database.CountFilteredAppsByTypeAndByAccountPublicID(ctx,
+		database.CountFilteredAppsByTypeAndByAccountPublicIDParams{
+			AccountPublicID: opts.AccountPublicID,
+			Type:            appType,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count filtered apps by type", "error", err)
+		return nil, 0, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Account apps filtered by type successfully")
 	return utils.MapSlice(apps, dtos.MapAppToDTO), count, nil
 }
 
@@ -2029,8 +2202,14 @@ func (s *Services) listAppKeys(
 		return nil, 0, exceptions.NewInternalServerError()
 	}
 
+	keyDTOs, serviceErr := utils.MapSliceWithErr(keys, dtos.MapCredentialsKeyToDTO)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map app keys to DTOs", "serviceError", serviceErr)
+		return nil, 0, serviceErr
+	}
+
 	logger.InfoContext(ctx, "App keys retrieved successfully")
-	return utils.MapSlice(keys, dtos.MapCredentialsKeyToDTO), count, nil
+	return keyDTOs, count, nil
 }
 
 type listAppSecretsOptions struct {
@@ -2141,5 +2320,483 @@ func (s *Services) ListAppCredentialsSecretsOrKeys(
 	default:
 		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.Type)
 		return nil, 0, exceptions.NewInternalServerError()
+	}
+}
+
+type getAppKeyByIDOptions struct {
+	requestID string
+	appID     int32
+	publicKID string
+}
+
+func (s *Services) getAppKeyByID(
+	ctx context.Context,
+	opts getAppKeyByIDOptions,
+) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, appsLocation, "getAppKeyByID").With(
+		"appID", opts.appID,
+		"publicKID", opts.publicKID,
+	)
+	logger.InfoContext(ctx, "Finding app key by ID...")
+
+	key, err := s.database.FindAppKeyByAppIDAndPublicKID(
+		ctx,
+		database.FindAppKeyByAppIDAndPublicKIDParams{
+			AppID:     opts.appID,
+			PublicKid: opts.publicKID,
+		},
+	)
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.InfoContext(ctx, "App key not found", "error", err)
+			return dtos.ClientCredentialsSecretDTO{}, serviceErr
+		}
+
+		logger.ErrorContext(ctx, "Failed to find app key", "error", err)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewNotFoundError()
+	}
+
+	return dtos.MapCredentialsKeyToDTO(&key)
+}
+
+type getAppSecretByIDOptions struct {
+	requestID string
+	appID     int32
+	secretID  string
+}
+
+func (s *Services) getAppSecretByID(
+	ctx context.Context,
+	opts getAppSecretByIDOptions,
+) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, appsLocation, "getAppSecretByID").With(
+		"appID", opts.appID,
+		"secretID", opts.secretID,
+	)
+	logger.InfoContext(ctx, "Finding app secret by ID...")
+
+	secret, err := s.database.FindAppSecretByAppIDAndSecretID(
+		ctx,
+		database.FindAppSecretByAppIDAndSecretIDParams{
+			AppID:    opts.appID,
+			SecretID: opts.secretID,
+		},
+	)
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.InfoContext(ctx, "App secret not found", "error", err)
+			return dtos.ClientCredentialsSecretDTO{}, serviceErr
+		}
+
+		logger.ErrorContext(ctx, "Failed to find app secret", "error", err)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewNotFoundError()
+	}
+
+	return dtos.MapCredentialsSecretToDTO(&secret), nil
+}
+
+type GetAppCredentialsSecretOrKeyOptions struct {
+	RequestID       string
+	AppClientID     string
+	AccountPublicID uuid.UUID
+	SecretID        string
+}
+
+func (s *Services) GetAppCredentialsSecretOrKey(
+	ctx context.Context,
+	opts GetAppCredentialsSecretOrKeyOptions,
+) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "GetAppCredentialsSecretOrKey").With(
+		"appClientID", opts.AppClientID,
+		"accountPublicID", opts.AccountPublicID,
+		"secretID", opts.SecretID,
+	)
+	logger.InfoContext(ctx, "Getting app credentials secret or key...")
+
+	appDTO, serviceErr := s.GetAppByClientIDAndAccountPublicID(
+		ctx,
+		GetAppByClientIDAndAccountPublicIDOptions{
+			RequestID:       opts.RequestID,
+			AccountPublicID: opts.AccountPublicID,
+			ClientID:        opts.AppClientID,
+		},
+	)
+	if serviceErr != nil {
+		return dtos.ClientCredentialsSecretDTO{}, serviceErr
+	}
+
+	switch appDTO.Type {
+	case database.AppTypeSpa, database.AppTypeNative, database.AppTypeDevice:
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
+	case database.AppTypeBackend, database.AppTypeService:
+		if len(appDTO.AuthMethods) != 1 || appDTO.AuthMethods[0] != database.AuthMethodPrivateKeyJwt {
+			return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
+		}
+		return s.getAppKeyByID(ctx, getAppKeyByIDOptions{
+			requestID: opts.RequestID,
+			appID:     appDTO.ID(),
+			publicKID: opts.SecretID,
+		})
+	case database.AppTypeWeb:
+		amHashSet := utils.SliceToHashSet(appDTO.AuthMethods)
+		if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
+			return s.getAppKeyByID(ctx, getAppKeyByIDOptions{
+				requestID: opts.RequestID,
+				appID:     appDTO.ID(),
+				publicKID: opts.SecretID,
+			})
+		}
+		if amHashSet.Contains(database.AuthMethodClientSecretBasic) || amHashSet.Contains(database.AuthMethodClientSecretPost) {
+			return s.getAppSecretByID(ctx, getAppSecretByIDOptions{
+				requestID: opts.RequestID,
+				appID:     appDTO.ID(),
+				secretID:  opts.SecretID,
+			})
+		}
+
+		logger.WarnContext(ctx, "No auth method to get secret or key")
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("No auth method to get secrets")
+	default:
+		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.Type)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewInternalServerError()
+	}
+}
+
+type revokeAppSecretOptions struct {
+	requestID string
+	appID     int32
+	secretID  string
+}
+
+func (s *Services) revokeAppSecret(
+	ctx context.Context,
+	opts revokeAppSecretOptions,
+) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, appsLocation, "revokeAppSecret").With(
+		"appID", opts.appID,
+		"secretID", opts.secretID,
+	)
+	logger.InfoContext(ctx, "Revoking app secret...")
+
+	secretDTO, serviceErr := s.getAppSecretByID(ctx, getAppSecretByIDOptions(opts))
+	if serviceErr != nil {
+		return dtos.ClientCredentialsSecretDTO{}, serviceErr
+	}
+
+	secret, err := s.database.RevokeCredentialsSecret(ctx, secretDTO.ID())
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to revoke app secret", "error", err)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.FromDBError(err)
+	}
+
+	return dtos.MapCredentialsSecretToDTO(&secret), nil
+}
+
+type revokeAppKeyOptions struct {
+	requestID string
+	appID     int32
+	publicKID string
+}
+
+func (s *Services) revokeAppKey(
+	ctx context.Context,
+	opts revokeAppKeyOptions,
+) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, appsLocation, "revokeAppKey").With(
+		"appID", opts.appID,
+		"publicKID", opts.publicKID,
+	)
+	logger.InfoContext(ctx, "Revoking app key...")
+
+	keyDTO, serviceErr := s.getAppKeyByID(ctx, getAppKeyByIDOptions(opts))
+	if serviceErr != nil {
+		return dtos.ClientCredentialsSecretDTO{}, serviceErr
+	}
+
+	key, err := s.database.RevokeCredentialsKey(ctx, keyDTO.ID())
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to revoke app key", "error", err)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.FromDBError(err)
+	}
+
+	return dtos.MapCredentialsKeyToDTO(&key)
+}
+
+type RevokeAppCredentialsSecretOrKeyOptions struct {
+	RequestID       string
+	AppClientID     string
+	AccountPublicID uuid.UUID
+	AccountVersion  int32
+	SecretID        string
+}
+
+func (s *Services) RevokeAppCredentialsSecretOrKey(
+	ctx context.Context,
+	opts RevokeAppCredentialsSecretOrKeyOptions,
+) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "RevokeAppCredentialsSecretOrKey").With(
+		"appClientID", opts.AppClientID,
+		"accountPublicID", opts.AccountPublicID,
+		"secretID", opts.SecretID,
+	)
+	logger.InfoContext(ctx, "Revoking app credentials secret or key...")
+
+	accountID, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.AccountPublicID,
+		Version:   opts.AccountVersion,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get account ID", "serviceError", serviceErr)
+		return dtos.ClientCredentialsSecretDTO{}, serviceErr
+	}
+
+	appDTO, serviceErr := s.GetAppByClientIDAndAccountID(
+		ctx,
+		GetAppByClientIDAndAccountIDOptions{
+			RequestID: opts.RequestID,
+			AccountID: accountID,
+			ClientID:  opts.AppClientID,
+		},
+	)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get app", "serviceError", serviceErr)
+		return dtos.ClientCredentialsSecretDTO{}, serviceErr
+	}
+
+	switch appDTO.Type {
+	case database.AppTypeSpa, database.AppTypeNative, database.AppTypeDevice:
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
+	case database.AppTypeBackend, database.AppTypeService:
+		if len(appDTO.AuthMethods) != 1 || appDTO.AuthMethods[0] != database.AuthMethodPrivateKeyJwt {
+			return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
+		}
+		return s.revokeAppKey(ctx, revokeAppKeyOptions{
+			requestID: opts.RequestID,
+			appID:     appDTO.ID(),
+			publicKID: opts.SecretID,
+		})
+	case database.AppTypeWeb:
+		amHashSet := utils.SliceToHashSet(appDTO.AuthMethods)
+		if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
+			return s.revokeAppKey(ctx, revokeAppKeyOptions{
+				requestID: opts.RequestID,
+				appID:     appDTO.ID(),
+				publicKID: opts.SecretID,
+			})
+		}
+		if amHashSet.Contains(database.AuthMethodClientSecretBasic) || amHashSet.Contains(database.AuthMethodClientSecretPost) {
+			return s.revokeAppSecret(ctx, revokeAppSecretOptions{
+				requestID: opts.RequestID,
+				appID:     appDTO.ID(),
+				secretID:  opts.SecretID,
+			})
+		}
+
+		logger.WarnContext(ctx, "No auth method to revoke secret or key")
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("No auth method to revoke secrets")
+	default:
+		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.Type)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewInternalServerError()
+	}
+}
+
+type rotateAppKeyOptions struct {
+	requestID       string
+	accountID       int32
+	accountPublicID uuid.UUID
+	appID           int32
+	cryptoSuite     utils.SupportedCryptoSuite
+}
+
+func (s *Services) rotateAppKey(
+	ctx context.Context,
+	opts rotateAppKeyOptions,
+) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, appsLocation, "rotateAppKey").With(
+		"appID", opts.appID,
+	)
+	logger.InfoContext(ctx, "Rotating app key...")
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, nil)
+	}()
+
+	// Create new key
+	dbPrms, jwk, serviceErr := s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
+		requestID:       opts.requestID,
+		accountID:       opts.accountID,
+		accountPublicID: opts.accountPublicID,
+		expiresIn:       s.accountCCExpDays,
+		usage:           database.CredentialsUsageApp,
+		cryptoSuite:     opts.cryptoSuite,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
+		return dtos.ClientCredentialsSecretDTO{}, serviceErr
+	}
+
+	clientKey, err := qrs.CreateCredentialsKey(ctx, dbPrms)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create client key", "error", err)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.FromDBError(err)
+	}
+
+	if err = qrs.CreateAppKey(ctx, database.CreateAppKeyParams{
+		AccountID:        opts.accountID,
+		AppID:            opts.appID,
+		CredentialsKeyID: clientKey.ID,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to create app key", "error", err)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "App key rotated successfully")
+	return dtos.MapCredentialsKeyToDTOWithJWK(&clientKey, jwk), nil
+}
+
+type rotateAppSecretOptions struct {
+	requestID string
+	accountID int32
+	appID     int32
+}
+
+func (s *Services) rotateAppSecret(
+	ctx context.Context,
+	opts rotateAppSecretOptions,
+) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, appsLocation, "rotateAppSecret").With(
+		"appID", opts.appID,
+	)
+	logger.InfoContext(ctx, "Rotating app secret...")
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, nil)
+	}()
+
+	// Create new secret
+	dbPrms, secret, serviceErr := s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
+		requestID: opts.requestID,
+		accountID: opts.accountID,
+		expiresIn: s.accountCCExpDays,
+		usage:     database.CredentialsUsageApp,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
+		return dtos.ClientCredentialsSecretDTO{}, serviceErr
+	}
+
+	clientSecret, err := qrs.CreateCredentialsSecret(ctx, dbPrms)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.FromDBError(err)
+	}
+
+	if err = qrs.CreateAppSecret(ctx, database.CreateAppSecretParams{
+		AppID:               opts.appID,
+		CredentialsSecretID: clientSecret.ID,
+		AccountID:           opts.accountID,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to create app secret", "error", err)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "App secret rotated successfully")
+	return dtos.MapCredentialsSecretToDTOWithSecret(&clientSecret, secret), nil
+}
+
+type RotateAppCredentialsSecretOrKeyOptions struct {
+	RequestID       string
+	AppClientID     string
+	AccountPublicID uuid.UUID
+	AccountVersion  int32
+	Algorithm       string
+}
+
+func (s *Services) RotateAppCredentialsSecretOrKey(
+	ctx context.Context,
+	opts RotateAppCredentialsSecretOrKeyOptions,
+) (dtos.ClientCredentialsSecretDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "RotateAppCredentialsSecretOrKey").With(
+		"appClientID", opts.AppClientID,
+		"accountPublicID", opts.AccountPublicID,
+	)
+	logger.InfoContext(ctx, "Rotating app credentials secret or key...")
+
+	accountID, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.AccountPublicID,
+		Version:   opts.AccountVersion,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get account ID", "serviceError", serviceErr)
+		return dtos.ClientCredentialsSecretDTO{}, serviceErr
+	}
+
+	appDTO, serviceErr := s.GetAppByClientIDAndAccountID(
+		ctx,
+		GetAppByClientIDAndAccountIDOptions{
+			RequestID: opts.RequestID,
+			AccountID: accountID,
+			ClientID:  opts.AppClientID,
+		},
+	)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get app", "serviceError", serviceErr)
+		return dtos.ClientCredentialsSecretDTO{}, serviceErr
+	}
+
+	switch appDTO.Type {
+	case database.AppTypeSpa, database.AppTypeNative, database.AppTypeDevice:
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
+	case database.AppTypeBackend, database.AppTypeService:
+		if len(appDTO.AuthMethods) != 1 || appDTO.AuthMethods[0] != database.AuthMethodPrivateKeyJwt {
+			return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
+		}
+		return s.rotateAppKey(ctx, rotateAppKeyOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountID,
+			accountPublicID: opts.AccountPublicID,
+			appID:           appDTO.ID(),
+			cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
+		})
+	case database.AppTypeWeb:
+		amHashSet := utils.SliceToHashSet(appDTO.AuthMethods)
+		if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
+			return s.rotateAppKey(ctx, rotateAppKeyOptions{
+				requestID:       opts.RequestID,
+				accountID:       accountID,
+				accountPublicID: opts.AccountPublicID,
+				appID:           appDTO.ID(),
+				cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
+			})
+		}
+		if amHashSet.Contains(database.AuthMethodClientSecretBasic) || amHashSet.Contains(database.AuthMethodClientSecretPost) {
+			return s.rotateAppSecret(ctx, rotateAppSecretOptions{
+				requestID: opts.RequestID,
+				accountID: accountID,
+				appID:     appDTO.ID(),
+			})
+		}
+
+		logger.WarnContext(ctx, "No auth method to rotate secret or key")
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("No auth method to rotate secrets")
+	default:
+		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.Type)
+		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewInternalServerError()
 	}
 }

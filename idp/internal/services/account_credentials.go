@@ -766,7 +766,13 @@ func (s *Services) listAccountCredentialsKeys(
 		return nil, 0, exceptions.NewInternalServerError()
 	}
 
-	return utils.MapSlice(keys, dtos.MapCredentialsKeyToDTO), count, nil
+	keyDTOs, serviceErr := utils.MapSliceWithErr(keys, dtos.MapCredentialsKeyToDTO)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map account credentials keys to DTOs", "serviceError", serviceErr)
+		return nil, 0, serviceErr
+	}
+
+	return keyDTOs, count, nil
 }
 
 type listAccountCredentialsSecretsOptions struct {
@@ -896,7 +902,7 @@ func (s *Services) getAccountCredentialsKeyByID(
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewNotFoundError()
 	}
 
-	return dtos.MapCredentialsKeyToDTO(&secret), nil
+	return dtos.MapCredentialsKeyToDTO(&secret)
 }
 
 type getAccountCredentialsSecretByIDOptions struct {
@@ -1042,7 +1048,7 @@ func (s *Services) revokeAccountCredentialsKey(
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.FromDBError(err)
 	}
 
-	return dtos.MapCredentialsKeyToDTO(&secret), nil
+	return dtos.MapCredentialsKeyToDTO(&secret)
 }
 
 type RevokeAccountCredentialsSecretOrKeyOptions struct {
