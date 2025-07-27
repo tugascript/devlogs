@@ -7,6 +7,8 @@
 package controllers
 
 import (
+	"fmt"
+
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
@@ -330,6 +332,7 @@ func (c *Controllers) ListApps(ctx *fiber.Ctx) error {
 		Offset: ctx.QueryInt("offset", 0),
 		Name:   ctx.Query("name"),
 		Order:  ctx.Query("order", "date"),
+		Type:   ctx.Query("type"),
 	}
 	if err := c.validate.StructCtx(ctx.UserContext(), &queryParams); err != nil {
 		return validateQueryParamsErrorResponse(logger, ctx, err)
@@ -338,25 +341,42 @@ func (c *Controllers) ListApps(ctx *fiber.Ctx) error {
 	var apps []dtos.AppDTO
 	var count int64
 
-	if queryParams.Name != "" {
-		apps, count, serviceErr = c.services.FilterAccountApps(ctx.UserContext(), services.FilterAccountAppsOptions{
+	if queryParams.Name != "" && queryParams.Type != "" {
+		apps, count, serviceErr = c.services.FilterAccountAppsByNameAndType(ctx.UserContext(), services.FilterAccountAppsByNameAndTypeOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
-			Offset:          int64(queryParams.Offset),
-			Limit:           int64(queryParams.Limit),
+			Offset:          int32(queryParams.Offset),
+			Limit:           int32(queryParams.Limit),
 			Order:           queryParams.Order,
 			Name:            queryParams.Name,
+		})
+	} else if queryParams.Name != "" {
+		apps, count, serviceErr = c.services.FilterAccountAppsByName(ctx.UserContext(), services.FilterAccountAppsByNameOptions{
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			Offset:          int32(queryParams.Offset),
+			Limit:           int32(queryParams.Limit),
+			Order:           queryParams.Order,
+			Name:            queryParams.Name,
+		})
+	} else if queryParams.Type != "" {
+		apps, count, serviceErr = c.services.FilterAccountAppsByType(ctx.UserContext(), services.FilterAccountAppsByTypeOptions{
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			Offset:          int32(queryParams.Offset),
+			Limit:           int32(queryParams.Limit),
+			Order:           queryParams.Order,
+			Type:            queryParams.Type,
 		})
 	} else {
 		apps, count, serviceErr = c.services.ListAccountApps(ctx.UserContext(), services.ListAccountAppsOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
-			Offset:          int64(queryParams.Offset),
-			Limit:           int64(queryParams.Limit),
+			Offset:          int32(queryParams.Offset),
+			Limit:           int32(queryParams.Limit),
 			Order:           queryParams.Order,
 		})
 	}
-
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
@@ -787,4 +807,157 @@ func (c *Controllers) GetAppWithRelatedConfigs(ctx *fiber.Ctx) error {
 
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&appDTO)
+}
+
+func (c *Controllers) ListAppSecrets(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, appsLocation, "ListAppSecrets")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
+	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+		return validateURLParamsErrorResponse(logger, ctx, err)
+	}
+
+	queryParams := params.PaginationQueryParams{
+		Offset: ctx.QueryInt("offset", 0),
+		Limit:  ctx.QueryInt("limit", 20),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), queryParams); err != nil {
+		return validateQueryParamsErrorResponse(logger, ctx, err)
+	}
+
+	secretsOrKeys, count, serviceErr := c.services.ListAppCredentialsSecretsOrKeys(
+		ctx.UserContext(),
+		services.ListAppCredentialsSecretsOrKeysOptions{
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			AppClientID:     urlParams.ClientID,
+			Offset:          int32(queryParams.Offset),
+			Limit:           int32(queryParams.Limit),
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	paginationDTO := dtos.NewPaginationDTO(
+		secretsOrKeys,
+		count,
+		c.backendDomain,
+		fmt.Sprintf("%s/%s/secrets", paths.AppsBase, urlParams.ClientID),
+		queryParams.Limit,
+		queryParams.Offset,
+	)
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&paginationDTO)
+}
+
+func (c *Controllers) GetAppSecret(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, appsLocation, "GetAppSecret")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
+	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+		return validateURLParamsErrorResponse(logger, ctx, err)
+	}
+
+	secretDTO, serviceErr := c.services.GetAppCredentialsSecretOrKey(ctx.UserContext(), services.GetAppCredentialsSecretOrKeyOptions{
+		RequestID:       requestID,
+		AccountPublicID: accountClaims.AccountID,
+		AppClientID:     urlParams.ClientID,
+		SecretID:        ctx.Params("secretID"),
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&secretDTO)
+}
+
+func (c *Controllers) RevokeAppSecret(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, appsLocation, "RevokeAppSecret")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	urlParams := params.CredentialsSecretOrKeyURLParams{
+		ClientID: ctx.Params("clientID"),
+		SecretID: ctx.Params("secretID"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+		return validateURLParamsErrorResponse(logger, ctx, err)
+	}
+
+	secretDTO, serviceErr := c.services.RevokeAppCredentialsSecretOrKey(ctx.UserContext(), services.RevokeAppCredentialsSecretOrKeyOptions{
+		RequestID:       requestID,
+		AccountPublicID: accountClaims.AccountID,
+		AppClientID:     urlParams.ClientID,
+		SecretID:        urlParams.SecretID,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&secretDTO)
+}
+
+func (c *Controllers) CreateAppSecret(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, appsLocation, "CreateAppSecret")
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	urlParams := params.CredentialsURLParams{
+		ClientID: ctx.Params("clientID"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+		return validateURLParamsErrorResponse(logger, ctx, err)
+	}
+
+	body := new(bodies.CreateCredentialsSecretBody)
+	if err := ctx.BodyParser(body); err != nil {
+		return parseRequestErrorResponse(logger, ctx, err)
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		return validateBodyErrorResponse(logger, ctx, err)
+	}
+
+	secretDTO, serviceErr := c.services.RotateAppCredentialsSecretOrKey(
+		ctx.UserContext(),
+		services.RotateAppCredentialsSecretOrKeyOptions{
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			AccountVersion:  accountClaims.AccountVersion,
+			AppClientID:     urlParams.ClientID,
+			Algorithm:       body.Algorithm,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusCreated)
+	return ctx.Status(fiber.StatusCreated).JSON(&secretDTO)
 }

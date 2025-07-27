@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -27,12 +28,13 @@ const (
 type ClientCredentialsSecretDTO struct {
 	id int32
 
-	PublicID        string    `json:"id"`
-	ClientSecret    string    `json:"client_secret,omitempty"`
-	ClientSecretJWK utils.JWK `json:"client_secret_jwk,omitempty"`
-	ClientSecretExp int64     `json:"client_secret_exp"`
-	Status          string    `json:"status"`
-	Type            string    `json:"type"`
+	PublicID              string    `json:"id"`
+	ClientSecret          string    `json:"client_secret,omitempty"`
+	ClientSecretJWK       utils.JWK `json:"client_secret_jwk,omitempty"`
+	ClientSecretPublicJWK utils.JWK `json:"client_secret_public_jwk,omitempty"`
+	ClientSecretExp       int64     `json:"client_secret_exp"`
+	Status                string    `json:"status"`
+	Type                  string    `json:"type"`
 }
 
 func (s *ClientCredentialsSecretDTO) ID() int32 {
@@ -110,14 +112,20 @@ func getCredentialsKeyStatus(key *database.CredentialsKey) string {
 
 func MapCredentialsKeyToDTO(
 	key *database.CredentialsKey,
-) ClientCredentialsSecretDTO {
-	return ClientCredentialsSecretDTO{
-		id:              key.ID,
-		PublicID:        key.PublicKid,
-		Type:            ClientCredentialSecretTypeJWK,
-		Status:          getCredentialsKeyStatus(key),
-		ClientSecretExp: key.ExpiresAt.Unix(),
+) (ClientCredentialsSecretDTO, *exceptions.ServiceError) {
+	jwk, err := utils.JsonToJWK(key.PublicKey)
+	if err != nil {
+		return ClientCredentialsSecretDTO{}, exceptions.NewInternalServerError()
 	}
+
+	return ClientCredentialsSecretDTO{
+		id:                    key.ID,
+		PublicID:              key.PublicKid,
+		Type:                  ClientCredentialSecretTypeJWK,
+		Status:                getCredentialsKeyStatus(key),
+		ClientSecretPublicJWK: jwk,
+		ClientSecretExp:       key.ExpiresAt.Unix(),
+	}, nil
 }
 
 func MapCredentialsKeyToDTOWithJWK(

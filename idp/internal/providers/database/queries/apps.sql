@@ -90,15 +90,55 @@ WHERE "account_public_id" = $1 AND "name" ILIKE $2
 ORDER BY "id" DESC
 OFFSET $3 LIMIT $4;
 
+-- name: FilterAppsByTypeAndByAccountPublicIDOrderedByID :many
+SELECT * FROM "apps"
+WHERE "account_public_id" = $1 AND "type" = $2
+ORDER BY "id" DESC
+OFFSET $3 LIMIT $4;
+
+-- name: FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByID :many
+SELECT * FROM "apps"
+WHERE "account_public_id" = $1 AND
+  "name" ILIKE $2 AND
+  "type" = $3
+ORDER BY "id" DESC
+OFFSET $4 LIMIT $5;
+
 -- name: FilterAppsByNameAndByAccountPublicIDOrderedByName :many
 SELECT * FROM "apps"
 WHERE "account_public_id" = $1 AND "name" ILIKE $2
 ORDER BY "name" ASC
 OFFSET $3 LIMIT $4;
 
+-- name: FilterAppsByTypeAndByAccountPublicIDOrderedByName :many
+SELECT * FROM "apps"
+WHERE "account_public_id" = $1 AND "type" = $2
+ORDER BY "name" ASC
+OFFSET $3 LIMIT $4;
+
+-- name: FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByName :many
+SELECT * FROM "apps"
+WHERE "account_public_id" = $1 AND
+  "name" ILIKE $2 AND
+  "type" = $3
+ORDER BY "name" ASC
+OFFSET $4 LIMIT $5;
+
 -- name: CountFilteredAppsByNameAndByAccountPublicID :one
 SELECT COUNT("id") FROM "apps"
 WHERE "account_public_id" = $1 AND "name" ILIKE $2
+LIMIT 1;
+
+-- name: CountFilteredAppsByTypeAndByAccountPublicID :one
+SELECT COUNT("id") FROM "apps"
+WHERE "account_public_id" = $1 AND "type" = $2
+LIMIT 1;
+
+-- name: CountFilteredAppsByNameAndTypeAndByAccountPublicID :one
+SELECT COUNT("id") FROM "apps"
+WHERE "account_public_id" = $1 AND
+  "name" ILIKE $2 AND
+  "type" = $3
 LIMIT 1;
 
 -- name: UpdateAppVersion :one

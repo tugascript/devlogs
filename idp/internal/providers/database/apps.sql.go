@@ -61,6 +61,45 @@ func (q *Queries) CountFilteredAppsByNameAndByAccountPublicID(ctx context.Contex
 	return count, err
 }
 
+const countFilteredAppsByNameAndTypeAndByAccountPublicID = `-- name: CountFilteredAppsByNameAndTypeAndByAccountPublicID :one
+SELECT COUNT("id") FROM "apps"
+WHERE "account_public_id" = $1 AND
+  "name" ILIKE $2 AND
+  "type" = $3
+LIMIT 1
+`
+
+type CountFilteredAppsByNameAndTypeAndByAccountPublicIDParams struct {
+	AccountPublicID uuid.UUID
+	Name            string
+	Type            AppType
+}
+
+func (q *Queries) CountFilteredAppsByNameAndTypeAndByAccountPublicID(ctx context.Context, arg CountFilteredAppsByNameAndTypeAndByAccountPublicIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countFilteredAppsByNameAndTypeAndByAccountPublicID, arg.AccountPublicID, arg.Name, arg.Type)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countFilteredAppsByTypeAndByAccountPublicID = `-- name: CountFilteredAppsByTypeAndByAccountPublicID :one
+SELECT COUNT("id") FROM "apps"
+WHERE "account_public_id" = $1 AND "type" = $2
+LIMIT 1
+`
+
+type CountFilteredAppsByTypeAndByAccountPublicIDParams struct {
+	AccountPublicID uuid.UUID
+	Type            AppType
+}
+
+func (q *Queries) CountFilteredAppsByTypeAndByAccountPublicID(ctx context.Context, arg CountFilteredAppsByTypeAndByAccountPublicIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countFilteredAppsByTypeAndByAccountPublicID, arg.AccountPublicID, arg.Type)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createApp = `-- name: CreateApp :one
 
 INSERT INTO "apps" (
@@ -235,6 +274,266 @@ func (q *Queries) FilterAppsByNameAndByAccountPublicIDOrderedByName(ctx context.
 	rows, err := q.db.Query(ctx, filterAppsByNameAndByAccountPublicIDOrderedByName,
 		arg.AccountPublicID,
 		arg.Name,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []App{}
+	for rows.Next() {
+		var i App
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.AccountPublicID,
+			&i.Type,
+			&i.Name,
+			&i.ClientID,
+			&i.Version,
+			&i.ClientUri,
+			&i.LogoUri,
+			&i.TosUri,
+			&i.PolicyUri,
+			&i.SoftwareID,
+			&i.SoftwareVersion,
+			&i.AuthMethods,
+			&i.GrantTypes,
+			&i.DefaultScopes,
+			&i.AuthProviders,
+			&i.UsernameColumn,
+			&i.IDTokenTtl,
+			&i.TokenTtl,
+			&i.RefreshTokenTtl,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const filterAppsByNameAndTypeAndByAccountPublicIDOrderedByID = `-- name: FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByID :many
+SELECT id, account_id, account_public_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
+WHERE "account_public_id" = $1 AND
+  "name" ILIKE $2 AND
+  "type" = $3
+ORDER BY "id" DESC
+OFFSET $4 LIMIT $5
+`
+
+type FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByIDParams struct {
+	AccountPublicID uuid.UUID
+	Name            string
+	Type            AppType
+	Offset          int32
+	Limit           int32
+}
+
+func (q *Queries) FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByID(ctx context.Context, arg FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByIDParams) ([]App, error) {
+	rows, err := q.db.Query(ctx, filterAppsByNameAndTypeAndByAccountPublicIDOrderedByID,
+		arg.AccountPublicID,
+		arg.Name,
+		arg.Type,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []App{}
+	for rows.Next() {
+		var i App
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.AccountPublicID,
+			&i.Type,
+			&i.Name,
+			&i.ClientID,
+			&i.Version,
+			&i.ClientUri,
+			&i.LogoUri,
+			&i.TosUri,
+			&i.PolicyUri,
+			&i.SoftwareID,
+			&i.SoftwareVersion,
+			&i.AuthMethods,
+			&i.GrantTypes,
+			&i.DefaultScopes,
+			&i.AuthProviders,
+			&i.UsernameColumn,
+			&i.IDTokenTtl,
+			&i.TokenTtl,
+			&i.RefreshTokenTtl,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const filterAppsByNameAndTypeAndByAccountPublicIDOrderedByName = `-- name: FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByName :many
+SELECT id, account_id, account_public_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
+WHERE "account_public_id" = $1 AND
+  "name" ILIKE $2 AND
+  "type" = $3
+ORDER BY "name" ASC
+OFFSET $4 LIMIT $5
+`
+
+type FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByNameParams struct {
+	AccountPublicID uuid.UUID
+	Name            string
+	Type            AppType
+	Offset          int32
+	Limit           int32
+}
+
+func (q *Queries) FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByName(ctx context.Context, arg FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByNameParams) ([]App, error) {
+	rows, err := q.db.Query(ctx, filterAppsByNameAndTypeAndByAccountPublicIDOrderedByName,
+		arg.AccountPublicID,
+		arg.Name,
+		arg.Type,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []App{}
+	for rows.Next() {
+		var i App
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.AccountPublicID,
+			&i.Type,
+			&i.Name,
+			&i.ClientID,
+			&i.Version,
+			&i.ClientUri,
+			&i.LogoUri,
+			&i.TosUri,
+			&i.PolicyUri,
+			&i.SoftwareID,
+			&i.SoftwareVersion,
+			&i.AuthMethods,
+			&i.GrantTypes,
+			&i.DefaultScopes,
+			&i.AuthProviders,
+			&i.UsernameColumn,
+			&i.IDTokenTtl,
+			&i.TokenTtl,
+			&i.RefreshTokenTtl,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const filterAppsByTypeAndByAccountPublicIDOrderedByID = `-- name: FilterAppsByTypeAndByAccountPublicIDOrderedByID :many
+SELECT id, account_id, account_public_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
+WHERE "account_public_id" = $1 AND "type" = $2
+ORDER BY "id" DESC
+OFFSET $3 LIMIT $4
+`
+
+type FilterAppsByTypeAndByAccountPublicIDOrderedByIDParams struct {
+	AccountPublicID uuid.UUID
+	Type            AppType
+	Offset          int32
+	Limit           int32
+}
+
+func (q *Queries) FilterAppsByTypeAndByAccountPublicIDOrderedByID(ctx context.Context, arg FilterAppsByTypeAndByAccountPublicIDOrderedByIDParams) ([]App, error) {
+	rows, err := q.db.Query(ctx, filterAppsByTypeAndByAccountPublicIDOrderedByID,
+		arg.AccountPublicID,
+		arg.Type,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []App{}
+	for rows.Next() {
+		var i App
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.AccountPublicID,
+			&i.Type,
+			&i.Name,
+			&i.ClientID,
+			&i.Version,
+			&i.ClientUri,
+			&i.LogoUri,
+			&i.TosUri,
+			&i.PolicyUri,
+			&i.SoftwareID,
+			&i.SoftwareVersion,
+			&i.AuthMethods,
+			&i.GrantTypes,
+			&i.DefaultScopes,
+			&i.AuthProviders,
+			&i.UsernameColumn,
+			&i.IDTokenTtl,
+			&i.TokenTtl,
+			&i.RefreshTokenTtl,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const filterAppsByTypeAndByAccountPublicIDOrderedByName = `-- name: FilterAppsByTypeAndByAccountPublicIDOrderedByName :many
+SELECT id, account_id, account_public_id, type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, auth_methods, grant_types, default_scopes, auth_providers, username_column, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at FROM "apps"
+WHERE "account_public_id" = $1 AND "type" = $2
+ORDER BY "name" ASC
+OFFSET $3 LIMIT $4
+`
+
+type FilterAppsByTypeAndByAccountPublicIDOrderedByNameParams struct {
+	AccountPublicID uuid.UUID
+	Type            AppType
+	Offset          int32
+	Limit           int32
+}
+
+func (q *Queries) FilterAppsByTypeAndByAccountPublicIDOrderedByName(ctx context.Context, arg FilterAppsByTypeAndByAccountPublicIDOrderedByNameParams) ([]App, error) {
+	rows, err := q.db.Query(ctx, filterAppsByTypeAndByAccountPublicIDOrderedByName,
+		arg.AccountPublicID,
+		arg.Type,
 		arg.Offset,
 		arg.Limit,
 	)

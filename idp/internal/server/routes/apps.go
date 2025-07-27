@@ -50,3 +50,35 @@ func (r *Routes) AppsRoutes(app *fiber.App) {
 		r.controllers.DeleteApp,
 	)
 }
+
+func (r *Routes) AppSecretsRoutes(app *fiber.App) {
+	router := v1PathRouter(app).Group(paths.AppsBase)
+
+	appsWriteScope := r.controllers.ScopeMiddleware(tokens.AccountScopeAppsWrite)
+	appsReadScope := r.controllers.ScopeMiddleware(tokens.AccountScopeAppsRead)
+
+	router.Post(
+		paths.CredentialsSecrets,
+		r.controllers.AccountAccessClaimsMiddleware,
+		appsWriteScope,
+		r.controllers.CreateAppSecret,
+	)
+	router.Get(
+		paths.CredentialsSecrets,
+		r.controllers.AccountAccessClaimsMiddleware,
+		appsReadScope,
+		r.controllers.ListAppSecrets,
+	)
+	router.Get(
+		paths.CredentialsSecretsSingle,
+		r.controllers.AccountAccessClaimsMiddleware,
+		appsReadScope,
+		r.controllers.GetAppSecret,
+	)
+	router.Delete(
+		paths.CredentialsSecretsSingle,
+		r.controllers.AccountAccessClaimsMiddleware,
+		appsWriteScope,
+		r.controllers.RevokeAppSecret,
+	)
+}

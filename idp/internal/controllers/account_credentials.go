@@ -247,7 +247,6 @@ func (c *Controllers) ListAccountCredentialsSecrets(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	logResponse(logger, ctx, fiber.StatusOK)
 	paginationDTO := dtos.NewPaginationDTO(
 		secretsOrKeys,
 		count,
@@ -275,7 +274,7 @@ func (c *Controllers) CreateAccountCredentialsSecret(ctx *fiber.Ctx) error {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	body := new(bodies.CreateAccountCredentialsSecretBody)
+	body := new(bodies.CreateCredentialsSecretBody)
 	if err := ctx.BodyParser(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
