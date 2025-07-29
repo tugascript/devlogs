@@ -29,7 +29,7 @@ INSERT INTO "apps" (
 
 
 -- name: CountAppsByAccountIDAndName :one
-SELECT COUNT("id") FROM "apps"
+SELECT COUNT(*) FROM "apps"
 WHERE "account_id" = $1 AND "name" = $2
 LIMIT 1;
 
@@ -80,7 +80,7 @@ ORDER BY "name" ASC
 OFFSET $2 LIMIT $3;
 
 -- name: CountAppsByAccountPublicID :one
-SELECT COUNT("id") FROM "apps"
+SELECT COUNT(*) FROM "apps"
 WHERE "account_public_id" = $1
 LIMIT 1;
 
@@ -125,17 +125,17 @@ ORDER BY "name" ASC
 OFFSET $4 LIMIT $5;
 
 -- name: CountFilteredAppsByNameAndByAccountPublicID :one
-SELECT COUNT("id") FROM "apps"
+SELECT COUNT(*) FROM "apps"
 WHERE "account_public_id" = $1 AND "name" ILIKE $2
 LIMIT 1;
 
 -- name: CountFilteredAppsByTypeAndByAccountPublicID :one
-SELECT COUNT("id") FROM "apps"
+SELECT COUNT(*) FROM "apps"
 WHERE "account_public_id" = $1 AND "type" = $2
 LIMIT 1;
 
 -- name: CountFilteredAppsByNameAndTypeAndByAccountPublicID :one
-SELECT COUNT("id") FROM "apps"
+SELECT COUNT(*) FROM "apps"
 WHERE "account_public_id" = $1 AND
   "name" ILIKE $2 AND
   "type" = $3
@@ -152,3 +152,6 @@ RETURNING *;
 SELECT * FROM "apps"
 WHERE "client_id" IN (sqlc.slice('client_ids')) AND "account_id" = $1
 ORDER BY "name" ASC LIMIT $2;
+
+-- name: DeleteAllApps :exec
+DELETE FROM "apps";

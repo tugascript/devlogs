@@ -10,7 +10,7 @@ import (
 )
 
 const countAppSecretsByAppID = `-- name: CountAppSecretsByAppID :one
-SELECT COUNT("csr"."id") FROM "credentials_secrets" "csr"
+SELECT COUNT(*) FROM "credentials_secrets" "csr"
 LEFT JOIN "app_secrets" "as" ON "as"."credentials_secret_id" = "csr"."id"
 WHERE "as"."app_id" = $1
 LIMIT 1

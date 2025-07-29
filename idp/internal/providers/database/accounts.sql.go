@@ -44,7 +44,7 @@ func (q *Queries) ConfirmAccount(ctx context.Context, id int32) (Account, error)
 }
 
 const countAccountsByEmail = `-- name: CountAccountsByEmail :one
-SELECT COUNT("id") FROM "accounts"
+SELECT COUNT(*) FROM "accounts"
 WHERE "email" = $1 LIMIT 1
 `
 
@@ -56,7 +56,7 @@ func (q *Queries) CountAccountsByEmail(ctx context.Context, email string) (int64
 }
 
 const countAccountsByUsername = `-- name: CountAccountsByUsername :one
-SELECT COUNT("id") FROM "accounts"
+SELECT COUNT(*) FROM "accounts"
 WHERE "username" = $1 LIMIT 1
 `
 

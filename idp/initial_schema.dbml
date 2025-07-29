@@ -818,15 +818,10 @@ Table app_designs as AD {
     account_id integer [not null]
     app_id integer [not null]
 
-    primary_light_color varchar(6) [not null]
-    primary_dark_color varchar(6) [not null]
-    secondary_light_color varchar(6) [not null]
-    secondary_dark_color varchar(6) [not null]
-    background_light_color varchar(6) [not null]
-    background_dark_color varchar(6) [not null]
-    text_light_color varchar(6) [not null]
-    text_dark_color varchar(6) [not null]
+    light_colors jsonb [not null]
+    dark_colors jsonb [null]
 
+    logo_url varchar(250) [null]
     favicon_url varchar(250) [null]
 
     created_at timestamptz [not null, default: `now()`]

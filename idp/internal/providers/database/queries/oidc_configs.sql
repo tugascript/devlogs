@@ -5,7 +5,7 @@
 -- file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 -- name: CountOIDCConfigsByAccountID :one
-SELECT COUNT("id") FROM "oidc_configs"
+SELECT COUNT(*) FROM "oidc_configs"
 WHERE "account_id" = $1;
 
 -- name: CreateOIDCConfig :one

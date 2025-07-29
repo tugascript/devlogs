@@ -36,7 +36,7 @@ WHERE
 LIMIT 1;
 
 -- name: CountAccountAuthProvidersByEmailAndProvider :one
-SELECT COUNT("id") FROM "account_auth_providers"
+SELECT COUNT(*) FROM "account_auth_providers"
 WHERE
   "email" = $1 AND
   "provider" = $2

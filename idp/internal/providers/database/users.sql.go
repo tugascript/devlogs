@@ -44,7 +44,7 @@ func (q *Queries) ConfirmUser(ctx context.Context, id int32) (User, error) {
 }
 
 const countFilteredUsersByEmailOrUsernameAndByAccountID = `-- name: CountFilteredUsersByEmailOrUsernameAndByAccountID :one
-SELECT COUNT("id") FROM "users"
+SELECT COUNT(*) FROM "users"
 WHERE "account_id" = $1 AND ("email" ILIKE $2 OR "username" ILIKE $3)
 LIMIT 1
 `
@@ -63,7 +63,7 @@ func (q *Queries) CountFilteredUsersByEmailOrUsernameAndByAccountID(ctx context.
 }
 
 const countUsersByAccountID = `-- name: CountUsersByAccountID :one
-SELECT COUNT("id") FROM "users"
+SELECT COUNT(*) FROM "users"
 WHERE "account_id" = $1
 LIMIT 1
 `
@@ -76,7 +76,7 @@ func (q *Queries) CountUsersByAccountID(ctx context.Context, accountID int32) (i
 }
 
 const countUsersByEmailAndAccountID = `-- name: CountUsersByEmailAndAccountID :one
-SELECT COUNT("id") FROM "users"
+SELECT COUNT(*) FROM "users"
 WHERE "email" = $1 AND "account_id" = $2
 LIMIT 1
 `
@@ -94,7 +94,7 @@ func (q *Queries) CountUsersByEmailAndAccountID(ctx context.Context, arg CountUs
 }
 
 const countUsersByUsernameAndAccountID = `-- name: CountUsersByUsernameAndAccountID :one
-SELECT COUNT("id") FROM "users"
+SELECT COUNT(*) FROM "users"
 WHERE "username" = $1 AND "account_id" = $2
 LIMIT 1
 `

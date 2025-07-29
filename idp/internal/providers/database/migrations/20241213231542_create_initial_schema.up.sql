@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-07-26T03:29:55.583Z
+-- Generated at: 2025-07-28T07:47:40.659Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -478,14 +478,9 @@ CREATE TABLE "app_designs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "app_id" integer NOT NULL,
-  "primary_light_color" varchar(6) NOT NULL,
-  "primary_dark_color" varchar(6) NOT NULL,
-  "secondary_light_color" varchar(6) NOT NULL,
-  "secondary_dark_color" varchar(6) NOT NULL,
-  "background_light_color" varchar(6) NOT NULL,
-  "background_dark_color" varchar(6) NOT NULL,
-  "text_light_color" varchar(6) NOT NULL,
-  "text_dark_color" varchar(6) NOT NULL,
+  "light_colors" jsonb NOT NULL,
+  "dark_colors" jsonb,
+  "logo_url" varchar(250),
   "favicon_url" varchar(250),
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
