@@ -22,10 +22,10 @@ import (
 const appDesignsLocation string = "app_designs"
 
 type ColorsOptions struct {
-	PrimaryColor    string
-	SecondaryColor  string
-	BackgroundColor string
-	TextColor       string
+	PrimaryColor    string `json:"primary_color"`
+	SecondaryColor  string `json:"secondary_color"`
+	BackgroundColor string `json:"background_color"`
+	TextColor       string `json:"text_color"`
 }
 
 func (c *ColorsOptions) ToUppercase() ColorsOptions {

@@ -183,7 +183,7 @@ func TestCreateAppDesign(t *testing.T) {
 			},
 			ExpStatus: http.StatusConflict,
 			AssertFn: func(t *testing.T, _ bodies.AppDesignBody, res *http.Response) {
-				assertErrorResponse(t, res, exceptions.StatusConflict, "")
+				assertErrorResponse(t, res, exceptions.StatusConflict, "App design already exists for this app")
 			},
 		},
 		{
@@ -267,7 +267,7 @@ func TestCreateAppDesign(t *testing.T) {
 				}, accessToken
 			},
 			PathFn: func() string {
-				return v1Path + paths.AppsBase + utils.Base62UUID() + paths.AppDesignsBase + "/" + appClientID
+				return v1Path + paths.AppsBase + "/" + utils.Base62UUID() + paths.AppDesignsBase
 			},
 			ExpStatus: http.StatusNotFound,
 			AssertFn:  AssertNotFoundError[bodies.AppDesignBody],
@@ -394,7 +394,7 @@ func TestGetAppDesign(t *testing.T) {
 				return nil, accessToken
 			},
 			PathFn: func() string {
-				return v1Path + paths.AppsBase + "/" + utils.Base62UUID() + paths.AppDesignsBase + "/" + appClientID
+				return v1Path + paths.AppsBase + "/" + utils.Base62UUID() + paths.AppDesignsBase
 			},
 			ExpStatus: http.StatusNotFound,
 			AssertFn:  AssertNotFoundError[any],
@@ -422,6 +422,7 @@ func TestUpdateAppDesign(t *testing.T) {
 			ReqFn: func(t *testing.T) (bodies.AppDesignBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				app := CreateTestApp(t, &account)
+				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				// Create app design first
@@ -599,7 +600,7 @@ func TestUpdateAppDesign(t *testing.T) {
 				}, accessToken
 			},
 			PathFn: func() string {
-				return v1Path + paths.AppsBase + "/non-existent-app" + paths.AppDesignsBase
+				return v1Path + paths.AppsBase + "/" + utils.Base62UUID() + paths.AppDesignsBase
 			},
 			ExpStatus: http.StatusNotFound,
 			AssertFn:  AssertNotFoundError[bodies.AppDesignBody],
@@ -627,6 +628,7 @@ func TestDeleteAppDesign(t *testing.T) {
 			ReqFn: func(t *testing.T) (any, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				app := CreateTestApp(t, &account)
+				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				// Create app design first
@@ -706,7 +708,7 @@ func TestDeleteAppDesign(t *testing.T) {
 				return nil, accessToken
 			},
 			PathFn: func() string {
-				return v1Path + paths.AppsBase + "/non-existent-app" + paths.AppDesignsBase
+				return v1Path + paths.AppsBase + "/" + utils.Base62UUID() + paths.AppDesignsBase
 			},
 			ExpStatus: http.StatusNotFound,
 			AssertFn:  AssertNotFoundError[any],
