@@ -14,7 +14,7 @@ import (
 )
 
 func (r *Routes) AppDesignsRoutes(app *fiber.App) {
-	appDesigns := app.Group(paths.AppsBase + paths.AppsSingle)
+	appDesigns := v1PathRouter(app).Group(paths.AppsBase + paths.AppsSingle)
 
 	appsWriteScope := r.controllers.ScopeMiddleware(tokens.AccountScopeAppsWrite)
 
@@ -42,5 +42,4 @@ func (r *Routes) AppDesignsRoutes(app *fiber.App) {
 		appsWriteScope,
 		r.controllers.DeleteAppDesign,
 	)
-
 }

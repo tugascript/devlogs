@@ -451,7 +451,8 @@ func PerformTestRequestCaseWithPathFn[R any](t *testing.T, method string, tc Tes
 	}
 
 	// Act
-	resp := PerformTestRequest(t, fiberApp, tc.DelayMs, method, tc.PathFn(), tokenType, accessToken, "application/json", jsonBody)
+	path := tc.PathFn()
+	resp := PerformTestRequest(t, fiberApp, tc.DelayMs, method, path, tokenType, accessToken, "application/json", jsonBody)
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			t.Fatal(err)
