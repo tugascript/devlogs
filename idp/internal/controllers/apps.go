@@ -230,13 +230,15 @@ func (c *Controllers) createServiceApp(
 	}
 
 	appDTO, serviceErr := c.services.CreateServiceApp(ctx.UserContext(), services.CreateServiceAppOptions{
-		RequestID:       requestID,
-		AccountPublicID: accountClaims.AccountID,
-		AccountVersion:  accountClaims.AccountVersion,
-		Name:            baseBody.Name,
-		Algorithm:       body.Algorithm,
-		ClientURI:       baseBody.ClientURI,
-		Issuers:         body.Issuers,
+		RequestID:        requestID,
+		AccountPublicID:  accountClaims.AccountID,
+		Name:             baseBody.Name,
+		AccountVersion:   accountClaims.AccountVersion,
+		Issuers:          body.Issuers,
+		Algorithm:        body.Algorithm,
+		ClientURI:        baseBody.ClientURI,
+		UsersAuthMethods: body.UsersAuthMethods,
+		AllowedDomains:   body.AllowedDomains,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)

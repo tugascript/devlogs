@@ -7,6 +7,7 @@
 package dtos
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -93,6 +94,27 @@ func (a *AppDTO) AccountID() int32 {
 
 func (a *AppDTO) Version() int32 {
 	return a.version
+}
+
+func (a *AppDTO) UnmarshalJSON(data []byte) error {
+	type Alias AppDTO
+	aux := &struct {
+		ClientSecretJWK json.RawMessage `json:"client_secret_jwk,omitempty"`
+		*Alias
+	}{
+		Alias: (*Alias)(a),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if aux.ClientSecretJWK != nil {
+		jwk, err := utils.JsonToJWK(aux.ClientSecretJWK)
+		if err != nil {
+			return err
+		}
+		a.ClientSecretJWK = jwk
+	}
+	return nil
 }
 
 func MapAppToDTO(app *database.App) AppDTO {
