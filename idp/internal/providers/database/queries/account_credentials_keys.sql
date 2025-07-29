@@ -35,7 +35,7 @@ ORDER BY "ckr"."expires_at" DESC
 OFFSET $2 LIMIT $3;
 
 -- name: CountAccountCredentialKeysByAccountCredentialID :one
-SELECT COUNT("ckr"."id") FROM "credentials_keys" "ckr"
+SELECT COUNT(*) FROM "credentials_keys" "ckr"
 LEFT JOIN "account_credentials_keys" "ack" ON "ack"."credentials_key_id" = "ckr"."id"
 WHERE "ack"."account_credentials_id" = $1
 LIMIT 1;

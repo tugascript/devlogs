@@ -40,7 +40,7 @@ ORDER BY "username" ASC
 OFFSET $2 LIMIT $3;
 
 -- name: CountUsersByAccountID :one
-SELECT COUNT("id") FROM "users"
+SELECT COUNT(*) FROM "users"
 WHERE "account_id" = $1
 LIMIT 1;
 
@@ -63,7 +63,7 @@ ORDER BY "username" ASC
 OFFSET $4 LIMIT $5;
 
 -- name: CountFilteredUsersByEmailOrUsernameAndByAccountID :one
-SELECT COUNT("id") FROM "users"
+SELECT COUNT(*) FROM "users"
 WHERE "account_id" = $1 AND ("email" ILIKE $2 OR "username" ILIKE $3)
 LIMIT 1;
 
@@ -107,12 +107,12 @@ INSERT INTO "users" (
 ) RETURNING *;
 
 -- name: CountUsersByUsernameAndAccountID :one
-SELECT COUNT("id") FROM "users"
+SELECT COUNT(*) FROM "users"
 WHERE "username" = $1 AND "account_id" = $2
 LIMIT 1;
 
 -- name: CountUsersByEmailAndAccountID :one
-SELECT COUNT("id") FROM "users"
+SELECT COUNT(*) FROM "users"
 WHERE "email" = $1 AND "account_id" = $2
 LIMIT 1;
 

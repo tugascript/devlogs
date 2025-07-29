@@ -69,7 +69,7 @@ SELECT * FROM "accounts"
 WHERE "email" = $1 LIMIT 1;
 
 -- name: CountAccountsByEmail :one
-SELECT COUNT("id") FROM "accounts"
+SELECT COUNT(*) FROM "accounts"
 WHERE "email" = $1 LIMIT 1;
 
 -- name: FindAccountById :one
@@ -81,7 +81,7 @@ SELECT * FROM "accounts"
 WHERE "public_id" = $1 LIMIT 1;
 
 -- name: CountAccountsByUsername :one
-SELECT COUNT("id") FROM "accounts"
+SELECT COUNT(*) FROM "accounts"
 WHERE "username" = $1 LIMIT 1;
 
 -- name: ConfirmAccount :one

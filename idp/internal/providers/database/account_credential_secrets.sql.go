@@ -12,7 +12,7 @@ import (
 )
 
 const countAccountCredentialSecretsByAccountCredentialID = `-- name: CountAccountCredentialSecretsByAccountCredentialID :one
-SELECT COUNT("csr"."id") FROM "credentials_secrets" "csr"
+SELECT COUNT(*) FROM "credentials_secrets" "csr"
 LEFT JOIN "account_credentials_secrets" "acs" ON "acs"."credentials_secret_id" = "csr"."id"
 WHERE "acs"."account_credentials_id" = $1
 LIMIT 1

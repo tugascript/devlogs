@@ -13,7 +13,7 @@ import (
 )
 
 const countAppsByAccountIDAndName = `-- name: CountAppsByAccountIDAndName :one
-SELECT COUNT("id") FROM "apps"
+SELECT COUNT(*) FROM "apps"
 WHERE "account_id" = $1 AND "name" = $2
 LIMIT 1
 `
@@ -31,7 +31,7 @@ func (q *Queries) CountAppsByAccountIDAndName(ctx context.Context, arg CountApps
 }
 
 const countAppsByAccountPublicID = `-- name: CountAppsByAccountPublicID :one
-SELECT COUNT("id") FROM "apps"
+SELECT COUNT(*) FROM "apps"
 WHERE "account_public_id" = $1
 LIMIT 1
 `
@@ -44,7 +44,7 @@ func (q *Queries) CountAppsByAccountPublicID(ctx context.Context, accountPublicI
 }
 
 const countFilteredAppsByNameAndByAccountPublicID = `-- name: CountFilteredAppsByNameAndByAccountPublicID :one
-SELECT COUNT("id") FROM "apps"
+SELECT COUNT(*) FROM "apps"
 WHERE "account_public_id" = $1 AND "name" ILIKE $2
 LIMIT 1
 `
@@ -62,7 +62,7 @@ func (q *Queries) CountFilteredAppsByNameAndByAccountPublicID(ctx context.Contex
 }
 
 const countFilteredAppsByNameAndTypeAndByAccountPublicID = `-- name: CountFilteredAppsByNameAndTypeAndByAccountPublicID :one
-SELECT COUNT("id") FROM "apps"
+SELECT COUNT(*) FROM "apps"
 WHERE "account_public_id" = $1 AND
   "name" ILIKE $2 AND
   "type" = $3
@@ -83,7 +83,7 @@ func (q *Queries) CountFilteredAppsByNameAndTypeAndByAccountPublicID(ctx context
 }
 
 const countFilteredAppsByTypeAndByAccountPublicID = `-- name: CountFilteredAppsByTypeAndByAccountPublicID :one
-SELECT COUNT("id") FROM "apps"
+SELECT COUNT(*) FROM "apps"
 WHERE "account_public_id" = $1 AND "type" = $2
 LIMIT 1
 `
@@ -181,6 +181,15 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const deleteAllApps = `-- name: DeleteAllApps :exec
+DELETE FROM "apps"
+`
+
+func (q *Queries) DeleteAllApps(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteAllApps)
+	return err
 }
 
 const deleteApp = `-- name: DeleteApp :exec

@@ -43,7 +43,7 @@ WHERE "id" = $1
 RETURNING *;
 
 -- name: CountAccountCredentialsByAliasAndAccountID :one
-SELECT COUNT("id") FROM "account_credentials"
+SELECT COUNT(*) FROM "account_credentials"
 WHERE "account_id" = $1 AND "alias" = $2;
 
 -- name: DeleteAccountCredentials :exec
@@ -57,7 +57,7 @@ ORDER BY "id" DESC
 OFFSET $2 LIMIT $3;
 
 -- name: CountAccountCredentialsByAccountPublicID :one
-SELECT COUNT("id") FROM "account_credentials"
+SELECT COUNT(*) FROM "account_credentials"
 WHERE "account_public_id" = $1
 LIMIT 1;
 

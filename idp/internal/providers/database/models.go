@@ -901,20 +901,15 @@ type AppAuthCodeConfig struct {
 }
 
 type AppDesign struct {
-	ID                   int32
-	AccountID            int32
-	AppID                int32
-	PrimaryLightColor    string
-	PrimaryDarkColor     string
-	SecondaryLightColor  string
-	SecondaryDarkColor   string
-	BackgroundLightColor string
-	BackgroundDarkColor  string
-	TextLightColor       string
-	TextDarkColor        string
-	FaviconUrl           pgtype.Text
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID          int32
+	AccountID   int32
+	AppID       int32
+	LightColors []byte
+	DarkColors  []byte
+	LogoUrl     pgtype.Text
+	FaviconUrl  pgtype.Text
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type AppKey struct {

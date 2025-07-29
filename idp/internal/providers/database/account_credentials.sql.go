@@ -12,7 +12,7 @@ import (
 )
 
 const countAccountCredentialsByAccountPublicID = `-- name: CountAccountCredentialsByAccountPublicID :one
-SELECT COUNT("id") FROM "account_credentials"
+SELECT COUNT(*) FROM "account_credentials"
 WHERE "account_public_id" = $1
 LIMIT 1
 `
@@ -25,7 +25,7 @@ func (q *Queries) CountAccountCredentialsByAccountPublicID(ctx context.Context, 
 }
 
 const countAccountCredentialsByAliasAndAccountID = `-- name: CountAccountCredentialsByAliasAndAccountID :one
-SELECT COUNT("id") FROM "account_credentials"
+SELECT COUNT(*) FROM "account_credentials"
 WHERE "account_id" = $1 AND "alias" = $2
 `
 
