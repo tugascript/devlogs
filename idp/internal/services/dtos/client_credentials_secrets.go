@@ -44,7 +44,8 @@ func (s *ClientCredentialsSecretDTO) ID() int32 {
 func (s *ClientCredentialsSecretDTO) UnmarshalJSON(data []byte) error {
 	type Alias ClientCredentialsSecretDTO
 	aux := &struct {
-		ClientSecretJWK json.RawMessage `json:"client_secret_jwk"`
+		ClientSecretJWK       json.RawMessage `json:"client_secret_jwk"`
+		ClientSecretPublicJWK json.RawMessage `json:"client_secret_public_jwk,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(s),
@@ -60,6 +61,13 @@ func (s *ClientCredentialsSecretDTO) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		s.ClientSecretJWK = jwk
+	}
+	if aux.ClientSecretPublicJWK != nil {
+		jwk, err := utils.JsonToJWK(aux.ClientSecretPublicJWK)
+		if err != nil {
+			return err
+		}
+		s.ClientSecretPublicJWK = jwk
 	}
 
 	return nil

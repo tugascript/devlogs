@@ -8,6 +8,7 @@ package services
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -695,7 +696,7 @@ func (s *Services) CreateWebApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	name := utils.Capitalized(opts.Name)
+	name := strings.TrimSpace(opts.Name)
 	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 		requestID: opts.RequestID,
 		accountID: accountID,
@@ -877,7 +878,7 @@ func (s *Services) CreateSPAApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	name := utils.Capitalized(opts.Name)
+	name := strings.TrimSpace(opts.Name)
 	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 		requestID: opts.RequestID,
 		accountID: accountID,
@@ -967,7 +968,7 @@ func (s *Services) CreateNativeApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	name := utils.Capitalized(opts.Name)
+	name := strings.TrimSpace(opts.Name)
 	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 		requestID: opts.RequestID,
 		accountID: accountID,
@@ -1052,7 +1053,7 @@ func (s *Services) CreateBackendApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	name := utils.Capitalized(opts.Name)
+	name := strings.TrimSpace(opts.Name)
 	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 		requestID: opts.RequestID,
 		accountID: accountID,
@@ -1176,7 +1177,7 @@ func (s *Services) CreateDeviceApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	name := utils.Capitalized(opts.Name)
+	name := strings.TrimSpace(opts.Name)
 	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 		requestID: opts.RequestID,
 		accountID: accountID,
@@ -1336,7 +1337,7 @@ func (s *Services) CreateServiceApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	name := utils.Capitalized(opts.Name)
+	name := strings.TrimSpace(opts.Name)
 	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 		requestID: opts.RequestID,
 		accountID: accountID,
@@ -1610,7 +1611,7 @@ func (s *Services) UpdateWebApp(
 	)
 	logger.InfoContext(ctx, "Updating web app...")
 
-	name := utils.Capitalized(opts.Name)
+	name := strings.TrimSpace(opts.Name)
 	if appDTO.Name != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 			requestID: opts.RequestID,
@@ -1696,7 +1697,7 @@ func (s *Services) UpdateSPAApp(
 	)
 	logger.InfoContext(ctx, "Updating SPA app...")
 
-	name := utils.Capitalized(opts.Name)
+	name := strings.TrimSpace(opts.Name)
 	if appDTO.Name != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 			requestID: opts.RequestID,
@@ -1781,7 +1782,7 @@ func (s *Services) UpdateNativeApp(
 	)
 	logger.InfoContext(ctx, "Updating native app...")
 
-	name := utils.Capitalized(opts.Name)
+	name := strings.TrimSpace(opts.Name)
 	if appDTO.Name != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 			requestID: opts.RequestID,
@@ -1866,7 +1867,7 @@ func (s *Services) UpdateBackendApp(
 	)
 	logger.InfoContext(ctx, "Updating backend app...")
 
-	name := utils.Capitalized(opts.Name)
+	name := strings.TrimSpace(opts.Name)
 	if appDTO.Name != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 			requestID: opts.RequestID,
@@ -1955,7 +1956,7 @@ func (s *Services) UpdateDeviceApp(
 	)
 	logger.InfoContext(ctx, "Updating device app...")
 
-	name := utils.Capitalized(opts.Name)
+	name := strings.TrimSpace(opts.Name)
 	if appDTO.Name != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 			requestID: opts.RequestID,
@@ -2117,7 +2118,7 @@ func (s *Services) UpdateServiceApp(
 	)
 	logger.InfoContext(ctx, "Updating service app...")
 
-	name := utils.Capitalized(opts.Name)
+	name := strings.TrimSpace(opts.Name)
 	if appDTO.Name != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 			requestID: opts.RequestID,
