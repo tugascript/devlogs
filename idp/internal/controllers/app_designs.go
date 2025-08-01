@@ -44,7 +44,7 @@ func (c *Controllers) CreateAppDesign(ctx *fiber.Ctx) error {
 		services.AppDesignOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
-			AccoutVersion:   accountClaims.AccountVersion,
+			AccountVersion:  accountClaims.AccountVersion,
 			AppClientID:     urlParams.ClientID,
 			LightColors:     services.ColorsOptions(body.LightColors),
 			DarkColors: func() *services.ColorsOptions {
@@ -129,7 +129,7 @@ func (c *Controllers) UpdateAppDesign(ctx *fiber.Ctx) error {
 		services.AppDesignOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
-			AccoutVersion:   accountClaims.AccountVersion,
+			AccountVersion:  accountClaims.AccountVersion,
 			AppClientID:     urlParams.ClientID,
 			LightColors:     services.ColorsOptions(body.LightColors),
 			DarkColors: func() *services.ColorsOptions {
