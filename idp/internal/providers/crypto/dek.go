@@ -107,7 +107,7 @@ func (e *Crypto) EncryptWithDEK(
 		logger.ErrorContext(ctx, "Failed to decrypt DEK", "error", err)
 		return "", "", exceptions.NewInternalServerError()
 	}
-	defer utils.WipeBytes(dek)
+	defer utils.WipeBytes(ctx, logger, dek)
 
 	ciphertext, err := utils.Encrypt(opts.PlainText, dek)
 	if err != nil {
@@ -162,7 +162,7 @@ func (e *Crypto) DecryptWithDEK(ctx context.Context, opts DecryptWithDEKOptions)
 		logger.ErrorContext(ctx, "Failed to decrypt DEK", "error", err)
 		return "", exceptions.NewInternalServerError()
 	}
-	defer utils.WipeBytes(dek)
+	defer utils.WipeBytes(ctx, logger, dek)
 
 	secret, err := utils.Decrypt(ciphertext, dek)
 	if err != nil {

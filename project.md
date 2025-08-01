@@ -35,9 +35,7 @@ NONE
 - Accounts m2m auth:
   - client_credentials
   - jwt
-
-#### IDP On-Going
-
+- Remove Local Cache & Wipe Secrets from memory after use
 - Multiple app types creation
   - web
   - native
@@ -45,6 +43,10 @@ NONE
   - backend
   - device
   - service
+
+#### IDP On-Going
+
+- Add MCP app support
 
 #### IDP Todo
 
