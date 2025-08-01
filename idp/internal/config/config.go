@@ -21,7 +21,7 @@ type Config struct {
 	env                  string
 	maxProcs             int64
 	databaseURL          string
-	redisURL             string
+	valkeyURL            string
 	frontendDomain       string
 	backendDomain        string
 	cookieSecret         string
@@ -34,7 +34,6 @@ type Config struct {
 	tokensConfig         TokensConfig
 	oAuthProvidersConfig OAuthProvidersConfig
 	rateLimiterConfig    RateLimiterConfig
-	localCacheConfig     LocalCacheConfig
 	openBaoConfig        OpenBaoConfig
 	cryptoConfig         CryptoConfig
 	distributedCache     DistributedCache
@@ -61,8 +60,8 @@ func (c *Config) DatabaseURL() string {
 	return c.databaseURL
 }
 
-func (c *Config) RedisURL() string {
-	return c.redisURL
+func (c *Config) ValkeyURL() string {
+	return c.valkeyURL
 }
 
 func (c *Config) FrontendDomain() string {
@@ -113,10 +112,6 @@ func (c *Config) RateLimiterConfig() RateLimiterConfig {
 	return c.rateLimiterConfig
 }
 
-func (c *Config) LocalCacheConfig() LocalCacheConfig {
-	return c.localCacheConfig
-}
-
 func (c *Config) OpenBaoConfig() OpenBaoConfig {
 	return c.openBaoConfig
 }
@@ -149,7 +144,7 @@ func (c *Config) UserCCExpDays() int64 {
 	return c.userCCExpDays
 }
 
-var variables = [47]string{
+var variables = [43]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -157,7 +152,7 @@ var variables = [47]string{
 	"SERVICE_ID",
 	"MAX_PROCS",
 	"DATABASE_URL",
-	"REDIS_URL",
+	"VALKEY_URL",
 	"FRONTEND_DOMAIN",
 	"BACKEND_DOMAIN",
 	"COOKIE_SECRET",
@@ -173,10 +168,6 @@ var variables = [47]string{
 	"JWT_OAUTH_TTL_SEC",
 	"JWT_2FA_TTL_SEC",
 	"JWT_APPS_TTL_SEC",
-	"CACHE_COUNTER",
-	"CACHE_SIZE_KB",
-	"CACHE_BUFFER_ITEMS",
-	"CACHE_TTL_TICKER_SEC",
 	"OPENBAO_URL",
 	"OPENBAO_DEV_TOKEN",
 	"OPENBAO_ROLE_ID",
@@ -212,7 +203,7 @@ var optionalVariables = [10]string{
 	"MICROSOFT_CLIENT_SECRET",
 }
 
-var numerics = [31]string{
+var numerics = [27]string{
 	"PORT",
 	"MAX_PROCS",
 	"JWT_ACCESS_TTL_SEC",
@@ -225,10 +216,6 @@ var numerics = [31]string{
 	"JWT_APPS_TTL_SEC",
 	"RATE_LIMITER_MAX",
 	"RATE_LIMITER_EXP_SEC",
-	"CACHE_COUNTER",
-	"CACHE_SIZE_KB",
-	"CACHE_BUFFER_ITEMS",
-	"CACHE_TTL_TICKER_SEC",
 	"DEK_TTL_SEC",
 	"JWK_TTL_SEC",
 	"KEK_EXPIRATION_DAYS",
@@ -282,7 +269,7 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 		env:             variablesMap["ENV"],
 		maxProcs:        intMap["MAX_PROCS"],
 		databaseURL:     variablesMap["DATABASE_URL"],
-		redisURL:        variablesMap["REDIS_URL"],
+		valkeyURL:       variablesMap["VALKEY_URL"],
 		frontendDomain:  variablesMap["FRONTEND_DOMAIN"],
 		backendDomain:   variablesMap["BACKEND_DOMAIN"],
 		cookieSecret:    variablesMap["COOKIE_SECRET"],
@@ -315,12 +302,6 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 		rateLimiterConfig: NewRateLimiterConfig(
 			intMap["RATE_LIMITER_MAX"],
 			intMap["RATE_LIMITER_EXP_SEC"],
-		),
-		localCacheConfig: NewLocalCacheConfig(
-			intMap["CACHE_COUNTER"],
-			intMap["CACHE_SIZE_KB"],
-			intMap["CACHE_BUFFER_ITEMS"],
-			intMap["CACHE_TTL_TICKER_SEC"],
 		),
 		openBaoConfig: NewOpenBaoConfig(
 			variablesMap["OPENBAO_URL"],

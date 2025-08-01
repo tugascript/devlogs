@@ -317,6 +317,10 @@ func (e *Crypto) VerifyTotpCode(
 			StoreReEncryptedDataFn: opts.StoreFN,
 		},
 	)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to decrypt TOTP secret", "error", serviceErr)
+		return false, serviceErr
+	}
 
 	return totp.Validate(opts.Code, secret), nil
 }

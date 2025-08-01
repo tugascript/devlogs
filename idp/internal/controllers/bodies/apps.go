@@ -18,8 +18,8 @@ type UpdateAppBodyBase struct {
 	LogoURI         string `json:"logo_uri,omitempty" validate:"omitempty,url"`
 	TOSURI          string `json:"tos_uri,omitempty" validate:"omitempty,url"`
 	PolicyURI       string `json:"policy_uri,omitempty" validate:"omitempty,url"`
-	SoftwareID      string `json:"software_id,omitempty" validate:"omitempty,alphanum"`
-	SoftwareVersion string `json:"software_version,omitempty" validate:"omitempty,alphanum"`
+	SoftwareID      string `json:"software_id,omitempty" validate:"omitempty,max=250"`
+	SoftwareVersion string `json:"software_version,omitempty" validate:"omitempty,max=250"`
 }
 
 type CreateAppBodyWeb struct {
@@ -28,15 +28,15 @@ type CreateAppBodyWeb struct {
 	AuthMethods         string   `json:"auth_methods" validate:"required,oneof=client_secret_basic client_secret_post both_client_secrets private_key_jwt"`
 	CallbackURLs        []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
 	LogoutURLs          []string `json:"logout_urls" validate:"required,unique,min=1,dive,url"`
-	AllowedOrigins      []string `json:"allowed_origins,omitempty" validate:"omitempty,unique,dive,url"`
+	AllowedOrigins      []string `json:"allowed_origins,omitempty" validate:"required_if=AuthMethods private_key_jwt,unique,dive,url"`
 	CodeChallengeMethod string   `json:"code_challenge_method,omitempty" validate:"omitempty,oneof=S256 plain"`
 }
 
 type UpdateAppBodyWeb struct {
 	UsernameColumn      string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
-	CallbackURLs        []string `json:"callback_urls" validate:"required,min=1,dive,url,unique"`
-	LogoutURLs          []string `json:"logout_urls" validate:"required,min=1,dive,url,unique"`
-	AllowedOrigins      []string `json:"allowed_origins,omitempty" validate:"omitempty,dive,url,unique"`
+	CallbackURLs        []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
+	LogoutURLs          []string `json:"logout_urls" validate:"required,unique,min=1,dive,url"`
+	AllowedOrigins      []string `json:"allowed_origins,omitempty" validate:"omitempty,unique,dive,url"`
 	CodeChallengeMethod string   `json:"code_challenge_method,omitempty" validate:"omitempty,oneof=S256 plain"`
 }
 
@@ -64,7 +64,6 @@ type CreateAppBodyNative struct {
 }
 
 type UpdateAppBodyNative struct {
-	Name                string   `json:"name" validate:"required,max=50,min=3,alphanum"`
 	UsernameColumn      string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
 	CallbackURIs        []string `json:"callback_uris" validate:"required,unique,min=1,dive,uri"`
 	LogoutURIs          []string `json:"logout_uris" validate:"required,unique,min=1,dive,uri"`
@@ -73,6 +72,7 @@ type UpdateAppBodyNative struct {
 
 type CreateAppBodyBackend struct {
 	UsernameColumn   string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
+	AuthMethods      string   `json:"auth_methods" validate:"required,oneof=client_secret_basic client_secret_post both_client_secrets private_key_jwt"`
 	Algorithm        string   `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
 	Issuers          []string `json:"issuers" validate:"required,unique,min=1,dive,url"`
 	ConfirmationURL  string   `json:"confirmation_url" validate:"required,url"`
@@ -97,10 +97,11 @@ type UpdateAppBodyDevice struct {
 }
 
 type CreateAppBodyService struct {
+	AuthMethods      string   `json:"auth_methods" validate:"required,oneof=client_secret_basic client_secret_post both_client_secrets private_key_jwt"`
 	Algorithm        string   `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
-	Issuers          []string `json:"issuers" validate:"required,unique,min=1,dive,url"`
+	Issuers          []string `json:"issuers" validate:"required_if=AuthMethods private_key_jwt,unique,dive,url"`
 	UsersAuthMethods string   `json:"users_auth_methods" validate:"required,oneof=client_secret_basic client_secret_post both_client_secrets private_key_jwt"`
-	AllowedDomains   []string `json:"allowed_domains,omitempty" validate:"required_if=AuthMethods private_key_jwt,unique,dive,fqdn"`
+	AllowedDomains   []string `json:"allowed_domains,omitempty" validate:"required_if=UsersAuthMethods private_key_jwt,unique,dive,fqdn"`
 }
 
 type UpdateAppBodyService struct {

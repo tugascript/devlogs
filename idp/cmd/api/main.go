@@ -37,7 +37,7 @@ func gracefulShutdown(
 	// the request it is currently handling
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := fiberServer.ShutdownWithContext(ctx); err != nil {
+	if err := fiberServer.App.ShutdownWithContext(ctx); err != nil {
 		logger.ErrorContext(ctx, "Server forced to shutdown with error", "error", err)
 	}
 

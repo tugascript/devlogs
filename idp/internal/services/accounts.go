@@ -136,14 +136,12 @@ func (s *Services) CreateAccount(
 		return dtos.AccountDTO{}, exceptions.NewInternalServerError()
 	}
 
-	givenName := utils.Capitalized(opts.GivenName)
-	familyName := utils.Capitalized(opts.FamilyName)
 	var account database.Account
 	if authProvider == database.AuthProviderUsernamePassword {
 		account, err = qrs.CreateAccountWithPassword(ctx, database.CreateAccountWithPasswordParams{
 			PublicID:   publicID,
-			GivenName:  givenName,
-			FamilyName: familyName,
+			GivenName:  opts.GivenName,
+			FamilyName: opts.FamilyName,
 			Username:   username,
 			Email:      email,
 			Password:   password,
@@ -151,8 +149,8 @@ func (s *Services) CreateAccount(
 	} else {
 		account, err = qrs.CreateAccountWithoutPassword(ctx, database.CreateAccountWithoutPasswordParams{
 			PublicID:   publicID,
-			GivenName:  givenName,
-			FamilyName: familyName,
+			GivenName:  opts.GivenName,
+			FamilyName: opts.FamilyName,
 			Username:   username,
 			Email:      email,
 		})
@@ -840,11 +838,9 @@ func (s *Services) UpdateAccount(
 		return dtos.AccountDTO{}, serviceErr
 	}
 
-	givenName := utils.Capitalized(opts.GivenName)
-	familyName := utils.Capitalized(opts.FamilyName)
 	account, err := s.database.UpdateAccount(ctx, database.UpdateAccountParams{
-		GivenName:  givenName,
-		FamilyName: familyName,
+		GivenName:  opts.GivenName,
+		FamilyName: opts.FamilyName,
 		ID:         accountDTO.ID(),
 	})
 	if err != nil {

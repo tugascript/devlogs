@@ -8,6 +8,7 @@ package services
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -26,8 +27,6 @@ var deviceGrantTypes = []database.GrantType{
 	database.GrantTypeUrnIetfParamsOauthGrantTypeDeviceCode,
 	database.GrantTypeRefreshToken,
 }
-var privateKeyGrantTypes = []database.GrantType{database.GrantTypeUrnIetfParamsOauthGrantTypeJwtBearer}
-var privateKeyAuthMethods = []database.AuthMethod{database.AuthMethodPrivateKeyJwt}
 var noneAuthMethod = []database.AuthMethod{database.AuthMethodNone}
 
 type GetAppByClientIDAndAccountPublicIDOptions struct {
@@ -1019,6 +1018,7 @@ type CreateBackendAppOptions struct {
 	AccountVersion   int32
 	Name             string
 	UsernameColumn   string
+	AuthMethods      string
 	Issuers          []string
 	Algorithm        string
 	ClientURI        string
@@ -1040,6 +1040,18 @@ func (s *Services) CreateBackendApp(
 	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	authMethods, serviceErr := mapAuthMethod(opts.AuthMethods)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map auth methods", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	grantTypes, serviceErr := mapServiceGrantTypesFromAuthMethods(opts.AuthMethods)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map grant types", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
 	}
 
@@ -1081,8 +1093,8 @@ func (s *Services) CreateBackendApp(
 		name:            name,
 		clientURI:       opts.ClientURI,
 		usernameColumn:  usernameColumn,
-		authMethods:     privateKeyAuthMethods,
-		grantTypes:      privateKeyGrantTypes,
+		authMethods:     authMethods,
+		grantTypes:      grantTypes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -1105,38 +1117,88 @@ func (s *Services) CreateBackendApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	dbPrms, jwk, serviceErr := s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
-		requestID:       opts.RequestID,
-		accountID:       accountID,
-		accountPublicID: opts.AccountPublicID,
-		expiresIn:       s.accountCCExpDays,
-		usage:           database.CredentialsUsageApp,
-		cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
+	switch opts.AuthMethods {
+	case AuthMethodPrivateKeyJwt:
+		var dbPrms database.CreateCredentialsKeyParams
+		var jwk utils.JWK
+		dbPrms, jwk, serviceErr = s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountID,
+			accountPublicID: opts.AccountPublicID,
+			expiresIn:       s.accountCCExpDays,
+			usage:           database.CredentialsUsageApp,
+			cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
+		})
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		var clientKey database.CredentialsKey
+		clientKey, err = qrs.CreateCredentialsKey(ctx, dbPrms)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create client key", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		if err = qrs.CreateAppKey(ctx, database.CreateAppKeyParams{
+			AccountID:        accountID,
+			AppID:            app.ID,
+			CredentialsKeyID: clientKey.ID,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create app key", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		logger.InfoContext(ctx, "Created backend app successfully with private key JWT auth method successfully")
+		return dtos.MapBackendAppWithJWKToDTO(&app, &serverConfig, jwk, clientKey.ExpiresAt), nil
+	case AuthMethodBothClientSecrets, AuthMethodClientSecretPost, AuthMethodClientSecretBasic:
+		var dbPrms database.CreateCredentialsSecretParams
+		var secret string
+		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
+			requestID: opts.RequestID,
+			accountID: accountID,
+			expiresIn: s.accountCCExpDays,
+			usage:     database.CredentialsUsageApp,
+		})
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		var clientSecret database.CredentialsSecret
+		clientSecret, err = qrs.CreateCredentialsSecret(ctx, dbPrms)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		if err = qrs.CreateAppSecret(ctx, database.CreateAppSecretParams{
+			AppID:               app.ID,
+			CredentialsSecretID: clientSecret.ID,
+			AccountID:           accountID,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create app secret", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		logger.InfoContext(ctx, "Created backend app successfully with client secret auth method successfully")
+		return dtos.MapBackendAppWithSecretToDTO(
+			&app,
+			&serverConfig,
+			clientSecret.SecretID,
+			secret,
+			clientSecret.ExpiresAt,
+		), nil
+	default:
+		logger.ErrorContext(ctx, "Unsupported auth method", "authMethod", opts.AuthMethods)
+		serviceErr = exceptions.NewValidationError("Unsupported auth method")
 		return dtos.AppDTO{}, serviceErr
 	}
-
-	clientKey, err := qrs.CreateCredentialsKey(ctx, dbPrms)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create client key", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	if err = qrs.CreateAppKey(ctx, database.CreateAppKeyParams{
-		AccountID:        accountID,
-		AppID:            app.ID,
-		CredentialsKeyID: clientKey.ID,
-	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to create app key", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	logger.InfoContext(ctx, "Created web app successfully with private key JWT auth method successfully")
-	return dtos.MapBackendAppWithJWKToDTO(&app, &serverConfig, jwk, clientKey.ExpiresAt), nil
 }
 
 type CreateDeviceAppOptions struct {
@@ -1292,6 +1354,7 @@ type CreateServiceAppOptions struct {
 	RequestID        string
 	AccountPublicID  uuid.UUID
 	Name             string
+	AuthMethods      string
 	AccountVersion   int32
 	Issuers          []string
 	Algorithm        string
@@ -1308,23 +1371,40 @@ func (s *Services) CreateServiceApp(
 		"accountPublicId", opts.AccountPublicID,
 		"accountVersion", opts.AccountVersion,
 		"name", opts.Name,
+		"authMethods", opts.AuthMethods,
 	)
 	logger.InfoContext(ctx, "Creating service app...")
+
+	authMethods, serviceErr := mapAuthMethod(opts.AuthMethods)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map auth methods", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+	if slices.Contains(authMethods, database.AuthMethodPrivateKeyJwt) && len(opts.Issuers) == 0 {
+		logger.ErrorContext(ctx, "Allowed domains must be provided for private key JWT auth method")
+		return dtos.AppDTO{}, exceptions.NewValidationError("Allowed domains must be provided for private key JWT auth method")
+	}
+
+	grantTypes, serviceErr := mapServiceGrantTypesFromAuthMethods(opts.AuthMethods)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map service grant types", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
 
 	userAuthMethods, serviceErr := mapAuthMethod(opts.UsersAuthMethods)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map user auth methods", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
 	}
+	if slices.Contains(userAuthMethods, database.AuthMethodPrivateKeyJwt) && len(opts.AllowedDomains) == 0 {
+		logger.ErrorContext(ctx, "Allowed domains must be provided for private key JWT auth method")
+		return dtos.AppDTO{}, exceptions.NewValidationError("Allowed domains must be provided for private key JWT auth method")
+	}
 
 	userGrantTypes, serviceErr := mapServiceGrantTypesFromAuthMethods(opts.UsersAuthMethods)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map user grant types", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
-	}
-	if opts.UsersAuthMethods == AuthMethodPrivateKeyJwt && len(opts.AllowedDomains) == 0 {
-		logger.ErrorContext(ctx, "Allowed domains must be provided for private key JWT auth method")
-		return dtos.AppDTO{}, exceptions.NewValidationError("Allowed domains must be provided for private key JWT auth method")
 	}
 
 	accountID, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
@@ -1365,8 +1445,8 @@ func (s *Services) CreateServiceApp(
 		name:            name,
 		clientURI:       opts.ClientURI,
 		usernameColumn:  database.AppUsernameColumnEmail,
-		authMethods:     privateKeyAuthMethods,
-		grantTypes:      privateKeyGrantTypes,
+		authMethods:     authMethods,
+		grantTypes:      grantTypes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -1390,38 +1470,88 @@ func (s *Services) CreateServiceApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	dbPrms, jwk, serviceErr := s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
-		requestID:       opts.RequestID,
-		accountID:       accountID,
-		accountPublicID: opts.AccountPublicID,
-		expiresIn:       s.accountCCExpDays,
-		usage:           database.CredentialsUsageApp,
-		cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
+	switch opts.AuthMethods {
+	case AuthMethodPrivateKeyJwt:
+		var dbPrms database.CreateCredentialsKeyParams
+		var jwk utils.JWK
+		dbPrms, jwk, serviceErr = s.clientCredentialsKey(ctx, clientCredentialsKeyOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountID,
+			accountPublicID: opts.AccountPublicID,
+			expiresIn:       s.accountCCExpDays,
+			usage:           database.CredentialsUsageApp,
+			cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
+		})
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to generate client credentials key", "serviceError", serviceErr)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		var clientKey database.CredentialsKey
+		clientKey, err = qrs.CreateCredentialsKey(ctx, dbPrms)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create client key", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		if err = qrs.CreateAppKey(ctx, database.CreateAppKeyParams{
+			AccountID:        accountID,
+			AppID:            app.ID,
+			CredentialsKeyID: clientKey.ID,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create app key", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		logger.InfoContext(ctx, "Created service app successfully with private key JWT auth method successfully")
+		return dtos.MapServiceAppWithJWKToDTO(&app, &appService, jwk, clientKey.ExpiresAt), nil
+	case AuthMethodBothClientSecrets, AuthMethodClientSecretPost, AuthMethodClientSecretBasic:
+		var dbPrms database.CreateCredentialsSecretParams
+		var secret string
+		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
+			requestID: opts.RequestID,
+			accountID: accountID,
+			expiresIn: s.accountCCExpDays,
+			usage:     database.CredentialsUsageApp,
+		})
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		var clientSecret database.CredentialsSecret
+		clientSecret, err = qrs.CreateCredentialsSecret(ctx, dbPrms)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		if err = qrs.CreateAppSecret(ctx, database.CreateAppSecretParams{
+			AppID:               app.ID,
+			CredentialsSecretID: clientSecret.ID,
+			AccountID:           accountID,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create app secret", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return dtos.AppDTO{}, serviceErr
+		}
+
+		logger.InfoContext(ctx, "Created service app successfully with client secret auth method successfully")
+		return dtos.MapServiceAppWithSecretToDTO(
+			&app,
+			&appService,
+			clientSecret.SecretID,
+			secret,
+			clientSecret.ExpiresAt,
+		), nil
+	default:
+		logger.ErrorContext(ctx, "Unsupported auth method", "authMethod", opts.AuthMethods)
+		serviceErr = exceptions.NewValidationError("Unsupported auth method")
 		return dtos.AppDTO{}, serviceErr
 	}
-
-	clientKey, err := qrs.CreateCredentialsKey(ctx, dbPrms)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create client key", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	if err = qrs.CreateAppKey(ctx, database.CreateAppKeyParams{
-		AccountID:        accountID,
-		AppID:            app.ID,
-		CredentialsKeyID: clientKey.ID,
-	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to create app key", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	logger.InfoContext(ctx, "Created service app successfully with private key JWT auth method")
-	return dtos.MapServiceAppWithJWKToDTO(&app, &appService, jwk, clientKey.ExpiresAt), nil
 }
 
 func buildOptionalURL(url string) (pgtype.Text, error) {
@@ -2513,16 +2643,7 @@ func (s *Services) GetAppCredentialsSecretOrKey(
 	switch appDTO.Type {
 	case database.AppTypeSpa, database.AppTypeNative, database.AppTypeDevice:
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
-	case database.AppTypeBackend, database.AppTypeService:
-		if len(appDTO.AuthMethods) != 1 || appDTO.AuthMethods[0] != database.AuthMethodPrivateKeyJwt {
-			return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
-		}
-		return s.getAppKeyByID(ctx, getAppKeyByIDOptions{
-			requestID: opts.RequestID,
-			appID:     appDTO.ID(),
-			publicKID: opts.SecretID,
-		})
-	case database.AppTypeWeb:
+	case database.AppTypeBackend, database.AppTypeService, database.AppTypeWeb:
 		amHashSet := utils.SliceToHashSet(appDTO.AuthMethods)
 		if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
 			return s.getAppKeyByID(ctx, getAppKeyByIDOptions{
@@ -2652,16 +2773,7 @@ func (s *Services) RevokeAppCredentialsSecretOrKey(
 	switch appDTO.Type {
 	case database.AppTypeSpa, database.AppTypeNative, database.AppTypeDevice:
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
-	case database.AppTypeBackend, database.AppTypeService:
-		if len(appDTO.AuthMethods) != 1 || appDTO.AuthMethods[0] != database.AuthMethodPrivateKeyJwt {
-			return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
-		}
-		return s.revokeAppKey(ctx, revokeAppKeyOptions{
-			requestID: opts.RequestID,
-			appID:     appDTO.ID(),
-			publicKID: opts.SecretID,
-		})
-	case database.AppTypeWeb:
+	case database.AppTypeBackend, database.AppTypeService, database.AppTypeWeb:
 		amHashSet := utils.SliceToHashSet(appDTO.AuthMethods)
 		if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
 			return s.revokeAppKey(ctx, revokeAppKeyOptions{
@@ -2844,18 +2956,7 @@ func (s *Services) RotateAppCredentialsSecretOrKey(
 	switch appDTO.Type {
 	case database.AppTypeSpa, database.AppTypeNative, database.AppTypeDevice:
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
-	case database.AppTypeBackend, database.AppTypeService:
-		if len(appDTO.AuthMethods) != 1 || appDTO.AuthMethods[0] != database.AuthMethodPrivateKeyJwt {
-			return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
-		}
-		return s.rotateAppKey(ctx, rotateAppKeyOptions{
-			requestID:       opts.RequestID,
-			accountID:       accountID,
-			accountPublicID: opts.AccountPublicID,
-			appID:           appDTO.ID(),
-			cryptoSuite:     mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
-		})
-	case database.AppTypeWeb:
+	case database.AppTypeBackend, database.AppTypeService, database.AppTypeWeb:
 		amHashSet := utils.SliceToHashSet(appDTO.AuthMethods)
 		if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
 			return s.rotateAppKey(ctx, rotateAppKeyOptions{
