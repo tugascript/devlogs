@@ -1035,7 +1035,7 @@ func (s *Services) CreateBackendApp(
 		"accountVersion", opts.AccountVersion,
 		"name", opts.Name,
 	)
-	logger.InfoContext(ctx, "Creating web app...")
+	logger.InfoContext(ctx, "Creating backend app...")
 
 	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
 	if serviceErr != nil {
