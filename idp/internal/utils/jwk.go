@@ -348,6 +348,9 @@ func JsonToJWK(jsonBytes []byte) (JWK, error) {
 
 //go:noinline
 func WipeBytes(ctx context.Context, logger *slog.Logger, data []byte) {
+	if data == nil || len(data) == 0 {
+		return
+	}
 	if _, err := rand.Read(data); err != nil {
 		logger.WarnContext(ctx, "Failed to randomize bytes, wiping only", "error", err)
 	}
@@ -362,6 +365,10 @@ func WipeBigInt(ctx context.Context, logger *slog.Logger, bi *big.Int) {
 	}
 
 	words := bi.Bits()
+	if len(words) == 0 {
+		return
+	}
+
 	byteSlice := (*[1 << 30]byte)(unsafe.Pointer(&words[0]))[:len(words)*int(unsafe.Sizeof(words[0]))]
 	WipeBytes(ctx, logger, byteSlice)
 	bi.SetInt64(0)

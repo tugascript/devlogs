@@ -131,7 +131,7 @@ func TestCreateAppDesign(t *testing.T) {
 				_, err := tServs.CreateAppDesign(context.Background(), services.AppDesignOptions{
 					RequestID:       uuid.New().String(),
 					AccountPublicID: account.PublicID,
-					AccoutVersion:   account.Version(),
+					AccountVersion:  account.Version(),
 					AppClientID:     app.ClientID,
 					LightColors: services.ColorsOptions{
 						PrimaryColor:    "FF0000",
@@ -278,7 +278,7 @@ func TestGetAppDesign(t *testing.T) {
 				_, err := tServs.CreateAppDesign(context.Background(), services.AppDesignOptions{
 					RequestID:       uuid.New().String(),
 					AccountPublicID: account.PublicID,
-					AccoutVersion:   account.Version(),
+					AccountVersion:  account.Version(),
 					AppClientID:     app.ClientID,
 					LightColors: services.ColorsOptions{
 						PrimaryColor:    "FF0000",
@@ -405,7 +405,7 @@ func TestUpdateAppDesign(t *testing.T) {
 				_, err := tServs.CreateAppDesign(context.Background(), services.AppDesignOptions{
 					RequestID:       uuid.New().String(),
 					AccountPublicID: account.PublicID,
-					AccoutVersion:   account.Version(),
+					AccountVersion:  account.Version(),
 					AppClientID:     app.ClientID,
 					LightColors: services.ColorsOptions{
 						PrimaryColor:    "FF0000",
@@ -488,7 +488,7 @@ func TestUpdateAppDesign(t *testing.T) {
 				_, err := tServs.CreateAppDesign(context.Background(), services.AppDesignOptions{
 					RequestID:       uuid.New().String(),
 					AccountPublicID: account.PublicID,
-					AccoutVersion:   account.Version(),
+					AccountVersion:  account.Version(),
 					AppClientID:     app.ClientID,
 					LightColors: services.ColorsOptions{
 						PrimaryColor:    "FF0000",
@@ -611,7 +611,7 @@ func TestDeleteAppDesign(t *testing.T) {
 				_, err := tServs.CreateAppDesign(context.Background(), services.AppDesignOptions{
 					RequestID:       uuid.New().String(),
 					AccountPublicID: account.PublicID,
-					AccoutVersion:   account.Version(),
+					AccountVersion:  account.Version(),
 					AppClientID:     app.ClientID,
 					LightColors: services.ColorsOptions{
 						PrimaryColor:    "FF0000",

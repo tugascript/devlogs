@@ -40,7 +40,7 @@ func (c *ColorsOptions) ToUppercase() ColorsOptions {
 type AppDesignOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
-	AccoutVersion   int32
+	AccountVersion  int32
 	AppClientID     string
 	LightColors     ColorsOptions
 	DarkColors      *ColorsOptions
@@ -61,7 +61,7 @@ func (s *Services) CreateAppDesign(
 	accountID, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
 		PublicID:  opts.AccountPublicID,
-		Version:   opts.AccoutVersion,
+		Version:   opts.AccountVersion,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Error getting account ID", "serviceError", serviceErr)
@@ -155,7 +155,7 @@ func (s *Services) UpdateAppDesign(
 	accountID, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
 		PublicID:  opts.AccountPublicID,
-		Version:   opts.AccoutVersion,
+		Version:   opts.AccountVersion,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Error getting account ID", "serviceError", serviceErr)
