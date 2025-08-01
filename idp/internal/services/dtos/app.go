@@ -363,6 +363,43 @@ func MapBackendAppWithJWKToDTO(
 	}
 }
 
+func MapBackendAppWithSecretToDTO(
+	app *database.App,
+	serverCfg *database.AppServerConfig,
+	secretID string,
+	secret string,
+	expiresAt time.Time,
+) AppDTO {
+	return AppDTO{
+		id:               app.ID,
+		accountID:        app.AccountID,
+		version:          app.Version,
+		Type:             app.Type,
+		Name:             app.Name,
+		ClientID:         app.ClientID,
+		ClientURI:        app.ClientUri,
+		LogoURI:          app.LogoUri.String,
+		TosURI:           app.TosUri.String,
+		PolicyURI:        app.PolicyUri.String,
+		SoftwareID:       app.SoftwareID.String,
+		SoftwareVersion:  app.SoftwareVersion.String,
+		AuthMethods:      app.AuthMethods,
+		GrantTypes:       app.GrantTypes,
+		DefaultScopes:    app.DefaultScopes,
+		UsernameColumn:   app.UsernameColumn,
+		AuthProviders:    app.AuthProviders,
+		IDTokenTTL:       app.IDTokenTtl,
+		TokenTTL:         app.TokenTtl,
+		RefreshTokenTTL:  app.RefreshTokenTtl,
+		ClientSecretID:   secretID,
+		ClientSecret:     fmt.Sprintf("%s.%s", secretID, secret),
+		ClientSecretExp:  expiresAt.Unix(),
+		ConfirmationURL:  serverCfg.ConfirmationUrl,
+		ResetPasswordURL: serverCfg.ResetPasswordUrl,
+		Issuers:          serverCfg.Issuers,
+	}
+}
+
 func MapDeviceAppToDTO(
 	app *database.App,
 	relatedApps []database.App,
@@ -428,6 +465,44 @@ func MapServiceAppWithJWKToDTO(
 		ClientSecretID:   jwk.GetKeyID(),
 		ClientSecretJWK:  jwk,
 		ClientSecretExp:  exp.Unix(),
+		Issuers:          serviceCfg.Issuers,
+	}
+}
+
+func MapServiceAppWithSecretToDTO(
+	app *database.App,
+	serviceCfg *database.AppServiceConfig,
+	secretID string,
+	secret string,
+	expiresAt time.Time,
+) AppDTO {
+	return AppDTO{
+		id:               app.ID,
+		accountID:        app.AccountID,
+		version:          app.Version,
+		Type:             app.Type,
+		Name:             app.Name,
+		ClientID:         app.ClientID,
+		ClientURI:        app.ClientUri,
+		LogoURI:          app.LogoUri.String,
+		TosURI:           app.TosUri.String,
+		PolicyURI:        app.PolicyUri.String,
+		SoftwareID:       app.SoftwareID.String,
+		SoftwareVersion:  app.SoftwareVersion.String,
+		AuthMethods:      app.AuthMethods,
+		GrantTypes:       app.GrantTypes,
+		DefaultScopes:    app.DefaultScopes,
+		UsernameColumn:   app.UsernameColumn,
+		AuthProviders:    app.AuthProviders,
+		IDTokenTTL:       app.IDTokenTtl,
+		TokenTTL:         app.TokenTtl,
+		RefreshTokenTTL:  app.RefreshTokenTtl,
+		AllowedDomains:   serviceCfg.AllowedDomains,
+		UsersAuthMethods: serviceCfg.AuthMethods,
+		UsersGrantTypes:  serviceCfg.GrantTypes,
+		ClientSecretID:   secretID,
+		ClientSecret:     fmt.Sprintf("%s.%s", secretID, secret),
+		ClientSecretExp:  expiresAt.Unix(),
 		Issuers:          serviceCfg.Issuers,
 	}
 }

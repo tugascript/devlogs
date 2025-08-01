@@ -45,8 +45,8 @@ func appsCleanUp(t *testing.T) func() {
 	}
 }
 
-// CreateAppBody represents all possible fields for creating any app type
-type CreateAppBody struct {
+// createAppBody represents all possible fields for creating any app type
+type createAppBody struct {
 	// Base fields (required for all types)
 	Type      string `json:"type"`
 	Name      string `json:"name"`
@@ -81,14 +81,14 @@ type CreateAppBody struct {
 }
 
 func TestCreateApp(t *testing.T) {
-	testCases := []TestRequestCase[CreateAppBody]{
+	testCases := []TestRequestCase[createAppBody]{
 		{
 			Name: "Should return 201 CREATED with web app data",
-			ReqFn: func(t *testing.T) (CreateAppBody, string) {
+			ReqFn: func(t *testing.T) (createAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return CreateAppBody{
+				return createAppBody{
 					Type:                "web",
 					Name:                "Test Web App",
 					ClientURI:           "https://test-web-app.example.com",
@@ -105,7 +105,7 @@ func TestCreateApp(t *testing.T) {
 				return v1Path + paths.AppsBase
 			},
 			ExpStatus: http.StatusCreated,
-			AssertFn: func(t *testing.T, req CreateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -117,11 +117,11 @@ func TestCreateApp(t *testing.T) {
 		},
 		{
 			Name: "Should return 201 CREATED with SPA app data",
-			ReqFn: func(t *testing.T) (CreateAppBody, string) {
+			ReqFn: func(t *testing.T) (createAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return CreateAppBody{
+				return createAppBody{
 					Type:                "spa",
 					Name:                "Test SPA App",
 					ClientURI:           "https://test-spa-app.example.com",
@@ -136,7 +136,7 @@ func TestCreateApp(t *testing.T) {
 				return v1Path + paths.AppsBase
 			},
 			ExpStatus: http.StatusCreated,
-			AssertFn: func(t *testing.T, req CreateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -148,25 +148,25 @@ func TestCreateApp(t *testing.T) {
 		},
 		{
 			Name: "Should return 201 CREATED with native app data",
-			ReqFn: func(t *testing.T) (CreateAppBody, string) {
+			ReqFn: func(t *testing.T) (createAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return CreateAppBody{
+				return createAppBody{
 					Type:                "native",
 					Name:                "Test Native App",
 					ClientURI:           "https://test-native-app.example.com",
 					UsernameColumn:      "email",
 					CallbackURIs:        []string{"com.testnativeapp://callback"},
 					LogoutURIs:          []string{"com.testnativeapp://logout"},
-					CodeChallengeMethod: "S256",
+					CodeChallengeMethod: "plain",
 				}, accessToken
 			},
 			PathFn: func() string {
 				return v1Path + paths.AppsBase
 			},
 			ExpStatus: http.StatusCreated,
-			AssertFn: func(t *testing.T, req CreateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -178,16 +178,17 @@ func TestCreateApp(t *testing.T) {
 		},
 		{
 			Name: "Should return 201 CREATED with backend app data",
-			ReqFn: func(t *testing.T) (CreateAppBody, string) {
+			ReqFn: func(t *testing.T) (createAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return CreateAppBody{
+				return createAppBody{
 					Type:             "backend",
 					Name:             "Test Backend App",
 					ClientURI:        "https://test-backend-app.example.com",
 					UsernameColumn:   "email",
-					Algorithm:        "ES256",
+					AuthMethods:      "private_key_jwt",
+					Algorithm:        "EdDSA",
 					Issuers:          []string{"https://test-backend-app.example.com"},
 					ConfirmationURL:  "https://test-backend-app.example.com/confirm",
 					ResetPasswordURL: "https://test-backend-app.example.com/reset",
@@ -197,7 +198,7 @@ func TestCreateApp(t *testing.T) {
 				return v1Path + paths.AppsBase
 			},
 			ExpStatus: http.StatusCreated,
-			AssertFn: func(t *testing.T, req CreateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -209,11 +210,11 @@ func TestCreateApp(t *testing.T) {
 		},
 		{
 			Name: "Should return 201 CREATED with device app data",
-			ReqFn: func(t *testing.T) (CreateAppBody, string) {
+			ReqFn: func(t *testing.T) (createAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return CreateAppBody{
+				return createAppBody{
 					Type:           "device",
 					Name:           "Test Device App",
 					ClientURI:      "https://test-device-app.example.com",
@@ -225,7 +226,7 @@ func TestCreateApp(t *testing.T) {
 				return v1Path + paths.AppsBase
 			},
 			ExpStatus: http.StatusCreated,
-			AssertFn: func(t *testing.T, req CreateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -237,14 +238,15 @@ func TestCreateApp(t *testing.T) {
 		},
 		{
 			Name: "Should return 201 CREATED with service app data",
-			ReqFn: func(t *testing.T) (CreateAppBody, string) {
+			ReqFn: func(t *testing.T) (createAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return CreateAppBody{
+				return createAppBody{
 					Type:             "service",
 					Name:             "Test Service App",
 					ClientURI:        "https://test-service-app.example.com",
+					AuthMethods:      "private_key_jwt",
 					Algorithm:        "ES256",
 					Issuers:          []string{"https://test-service-app.example.com"},
 					UsersAuthMethods: "client_secret_basic",
@@ -255,7 +257,7 @@ func TestCreateApp(t *testing.T) {
 				return v1Path + paths.AppsBase
 			},
 			ExpStatus: http.StatusCreated,
-			AssertFn: func(t *testing.T, req CreateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -267,11 +269,11 @@ func TestCreateApp(t *testing.T) {
 		},
 		{
 			Name: "Should return 400 BAD REQUEST if validation fails",
-			ReqFn: func(t *testing.T) (CreateAppBody, string) {
+			ReqFn: func(t *testing.T) (createAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return CreateAppBody{
+				return createAppBody{
 					Type:      "invalid",
 					Name:      "TestApp",
 					ClientURI: "https://test-app.example.com",
@@ -281,15 +283,15 @@ func TestCreateApp(t *testing.T) {
 				return v1Path + paths.AppsBase
 			},
 			ExpStatus: http.StatusBadRequest,
-			AssertFn: func(t *testing.T, _ CreateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, _ createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
 				AssertNotEmpty(t, len(resBody.Fields))
 			},
 		},
 		{
 			Name: "Should return 401 UNAUTHORIZED if no access token",
-			ReqFn: func(t *testing.T) (CreateAppBody, string) {
-				return CreateAppBody{
+			ReqFn: func(t *testing.T) (createAppBody, string) {
+				return createAppBody{
 					Type:      "web",
 					Name:      "Test App",
 					ClientURI: "https://test-app.example.com",
@@ -299,15 +301,15 @@ func TestCreateApp(t *testing.T) {
 				return v1Path + paths.AppsBase
 			},
 			ExpStatus: http.StatusUnauthorized,
-			AssertFn:  AssertUnauthorizedError[CreateAppBody],
+			AssertFn:  AssertUnauthorizedError[createAppBody],
 		},
 		{
 			Name: "Should return 403 FORBIDDEN if no apps write scope",
-			ReqFn: func(t *testing.T) (CreateAppBody, string) {
+			ReqFn: func(t *testing.T) (createAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
-				return CreateAppBody{
+				return createAppBody{
 					Type:      "web",
 					Name:      "Test App",
 					ClientURI: "https://test-app.example.com",
@@ -317,7 +319,7 @@ func TestCreateApp(t *testing.T) {
 				return v1Path + paths.AppsBase
 			},
 			ExpStatus: http.StatusForbidden,
-			AssertFn:  AssertForbiddenError[CreateAppBody],
+			AssertFn:  AssertForbiddenError[createAppBody],
 		},
 	}
 
@@ -511,7 +513,7 @@ func TestGetAppWithRelatedConfigs(t *testing.T) {
 			Name: "Should return 200 OK with app and related configs",
 			ReqFn: func(t *testing.T) (any, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
-				app := CreateTestApp(t, &account)
+				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
@@ -579,36 +581,212 @@ func TestGetAppWithRelatedConfigs(t *testing.T) {
 	t.Cleanup(appsCleanUp(t))
 }
 
+func CreateTestWebApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
+	tServs := GetTestServices(t)
+	ctx := context.Background()
+
+	appDTO, err := tServs.CreateWebApp(ctx, services.CreateWebAppOptions{
+		RequestID:           uuid.New().String(),
+		AccountPublicID:     account.PublicID,
+		AccountVersion:      account.Version(),
+		Name:                "Test App",
+		UsernameColumn:      "email",
+		AuthMethods:         "both_client_secrets",
+		Algorithm:           "HS256",
+		ClientURI:           "https://test-app.example.com",
+		CallbackURIs:        []string{"https://test-app.example.com/callback"},
+		LogoutURIs:          []string{"https://test-app.example.com/logout"},
+		AllowedOrigins:      []string{"https://test-app.example.com"},
+		CodeChallengeMethod: "S256",
+	})
+	if err != nil {
+		t.Fatal("Failed to create test app", err)
+	}
+
+	return appDTO
+}
+
+func CreateTestSPAApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
+	tServs := GetTestServices(t)
+	ctx := context.Background()
+
+	appDTO, err := tServs.CreateSPAApp(ctx, services.CreateSPAAppOptions{
+		RequestID:           uuid.New().String(),
+		AccountPublicID:     account.PublicID,
+		AccountVersion:      account.Version(),
+		Name:                "Test SPA App",
+		UsernameColumn:      "email",
+		ClientURI:           "https://test-spa-app.example.com",
+		CallbackURIs:        []string{"https://test-spa-app.example.com/callback"},
+		LogoutURIs:          []string{"https://test-spa-app.example.com/logout"},
+		AllowedOrigins:      []string{"https://test-spa-app.example.com"},
+		CodeChallengeMethod: "S256",
+	})
+	if err != nil {
+		t.Fatal("Failed to create test SPA app", err)
+	}
+
+	return appDTO
+}
+
+func CreateTestNativeApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
+	tServs := GetTestServices(t)
+	ctx := context.Background()
+
+	appDTO, err := tServs.CreateNativeApp(ctx, services.CreateNativeAppOptions{
+		RequestID:           uuid.New().String(),
+		AccountPublicID:     account.PublicID,
+		AccountVersion:      account.Version(),
+		Name:                "Test Native App",
+		ClientURI:           "https://test-native-app.example.com",
+		CallbackURIs:        []string{"com.testnativeapp://callback"},
+		LogoutURIs:          []string{"com.testnativeapp://logout"},
+		CodeChallengeMethod: "plain",
+	})
+	if err != nil {
+		t.Fatal("Failed to create test native app", err)
+	}
+
+	return appDTO
+}
+
+func CreateTestBackendApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
+	tServs := GetTestServices(t)
+	ctx := context.Background()
+
+	appDTO, err := tServs.CreateBackendApp(ctx, services.CreateBackendAppOptions{
+		RequestID:        uuid.New().String(),
+		AccountPublicID:  account.PublicID,
+		AccountVersion:   account.Version(),
+		Name:             "Test Backend App",
+		UsernameColumn:   "email",
+		AuthMethods:      "private_key_jwt",
+		Algorithm:        "EdDSA",
+		ClientURI:        "https://test-backend-app.example.com",
+		Issuers:          []string{"https://test-backend-app.example.com"},
+		ConfirmationURL:  "https://test-backend-app.example.com/confirm",
+		ResetPasswordURL: "https://test-backend-app.example.com/reset",
+	})
+	if err != nil {
+		t.Fatal("Failed to create test backend app", err)
+	}
+
+	return appDTO
+}
+
+func CreateTestDeviceApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
+	tServs := GetTestServices(t)
+	ctx := context.Background()
+
+	appDTO, err := tServs.CreateDeviceApp(ctx, services.CreateDeviceAppOptions{
+		RequestID:       uuid.New().String(),
+		AccountPublicID: account.PublicID,
+		AccountVersion:  account.Version(),
+		Name:            "Test Device App",
+		ClientURI:       "https://test-device-app.example.com",
+		UsernameColumn:  "email",
+		AssociatedApps:  []string{},
+	})
+	if err != nil {
+		t.Fatal("Failed to create test device app", err)
+	}
+
+	return appDTO
+}
+
+func CreateTestServiceApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
+	tServs := GetTestServices(t)
+	ctx := context.Background()
+
+	appDTO, err := tServs.CreateServiceApp(ctx, services.CreateServiceAppOptions{
+		RequestID:        uuid.New().String(),
+		AccountPublicID:  account.PublicID,
+		AccountVersion:   account.Version(),
+		Name:             "Test Service App",
+		AuthMethods:      "private_key_jwt",
+		Algorithm:        "ES256",
+		ClientURI:        "https://test-service-app.example.com",
+		Issuers:          []string{"https://test-service-app.example.com"},
+		UsersAuthMethods: "client_secret_basic",
+		AllowedDomains:   []string{},
+	})
+	if err != nil {
+		t.Fatal("Failed to create test service app", err)
+	}
+
+	return appDTO
+}
+
+type UpdateAppBody struct {
+	Name            string `json:"name"`
+	ClientURI       string `json:"client_uri"`
+	LogoURI         string `json:"logo_uri,omitempty"`
+	TOSURI          string `json:"tos_uri,omitempty"`
+	PolicyURI       string `json:"policy_uri,omitempty"`
+	SoftwareID      string `json:"software_id,omitempty"`
+	SoftwareVersion string `json:"software_version,omitempty"`
+
+	// Common optional fields
+	UsernameColumn string `json:"username_column,omitempty"`
+
+	// Web/SPA specific fields
+	CallbackURLs        []string `json:"callback_urls,omitempty"`
+	LogoutURLs          []string `json:"logout_urls,omitempty"`
+	AllowedOrigins      []string `json:"allowed_origins,omitempty"`
+	CodeChallengeMethod string   `json:"code_challenge_method,omitempty"`
+
+	// Native specific fields
+	CallbackURIs []string `json:"callback_uris,omitempty"`
+	LogoutURIs   []string `json:"logout_uris,omitempty"`
+
+	// Backend specific fields
+	Issuers          []string `json:"issuers,omitempty"`
+	ConfirmationURL  string   `json:"confirmation_url,omitempty"`
+	ResetPasswordURL string   `json:"reset_password_url,omitempty"`
+
+	// Device specific fields
+	AssociatedApps []string `json:"associated_apps,omitempty"`
+
+	// Service specific fields
+	UsersAuthMethods string   `json:"users_auth_methods,omitempty"`
+	AllowedDomains   []string `json:"allowed_domains,omitempty"`
+}
+
 func TestUpdateApp(t *testing.T) {
 	var appClientID string
 	setAppClientID := func(app dtos.AppDTO) {
 		appClientID = app.ClientID
 	}
 
-	testCases := []TestRequestCase[bodies.UpdateAppBodyBase]{
+	testCases := []TestRequestCase[UpdateAppBody]{
 		{
-			Name: "Should return 200 OK updating app data",
-			ReqFn: func(t *testing.T) (bodies.UpdateAppBodyBase, string) {
+			Name: "Should return 200 OK updating web app data",
+			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
-				app := CreateTestApp(t, &account)
+				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return bodies.UpdateAppBodyBase{
-					Name:            "Updated Test App",
-					ClientURI:       "https://updated-test-app.example.com",
-					LogoURI:         "https://example.com/logo.png",
-					TOSURI:          "https://example.com/tos",
-					PolicyURI:       "https://example.com/policy",
-					SoftwareID:      "test-app-v1",
-					SoftwareVersion: "1.0.0",
+				return UpdateAppBody{
+					Name:                "Updated Test App",
+					ClientURI:           "https://updated-test-app.example.com",
+					LogoURI:             "https://example.com/logo.png",
+					TOSURI:              "https://example.com/tos",
+					PolicyURI:           "https://example.com/policy",
+					SoftwareID:          "test-app-v1",
+					SoftwareVersion:     "1.0.0",
+					UsernameColumn:      "email",
+					CallbackURLs:        []string{"https://updated-test-app.example.com/callback"},
+					LogoutURLs:          []string{"https://updated-test-app.example.com/logout"},
+					AllowedOrigins:      []string{"https://updated-test-app.example.com"},
+					CodeChallengeMethod: "S256",
 				}, accessToken
 			},
 			PathFn: func() string {
 				return v1Path + paths.AppsBase + "/" + appClientID
 			},
 			ExpStatus: http.StatusOK,
-			AssertFn: func(t *testing.T, req bodies.UpdateAppBodyBase, res *http.Response) {
+			AssertFn: func(t *testing.T, req UpdateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -620,12 +798,144 @@ func TestUpdateApp(t *testing.T) {
 			},
 		},
 		{
+			Name: "Should return 200 OK updating SPA app data",
+			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				app := CreateTestSPAApp(t, &account)
+				setAppClientID(app)
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
+
+				return UpdateAppBody{
+					Name:                "Updated SPA App",
+					ClientURI:           "https://updated-spa-app.example.com",
+					UsernameColumn:      "email",
+					CallbackURLs:        []string{"https://updated-spa-app.example.com/callback"},
+					LogoutURLs:          []string{"https://updated-spa-app.example.com/logout"},
+					AllowedOrigins:      []string{"https://updated-spa-app.example.com"},
+					CodeChallengeMethod: "S256",
+				}, accessToken
+			},
+			PathFn: func() string {
+				return v1Path + paths.AppsBase + "/" + appClientID
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, req UpdateAppBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
+				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.ClientURI, resBody.ClientURI)
+			},
+		},
+		{
+			Name: "Should return 200 OK updating native app data",
+			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				app := CreateTestNativeApp(t, &account)
+				setAppClientID(app)
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
+
+				return UpdateAppBody{
+					Name:                "Updated Native App",
+					ClientURI:           "https://updated-native-app.example.com",
+					CallbackURIs:        []string{"com.updatednativeapp://callback"},
+					LogoutURIs:          []string{"com.updatednativeapp://logout"},
+					CodeChallengeMethod: "plain",
+				}, accessToken
+			},
+			PathFn: func() string {
+				return v1Path + paths.AppsBase + "/" + appClientID
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, req UpdateAppBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
+				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.ClientURI, resBody.ClientURI)
+			},
+		},
+		{
+			Name: "Should return 200 OK updating backend app data",
+			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				app := CreateTestBackendApp(t, &account)
+				setAppClientID(app)
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
+
+				return UpdateAppBody{
+					Name:             "Updated Backend App",
+					ClientURI:        "https://updated-backend-app.example.com",
+					UsernameColumn:   "email",
+					Issuers:          []string{"https://updated-backend-app.example.com"},
+					ConfirmationURL:  "https://updated-backend-app.example.com/confirm",
+					ResetPasswordURL: "https://updated-backend-app.example.com/reset",
+				}, accessToken
+			},
+			PathFn: func() string {
+				return v1Path + paths.AppsBase + "/" + appClientID
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, req UpdateAppBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
+				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.ClientURI, resBody.ClientURI)
+			},
+		},
+		{
+			Name: "Should return 200 OK updating device app data",
+			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				app := CreateTestDeviceApp(t, &account)
+				setAppClientID(app)
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
+
+				return UpdateAppBody{
+					Name:           "Updated Device App",
+					ClientURI:      "https://updated-device-app.example.com",
+					UsernameColumn: "email",
+					AssociatedApps: []string{},
+				}, accessToken
+			},
+			PathFn: func() string {
+				return v1Path + paths.AppsBase + "/" + appClientID
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, req UpdateAppBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
+				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.ClientURI, resBody.ClientURI)
+			},
+		},
+		{
+			Name: "Should return 200 OK updating service app data",
+			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				app := CreateTestServiceApp(t, &account)
+				setAppClientID(app)
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
+
+				return UpdateAppBody{
+					Name:             "Updated Service App",
+					ClientURI:        "https://updated-service-app.example.com",
+					Issuers:          []string{"https://updated-service-app.example.com"},
+					UsersAuthMethods: "client_secret_basic",
+					AllowedDomains:   []string{"example.com"},
+				}, accessToken
+			},
+			PathFn: func() string {
+				return v1Path + paths.AppsBase + "/" + appClientID
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, req UpdateAppBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
+				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.ClientURI, resBody.ClientURI)
+			},
+		},
+		{
 			Name: "Should return 404 NOT FOUND if app does not exist",
-			ReqFn: func(t *testing.T) (bodies.UpdateAppBodyBase, string) {
+			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return bodies.UpdateAppBodyBase{
+				return UpdateAppBody{
 					Name:      "Updated Test App",
 					ClientURI: "https://updated-test-app.example.com",
 				}, accessToken
@@ -634,17 +944,17 @@ func TestUpdateApp(t *testing.T) {
 				return v1Path + paths.AppsBase + "/" + utils.Base62UUID()
 			},
 			ExpStatus: http.StatusNotFound,
-			AssertFn:  AssertNotFoundError[bodies.UpdateAppBodyBase],
+			AssertFn:  AssertNotFoundError[UpdateAppBody],
 		},
 		{
 			Name: "Should return 400 BAD REQUEST if validation fails",
-			ReqFn: func(t *testing.T) (bodies.UpdateAppBodyBase, string) {
+			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
-				app := CreateTestApp(t, &account)
+				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return bodies.UpdateAppBodyBase{
+				return UpdateAppBody{
 					Name:      "",
 					ClientURI: "invalid-url",
 				}, accessToken
@@ -653,15 +963,15 @@ func TestUpdateApp(t *testing.T) {
 				return v1Path + paths.AppsBase + "/" + appClientID
 			},
 			ExpStatus: http.StatusBadRequest,
-			AssertFn: func(t *testing.T, _ bodies.UpdateAppBodyBase, res *http.Response) {
+			AssertFn: func(t *testing.T, _ UpdateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
 				AssertNotEmpty(t, len(resBody.Fields))
 			},
 		},
 		{
 			Name: "Should return 401 UNAUTHORIZED if no access token",
-			ReqFn: func(t *testing.T) (bodies.UpdateAppBodyBase, string) {
-				return bodies.UpdateAppBodyBase{
+			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+				return UpdateAppBody{
 					Name:      "Updated Test App",
 					ClientURI: "https://updated-test-app.example.com",
 				}, ""
@@ -670,15 +980,15 @@ func TestUpdateApp(t *testing.T) {
 				return v1Path + paths.AppsBase + "/" + utils.Base62UUID()
 			},
 			ExpStatus: http.StatusUnauthorized,
-			AssertFn:  AssertUnauthorizedError[bodies.UpdateAppBodyBase],
+			AssertFn:  AssertUnauthorizedError[UpdateAppBody],
 		},
 		{
 			Name: "Should return 403 FORBIDDEN if no apps write scope",
-			ReqFn: func(t *testing.T) (bodies.UpdateAppBodyBase, string) {
+			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
-				return bodies.UpdateAppBodyBase{
+				return UpdateAppBody{
 					Name:      "Updated Test App",
 					ClientURI: "https://updated-test-app.example.com",
 				}, accessToken
@@ -687,7 +997,7 @@ func TestUpdateApp(t *testing.T) {
 				return v1Path + paths.AppsBase + "/" + utils.Base62UUID()
 			},
 			ExpStatus: http.StatusForbidden,
-			AssertFn:  AssertForbiddenError[bodies.UpdateAppBodyBase],
+			AssertFn:  AssertForbiddenError[UpdateAppBody],
 		},
 	}
 
@@ -711,7 +1021,7 @@ func TestDeleteApp(t *testing.T) {
 			Name: "Should return 204 NO CONTENT when deleting app",
 			ReqFn: func(t *testing.T) (any, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
-				app := CreateTestApp(t, &account)
+				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
@@ -791,7 +1101,7 @@ func TestListAppSecrets(t *testing.T) {
 			Name: "Should return 200 OK with app secrets list",
 			ReqFn: func(t *testing.T) (any, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
-				app := CreateTestApp(t, &account)
+				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
@@ -868,13 +1178,11 @@ func TestCreateAppSecret(t *testing.T) {
 			Name: "Should return 201 CREATED with new app secret",
 			ReqFn: func(t *testing.T) (bodies.CreateCredentialsSecretBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
-				app := CreateTestApp(t, &account)
+				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return bodies.CreateCredentialsSecretBody{
-					Algorithm: "HS256",
-				}, accessToken
+				return bodies.CreateCredentialsSecretBody{}, accessToken
 			},
 			PathFn: func() string {
 				return v1Path + paths.AppsBase + "/" + appClientID + "/secrets"
@@ -894,7 +1202,7 @@ func TestCreateAppSecret(t *testing.T) {
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return bodies.CreateCredentialsSecretBody{
-					Algorithm: "HS256",
+					Algorithm: "EdDSA",
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -907,7 +1215,7 @@ func TestCreateAppSecret(t *testing.T) {
 			Name: "Should return 400 BAD REQUEST if validation fails",
 			ReqFn: func(t *testing.T) (bodies.CreateCredentialsSecretBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
-				app := CreateTestApp(t, &account)
+				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
@@ -928,7 +1236,7 @@ func TestCreateAppSecret(t *testing.T) {
 			Name: "Should return 401 UNAUTHORIZED if no access token",
 			ReqFn: func(t *testing.T) (bodies.CreateCredentialsSecretBody, string) {
 				return bodies.CreateCredentialsSecretBody{
-					Algorithm: "HS256",
+					Algorithm: "ES256",
 				}, ""
 			},
 			PathFn: func() string {

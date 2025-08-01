@@ -7,14 +7,18 @@
 package utils
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/big"
+	"unsafe"
 )
 
 type SupportedCryptoSuite string
@@ -339,5 +343,39 @@ func JsonToJWK(jsonBytes []byte) (JWK, error) {
 		return &jwk, nil
 	default:
 		return nil, fmt.Errorf("unsupported key type: %s", kty)
+	}
+}
+
+//go:noinline
+func WipeBytes(ctx context.Context, logger *slog.Logger, data []byte) {
+	if _, err := rand.Read(data); err != nil {
+		logger.WarnContext(ctx, "Failed to randomize bytes, wiping only", "error", err)
+	}
+	for i := range data {
+		data[i] = 0
+	}
+}
+
+func WipeBigInt(ctx context.Context, logger *slog.Logger, bi *big.Int) {
+	if bi == nil {
+		return
+	}
+
+	words := bi.Bits()
+	byteSlice := (*[1 << 30]byte)(unsafe.Pointer(&words[0]))[:len(words)*int(unsafe.Sizeof(words[0]))]
+	WipeBytes(ctx, logger, byteSlice)
+	bi.SetInt64(0)
+}
+
+func WipeES256PrivateKey(ctx context.Context, logger *slog.Logger, privKey *ecdsa.PrivateKey) {
+	if privKey != nil {
+		WipeBigInt(ctx, logger, privKey.D)
+		WipeBigInt(ctx, logger, privKey.X)
+		WipeBigInt(ctx, logger, privKey.Y)
+		privKey.PublicKey = ecdsa.PublicKey{}
+		privKey.Curve = nil
+		privKey.X = nil
+		privKey.Y = nil
+		privKey.D = nil
 	}
 }

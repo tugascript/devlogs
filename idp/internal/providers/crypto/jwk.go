@@ -24,37 +24,12 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-type JWKCacheType = string
-
-const (
-	jwkLocation string = "jwk"
-
-	JWKCacheTypeAuth    JWKCacheType = "auth"
-	JWKCacheTypePurpose JWKCacheType = "purpose"
-
-	authJWKCacheCost    int64 = 10000
-	purposeJWKCacheCost int64 = 100
-)
+const jwkLocation string = "jwk"
 
 type KeyPair struct {
 	KID         string
 	PublicKey   utils.JWK
 	CryptoSuite utils.SupportedCryptoSuite
-}
-
-func buildPrivateKeyCacheKey(cryptoSuite utils.SupportedCryptoSuite, kid string) string {
-	return fmt.Sprintf("jwk:%s:%s", cryptoSuite, kid)
-}
-
-func buildCacheCost(cacheType JWKCacheType) int64 {
-	switch cacheType {
-	case JWKCacheTypeAuth:
-		return authJWKCacheCost
-	case JWKCacheTypePurpose:
-		return purposeJWKCacheCost
-	default:
-		return 0
-	}
 }
 
 type StorePrivateKey = func(dekKid string, cryptoSuite utils.SupportedCryptoSuite, kid, encryptedKey string, pubKey utils.JWK) (int32, *exceptions.ServiceError)
@@ -63,14 +38,12 @@ type GenerateKeyPairOptions struct {
 	RequestID string
 	GetDEKfn  GetDEKtoEncrypt
 	StoreFN   StorePrivateKey
-	CacheType JWKCacheType
 }
 
 type getDecryptedPrivateKeyOptions struct {
 	requestID        string
 	jwkKID           string
 	encPrivKey       string
-	jwkCacheType     JWKCacheType
 	getDecDEKfn      GetDEKtoDecrypt
 	getEncDEKfn      GetDEKtoEncrypt
 	storeReEncDataFn StoreReEncryptedData
@@ -96,6 +69,7 @@ func (e *Crypto) GenerateEd25519KeyPair(
 		logger.ErrorContext(ctx, "Failed to generate key pair", "error", err)
 		return KeyPair{}, exceptions.NewInternalServerError()
 	}
+	defer utils.WipeBytes(ctx, logger, priv)
 
 	dekID, encryptedKey, serviceErr := e.EncryptWithDEK(
 		ctx,
@@ -117,16 +91,6 @@ func (e *Crypto) GenerateEd25519KeyPair(
 		return KeyPair{}, exceptions.NewInternalServerError()
 	}
 
-	if ok := e.localCache.SetWithTTL(
-		buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteEd25519, kid),
-		priv,
-		buildCacheCost(opts.CacheType),
-		e.jwkTTL,
-	); !ok {
-		logger.ErrorContext(ctx, "Failed to cache private key", "kid", kid)
-		return KeyPair{}, exceptions.NewInternalServerError()
-
-	}
 	return KeyPair{
 		KID:         kid,
 		PublicKey:   &publicJwk,
@@ -163,12 +127,6 @@ func (e *Crypto) getDecryptedEd25519PrivateKey(
 	}).With("jwkKid", opts.jwkKID)
 	logger.DebugContext(ctx, "Getting decrypted Ed25519 private key...")
 
-	cachedKey, found := e.localCache.Get(buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteEd25519, opts.jwkKID))
-	if found {
-		logger.DebugContext(ctx, "Ed25519 private key found in cache")
-		return cachedKey, nil
-	}
-
 	base64PrivKey, serviceErr := e.DecryptWithDEK(
 		ctx,
 		DecryptWithDEKOptions{
@@ -188,16 +146,6 @@ func (e *Crypto) getDecryptedEd25519PrivateKey(
 	privKey, err := decodeEd25519PrivateKeyBytes(base64PrivKey)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decode private key", "error", err)
-		return nil, exceptions.NewInternalServerError()
-	}
-
-	if ok := e.localCache.SetWithTTL(
-		buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteEd25519, opts.jwkKID),
-		privKey,
-		buildCacheCost(opts.jwkCacheType),
-		e.jwkTTL,
-	); !ok {
-		logger.ErrorContext(ctx, "Failed to cache private key")
 		return nil, exceptions.NewInternalServerError()
 	}
 
@@ -230,6 +178,7 @@ func (e *Crypto) GenerateES256KeyPair(
 		logger.ErrorContext(ctx, "Failed to generate ES256 private key", "error", err)
 		return KeyPair{}, exceptions.NewInternalServerError()
 	}
+	defer utils.WipeES256PrivateKey(ctx, logger, priv)
 
 	encodedPrivateKey := encodeES256PrivateKeyBytes(priv)
 	dekID, encryptedPrivateKey, serviceErr := e.EncryptWithDEK(
@@ -252,16 +201,6 @@ func (e *Crypto) GenerateES256KeyPair(
 		return KeyPair{}, exceptions.NewInternalServerError()
 	}
 
-	if ok := e.localCache.SetWithTTL(
-		buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteES256, kid),
-		[]byte(encodedPrivateKey),
-		buildCacheCost(opts.CacheType),
-		e.jwkTTL,
-	); !ok {
-		logger.ErrorContext(ctx, "Failed to cache private key", "kid", kid)
-		return KeyPair{}, exceptions.NewInternalServerError()
-	}
-
 	return KeyPair{
 		KID:         kid,
 		PublicKey:   &publicJwk,
@@ -269,37 +208,37 @@ func (e *Crypto) GenerateES256KeyPair(
 	}, nil
 }
 
-func decodeES256PrivateKeyBytes(bytes string) (ecdsa.PrivateKey, error) {
+func decodeES256PrivateKeyBytes(bytes string) (*ecdsa.PrivateKey, error) {
 	parts := strings.Split(bytes, ".")
 	if len(parts) != 3 {
-		return ecdsa.PrivateKey{}, errors.New("invalid key format")
+		return nil, errors.New("invalid key format")
 	}
 
 	d, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return ecdsa.PrivateKey{}, err
+		return nil, err
 	}
 	if len(d) == 0 {
-		return ecdsa.PrivateKey{}, errors.New("invalid D value in key")
+		return nil, errors.New("invalid D value in key")
 	}
 
 	x, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return ecdsa.PrivateKey{}, err
+		return nil, err
 	}
 	if len(x) == 0 {
-		return ecdsa.PrivateKey{}, errors.New("invalid X value in key")
+		return nil, errors.New("invalid X value in key")
 	}
 
 	y, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil {
-		return ecdsa.PrivateKey{}, err
+		return nil, err
 	}
 	if len(y) == 0 {
-		return ecdsa.PrivateKey{}, errors.New("invalid Y value in key")
+		return nil, errors.New("invalid Y value in key")
 	}
 
-	return ecdsa.PrivateKey{
+	return &ecdsa.PrivateKey{
 		D: new(big.Int).SetBytes(d),
 		PublicKey: ecdsa.PublicKey{
 			Curve: elliptic.P256(),
@@ -312,25 +251,13 @@ func decodeES256PrivateKeyBytes(bytes string) (ecdsa.PrivateKey, error) {
 func (e *Crypto) getDecryptedES256PrivateKey(
 	ctx context.Context,
 	opts getDecryptedPrivateKeyOptions,
-) (ecdsa.PrivateKey, *exceptions.ServiceError) {
+) (*ecdsa.PrivateKey, *exceptions.ServiceError) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Location:  jwkLocation,
 		Method:    "getDecryptedES256PrivateKey",
 		RequestID: opts.requestID,
 	}).With("jwkKID", opts.jwkKID)
 	logger.DebugContext(ctx, "Getting decrypted ES256 private key...")
-
-	cachedKey, found := e.localCache.Get(buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteES256, opts.jwkKID))
-	if found {
-		logger.DebugContext(ctx, "ES256 private key found in cache")
-		privKey, err := decodeES256PrivateKeyBytes(string(cachedKey))
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to decode private key", "error", err)
-			return ecdsa.PrivateKey{}, exceptions.NewInternalServerError()
-		}
-
-		return privKey, nil
-	}
 
 	base64PrivKey, serviceErr := e.DecryptWithDEK(
 		ctx,
@@ -345,23 +272,13 @@ func (e *Crypto) getDecryptedES256PrivateKey(
 	)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt private key", "serviceError", serviceErr)
-		return ecdsa.PrivateKey{}, serviceErr
+		return nil, serviceErr
 	}
 
 	privKey, err := decodeES256PrivateKeyBytes(base64PrivKey)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decode private key", "error", err)
-		return ecdsa.PrivateKey{}, exceptions.NewInternalServerError()
-	}
-
-	if ok := e.localCache.SetWithTTL(
-		buildPrivateKeyCacheKey(utils.SupportedCryptoSuiteES256, opts.jwkKID),
-		[]byte(base64PrivKey),
-		buildCacheCost(opts.jwkCacheType),
-		e.jwkTTL,
-	); !ok {
-		logger.ErrorContext(ctx, "Failed to cache private key")
-		return ecdsa.PrivateKey{}, exceptions.NewInternalServerError()
+		return nil, exceptions.NewInternalServerError()
 	}
 
 	logger.DebugContext(ctx, "ES256 private key decrypted and cached")
@@ -369,7 +286,7 @@ func (e *Crypto) getDecryptedES256PrivateKey(
 }
 
 type JWKkid = string
-type GetEncryptedJWK = func(cryptoSuite utils.SupportedCryptoSuite) (JWKkid, DEKCiphertext, JWKCacheType, *exceptions.ServiceError)
+type GetEncryptedJWK = func(cryptoSuite utils.SupportedCryptoSuite) (JWKkid, DEKCiphertext, *exceptions.ServiceError)
 
 type SignTokenOptions struct {
 	RequestID       string
@@ -393,7 +310,7 @@ func (e *Crypto) SignToken(
 
 	switch opts.Token.Method.Alg() {
 	case string(utils.SupportedCryptoSuiteEd25519):
-		kid, encPrivKey, cacheType, serviceErr := opts.GetJWKfn(utils.SupportedCryptoSuiteEd25519)
+		kid, encPrivKey, serviceErr := opts.GetJWKfn(utils.SupportedCryptoSuiteEd25519)
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to get encrypted ed25519 private key", "serviceError", serviceErr)
 			return "", serviceErr
@@ -403,7 +320,6 @@ func (e *Crypto) SignToken(
 			requestID:        opts.RequestID,
 			jwkKID:           kid,
 			encPrivKey:       encPrivKey,
-			jwkCacheType:     cacheType,
 			getDecDEKfn:      opts.GetDecryptDEKfn,
 			getEncDEKfn:      opts.GetEncryptDEKfn,
 			storeReEncDataFn: opts.StoreFN,
@@ -412,6 +328,7 @@ func (e *Crypto) SignToken(
 			logger.ErrorContext(ctx, "Failed to get decrypted ed25519 private key", "serviceError", serviceErr)
 			return "", serviceErr
 		}
+		defer utils.WipeBytes(ctx, logger, privKey)
 
 		opts.Token.Header["kid"] = kid
 		signedToken, err := opts.Token.SignedString(privKey)
@@ -422,7 +339,7 @@ func (e *Crypto) SignToken(
 
 		return signedToken, nil
 	case string(utils.SupportedCryptoSuiteES256):
-		kid, encPrivKey, cacheType, serviceErr := opts.GetJWKfn(utils.SupportedCryptoSuiteES256)
+		kid, encPrivKey, serviceErr := opts.GetJWKfn(utils.SupportedCryptoSuiteES256)
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to get encrypted ES256 private key", "serviceError", serviceErr)
 			return "", serviceErr
@@ -432,7 +349,6 @@ func (e *Crypto) SignToken(
 			requestID:        opts.RequestID,
 			jwkKID:           kid,
 			encPrivKey:       encPrivKey,
-			jwkCacheType:     cacheType,
 			getDecDEKfn:      opts.GetDecryptDEKfn,
 			getEncDEKfn:      opts.GetEncryptDEKfn,
 			storeReEncDataFn: opts.StoreFN,
@@ -441,9 +357,10 @@ func (e *Crypto) SignToken(
 			logger.ErrorContext(ctx, "Failed to get decrypted ES256 private key", "serviceError", serviceErr)
 			return "", serviceErr
 		}
+		defer utils.WipeES256PrivateKey(ctx, logger, privKey)
 
 		opts.Token.Header["kid"] = kid
-		signedToken, err := opts.Token.SignedString(&privKey)
+		signedToken, err := opts.Token.SignedString(privKey)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to sign token", "error", err)
 			return "", exceptions.NewInternalServerError()

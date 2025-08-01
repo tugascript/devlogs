@@ -21,13 +21,8 @@ import (
 const (
 	dekLocation string = "dek"
 
-	dekByteLen   int   = 32   // 256 bits
-	dekCacheCost int64 = 1000 // Cost for caching DEK, used in Ristretto cache
+	dekByteLen int = 32 // 256 bits
 )
-
-func buildDEKCacheKey(dekID string) string {
-	return fmt.Sprintf("dek:%s", dekID)
-}
 
 type StoreDEK = func(dekID, encryptedDEK string, kekID uuid.UUID) (int32, *exceptions.ServiceError)
 
@@ -67,11 +62,6 @@ func (e *Crypto) GenerateDEK(ctx context.Context, opts GenerateDEKOptions) (stri
 		return "", serviceErr
 	}
 
-	if ok := e.localCache.SetWithTTL(buildDEKCacheKey(dekID), dek, dekCacheCost, e.dekTTL); !ok {
-		logger.ErrorContext(ctx, "Failed to cache DEK", "dekID", dekID)
-		return "", errors.New("failed to cache DEK")
-	}
-
 	logger.InfoContext(ctx, "DEK generated and stored successfully", "dekID", dekID, "dbID", dbID)
 	return dekID, nil
 }
@@ -84,40 +74,6 @@ type EntityID = string
 type GetDEKtoDecrypt = func(dekID DEKID) (EncryptedDEK, KEKID, IsExpiredDEK, *exceptions.ServiceError)
 type GetDEKtoEncrypt = func() (DEKID, EncryptedDEK, uuid.UUID, *exceptions.ServiceError)
 type StoreReEncryptedData = func(entityID EntityID, dekID DEKID, ciphertext DEKCiphertext) *exceptions.ServiceError
-
-func (e *Crypto) getDecryptedDEK(
-	ctx context.Context,
-	requestID string,
-	dekID string,
-	encryptedDEK string,
-	kekID uuid.UUID,
-) ([]byte, *exceptions.ServiceError) {
-	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-		Location:  dekLocation,
-		Method:    "getDecryptedDEK",
-		RequestID: requestID,
-	}).With("dekId", dekID, "kekId", kekID)
-	logger.DebugContext(ctx, "Retrieving DEK from cache...")
-
-	if dek, found := e.localCache.Get(buildDEKCacheKey(dekID)); found {
-		logger.DebugContext(ctx, "DEK found in cache")
-		return dek, nil
-	}
-
-	dek, err := e.decrypt(ctx, requestID, kekID, encryptedDEK)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to decrypt DEK", "error", err)
-		return nil, exceptions.NewInternalServerError()
-	}
-
-	if ok := e.localCache.SetWithTTL(dekID, dek, dekCacheCost, e.dekTTL); !ok {
-		logger.ErrorContext(ctx, "Failed to cache DEK")
-		return nil, exceptions.NewInternalServerError()
-	}
-
-	logger.DebugContext(ctx, "DEK decrypted successfully")
-	return dek, nil
-}
 
 func formatDEKCiphertext(dekID DEKID, ciphertext string) DEKCiphertext {
 	return fmt.Sprintf("%s.%s", dekID, ciphertext)
@@ -146,11 +102,12 @@ func (e *Crypto) EncryptWithDEK(
 		return "", "", serviceErr
 	}
 
-	dek, serviceErr := e.getDecryptedDEK(ctx, opts.RequestID, dekID, encDek, kekKID)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get decrypted DEK", "serviceError", serviceErr)
-		return "", "", serviceErr
+	dek, err := e.decrypt(ctx, opts.RequestID, kekKID, encDek)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to decrypt DEK", "error", err)
+		return "", "", exceptions.NewInternalServerError()
 	}
+	defer utils.WipeBytes(dek)
 
 	ciphertext, err := utils.Encrypt(opts.PlainText, dek)
 	if err != nil {
@@ -200,11 +157,12 @@ func (e *Crypto) DecryptWithDEK(ctx context.Context, opts DecryptWithDEKOptions)
 		return "", serviceErr
 	}
 
-	dek, serviceErr := e.getDecryptedDEK(ctx, opts.RequestID, dekID, encDek, kekKID)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get decrypted DEK", "serviceError", serviceErr)
-		return "", serviceErr
+	dek, err := e.decrypt(ctx, opts.RequestID, kekKID, encDek)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to decrypt DEK", "error", err)
+		return "", exceptions.NewInternalServerError()
 	}
+	defer utils.WipeBytes(dek)
 
 	secret, err := utils.Decrypt(ciphertext, dek)
 	if err != nil {

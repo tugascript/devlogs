@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/dgraph-io/ristretto/v2"
 	openbao "github.com/openbao/openbao/api/v2"
 
 	"github.com/tugascript/devlogs/idp/internal/config"
@@ -22,7 +21,6 @@ const logLayer string = utils.ProvidersLogLayer + "/crypto"
 type Crypto struct {
 	logger      *slog.Logger
 	opLogical   *openbao.Logical
-	localCache  *ristretto.Cache[string, []byte]
 	serviceName string
 	kekPath     string
 	dekTTL      time.Duration
@@ -32,7 +30,6 @@ type Crypto struct {
 func NewCrypto(
 	logger *slog.Logger,
 	op *openbao.Client,
-	cache *ristretto.Cache[string, []byte],
 	serviceName string,
 	encCfg config.CryptoConfig,
 ) *Crypto {
@@ -40,7 +37,6 @@ func NewCrypto(
 		logger:      logger.With(utils.BaseLayer, logLayer),
 		opLogical:   op.Logical(),
 		kekPath:     encCfg.KEKPath(),
-		localCache:  cache,
 		serviceName: utils.Capitalized(serviceName),
 		dekTTL:      time.Duration(encCfg.DEKTTL()) * time.Second,
 		jwkTTL:      time.Duration(encCfg.JWKTTL()) * time.Second,

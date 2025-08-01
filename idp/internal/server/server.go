@@ -11,9 +11,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/dgraph-io/ristretto/v2"
 	"github.com/jackc/pgx/v5"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -38,6 +36,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/server/routes"
 	"github.com/tugascript/devlogs/idp/internal/server/validations"
 	"github.com/tugascript/devlogs/idp/internal/services"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type FiberServer struct {
@@ -94,7 +93,7 @@ func New(
 
 	logger.InfoContext(ctx, "Building redis cache storage...")
 	cacheStorage := fiberRedis.New(fiberRedis.Config{
-		URL: cfg.RedisURL(),
+		URL: cfg.ValkeyURL(),
 	})
 	logger.InfoContext(ctx, "Finished building redis cache storage")
 
@@ -231,24 +230,9 @@ func New(
 
 	logger.InfoContext(ctx, "Finished building OpenBao client")
 
-	logger.InfoContext(ctx, "Building local cache...")
-	localCacheCfg := cfg.LocalCacheConfig()
-	localCache, err := ristretto.NewCache(&ristretto.Config[string, []byte]{
-		NumCounters:            localCacheCfg.Counter(),
-		MaxCost:                localCacheCfg.MaxCost(),
-		BufferItems:            localCacheCfg.BufferItems(),
-		TtlTickerDurationInSec: localCacheCfg.DefaultTTL(),
-	})
-	if err != nil {
-		logger.Error("Failed to create local cache", "error", err)
-		panic(err)
-	}
-	logger.InfoContext(ctx, "Finished building local cache")
-
 	cryp := crypto.NewCrypto(
 		logger,
 		obClient,
-		localCache,
 		cfg.ServiceName(),
 		cryptCfg,
 	)

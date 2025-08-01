@@ -10,6 +10,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/go-faker/faker/v4"
+	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5"
+	"github.com/redis/go-redis/v9"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,16 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgraph-io/ristretto/v2"
-	"github.com/go-faker/faker/v4"
-	"github.com/gofiber/fiber/v2"
 	fiberRedis "github.com/gofiber/storage/redis/v3"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	openbao "github.com/openbao/openbao/api/v2"
-	"github.com/redis/go-redis/v9"
-
 	"github.com/tugascript/devlogs/idp/internal/config"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
@@ -60,7 +58,7 @@ func initTestServicesAndApp(t *testing.T) {
 
 	logger.InfoContext(ctx, "Building distributed cache...")
 	cacheStorage := fiberRedis.New(fiberRedis.Config{
-		URL: _testConfig.RedisURL(),
+		URL: _testConfig.ValkeyURL(),
 	})
 
 	dcCfg := _testConfig.DistributedCache()
@@ -116,7 +114,7 @@ func initTestServicesAndApp(t *testing.T) {
 	logger.InfoContext(ctx, "Finished building database connection")
 
 	logger.InfoContext(ctx, "Building mailer...")
-	redisCfg, err := redis.ParseURL(_testConfig.RedisURL())
+	redisCfg, err := redis.ParseURL(_testConfig.ValkeyURL())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to parse redis url", "error", err)
 		t.Fatal("Failed to parse redis url", err)
@@ -171,24 +169,9 @@ func initTestServicesAndApp(t *testing.T) {
 		logger.InfoContext(ctx, "KEK path already mounted in OpenBao", "mountID", mount.UUID, "type", mount.Type)
 	}
 
-	logger.InfoContext(ctx, "Building local cache...")
-	localCacheCfg := cfg.LocalCacheConfig()
-	localCache, err := ristretto.NewCache(&ristretto.Config[string, []byte]{
-		NumCounters:            localCacheCfg.Counter(),
-		MaxCost:                localCacheCfg.MaxCost(),
-		BufferItems:            localCacheCfg.BufferItems(),
-		TtlTickerDurationInSec: localCacheCfg.DefaultTTL(),
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to initialize local cache", "error", err)
-		t.Fatal("Failed to initialize local cache", err)
-	}
-	logger.InfoContext(ctx, "Finished building local cache")
-
 	_testCrypto = crypto.NewCrypto(
 		logger,
 		obClient,
-		localCache,
 		cfg.ServiceName(),
 		cryptCfg,
 	)
