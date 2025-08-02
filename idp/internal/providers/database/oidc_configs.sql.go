@@ -32,7 +32,7 @@ INSERT INTO "oidc_configs" (
     "account_id"
 ) VALUES (
     $1
-) RETURNING id, account_id, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at
+) RETURNING id, account_id, claims_supported, scopes_supported, custom_claims, custom_scopes, created_at, updated_at
 `
 
 func (q *Queries) CreateDefaultOIDCConfig(ctx context.Context, accountID int32) (OidcConfig, error) {
@@ -43,7 +43,8 @@ func (q *Queries) CreateDefaultOIDCConfig(ctx context.Context, accountID int32) 
 		&i.AccountID,
 		&i.ClaimsSupported,
 		&i.ScopesSupported,
-		&i.UserRolesSupported,
+		&i.CustomClaims,
+		&i.CustomScopes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -54,29 +55,42 @@ const createOIDCConfig = `-- name: CreateOIDCConfig :one
 INSERT INTO "oidc_configs" (
     "account_id",
     "claims_supported",
-    "scopes_supported"
+    "scopes_supported",
+    "custom_claims",
+    "custom_scopes"
 ) VALUES (
     $1,
     $2,
-    $3
-) RETURNING id, account_id, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at
+    $3,
+    $4,
+    $5
+) RETURNING id, account_id, claims_supported, scopes_supported, custom_claims, custom_scopes, created_at, updated_at
 `
 
 type CreateOIDCConfigParams struct {
 	AccountID       int32
 	ClaimsSupported []Claims
 	ScopesSupported []Scopes
+	CustomClaims    []string
+	CustomScopes    []string
 }
 
 func (q *Queries) CreateOIDCConfig(ctx context.Context, arg CreateOIDCConfigParams) (OidcConfig, error) {
-	row := q.db.QueryRow(ctx, createOIDCConfig, arg.AccountID, arg.ClaimsSupported, arg.ScopesSupported)
+	row := q.db.QueryRow(ctx, createOIDCConfig,
+		arg.AccountID,
+		arg.ClaimsSupported,
+		arg.ScopesSupported,
+		arg.CustomClaims,
+		arg.CustomScopes,
+	)
 	var i OidcConfig
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
 		&i.ClaimsSupported,
 		&i.ScopesSupported,
-		&i.UserRolesSupported,
+		&i.CustomClaims,
+		&i.CustomScopes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -84,7 +98,7 @@ func (q *Queries) CreateOIDCConfig(ctx context.Context, arg CreateOIDCConfigPara
 }
 
 const findOIDCConfigByAccountID = `-- name: FindOIDCConfigByAccountID :one
-SELECT id, account_id, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at FROM "oidc_configs"
+SELECT id, account_id, claims_supported, scopes_supported, custom_claims, custom_scopes, created_at, updated_at FROM "oidc_configs"
 WHERE "account_id" = $1
 LIMIT 1
 `
@@ -97,7 +111,8 @@ func (q *Queries) FindOIDCConfigByAccountID(ctx context.Context, accountID int32
 		&i.AccountID,
 		&i.ClaimsSupported,
 		&i.ScopesSupported,
-		&i.UserRolesSupported,
+		&i.CustomClaims,
+		&i.CustomScopes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -108,17 +123,19 @@ const updateOIDCConfig = `-- name: UpdateOIDCConfig :one
 UPDATE "oidc_configs" SET
     "claims_supported" = $2,
     "scopes_supported" = $3,
-    "user_roles_supported" = $4,
+    "custom_claims" = $4,
+    "custom_scopes" = $5,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, claims_supported, scopes_supported, user_roles_supported, created_at, updated_at
+RETURNING id, account_id, claims_supported, scopes_supported, custom_claims, custom_scopes, created_at, updated_at
 `
 
 type UpdateOIDCConfigParams struct {
-	ID                 int32
-	ClaimsSupported    []Claims
-	ScopesSupported    []Scopes
-	UserRolesSupported []string
+	ID              int32
+	ClaimsSupported []Claims
+	ScopesSupported []Scopes
+	CustomClaims    []string
+	CustomScopes    []string
 }
 
 func (q *Queries) UpdateOIDCConfig(ctx context.Context, arg UpdateOIDCConfigParams) (OidcConfig, error) {
@@ -126,7 +143,8 @@ func (q *Queries) UpdateOIDCConfig(ctx context.Context, arg UpdateOIDCConfigPara
 		arg.ID,
 		arg.ClaimsSupported,
 		arg.ScopesSupported,
-		arg.UserRolesSupported,
+		arg.CustomClaims,
+		arg.CustomScopes,
 	)
 	var i OidcConfig
 	err := row.Scan(
@@ -134,7 +152,8 @@ func (q *Queries) UpdateOIDCConfig(ctx context.Context, arg UpdateOIDCConfigPara
 		&i.AccountID,
 		&i.ClaimsSupported,
 		&i.ScopesSupported,
-		&i.UserRolesSupported,
+		&i.CustomClaims,
+		&i.CustomScopes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

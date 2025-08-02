@@ -94,7 +94,7 @@ func mapClaim(claim string) (database.Claims, *exceptions.ServiceError) {
 		database.ClaimsWebsite, database.ClaimsEmail, database.ClaimsEmailVerified,
 		database.ClaimsGender, database.ClaimsBirthdate, database.ClaimsZoneinfo,
 		database.ClaimsLocale, database.ClaimsPhoneNumber, database.ClaimsPhoneNumberVerified,
-		database.ClaimsAddress, database.ClaimsUpdatedAt, database.ClaimsUserRoles:
+		database.ClaimsAddress, database.ClaimsUpdatedAt:
 		return dbClaim, nil
 	default:
 		return "", exceptions.NewValidationError("invalid claim")
@@ -125,7 +125,7 @@ func mapScope(scope string) (database.Scopes, *exceptions.ServiceError) {
 	dbScope := database.Scopes(scope)
 	switch dbScope {
 	case database.ScopesOpenid, database.ScopesEmail, database.ScopesProfile,
-		database.ScopesAddress, database.ScopesPhone, database.ScopesUserRoles:
+		database.ScopesAddress, database.ScopesPhone:
 		return dbScope, nil
 	default:
 		return "", exceptions.NewValidationError("invalid scope")

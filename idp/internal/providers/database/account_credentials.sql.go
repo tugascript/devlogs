@@ -58,7 +58,7 @@ INSERT INTO "account_credentials" (
     $5,
     $6,
     $7
-) RETURNING id, account_id, account_public_id, scopes, auth_methods, issuers, alias, client_id, created_at, updated_at
+) RETURNING id, account_id, account_public_id, credentials_type, scopes, auth_methods, issuers, code_challenge_method, alias, client_id, created_at, updated_at
 `
 
 type CreateAccountCredentialsParams struct {
@@ -86,9 +86,11 @@ func (q *Queries) CreateAccountCredentials(ctx context.Context, arg CreateAccoun
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,
+		&i.CredentialsType,
 		&i.Scopes,
 		&i.AuthMethods,
 		&i.Issuers,
+		&i.CodeChallengeMethod,
 		&i.Alias,
 		&i.ClientID,
 		&i.CreatedAt,
@@ -117,7 +119,7 @@ func (q *Queries) DeleteAllAccountCredentials(ctx context.Context) error {
 }
 
 const findAccountCredentialsByAccountPublicIDAndClientID = `-- name: FindAccountCredentialsByAccountPublicIDAndClientID :one
-SELECT id, account_id, account_public_id, scopes, auth_methods, issuers, alias, client_id, created_at, updated_at FROM "account_credentials"
+SELECT id, account_id, account_public_id, credentials_type, scopes, auth_methods, issuers, code_challenge_method, alias, client_id, created_at, updated_at FROM "account_credentials"
 WHERE "account_public_id" = $1 AND "client_id" = $2
 LIMIT 1
 `
@@ -134,9 +136,11 @@ func (q *Queries) FindAccountCredentialsByAccountPublicIDAndClientID(ctx context
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,
+		&i.CredentialsType,
 		&i.Scopes,
 		&i.AuthMethods,
 		&i.Issuers,
+		&i.CodeChallengeMethod,
 		&i.Alias,
 		&i.ClientID,
 		&i.CreatedAt,
@@ -147,7 +151,7 @@ func (q *Queries) FindAccountCredentialsByAccountPublicIDAndClientID(ctx context
 
 const findAccountCredentialsByClientID = `-- name: FindAccountCredentialsByClientID :one
 
-SELECT id, account_id, account_public_id, scopes, auth_methods, issuers, alias, client_id, created_at, updated_at FROM "account_credentials"
+SELECT id, account_id, account_public_id, credentials_type, scopes, auth_methods, issuers, code_challenge_method, alias, client_id, created_at, updated_at FROM "account_credentials"
 WHERE "client_id" = $1
 LIMIT 1
 `
@@ -164,9 +168,11 @@ func (q *Queries) FindAccountCredentialsByClientID(ctx context.Context, clientID
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,
+		&i.CredentialsType,
 		&i.Scopes,
 		&i.AuthMethods,
 		&i.Issuers,
+		&i.CodeChallengeMethod,
 		&i.Alias,
 		&i.ClientID,
 		&i.CreatedAt,
@@ -176,7 +182,7 @@ func (q *Queries) FindAccountCredentialsByClientID(ctx context.Context, clientID
 }
 
 const findPaginatedAccountCredentialsByAccountPublicID = `-- name: FindPaginatedAccountCredentialsByAccountPublicID :many
-SELECT id, account_id, account_public_id, scopes, auth_methods, issuers, alias, client_id, created_at, updated_at FROM "account_credentials"
+SELECT id, account_id, account_public_id, credentials_type, scopes, auth_methods, issuers, code_challenge_method, alias, client_id, created_at, updated_at FROM "account_credentials"
 WHERE "account_public_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3
@@ -201,9 +207,11 @@ func (q *Queries) FindPaginatedAccountCredentialsByAccountPublicID(ctx context.C
 			&i.ID,
 			&i.AccountID,
 			&i.AccountPublicID,
+			&i.CredentialsType,
 			&i.Scopes,
 			&i.AuthMethods,
 			&i.Issuers,
+			&i.CodeChallengeMethod,
 			&i.Alias,
 			&i.ClientID,
 			&i.CreatedAt,
@@ -226,7 +234,7 @@ UPDATE "account_credentials" SET
     "issuers" = $4,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, account_public_id, scopes, auth_methods, issuers, alias, client_id, created_at, updated_at
+RETURNING id, account_id, account_public_id, credentials_type, scopes, auth_methods, issuers, code_challenge_method, alias, client_id, created_at, updated_at
 `
 
 type UpdateAccountCredentialsParams struct {
@@ -248,9 +256,11 @@ func (q *Queries) UpdateAccountCredentials(ctx context.Context, arg UpdateAccoun
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,
+		&i.CredentialsType,
 		&i.Scopes,
 		&i.AuthMethods,
 		&i.Issuers,
+		&i.CodeChallengeMethod,
 		&i.Alias,
 		&i.ClientID,
 		&i.CreatedAt,

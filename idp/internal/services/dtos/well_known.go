@@ -65,7 +65,7 @@ var GrantTypesSupported = []string{
 	"urn:ietf:params:oauth:grant-type:device_code",
 	"urn:ietf:params:oauth:grant-type:jwt-bearer",
 }
-var DefaultScopes = []database.Scopes{database.ScopesOpenid, database.ScopesAccountUsersAuthenticate}
+var DefaultScopes = []database.Scopes{database.ScopesOpenid}
 
 func MapOIDCConfigDTOToWellKnownOIDCConfigurationDTO(configDTO *OIDCConfigDTO, backendDomain, username string) WellKnownOIDCConfigurationDTO {
 	baseURL := fmt.Sprintf("https://%s.%s", username, utils.ProcessURL(backendDomain))

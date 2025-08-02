@@ -61,6 +61,91 @@ func (ns NullAccountCredentialsScope) Value() (driver.Value, error) {
 	return string(ns.AccountCredentialsScope), nil
 }
 
+type AccountCredentialsType string
+
+const (
+	AccountCredentialsTypeClient AccountCredentialsType = "client"
+	AccountCredentialsTypeMcp    AccountCredentialsType = "mcp"
+)
+
+func (e *AccountCredentialsType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AccountCredentialsType(s)
+	case string:
+		*e = AccountCredentialsType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AccountCredentialsType: %T", src)
+	}
+	return nil
+}
+
+type NullAccountCredentialsType struct {
+	AccountCredentialsType AccountCredentialsType
+	Valid                  bool // Valid is true if AccountCredentialsType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAccountCredentialsType) Scan(value interface{}) error {
+	if value == nil {
+		ns.AccountCredentialsType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AccountCredentialsType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAccountCredentialsType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AccountCredentialsType), nil
+}
+
+type AppProfileType string
+
+const (
+	AppProfileTypeHuman   AppProfileType = "human"
+	AppProfileTypeMachine AppProfileType = "machine"
+	AppProfileTypeAiAgent AppProfileType = "ai_agent"
+)
+
+func (e *AppProfileType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AppProfileType(s)
+	case string:
+		*e = AppProfileType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AppProfileType: %T", src)
+	}
+	return nil
+}
+
+type NullAppProfileType struct {
+	AppProfileType AppProfileType
+	Valid          bool // Valid is true if AppProfileType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAppProfileType) Scan(value interface{}) error {
+	if value == nil {
+		ns.AppProfileType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AppProfileType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAppProfileType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AppProfileType), nil
+}
+
 type AppType string
 
 const (
@@ -70,6 +155,7 @@ const (
 	AppTypeBackend AppType = "backend"
 	AppTypeDevice  AppType = "device"
 	AppTypeService AppType = "service"
+	AppTypeMcp     AppType = "mcp"
 )
 
 func (e *AppType) Scan(src interface{}) error {
@@ -264,7 +350,6 @@ const (
 	ClaimsPhoneNumberVerified Claims = "phone_number_verified"
 	ClaimsAddress             Claims = "address"
 	ClaimsUpdatedAt           Claims = "updated_at"
-	ClaimsUserRoles           Claims = "user_roles"
 )
 
 func (e *Claims) Scan(src interface{}) error {
@@ -518,16 +603,56 @@ func (ns NullKekUsage) Value() (driver.Value, error) {
 	return string(ns.KekUsage), nil
 }
 
+type ResponseType string
+
+const (
+	ResponseTypeCode  ResponseType = "code"
+	ResponseTypeToken ResponseType = "token"
+)
+
+func (e *ResponseType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ResponseType(s)
+	case string:
+		*e = ResponseType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ResponseType: %T", src)
+	}
+	return nil
+}
+
+type NullResponseType struct {
+	ResponseType ResponseType
+	Valid        bool // Valid is true if ResponseType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullResponseType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ResponseType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ResponseType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullResponseType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ResponseType), nil
+}
+
 type Scopes string
 
 const (
-	ScopesOpenid                   Scopes = "openid"
-	ScopesEmail                    Scopes = "email"
-	ScopesProfile                  Scopes = "profile"
-	ScopesAddress                  Scopes = "address"
-	ScopesPhone                    Scopes = "phone"
-	ScopesUserRoles                Scopes = "user_roles"
-	ScopesAccountUsersAuthenticate Scopes = "account:users:authenticate"
+	ScopesOpenid  Scopes = "openid"
+	ScopesEmail   Scopes = "email"
+	ScopesProfile Scopes = "profile"
+	ScopesAddress Scopes = "address"
+	ScopesPhone   Scopes = "phone"
 )
 
 func (e *Scopes) Scan(src interface{}) error {
@@ -809,16 +934,18 @@ type AccountAuthProvider struct {
 }
 
 type AccountCredential struct {
-	ID              int32
-	AccountID       int32
-	AccountPublicID uuid.UUID
-	Scopes          []AccountCredentialsScope
-	AuthMethods     []AuthMethod
-	Issuers         []string
-	Alias           string
-	ClientID        string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                  int32
+	AccountID           int32
+	AccountPublicID     uuid.UUID
+	CredentialsType     AccountCredentialsType
+	Scopes              []AccountCredentialsScope
+	AuthMethods         []AuthMethod
+	Issuers             []string
+	CodeChallengeMethod CodeChallengeMethod
+	Alias               string
+	ClientID            string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type AccountCredentialsKey struct {
@@ -828,6 +955,22 @@ type AccountCredentialsKey struct {
 	AccountPublicID      uuid.UUID
 	JwkKid               string
 	CreatedAt            time.Time
+}
+
+type AccountCredentialsMcp struct {
+	ID                         int32
+	AccountID                  int32
+	AccountPublicID            uuid.UUID
+	AccountCredentialsID       int32
+	AccountCredentialsClientID string
+	ClientUri                  string
+	LogoUri                    pgtype.Text
+	PolicyUri                  pgtype.Text
+	TosUri                     pgtype.Text
+	SoftwareID                 string
+	SoftwareVersion            pgtype.Text
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
 }
 
 type AccountCredentialsSecret struct {
@@ -866,7 +1009,7 @@ type App struct {
 	ID              int32
 	AccountID       int32
 	AccountPublicID uuid.UUID
-	Type            AppType
+	AppType         AppType
 	Name            string
 	ClientID        string
 	Version         int32
@@ -876,11 +1019,14 @@ type App struct {
 	PolicyUri       pgtype.Text
 	SoftwareID      pgtype.Text
 	SoftwareVersion pgtype.Text
+	ResponseTypes   []ResponseType
 	AuthMethods     []AuthMethod
 	GrantTypes      []GrantType
 	DefaultScopes   []Scopes
 	AuthProviders   []AuthProvider
 	UsernameColumn  AppUsernameColumn
+	CustomClaims    []string
+	CustomScopes    []string
 	IDTokenTtl      int32
 	TokenTtl        int32
 	RefreshTokenTtl int32
@@ -920,12 +1066,14 @@ type AppKey struct {
 }
 
 type AppProfile struct {
-	ID        int32
-	AccountID int32
-	UserID    int32
-	AppID     int32
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          int32
+	AccountID   int32
+	UserID      int32
+	AppID       int32
+	ProfileType AppProfileType
+	ProfileData []byte
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type AppRelatedApp struct {
@@ -1015,13 +1163,14 @@ type KeyEncryptionKey struct {
 }
 
 type OidcConfig struct {
-	ID                 int32
-	AccountID          int32
-	ClaimsSupported    []Claims
-	ScopesSupported    []Scopes
-	UserRolesSupported []string
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID              int32
+	AccountID       int32
+	ClaimsSupported []Claims
+	ScopesSupported []Scopes
+	CustomClaims    []string
+	CustomScopes    []string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type RevokedToken struct {
@@ -1068,7 +1217,6 @@ type User struct {
 	Password      pgtype.Text
 	Version       int32
 	EmailVerified bool
-	UserRoles     []string
 	IsActive      bool
 	TwoFactorType TwoFactorType
 	UserData      []byte

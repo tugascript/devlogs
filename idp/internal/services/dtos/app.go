@@ -18,7 +18,7 @@ import (
 )
 
 type RelatedAppDTO struct {
-	Type     database.AppType `json:"type"`
+	AppType  database.AppType `json:"app_type"`
 	Name     string           `json:"name"`
 	ClientID string           `json:"client_id"`
 	Links    LinksSelfDTO     `json:"links"`
@@ -30,7 +30,7 @@ func newRelatedAppDTO(
 	route string,
 ) RelatedAppDTO {
 	return RelatedAppDTO{
-		Type:     app.Type,
+		AppType:  app.AppType,
 		Name:     app.Name,
 		ClientID: app.ClientID,
 		Links:    NewLinksSelfDTO(backendDomain, route),
@@ -42,7 +42,7 @@ type AppDTO struct {
 	accountID int32
 	version   int32
 
-	Type     database.AppType `json:"type"`
+	AppType  database.AppType `json:"app_type"`
 	Name     string           `json:"name"`
 	ClientID string           `json:"client_id"`
 
@@ -122,7 +122,7 @@ func MapAppToDTO(app *database.App) AppDTO {
 		id:              app.ID,
 		accountID:       app.AccountID,
 		version:         app.Version,
-		Type:            app.Type,
+		AppType:         app.AppType,
 		ClientID:        app.ClientID,
 		Name:            app.Name,
 		ClientURI:       app.ClientUri,
@@ -155,7 +155,7 @@ func MapWebAppToDTO(
 		id:                  app.ID,
 		accountID:           app.AccountID,
 		version:             app.Version,
-		Type:                app.Type,
+		AppType:             app.AppType,
 		Name:                app.Name,
 		ClientID:            app.ClientID,
 		ClientURI:           app.ClientUri,
@@ -195,7 +195,7 @@ func MapWebAppWithSecretToDTO(
 		id:                  app.ID,
 		accountID:           app.AccountID,
 		version:             app.Version,
-		Type:                app.Type,
+		AppType:             app.AppType,
 		Name:                app.Name,
 		ClientID:            app.ClientID,
 		ClientURI:           app.ClientUri,
@@ -237,7 +237,7 @@ func MapWebAppWithJWKToDTO(
 		id:                  app.ID,
 		accountID:           app.AccountID,
 		version:             app.Version,
-		Type:                app.Type,
+		AppType:             app.AppType,
 		Name:                app.Name,
 		ClientID:            app.ClientID,
 		ClientURI:           app.ClientUri,
@@ -272,7 +272,7 @@ func MapSPAAppToDTO(
 		id:                  app.ID,
 		accountID:           app.AccountID,
 		version:             app.Version,
-		Type:                app.Type,
+		AppType:             app.AppType,
 		Name:                app.Name,
 		ClientID:            app.ClientID,
 		ClientURI:           app.ClientUri,
@@ -304,7 +304,7 @@ func MapNativeAppToDTO(
 		id:                  app.ID,
 		accountID:           app.AccountID,
 		version:             app.Version,
-		Type:                app.Type,
+		AppType:             app.AppType,
 		Name:                app.Name,
 		ClientID:            app.ClientID,
 		ClientURI:           app.ClientUri,
@@ -337,7 +337,7 @@ func MapBackendAppWithJWKToDTO(
 		id:               app.ID,
 		accountID:        app.AccountID,
 		version:          app.Version,
-		Type:             app.Type,
+		AppType:          app.AppType,
 		Name:             app.Name,
 		ClientID:         app.ClientID,
 		ClientURI:        app.ClientUri,
@@ -374,7 +374,7 @@ func MapBackendAppWithSecretToDTO(
 		id:               app.ID,
 		accountID:        app.AccountID,
 		version:          app.Version,
-		Type:             app.Type,
+		AppType:          app.AppType,
 		Name:             app.Name,
 		ClientID:         app.ClientID,
 		ClientURI:        app.ClientUri,
@@ -409,7 +409,7 @@ func MapDeviceAppToDTO(
 		id:              app.ID,
 		accountID:       app.AccountID,
 		version:         app.Version,
-		Type:            app.Type,
+		AppType:         app.AppType,
 		Name:            app.Name,
 		ClientID:        app.ClientID,
 		ClientURI:       app.ClientUri,
@@ -442,7 +442,7 @@ func MapServiceAppWithJWKToDTO(
 		id:               app.ID,
 		accountID:        app.AccountID,
 		version:          app.Version,
-		Type:             app.Type,
+		AppType:          app.AppType,
 		Name:             app.Name,
 		ClientID:         app.ClientID,
 		ClientURI:        app.ClientUri,
@@ -480,7 +480,7 @@ func MapServiceAppWithSecretToDTO(
 		id:               app.ID,
 		accountID:        app.AccountID,
 		version:          app.Version,
-		Type:             app.Type,
+		AppType:          app.AppType,
 		Name:             app.Name,
 		ClientID:         app.ClientID,
 		ClientURI:        app.ClientUri,
@@ -515,7 +515,7 @@ func MapBackendAppToDTO(
 		id:               app.ID,
 		accountID:        app.AccountID,
 		version:          app.Version,
-		Type:             app.Type,
+		AppType:          app.AppType,
 		Name:             app.Name,
 		ClientID:         app.ClientID,
 		ClientURI:        app.ClientUri,
@@ -546,7 +546,7 @@ func MapServiceAppToDTO(
 		id:               app.ID,
 		accountID:        app.AccountID,
 		version:          app.Version,
-		Type:             app.Type,
+		AppType:          app.AppType,
 		Name:             app.Name,
 		ClientID:         app.ClientID,
 		ClientURI:        app.ClientUri,

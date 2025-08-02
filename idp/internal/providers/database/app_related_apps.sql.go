@@ -54,7 +54,7 @@ func (q *Queries) DeleteAppRelatedAppsByAppIDAndRelatedAppIDs(ctx context.Contex
 }
 
 const findRelatedAppsByAppID = `-- name: FindRelatedAppsByAppID :many
-SELECT a.id, a.account_id, a.account_public_id, a.type, a.name, a.client_id, a.version, a.client_uri, a.logo_uri, a.tos_uri, a.policy_uri, a.software_id, a.software_version, a.auth_methods, a.grant_types, a.default_scopes, a.auth_providers, a.username_column, a.id_token_ttl, a.token_ttl, a.refresh_token_ttl, a.created_at, a.updated_at FROM "apps" a
+SELECT a.id, a.account_id, a.account_public_id, a.app_type, a.name, a.client_id, a.version, a.client_uri, a.logo_uri, a.tos_uri, a.policy_uri, a.software_id, a.software_version, a.response_types, a.auth_methods, a.grant_types, a.default_scopes, a.auth_providers, a.username_column, a.custom_claims, a.custom_scopes, a.id_token_ttl, a.token_ttl, a.refresh_token_ttl, a.created_at, a.updated_at FROM "apps" a
 INNER JOIN "app_related_apps" ara ON a.id = ara.related_app_id
 WHERE ara.app_id = $1
 ORDER BY a.name ASC
@@ -73,7 +73,7 @@ func (q *Queries) FindRelatedAppsByAppID(ctx context.Context, appID int32) ([]Ap
 			&i.ID,
 			&i.AccountID,
 			&i.AccountPublicID,
-			&i.Type,
+			&i.AppType,
 			&i.Name,
 			&i.ClientID,
 			&i.Version,
@@ -83,11 +83,14 @@ func (q *Queries) FindRelatedAppsByAppID(ctx context.Context, appID int32) ([]Ap
 			&i.PolicyUri,
 			&i.SoftwareID,
 			&i.SoftwareVersion,
+			&i.ResponseTypes,
 			&i.AuthMethods,
 			&i.GrantTypes,
 			&i.DefaultScopes,
 			&i.AuthProviders,
 			&i.UsernameColumn,
+			&i.CustomClaims,
+			&i.CustomScopes,
 			&i.IDTokenTtl,
 			&i.TokenTtl,
 			&i.RefreshTokenTtl,

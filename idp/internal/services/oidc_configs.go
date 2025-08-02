@@ -215,7 +215,6 @@ type UpdateOIDCConfigOptions struct {
 	AccountPublicID uuid.UUID
 	Claims          []string
 	Scopes          []string
-	UserRoles       []string
 }
 
 func (s *Services) UpdateOIDCConfig(
@@ -267,10 +266,9 @@ func (s *Services) UpdateOIDCConfig(
 	}
 
 	config, err := s.database.UpdateOIDCConfig(ctx, database.UpdateOIDCConfigParams{
-		ID:                 configDTO.ID(),
-		ClaimsSupported:    claimsSupported,
-		ScopesSupported:    scopesSupported,
-		UserRolesSupported: opts.UserRoles,
+		ID:              configDTO.ID(),
+		ClaimsSupported: claimsSupported,
+		ScopesSupported: scopesSupported,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update OIDC config", "error", err)
