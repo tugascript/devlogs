@@ -373,12 +373,13 @@ func (s *Services) GetAndCacheGlobalDistributedJWK(
 		return "", nil, exceptions.NewInternalServerError()
 	}
 
-	jwks, err = utils.MapSliceWithErr(publicJwks, func(jwkBytes *[]byte) (utils.JWK, error) {
-		return utils.JsonToJWK(*jwkBytes)
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to convert JWK bytes to JWK", "error", err)
-		return "", nil, exceptions.NewInternalServerError()
+	jwks = make([]utils.JWK, len(publicJwks))
+	for i, jwkBytes := range publicJwks {
+		jwks[i], err = utils.JsonToJWK(jwkBytes)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to convert JWK bytes to JWK", "error", err)
+			return "", nil, exceptions.NewInternalServerError()
+		}
 	}
 
 	logger.InfoContext(ctx, "Global distributed JWKs cached successfully", "etag", etag, "count", len(jwks))
@@ -716,12 +717,13 @@ func (s *Services) GetAndCacheAccountDistributedJWK(
 		return "", nil, exceptions.NewInternalServerError()
 	}
 
-	jwks, err = utils.MapSliceWithErr(publicJwks, func(jwkBytes *[]byte) (utils.JWK, error) {
-		return utils.JsonToJWK(*jwkBytes)
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to convert JWK bytes to JWK", "error", err)
-		return "", nil, exceptions.NewInternalServerError()
+	jwks = make([]utils.JWK, len(publicJwks))
+	for i, jwkBytes := range publicJwks {
+		jwks[i], err = utils.JsonToJWK(jwkBytes)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to convert JWK bytes to JWK", "error", err)
+			return "", nil, exceptions.NewInternalServerError()
+		}
 	}
 
 	logger.InfoContext(ctx, "Account distributed JWKs cached successfully", "etag", etag, "count", len(jwks))

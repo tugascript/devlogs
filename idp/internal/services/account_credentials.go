@@ -766,10 +766,14 @@ func (s *Services) listAccountCredentialsKeys(
 		return nil, 0, exceptions.NewInternalServerError()
 	}
 
-	keyDTOs, serviceErr := utils.MapSliceWithErr(keys, dtos.MapCredentialsKeyToDTO)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map account credentials keys to DTOs", "serviceError", serviceErr)
-		return nil, 0, serviceErr
+	keyDTOs := make([]dtos.ClientCredentialsSecretDTO, len(keys))
+	for i, key := range keys {
+		keyDTO, serviceErr := dtos.MapCredentialsKeyToDTO(&key)
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to map account credentials key to DTO", "serviceError", serviceErr)
+			return nil, 0, serviceErr
+		}
+		keyDTOs[i] = keyDTO
 	}
 
 	return keyDTOs, count, nil
@@ -1126,17 +1130,13 @@ func (s *Services) listActiveAccountCredentialsKeys(
 		return dtos.JWKsDTO{}, exceptions.FromDBError(err)
 	}
 
-	jwks, serviceErr := utils.MapSliceWithErr(keys, func(k *database.CredentialsKey) (utils.JWK, *exceptions.ServiceError) {
-		jwk, err := utils.JsonToJWK(k.PublicKey)
+	jwks := make([]utils.JWK, len(keys))
+	for i, key := range keys {
+		jwks[i], err = utils.JsonToJWK(key.PublicKey)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to decode public key", "error", err)
-			return nil, exceptions.NewInternalServerError()
+			return dtos.JWKsDTO{}, exceptions.NewInternalServerError()
 		}
-
-		return jwk, nil
-	})
-	if serviceErr != nil {
-		return dtos.JWKsDTO{}, serviceErr
 	}
 
 	logger.InfoContext(ctx, "Found active account credential keys", "count", len(keys))

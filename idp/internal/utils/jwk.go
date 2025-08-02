@@ -348,7 +348,7 @@ func JsonToJWK(jsonBytes []byte) (JWK, error) {
 
 //go:noinline
 func WipeBytes(ctx context.Context, logger *slog.Logger, data []byte) {
-	if data == nil || len(data) == 0 {
+	if len(data) == 0 {
 		return
 	}
 	if _, err := rand.Read(data); err != nil {

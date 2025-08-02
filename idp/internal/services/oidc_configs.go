@@ -15,7 +15,6 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const oidcConfigLocation string = "oidc_configs"
@@ -46,20 +45,22 @@ func (s *Services) CreateOIDCConfig(
 		return dtos.OIDCConfigDTO{}, serviceErr
 	}
 
-	claimsSupported, serviceErr := utils.MapSliceWithErr(opts.Claims, func(claim *string) (database.Claims, *exceptions.ServiceError) {
-		return mapClaim(*claim)
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map claims", "serviceError", serviceErr)
-		return dtos.OIDCConfigDTO{}, serviceErr
+	claimsSupported := make([]database.Claims, len(opts.Claims))
+	for i, claim := range opts.Claims {
+		claimsSupported[i], serviceErr = mapClaim(claim)
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to map claim", "serviceError", serviceErr)
+			return dtos.OIDCConfigDTO{}, serviceErr
+		}
 	}
 
-	scopesSupported, serviceErr := utils.MapSliceWithErr(opts.Scopes, func(scope *string) (database.Scopes, *exceptions.ServiceError) {
-		return mapScope(*scope)
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map scopes", "serviceError", serviceErr)
-		return dtos.OIDCConfigDTO{}, serviceErr
+	scopesSupported := make([]database.Scopes, len(opts.Scopes))
+	for i, scope := range opts.Scopes {
+		scopesSupported[i], serviceErr = mapScope(scope)
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to map scope", "serviceError", serviceErr)
+			return dtos.OIDCConfigDTO{}, serviceErr
+		}
 	}
 
 	count, err := s.database.CountOIDCConfigsByAccountID(ctx, accountDTO.ID())
@@ -247,20 +248,22 @@ func (s *Services) UpdateOIDCConfig(
 		return dtos.OIDCConfigDTO{}, serviceErr
 	}
 
-	claimsSupported, serviceErr := utils.MapSliceWithErr(opts.Claims, func(claim *string) (database.Claims, *exceptions.ServiceError) {
-		return mapClaim(*claim)
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map claims", "serviceError", serviceErr)
-		return dtos.OIDCConfigDTO{}, serviceErr
+	claimsSupported := make([]database.Claims, len(opts.Claims))
+	for i, claim := range opts.Claims {
+		claimsSupported[i], serviceErr = mapClaim(claim)
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to map claim", "serviceError", serviceErr)
+			return dtos.OIDCConfigDTO{}, serviceErr
+		}
 	}
 
-	scopesSupported, serviceErr := utils.MapSliceWithErr(opts.Scopes, func(scope *string) (database.Scopes, *exceptions.ServiceError) {
-		return mapScope(*scope)
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map scopes", "serviceError", serviceErr)
-		return dtos.OIDCConfigDTO{}, serviceErr
+	scopesSupported := make([]database.Scopes, len(opts.Scopes))
+	for i, scope := range opts.Scopes {
+		scopesSupported[i], serviceErr = mapScope(scope)
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to map scope", "serviceError", serviceErr)
+			return dtos.OIDCConfigDTO{}, serviceErr
+		}
 	}
 
 	config, err := s.database.UpdateOIDCConfig(ctx, database.UpdateOIDCConfigParams{
