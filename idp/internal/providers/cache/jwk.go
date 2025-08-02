@@ -241,12 +241,13 @@ func (c *Cache) GetPublicJWKs(
 		return "", nil, false, err
 	}
 
-	jwks, err := utils.MapSliceWithErr(rawJwks, func(raw *json.RawMessage) (utils.JWK, error) {
-		return utils.JsonToJWK(*raw)
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Error converting raw JWKs to JWKs", "error", err)
-		return "", nil, false, err
+	jwks := make([]utils.JWK, len(rawJwks))
+	for i, raw := range rawJwks {
+		jwks[i], err = utils.JsonToJWK(raw)
+		if err != nil {
+			logger.ErrorContext(ctx, "Error converting raw JWK to JWK", "error", err)
+			return "", nil, false, err
+		}
 	}
 
 	return utils.GenerateETag(val), jwks, true, nil

@@ -2415,10 +2415,14 @@ func (s *Services) listAppKeys(
 		return nil, 0, exceptions.NewInternalServerError()
 	}
 
-	keyDTOs, serviceErr := utils.MapSliceWithErr(keys, dtos.MapCredentialsKeyToDTO)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map app keys to DTOs", "serviceError", serviceErr)
-		return nil, 0, serviceErr
+	keyDTOs := make([]dtos.ClientCredentialsSecretDTO, len(keys))
+	for i, key := range keys {
+		keyDTO, serviceErr := dtos.MapCredentialsKeyToDTO(&key)
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to map app key to DTO", "serviceError", serviceErr)
+			return nil, 0, serviceErr
+		}
+		keyDTOs[i] = keyDTO
 	}
 
 	logger.InfoContext(ctx, "App keys retrieved successfully")

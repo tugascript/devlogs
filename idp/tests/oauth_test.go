@@ -959,6 +959,7 @@ func TestOAuthToken(t *testing.T) {
 			ReqFn: func(t *testing.T) (string, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				testTokens := GetTestTokens(t)
+				testS := GetTestServices(t)
 				requestID := uuid.NewString()
 
 				refreshToken, err := testTokens.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
@@ -975,7 +976,7 @@ func TestOAuthToken(t *testing.T) {
 					crypto.SignTokenOptions{
 						RequestID: requestID,
 						Token:     refreshToken,
-						GetJWKfn: GetTestServices(t).BuildGetGlobalEncryptedJWKFn(
+						GetJWKfn: testS.BuildGetGlobalEncryptedJWKFn(
 							context.Background(),
 							services.BuildEncryptedJWKFnOptions{
 								RequestID: requestID,
@@ -983,6 +984,8 @@ func TestOAuthToken(t *testing.T) {
 								TTL:       testTokens.GetRefreshTTL(),
 							},
 						),
+						GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(context.Background(), requestID),
+						GetEncryptDEKfn: testS.BuildGetEncGlobalDEKFn(context.Background(), requestID),
 					},
 				)
 				if serviceErr != nil {

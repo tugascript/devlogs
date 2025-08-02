@@ -214,10 +214,14 @@ func (s *Services) ListUsers(
 		return nil, 0, exceptions.FromDBError(err)
 	}
 
-	userDTOs, serviceErr := utils.MapSliceWithErr(users, dtos.MapUserToDTO)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map users to DTOs", "error", serviceErr)
-		return nil, 0, exceptions.NewInternalServerError()
+	userDTOs := make([]dtos.UserDTO, len(users))
+	for i, user := range users {
+		userDTO, serviceErr := dtos.MapUserToDTO(&user)
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to map user to DTO", "serviceError", serviceErr)
+			return nil, 0, serviceErr
+		}
+		userDTOs[i] = userDTO
 	}
 
 	logger.InfoContext(ctx, "Listed users successfully")
@@ -300,10 +304,14 @@ func (s *Services) FilterUsers(
 		return nil, 0, exceptions.FromDBError(err)
 	}
 
-	userDTOs, serviceErr := utils.MapSliceWithErr(users, dtos.MapUserToDTO)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map users to DTOs", "error", serviceErr)
-		return nil, 0, exceptions.NewInternalServerError()
+	userDTOs := make([]dtos.UserDTO, len(users))
+	for i, user := range users {
+		userDTO, serviceErr := dtos.MapUserToDTO(&user)
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to map user to DTO", "serviceError", serviceErr)
+			return nil, 0, serviceErr
+		}
+		userDTOs[i] = userDTO
 	}
 
 	logger.InfoContext(ctx, "Filtered users successfully")
