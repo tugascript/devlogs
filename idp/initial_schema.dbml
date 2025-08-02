@@ -330,7 +330,7 @@ Table account_credentials as AC {
 }
 Ref: AC.account_id > A.id [delete: cascade]
 
-Table account_credentials_mcp as ACM {
+Table account_credentials_mcps as ACM {
     id serial [pk]
 
     account_id integer [not null]

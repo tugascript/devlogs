@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-02T06:33:19.511Z
+-- Generated at: 2025-08-02T07:38:51.523Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -285,7 +285,7 @@ CREATE TABLE "account_credentials" (
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
-CREATE TABLE "account_credentials_mcp" (
+CREATE TABLE "account_credentials_mcps" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "account_public_id" uuid NOT NULL,
@@ -621,15 +621,15 @@ CREATE INDEX "account_credentials_account_public_id_client_id_idx" ON "account_c
 
 CREATE UNIQUE INDEX "account_credentials_alias_account_id_uidx" ON "account_credentials" ("alias", "account_id");
 
-CREATE INDEX "account_credentials_mcp_account_id_idx" ON "account_credentials_mcp" ("account_id");
+CREATE INDEX "account_credentials_mcp_account_id_idx" ON "account_credentials_mcps" ("account_id");
 
-CREATE INDEX "account_credentials_mcp_account_public_id_idx" ON "account_credentials_mcp" ("account_public_id");
+CREATE INDEX "account_credentials_mcp_account_public_id_idx" ON "account_credentials_mcps" ("account_public_id");
 
-CREATE UNIQUE INDEX "account_credentials_mcp_account_credentials_id_uidx" ON "account_credentials_mcp" ("account_credentials_id");
+CREATE UNIQUE INDEX "account_credentials_mcp_account_credentials_id_uidx" ON "account_credentials_mcps" ("account_credentials_id");
 
-CREATE INDEX "account_credentials_mcp_account_credentials_client_id_idx" ON "account_credentials_mcp" ("account_credentials_client_id");
+CREATE INDEX "account_credentials_mcp_account_credentials_client_id_idx" ON "account_credentials_mcps" ("account_credentials_client_id");
 
-CREATE UNIQUE INDEX "account_credentials_mcp_account_credentials_id_software_id_uidx" ON "account_credentials_mcp" ("account_credentials_id", "software_id");
+CREATE UNIQUE INDEX "account_credentials_mcp_account_credentials_id_software_id_uidx" ON "account_credentials_mcps" ("account_credentials_id", "software_id");
 
 CREATE INDEX "account_credential_secrets_account_id_idx" ON "account_credentials_secrets" ("account_id");
 
@@ -807,9 +807,9 @@ ALTER TABLE "account_totps" ADD FOREIGN KEY ("totp_id") REFERENCES "totps" ("id"
 
 ALTER TABLE "account_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "account_credentials_mcp" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_credentials_mcps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "account_credentials_mcp" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_credentials_mcps" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
