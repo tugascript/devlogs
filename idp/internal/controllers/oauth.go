@@ -9,8 +9,9 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 	"log/slog"
+
+	"github.com/tugascript/devlogs/idp/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
 

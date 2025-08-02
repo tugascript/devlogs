@@ -8,7 +8,7 @@
 INSERT INTO "apps" (
   "account_id",
   "account_public_id",
-  "type",
+  "app_type",
   "name",
   "client_id",
   "client_uri",
@@ -92,7 +92,7 @@ OFFSET $3 LIMIT $4;
 
 -- name: FilterAppsByTypeAndByAccountPublicIDOrderedByID :many
 SELECT * FROM "apps"
-WHERE "account_public_id" = $1 AND "type" = $2
+WHERE "account_public_id" = $1 AND "app_type" = $2
 ORDER BY "id" DESC
 OFFSET $3 LIMIT $4;
 
@@ -100,7 +100,7 @@ OFFSET $3 LIMIT $4;
 SELECT * FROM "apps"
 WHERE "account_public_id" = $1 AND
   "name" ILIKE $2 AND
-  "type" = $3
+  "app_type" = $3
 ORDER BY "id" DESC
 OFFSET $4 LIMIT $5;
 
@@ -112,7 +112,7 @@ OFFSET $3 LIMIT $4;
 
 -- name: FilterAppsByTypeAndByAccountPublicIDOrderedByName :many
 SELECT * FROM "apps"
-WHERE "account_public_id" = $1 AND "type" = $2
+WHERE "account_public_id" = $1 AND "app_type" = $2
 ORDER BY "name" ASC
 OFFSET $3 LIMIT $4;
 
@@ -120,7 +120,7 @@ OFFSET $3 LIMIT $4;
 SELECT * FROM "apps"
 WHERE "account_public_id" = $1 AND
   "name" ILIKE $2 AND
-  "type" = $3
+  "app_type" = $3
 ORDER BY "name" ASC
 OFFSET $4 LIMIT $5;
 
@@ -131,14 +131,14 @@ LIMIT 1;
 
 -- name: CountFilteredAppsByTypeAndByAccountPublicID :one
 SELECT COUNT(*) FROM "apps"
-WHERE "account_public_id" = $1 AND "type" = $2
+WHERE "account_public_id" = $1 AND "app_type" = $2
 LIMIT 1;
 
 -- name: CountFilteredAppsByNameAndTypeAndByAccountPublicID :one
 SELECT COUNT(*) FROM "apps"
 WHERE "account_public_id" = $1 AND
   "name" ILIKE $2 AND
-  "type" = $3
+  "app_type" = $3
 LIMIT 1;
 
 -- name: UpdateAppVersion :one

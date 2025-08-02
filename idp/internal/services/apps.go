@@ -354,7 +354,7 @@ func (s *Services) FilterAccountAppsByType(
 		apps, err = s.database.FilterAppsByTypeAndByAccountPublicIDOrderedByID(ctx,
 			database.FilterAppsByTypeAndByAccountPublicIDOrderedByIDParams{
 				AccountPublicID: opts.AccountPublicID,
-				Type:            appType,
+				AppType:         appType,
 				Offset:          opts.Offset,
 				Limit:           opts.Limit,
 			},
@@ -363,7 +363,7 @@ func (s *Services) FilterAccountAppsByType(
 		apps, err = s.database.FilterAppsByTypeAndByAccountPublicIDOrderedByName(ctx,
 			database.FilterAppsByTypeAndByAccountPublicIDOrderedByNameParams{
 				AccountPublicID: opts.AccountPublicID,
-				Type:            appType,
+				AppType:         appType,
 				Offset:          opts.Offset,
 				Limit:           opts.Limit,
 			},
@@ -377,7 +377,7 @@ func (s *Services) FilterAccountAppsByType(
 	count, err := s.database.CountFilteredAppsByTypeAndByAccountPublicID(ctx,
 		database.CountFilteredAppsByTypeAndByAccountPublicIDParams{
 			AccountPublicID: opts.AccountPublicID,
-			Type:            appType,
+			AppType:         appType,
 		},
 	)
 	if err != nil {
@@ -433,7 +433,7 @@ func (s *Services) FilterAccountAppsByNameAndType(
 				Name:            name,
 				Offset:          opts.Offset,
 				Limit:           opts.Limit,
-				Type:            appType,
+				AppType:         appType,
 			},
 		)
 	case "name":
@@ -443,7 +443,7 @@ func (s *Services) FilterAccountAppsByNameAndType(
 				Name:            name,
 				Offset:          opts.Offset,
 				Limit:           opts.Limit,
-				Type:            appType,
+				AppType:         appType,
 			},
 		)
 	default:
@@ -459,7 +459,7 @@ func (s *Services) FilterAccountAppsByNameAndType(
 		database.CountFilteredAppsByNameAndTypeAndByAccountPublicIDParams{
 			AccountPublicID: opts.AccountPublicID,
 			Name:            name,
-			Type:            appType,
+			AppType:         appType,
 		},
 	)
 	if err != nil {
@@ -558,7 +558,7 @@ func (s *Services) createApp(
 	app, err := qrs.CreateApp(ctx, database.CreateAppParams{
 		AccountID:       opts.accountID,
 		AccountPublicID: opts.accountPublicID,
-		Type:            opts.appType,
+		AppType:         opts.appType,
 		Name:            opts.name,
 		ClientID:        clientID,
 		ClientUri:       utils.ProcessURL(opts.clientURI),
@@ -1255,7 +1255,7 @@ func (s *Services) CreateDeviceApp(
 		app, err := s.database.CreateApp(ctx, database.CreateAppParams{
 			AccountID:       accountID,
 			AccountPublicID: opts.AccountPublicID,
-			Type:            database.AppTypeDevice,
+			AppType:         database.AppTypeDevice,
 			Name:            name,
 			UsernameColumn:  usernameColumn,
 			ClientID:        clientID,
@@ -1290,7 +1290,7 @@ func (s *Services) CreateDeviceApp(
 	}
 
 	for _, ra := range relatedApps {
-		if ra.Type != database.AppTypeWeb && ra.Type != database.AppTypeSpa {
+		if ra.AppType != database.AppTypeWeb && ra.AppType != database.AppTypeSpa {
 			logger.WarnContext(ctx, "Related app is not a web or spa app", "appID", ra.ID)
 			return dtos.AppDTO{}, exceptions.NewValidationError("Related app must be a web or SPA app")
 		}
@@ -1309,7 +1309,7 @@ func (s *Services) CreateDeviceApp(
 	app, err := qrs.CreateApp(ctx, database.CreateAppParams{
 		AccountID:       accountID,
 		AccountPublicID: opts.AccountPublicID,
-		Type:            database.AppTypeDevice,
+		AppType:         database.AppTypeDevice,
 		Name:            name,
 		UsernameColumn:  usernameColumn,
 		ClientID:        clientID,
@@ -1670,7 +1670,7 @@ func (s *Services) updateAppWithAuthCodeConfig(
 	logger := s.buildLogger(opts.requestID, appsLocation, "updateAppWithAuthCodeConfig").With(
 		"appID", appDTO.ID(),
 		"appName", appDTO.Name,
-		"appType", appDTO.Type,
+		"appType", appDTO.AppType,
 	)
 	logger.InfoContext(ctx, "Updating app with auth code config...")
 
@@ -2147,7 +2147,7 @@ func (s *Services) UpdateDeviceApp(
 		}
 
 		for _, ra := range toAddApps {
-			if ra.Type != database.AppTypeWeb && ra.Type != database.AppTypeSpa {
+			if ra.AppType != database.AppTypeWeb && ra.AppType != database.AppTypeSpa {
 				logger.WarnContext(ctx, "Related app is not a web or spa app", "appID", ra.ID)
 				return dtos.AppDTO{}, exceptions.NewValidationError("Related app must be a web or SPA app")
 			}
@@ -2331,7 +2331,7 @@ func (s *Services) GetAppWithRelatedConfigs(
 		return dtos.AppDTO{}, exceptions.FromDBError(err)
 	}
 
-	switch app.Type {
+	switch app.AppType {
 	case database.AppTypeWeb, database.AppTypeSpa, database.AppTypeNative:
 		authCodeConfig, err := s.database.FindAppAuthCodeConfig(ctx, app.ID)
 		if err != nil {
@@ -2339,11 +2339,11 @@ func (s *Services) GetAppWithRelatedConfigs(
 			return dtos.AppDTO{}, exceptions.FromDBError(err)
 		}
 
-		if app.Type == database.AppTypeWeb {
+		if app.AppType == database.AppTypeWeb {
 			logger.InfoContext(ctx, "Found app auth code config for web app")
 			return dtos.MapWebAppToDTO(&app, &authCodeConfig), nil
 		}
-		if app.Type == database.AppTypeSpa {
+		if app.AppType == database.AppTypeSpa {
 			logger.InfoContext(ctx, "Found app auth code config for spa app")
 			return dtos.MapSPAAppToDTO(&app, &authCodeConfig), nil
 		}
@@ -2372,7 +2372,7 @@ func (s *Services) GetAppWithRelatedConfigs(
 		}
 		return dtos.MapServiceAppToDTO(&app, &serviceConfig), nil
 	default:
-		logger.ErrorContext(ctx, "Invalid app type", "appType", app.Type)
+		logger.ErrorContext(ctx, "Invalid app type", "appType", app.AppType)
 		return dtos.AppDTO{}, exceptions.NewInternalServerError()
 	}
 }
@@ -2500,7 +2500,7 @@ func (s *Services) ListAppCredentialsSecretsOrKeys(
 	if serviceErr != nil {
 		return nil, 0, serviceErr
 	}
-	switch appDTO.Type {
+	switch appDTO.AppType {
 	case database.AppTypeSpa, database.AppTypeNative, database.AppTypeDevice:
 		return nil, 0, exceptions.NewConflictError("App type does not support secrets or keys")
 	case database.AppTypeBackend, database.AppTypeService:
@@ -2535,7 +2535,7 @@ func (s *Services) ListAppCredentialsSecretsOrKeys(
 		logger.WarnContext(ctx, "No auth method to list secrets or keys")
 		return nil, 0, exceptions.NewConflictError("No auth method to list secrets")
 	default:
-		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.Type)
+		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.AppType)
 		return nil, 0, exceptions.NewInternalServerError()
 	}
 }
@@ -2644,7 +2644,7 @@ func (s *Services) GetAppCredentialsSecretOrKey(
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
-	switch appDTO.Type {
+	switch appDTO.AppType {
 	case database.AppTypeSpa, database.AppTypeNative, database.AppTypeDevice:
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
 	case database.AppTypeBackend, database.AppTypeService, database.AppTypeWeb:
@@ -2667,7 +2667,7 @@ func (s *Services) GetAppCredentialsSecretOrKey(
 		logger.WarnContext(ctx, "No auth method to get secret or key")
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("No auth method to get secrets")
 	default:
-		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.Type)
+		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.AppType)
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewInternalServerError()
 	}
 }
@@ -2774,7 +2774,7 @@ func (s *Services) RevokeAppCredentialsSecretOrKey(
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
-	switch appDTO.Type {
+	switch appDTO.AppType {
 	case database.AppTypeSpa, database.AppTypeNative, database.AppTypeDevice:
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
 	case database.AppTypeBackend, database.AppTypeService, database.AppTypeWeb:
@@ -2797,7 +2797,7 @@ func (s *Services) RevokeAppCredentialsSecretOrKey(
 		logger.WarnContext(ctx, "No auth method to revoke secret or key")
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("No auth method to revoke secrets")
 	default:
-		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.Type)
+		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.AppType)
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewInternalServerError()
 	}
 }
@@ -2957,7 +2957,7 @@ func (s *Services) RotateAppCredentialsSecretOrKey(
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
-	switch appDTO.Type {
+	switch appDTO.AppType {
 	case database.AppTypeSpa, database.AppTypeNative, database.AppTypeDevice:
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("App type does not support secrets or keys")
 	case database.AppTypeBackend, database.AppTypeService, database.AppTypeWeb:
@@ -2982,7 +2982,7 @@ func (s *Services) RotateAppCredentialsSecretOrKey(
 		logger.WarnContext(ctx, "No auth method to rotate secret or key")
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewConflictError("No auth method to rotate secrets")
 	default:
-		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.Type)
+		logger.ErrorContext(ctx, "Invalid app type", "appType", appDTO.AppType)
 		return dtos.ClientCredentialsSecretDTO{}, exceptions.NewInternalServerError()
 	}
 }

@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-07-28T07:47:40.659Z
+-- Generated at: 2025-08-02T06:33:19.511Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -51,11 +51,22 @@ CREATE TYPE "credentials_usage" AS ENUM (
   'user'
 );
 
+CREATE TYPE "code_challenge_method" AS ENUM (
+  'none',
+  'plain',
+  'S256'
+);
+
 CREATE TYPE "auth_method" AS ENUM (
   'none',
   'client_secret_basic',
   'client_secret_post',
   'private_key_jwt'
+);
+
+CREATE TYPE "response_type" AS ENUM (
+  'code',
+  'token'
 );
 
 CREATE TYPE "account_credentials_scope" AS ENUM (
@@ -67,6 +78,11 @@ CREATE TYPE "account_credentials_scope" AS ENUM (
   'account:credentials:read',
   'account:credentials:write',
   'account:auth_providers:read'
+);
+
+CREATE TYPE "account_credentials_type" AS ENUM (
+  'client',
+  'mcp'
 );
 
 CREATE TYPE "auth_provider" AS ENUM (
@@ -99,8 +115,7 @@ CREATE TYPE "claims" AS ENUM (
   'phone_number',
   'phone_number_verified',
   'address',
-  'updated_at',
-  'user_roles'
+  'updated_at'
 );
 
 CREATE TYPE "scopes" AS ENUM (
@@ -108,9 +123,7 @@ CREATE TYPE "scopes" AS ENUM (
   'email',
   'profile',
   'address',
-  'phone',
-  'user_roles',
-  'account:users:authenticate'
+  'phone'
 );
 
 CREATE TYPE "app_type" AS ENUM (
@@ -119,7 +132,8 @@ CREATE TYPE "app_type" AS ENUM (
   'spa',
   'backend',
   'device',
-  'service'
+  'service',
+  'mcp'
 );
 
 CREATE TYPE "app_username_column" AS ENUM (
@@ -136,10 +150,10 @@ CREATE TYPE "grant_type" AS ENUM (
   'urn:ietf:params:oauth:grant-type:jwt-bearer'
 );
 
-CREATE TYPE "code_challenge_method" AS ENUM (
-  'none',
-  'plain',
-  'S256'
+CREATE TYPE "app_profile_type" AS ENUM (
+  'human',
+  'machine',
+  'ai_agent'
 );
 
 CREATE TABLE "key_encryption_keys" (
@@ -260,11 +274,29 @@ CREATE TABLE "account_credentials" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "account_public_id" uuid NOT NULL,
+  "credentials_type" account_credentials_type NOT NULL,
   "scopes" account_credentials_scope[] NOT NULL,
   "auth_methods" auth_method[] NOT NULL,
   "issuers" varchar(250)[] NOT NULL,
-  "alias" varchar(50) NOT NULL,
+  "code_challenge_method" code_challenge_method NOT NULL,
+  "alias" varchar(100) NOT NULL,
   "client_id" varchar(22) NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "account_credentials_mcp" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "account_public_id" uuid NOT NULL,
+  "account_credentials_id" integer NOT NULL,
+  "account_credentials_client_id" varchar(22) NOT NULL,
+  "client_uri" varchar(250) NOT NULL,
+  "logo_uri" varchar(250),
+  "policy_uri" varchar(250),
+  "tos_uri" varchar(250),
+  "software_id" varchar(250) NOT NULL,
+  "software_version" varchar(250),
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -302,7 +334,8 @@ CREATE TABLE "oidc_configs" (
   "account_id" integer NOT NULL,
   "claims_supported" claims[] NOT NULL DEFAULT '{ "sub", "email", "email_verified", "given_name", "family_name" }',
   "scopes_supported" scopes[] NOT NULL DEFAULT '{ "openid", "email", "profile" }',
-  "user_roles_supported" varchar(50)[] NOT NULL DEFAULT '{ "user", "staff", "admin" }',
+  "custom_claims" varchar(250)[] NOT NULL DEFAULT '{}',
+  "custom_scopes" varchar(250)[] NOT NULL DEFAULT '{}',
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -323,7 +356,6 @@ CREATE TABLE "users" (
   "password" text,
   "version" integer NOT NULL DEFAULT 1,
   "email_verified" boolean NOT NULL DEFAULT false,
-  "user_roles" varchar(50)[] NOT NULL DEFAULT '{ "user" }',
   "is_active" boolean NOT NULL DEFAULT true,
   "two_factor_type" two_factor_type NOT NULL DEFAULT 'none',
   "user_data" jsonb NOT NULL DEFAULT '{}',
@@ -392,8 +424,8 @@ CREATE TABLE "apps" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "account_public_id" uuid NOT NULL,
-  "type" app_type NOT NULL,
-  "name" varchar(50) NOT NULL,
+  "app_type" app_type NOT NULL,
+  "name" varchar(100) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "version" integer NOT NULL DEFAULT 1,
   "client_uri" varchar(250) NOT NULL,
@@ -402,11 +434,14 @@ CREATE TABLE "apps" (
   "policy_uri" varchar(250),
   "software_id" varchar(250),
   "software_version" varchar(250),
+  "response_types" response_type[] NOT NULL,
   "auth_methods" auth_method[] NOT NULL,
   "grant_types" grant_type[] NOT NULL,
   "default_scopes" scopes[] NOT NULL DEFAULT '{ "openid", "email" }',
   "auth_providers" auth_provider[] NOT NULL DEFAULT '{ "username_password" }',
   "username_column" app_username_column NOT NULL,
+  "custom_claims" varchar(250)[] NOT NULL DEFAULT '{}',
+  "custom_scopes" varchar(250)[] NOT NULL DEFAULT '{}',
   "id_token_ttl" integer NOT NULL DEFAULT 3600,
   "token_ttl" integer NOT NULL DEFAULT 900,
   "refresh_token_ttl" integer NOT NULL DEFAULT 259200,
@@ -491,6 +526,8 @@ CREATE TABLE "app_profiles" (
   "account_id" integer NOT NULL,
   "user_id" integer NOT NULL,
   "app_id" integer NOT NULL,
+  "profile_type" app_profile_type NOT NULL,
+  "profile_data" jsonb NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -584,6 +621,16 @@ CREATE INDEX "account_credentials_account_public_id_client_id_idx" ON "account_c
 
 CREATE UNIQUE INDEX "account_credentials_alias_account_id_uidx" ON "account_credentials" ("alias", "account_id");
 
+CREATE INDEX "account_credentials_mcp_account_id_idx" ON "account_credentials_mcp" ("account_id");
+
+CREATE INDEX "account_credentials_mcp_account_public_id_idx" ON "account_credentials_mcp" ("account_public_id");
+
+CREATE UNIQUE INDEX "account_credentials_mcp_account_credentials_id_uidx" ON "account_credentials_mcp" ("account_credentials_id");
+
+CREATE INDEX "account_credentials_mcp_account_credentials_client_id_idx" ON "account_credentials_mcp" ("account_credentials_client_id");
+
+CREATE UNIQUE INDEX "account_credentials_mcp_account_credentials_id_software_id_uidx" ON "account_credentials_mcp" ("account_credentials_id", "software_id");
+
 CREATE INDEX "account_credential_secrets_account_id_idx" ON "account_credentials_secrets" ("account_id");
 
 CREATE INDEX "account_credential_secrets_account_public_id_idx" ON "account_credentials_secrets" ("account_public_id");
@@ -676,7 +723,7 @@ CREATE INDEX "user_credentials_keys_user_public_id_idx" ON "user_credentials_key
 
 CREATE INDEX "apps_account_id_idx" ON "apps" ("account_id");
 
-CREATE INDEX "apps_type_idx" ON "apps" ("type");
+CREATE INDEX "apps_app_type_idx" ON "apps" ("app_type");
 
 CREATE UNIQUE INDEX "apps_client_id_uidx" ON "apps" ("client_id");
 
@@ -688,7 +735,7 @@ CREATE INDEX "apps_name_idx" ON "apps" ("name");
 
 CREATE UNIQUE INDEX "apps_account_id_name_uidx" ON "apps" ("account_id", "name");
 
-CREATE INDEX "apps_account_id_type_idx" ON "apps" ("account_id", "type");
+CREATE INDEX "apps_account_id_app_type_idx" ON "apps" ("account_id", "app_type");
 
 CREATE INDEX "app_secrets_app_id_idx" ON "app_secrets" ("app_id");
 
@@ -759,6 +806,10 @@ ALTER TABLE "account_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts"
 ALTER TABLE "account_totps" ADD FOREIGN KEY ("totp_id") REFERENCES "totps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_credentials_mcp" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_credentials_mcp" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

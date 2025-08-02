@@ -268,17 +268,53 @@ Table account_totps as AT {
 Ref: AT.account_id > A.id [delete: cascade]
 Ref: AT.totp_id > TP.id [delete: cascade]
 
+Enum code_challenge_method {
+    "none"
+    "plain"
+    "S256"
+}
+
+Enum auth_method {
+    "none"
+    "client_secret_basic"
+    "client_secret_post"
+    "private_key_jwt"
+}
+
+Enum response_type {
+    "code"
+    "token"
+}
+
+Enum account_credentials_scope {
+    "account:admin"
+    "account:users:read"
+    "account:users:write"
+    "account:apps:read"
+    "account:apps:write"
+    "account:credentials:read"
+    "account:credentials:write"
+    "account:auth_providers:read"
+}
+
+Enum account_credentials_type {
+    "client"
+    "mcp"
+}
+
 Table account_credentials as AC {
     id serial [pk]
 
     account_id integer [not null]
     account_public_id uuid [not null]
 
+    credentials_type account_credentials_type [not null]
     scopes "account_credentials_scope[]" [not null]
     auth_methods "auth_method[]" [not null]
     issuers "varchar(250)[]" [not null]
+    code_challenge_method code_challenge_method [not null]
 
-    alias varchar(50) [not null]
+    alias varchar(100) [not null]
     client_id varchar(22) [not null]
 
     created_at timestamptz [not null, default: `now()`]
@@ -293,6 +329,35 @@ Table account_credentials as AC {
     }
 }
 Ref: AC.account_id > A.id [delete: cascade]
+
+Table account_credentials_mcp as ACM {
+    id serial [pk]
+
+    account_id integer [not null]
+    account_public_id uuid [not null]
+    account_credentials_id integer [not null]
+    account_credentials_client_id varchar(22) [not null]
+
+    client_uri varchar(250) [not null]
+    logo_uri varchar(250) [null]
+    policy_uri varchar(250) [null]
+    tos_uri varchar(250) [null]
+    software_id varchar(250) [not null]
+    software_version varchar(250) [null]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'account_credentials_mcp_account_id_idx']
+        (account_public_id) [name: 'account_credentials_mcp_account_public_id_idx']
+        (account_credentials_id) [unique, name: 'account_credentials_mcp_account_credentials_id_uidx']
+        (account_credentials_client_id) [name: 'account_credentials_mcp_account_credentials_client_id_idx']
+        (account_credentials_id, software_id) [unique, name: 'account_credentials_mcp_account_credentials_id_software_id_uidx']
+    }
+}
+Ref: ACM.account_id > A.id [delete: cascade]
+Ref: ACM.account_credentials_id > AC.id [delete: cascade]
 
 Table account_credentials_secrets as ACS {
     account_id integer [not null]
@@ -337,23 +402,6 @@ Ref: ACK.account_id > A.id [delete: cascade]
 Ref: ACK.account_credentials_id > AC.id [delete: cascade]
 Ref: ACK.credentials_key_id > CK.id [delete: cascade]
 
-Enum auth_method {
-    "none"
-    "client_secret_basic"
-    "client_secret_post"
-    "private_key_jwt"
-}
-
-Enum account_credentials_scope {
-    "account:admin"
-    "account:users:read"
-    "account:users:write"
-    "account:apps:read"
-    "account:apps:write"
-    "account:credentials:read"
-    "account:credentials:write"
-    "account:auth_providers:read"
-}
 
 Enum auth_provider {
     "username_password"
@@ -405,7 +453,6 @@ Enum claims {
     "phone_number_verified"
     "address"
     "updated_at"
-    "user_roles"
 }
 
 Enum scopes {
@@ -414,8 +461,6 @@ Enum scopes {
     "profile"
     "address"
     "phone"
-    "user_roles"
-    "account:users:authenticate"
 }
 
 Table oidc_configs as OIDC {
@@ -425,7 +470,8 @@ Table oidc_configs as OIDC {
 
     claims_supported "claims[]" [not null, default: '{ "sub", "email", "email_verified", "given_name", "family_name" }']
     scopes_supported "scopes[]" [not null, default: '{ "openid", "email", "profile" }']
-    user_roles_supported "varchar(50)[]" [not null, default: '{ "user", "staff", "admin" }']
+    custom_claims "varchar(250)[]" [not null, default: '{}']
+    custom_scopes "varchar(250)[]" [not null, default: '{}']
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -462,7 +508,6 @@ Table users as U {
     password text
     version integer [not null, default: 1]
     email_verified boolean [not null, default: false]
-    user_roles "varchar(50)[]" [not null, default: '{ "user" }']
 
     is_active boolean [not null, default: true]
     two_factor_type two_factor_type [not null, default: 'none']
@@ -501,8 +546,8 @@ Ref: UDEK.user_id > U.id [delete: cascade]
 Ref: UDEK.data_encryption_key_id > DEK.id [delete: cascade]
 
 Table user_totps as UT {
-     user_id integer [not null]
-     totp_id integer [not null]
+    user_id integer [not null]
+    totp_id integer [not null]
 
     account_id integer [not null]
     created_at timestamptz [not null, default: `now()`]
@@ -620,6 +665,7 @@ Enum app_type {
     "backend" // Backend apps
     "device" // Device apps
     "service" // Service apps
+    "mcp" // Model Context Protocol apps
 }
 
 Enum app_username_column {
@@ -642,8 +688,8 @@ Table apps as APP {
 
     account_public_id uuid [not null]
 
-    type app_type [not null]
-    name varchar(50) [not null]
+    app_type app_type [not null]
+    name varchar(100) [not null]
     client_id varchar(22) [not null]
     version integer [not null, default: 1]
 
@@ -656,11 +702,14 @@ Table apps as APP {
     software_version varchar(250) [null]
 
     // Common on all OAuth2 apps
+    response_types "response_type[]" [not null]
     auth_methods "auth_method[]" [not null]
     grant_types "grant_type[]" [not null]
     default_scopes "scopes[]" [not null, default: '{ "openid", "email" }']
     auth_providers "auth_provider[]" [not null, default: '{ "username_password" }']
     username_column app_username_column [not null]
+    custom_claims "varchar(250)[]" [not null, default: '{}']
+    custom_scopes "varchar(250)[]" [not null, default: '{}']
 
     // Tokens TTLs
     id_token_ttl integer [not null, default: 3600] // 1 hour
@@ -672,13 +721,13 @@ Table apps as APP {
 
     Indexes {
         (account_id) [name: 'apps_account_id_idx']
-        (type) [name: 'apps_type_idx']
+        (app_type) [name: 'apps_app_type_idx']
         (client_id) [unique, name: 'apps_client_id_uidx']
         (client_id, account_public_id) [name: 'apps_client_id_account_public_id_idx']
         (account_public_id) [name: 'apps_account_public_id_idx']
         (name) [name: 'apps_name_idx']
         (account_id, name) [unique, name: 'apps_account_id_name_uidx']
-        (account_id, type) [name: 'apps_account_id_type_idx']
+        (account_id, app_type) [name: 'apps_account_id_app_type_idx']
     }
 }
 Ref: APP.account_id > A.id [delete: cascade]
@@ -721,12 +770,6 @@ Table app_keys as APK {
 Ref: APK.account_id > A.id [delete: cascade]
 Ref: APK.app_id > APP.id [delete: cascade]
 Ref: APK.credentials_key_id > CK.id [delete: cascade]
-
-Enum code_challenge_method {
-    "none"
-    "plain"
-    "S256"
-}
 
 Table app_auth_code_configs as AACC {
     id serial [pk]
@@ -835,12 +878,20 @@ Table app_designs as AD {
 Ref: AD.account_id > A.id [delete: cascade]
 Ref: AD.app_id > APP.id [delete: cascade]
 
+Enum app_profile_type {
+    "human"
+    "machine"
+    "ai_agent"
+}
+
 Table app_profiles as AUP {
     id serial [pk]
 
     account_id integer [not null]
     user_id integer [not null]
     app_id integer [not null]
+    profile_type app_profile_type [not null]
+    profile_data jsonb [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]

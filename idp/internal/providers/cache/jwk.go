@@ -95,7 +95,7 @@ func buildJWKPrivateKeyKey(cryptoSuite utils.SupportedCryptoSuite, suffix string
 }
 
 func encodeJWKPrivateKeyData(kid string, encPrivKey string) []byte {
-	return []byte(fmt.Sprintf("%s::%s", kid, encPrivKey))
+	return fmt.Appendf(nil, "%s::%s", kid, encPrivKey)
 }
 
 func decodeJWKPrivateKeyData(data []byte) (string, string, error) {

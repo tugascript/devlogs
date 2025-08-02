@@ -12,11 +12,15 @@ WHERE "account_id" = $1;
 INSERT INTO "oidc_configs" (
     "account_id",
     "claims_supported",
-    "scopes_supported"
+    "scopes_supported",
+    "custom_claims",
+    "custom_scopes"
 ) VALUES (
     $1,
     $2,
-    $3
+    $3,
+    $4,
+    $5
 ) RETURNING *;
 
 -- name: CreateDefaultOIDCConfig :one
@@ -35,7 +39,8 @@ LIMIT 1;
 UPDATE "oidc_configs" SET
     "claims_supported" = $2,
     "scopes_supported" = $3,
-    "user_roles_supported" = $4,
+    "custom_claims" = $4,
+    "custom_scopes" = $5,
     "updated_at" = now()
 WHERE "id" = $1
 RETURNING *;

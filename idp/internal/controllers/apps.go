@@ -765,7 +765,7 @@ func (c *Controllers) UpdateApp(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	switch appDTO.Type {
+	switch appDTO.AppType {
 	case database.AppTypeWeb:
 		return c.updateWebApp(ctx, requestID, &accountClaims, &appDTO, body)
 	case database.AppTypeSpa:
@@ -779,7 +779,7 @@ func (c *Controllers) UpdateApp(ctx *fiber.Ctx) error {
 	case database.AppTypeService:
 		return c.updateServiceApp(ctx, requestID, &accountClaims, &appDTO, body)
 	default:
-		logger.ErrorContext(ctx.UserContext(), "Invalid app type", "appType", appDTO.Type)
+		logger.ErrorContext(ctx.UserContext(), "Invalid app type", "appType", appDTO.AppType)
 		return serviceErrorResponse(logger, ctx, exceptions.NewInternalServerError())
 	}
 }

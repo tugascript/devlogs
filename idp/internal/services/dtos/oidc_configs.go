@@ -6,9 +6,10 @@ import (
 )
 
 type OIDCConfigDTO struct {
-	ClaimsSupported    []database.Claims `json:"claims_supported"`
-	ScopesSupported    []database.Scopes `json:"scopes_supported"`
-	UserRolesSupported []string          `json:"user_roles_supported"`
+	ClaimsSupported []database.Claims `json:"claims_supported"`
+	ScopesSupported []database.Scopes `json:"scopes_supported"`
+	CustomClaims    []string          `json:"custom_claims"`
+	CustomScopes    []string          `json:"custom_scopes"`
 
 	id int32
 }
@@ -19,9 +20,10 @@ func (u *OIDCConfigDTO) ID() int32 {
 
 func MapOIDCConfigToDTO(oidcConfig *database.OidcConfig) (OIDCConfigDTO, *exceptions.ServiceError) {
 	return OIDCConfigDTO{
-		ClaimsSupported:    oidcConfig.ClaimsSupported,
-		ScopesSupported:    oidcConfig.ScopesSupported,
-		UserRolesSupported: oidcConfig.UserRolesSupported,
-		id:                 oidcConfig.ID,
+		ClaimsSupported: oidcConfig.ClaimsSupported,
+		ScopesSupported: oidcConfig.ScopesSupported,
+		CustomClaims:    oidcConfig.CustomClaims,
+		CustomScopes:    oidcConfig.CustomScopes,
+		id:              oidcConfig.ID,
 	}, nil
 }
