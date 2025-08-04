@@ -18,20 +18,22 @@ const (
 	oauthStateLocation string = "oauth_state"
 )
 
+func buildOAuthStateKey(state string) string {
+	return oauthStatePrefix + ":" + utils.Sha256HashHex([]byte(state))
+}
+
 type SaveOAuthStateDataOptions struct {
-	RequestID       string
-	State           string
-	Provider        string
-	RequestState    string
-	Challenge       string
-	ChallengeMethod string
+	RequestID    string
+	State        string
+	Provider     string
+	RequestState string
+	Challenge    string
 }
 
 type OAuthStateData struct {
-	Provider        string `json:"provider"`
-	RequestState    string `json:"request_state"`
-	Challenge       string `json:"challenge"`
-	ChallengeMethod string `json:"challenge_method"`
+	Provider     string `json:"provider"`
+	RequestState string `json:"request_state"`
+	Challenge    string `json:"challenge"`
 }
 
 func (c *Cache) SaveOAuthStateData(ctx context.Context, opts SaveOAuthStateDataOptions) error {
@@ -43,10 +45,9 @@ func (c *Cache) SaveOAuthStateData(ctx context.Context, opts SaveOAuthStateDataO
 	logger.DebugContext(ctx, "Adding OAuth state...")
 
 	data := OAuthStateData{
-		Provider:        opts.Provider,
-		RequestState:    opts.RequestState,
-		Challenge:       opts.Challenge,
-		ChallengeMethod: opts.ChallengeMethod,
+		Provider:     opts.Provider,
+		RequestState: opts.RequestState,
+		Challenge:    opts.Challenge,
 	}
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
@@ -55,7 +56,7 @@ func (c *Cache) SaveOAuthStateData(ctx context.Context, opts SaveOAuthStateDataO
 	}
 
 	return c.storage.Set(
-		oauthStatePrefix+":"+opts.State,
+		buildOAuthStateKey(opts.State),
 		dataBytes,
 		c.oauthStateTTL,
 	)
@@ -76,7 +77,7 @@ func (c *Cache) GetOAuthState(
 		RequestID: opts.RequestID,
 	})
 	logger.DebugContext(ctx, "Getting OAuth state...")
-	key := oauthStatePrefix + ":" + opts.State
+	key := buildOAuthStateKey(opts.State)
 	valByte, err := c.storage.Get(key)
 
 	if err != nil {

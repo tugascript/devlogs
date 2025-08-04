@@ -93,6 +93,11 @@ func Sha256HashHex(bytes []byte) string {
 	return hex.EncodeToString(hash[:])
 }
 
+func Sha256HashBase64(bytes []byte) string {
+	hash := sha256.Sum256(bytes)
+	return base64.RawURLEncoding.EncodeToString(hash[:])
+}
+
 func CompareSha256(a, b []byte) bool {
 	if len(a) != len(b) {
 		return false
