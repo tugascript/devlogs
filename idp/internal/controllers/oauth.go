@@ -36,15 +36,24 @@ func (c *Controllers) AccountOAuthURL(ctx *fiber.Ctx) error {
 	logger := c.buildLogger(requestID, oauthLocation, "AccountOAuthURL")
 	logRequest(logger, ctx)
 
-	urlParams := params.OAuthURLParams{Provider: ctx.Params("provider")}
-	if err := c.validate.StructCtx(ctx.UserContext(), urlParams); err != nil {
-		return validateURLParamsErrorResponse(logger, ctx, err)
+	qPrms := params.OAuthQueryParams{
+		ClientID:        ctx.Query("client_id"),
+		ResponseType:    ctx.Query("response_type"),
+		Challenge:       ctx.Query("code_challenge"),
+		ChallengeMethod: ctx.Query("code_challenge_method"),
+		State:           ctx.Query("state"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), qPrms); err != nil {
+		return validateQueryParamsErrorResponse(logger, ctx, err)
 	}
 
 	url, serviceErr := c.services.AccountOAuthURL(ctx.UserContext(), services.AccountOAuthURLOptions{
-		RequestID:   requestID,
-		Provider:    urlParams.Provider,
-		RedirectURL: formatAccountRedirectURL(c.backendDomain, urlParams.Provider),
+		RequestID:       requestID,
+		Provider:        qPrms.ClientID,
+		RedirectURL:     formatAccountRedirectURL(c.backendDomain, qPrms.ClientID),
+		Challenge:       qPrms.Challenge,
+		ChallengeMethod: qPrms.ChallengeMethod,
+		State:           qPrms.State,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -164,27 +173,6 @@ func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
 	return c.acceptCallback(logger, ctx, oauthParams)
 }
 
-func (c *Controllers) processAccountOAuthHeader(ctx *fiber.Ctx) *exceptions.ServiceError {
-	authHeader := ctx.Get("Authorization")
-	if authHeader == "" {
-		return exceptions.NewUnauthorizedError()
-	}
-
-	accountClaims, serviceErr := c.services.ProcessOAuthHeader(
-		ctx.UserContext(),
-		services.ProcessAuthHeaderOptions{
-			RequestID:  getRequestID(ctx),
-			AuthHeader: authHeader,
-		},
-	)
-	if serviceErr != nil {
-		return serviceErr
-	}
-
-	ctx.Locals("account", accountClaims)
-	return nil
-}
-
 func oauthErrorResponseMapper(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *exceptions.ServiceError) error {
 	switch serviceErr.Code {
 	case exceptions.CodeUnauthorized:
@@ -214,32 +202,20 @@ func oauthClientCredentialsErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, se
 func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, oauthLocation, "accountAuthorizationCodeToken")
 
-	if serviceErr := c.processAccountOAuthHeader(ctx); serviceErr != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
-	}
-
-	account, serviceErr := getAccountClaims(ctx)
-	if serviceErr != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
-	}
-
-	body := bodies.AuthCodeLoginBody{
-		GrantType:   ctx.FormValue("grant_type"),
-		RedirectURI: ctx.FormValue("redirect_uri"),
-		Code:        ctx.FormValue("code"),
+	body := bodies.OAuthCodeLoginBody{
+		ClientID:     ctx.FormValue("client_id"),
+		GrantType:    ctx.FormValue("grant_type"),
+		Code:         ctx.FormValue("code"),
+		CodeVerifier: ctx.FormValue("code_verifier"),
 	}
 	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
-	if body.RedirectURI != fmt.Sprintf("https://%s/auth/callback", c.frontendDomain) {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
-	}
 
 	authDTO, serviceErr := c.services.OAuthLoginAccount(ctx.UserContext(), services.OAuthLoginAccountOptions{
-		RequestID: requestID,
-		PublicID:  account.AccountID,
-		Version:   account.AccountVersion,
-		Code:      body.Code,
+		RequestID:         requestID,
+		Code:              body.Code,
+		ChallengeVerifier: body.CodeVerifier,
 	})
 	if serviceErr != nil {
 		return oauthErrorResponseMapper(logger, ctx, serviceErr)

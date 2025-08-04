@@ -8,13 +8,15 @@
 INSERT INTO "app_profiles" (
     "account_id",
     "user_id",
-    "app_id"
+    "app_id",
+    "profile_type"
 ) VALUES (
     $1,
     $2,
-    $3
+    $3,
+    $4
 );
 
--- name: FindAppProfileIDByAppIDAndUserID :one
-SELECT "id" FROM "app_profiles"
-WHERE "app_id" = $1 AND "user_id" = $2 LIMIT 1;
+-- name: FindAppProfileByAppIDAndUserID :one
+SELECT * FROM "app_profiles"
+WHERE "app_id" = $1 AND "user_id" = $2;

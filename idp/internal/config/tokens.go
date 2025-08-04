@@ -12,19 +12,16 @@ type TokensConfig struct {
 	refreshTTL            int64
 	confirmTTL            int64
 	resetTTL              int64
-	oAuthTTL              int64
 	twoFATTL              int64
 	appsTTL               int64
 }
 
-func NewTokensConfig(access, accountCredentials, refresh, confirm, reset, oAuth, twoFA, apps int64) TokensConfig {
+func NewTokensConfig(access, accountCredentials, refresh, confirm, reset, twoFA, apps int64) TokensConfig {
 	return TokensConfig{
 		accessTTL:             access,
 		accountCredentialsTTL: accountCredentials,
 		refreshTTL:            refresh,
 		confirmTTL:            confirm,
-		resetTTL:              reset,
-		oAuthTTL:              oAuth,
 		twoFATTL:              twoFA,
 		appsTTL:               apps,
 	}
@@ -50,10 +47,6 @@ func (t TokensConfig) ConfirmTTL() int64 {
 
 func (t TokensConfig) ResetTTL() int64 {
 	return t.resetTTL
-}
-
-func (t TokensConfig) OAuthTTL() int64 {
-	return t.oAuthTTL
 }
 
 func (t TokensConfig) TwoFATTL() int64 {

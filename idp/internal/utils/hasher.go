@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -90,6 +91,13 @@ func Argon2CompareHash(str, hash string) (bool, error) {
 func Sha256HashHex(bytes []byte) string {
 	hash := sha256.Sum256(bytes)
 	return hex.EncodeToString(hash[:])
+}
+
+func CompareSha256(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	return subtle.ConstantTimeCompare(a, b) == 1
 }
 
 func GenerateETag(bytes []byte) string {

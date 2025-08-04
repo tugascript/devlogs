@@ -73,9 +73,9 @@ func processFacebookBirthDate(birthday string) string {
 	return fmt.Sprintf("%s-%s-%s", bdSlice[2], bdSlice[0], bdSlice[1])
 }
 
-func processFacebookLocation(location string) UserLocation {
+func processFacebookLocation(location string) *UserLocation {
 	if location == "" {
-		return UserLocation{}
+		return nil
 	}
 
 	locSlice := strings.Split(location, ", ")
@@ -86,7 +86,7 @@ func processFacebookLocation(location string) UserLocation {
 		region = locSlice[1]
 	}
 
-	return UserLocation{
+	return &UserLocation{
 		City:    locSlice[0],
 		Region:  region,
 		Country: country.Alpha2(),

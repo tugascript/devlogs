@@ -27,7 +27,6 @@ type PurposeTokenType string
 const (
 	PurposeTokenTypeConfirmation PurposeTokenType = "email_verification"
 	PurposeTokenTypeReset        PurposeTokenType = "password_reset"
-	PurposeTokenTypeOAuth        PurposeTokenType = "oauth_code"
 	PurposeTokenTypeTwoFA        PurposeTokenType = "2fa_code"
 )
 
@@ -53,7 +52,6 @@ type Tokens struct {
 	refreshTTL            int64
 	confirmationTTL       int64
 	resetTTL              int64
-	oauthTTL              int64
 	twoFATTL              int64
 }
 
@@ -66,7 +64,6 @@ func NewTokens(
 	refreshTTL int64,
 	confirmationTTL int64,
 	resetTTL int64,
-	oauthTTL int64,
 	twoFATTL int64,
 ) *Tokens {
 	return &Tokens{
@@ -77,7 +74,6 @@ func NewTokens(
 		refreshTTL:            refreshTTL,
 		confirmationTTL:       confirmationTTL,
 		resetTTL:              resetTTL,
-		oauthTTL:              oauthTTL,
 		twoFATTL:              twoFATTL,
 		backendDomain:         backendDomain,
 	}

@@ -22,16 +22,20 @@ func NewValidator(logger *slog.Logger) *validator.Validate {
 		logger.Error("Failed to register slug validator", "error", err)
 		panic(err)
 	}
-	if err := validate.RegisterValidation(scopesValidatorTag, scopesValidator); err != nil {
-		logger.Error("Failed to register scopes validator", "error", err)
-		panic(err)
-	}
 	if err := validate.RegisterValidation(timezoneValidatorTag, timezoneValidator); err != nil {
 		logger.Error("Failed to register timezone validator", "error", err)
 		panic(err)
 	}
 	if err := validate.RegisterValidation(secretOrKeyValidatorTag, secretOrKeyValidator); err != nil {
 		logger.Error("Failed to register secret or key validator", "error", err)
+		panic(err)
+	}
+	if err := validate.RegisterValidation(singleScopeValidatorTag, singleScopeValidator); err != nil {
+		logger.Error("Failed to register single scope validator", "error", err)
+		panic(err)
+	}
+	if err := validate.RegisterValidation(multipleScopeValidatorTag, multipleScopeValidator); err != nil {
+		logger.Error("Failed to register multiple scope validator", "error", err)
 		panic(err)
 	}
 	return validate

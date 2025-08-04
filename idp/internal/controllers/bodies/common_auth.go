@@ -42,12 +42,6 @@ type GrantRefreshTokenBody struct {
 	RefreshToken string `json:"refresh_token" validate:"required,jwt"`
 }
 
-type AuthCodeLoginBody struct {
-	GrantType   string `json:"grant_type" validate:"required,eq=authorization_code"`
-	RedirectURI string `json:"redirect_uri" validate:"required,url"`
-	Code        string `json:"code" validate:"required,min=1,max=30,alphanum"`
-}
-
 type ClientCredentialsBody struct {
 	GrantType    string `json:"grant_type" validate:"required,eq=client_credentials"`
 	Scope        string `json:"scope,omitempty" validate:"omitempty,scopes"`

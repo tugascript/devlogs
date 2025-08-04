@@ -18,6 +18,10 @@ type DistributedCache struct {
 
 	// Well-known URIs related configurations
 	wellKnownOIDCConfigTTL int64
+
+	// OAuth 2.0 related configurations
+	oauthStateTTL int64
+	oauthCodeTTL  int64
 }
 
 func (dc *DistributedCache) KEKTTL() int64 {
@@ -52,10 +56,18 @@ func (dc *DistributedCache) WellKnownOIDCConfigTTL() int64 {
 	return dc.wellKnownOIDCConfigTTL
 }
 
+func (dc *DistributedCache) OAuthStateTTL() int64 {
+	return dc.oauthStateTTL
+}
+
+func (dc *DistributedCache) OAuthCodeTTL() int64 {
+	return dc.oauthCodeTTL
+}
+
 func NewDistributedCache(
 	kekTTL, dekDecTTL, dekEncTTL, publicJWKTTL,
 	privateJWKTTL, publicJWKsTTL, accountUsernameTTL,
-	wellKnownOIDCConfigTTL int64,
+	wellKnownOIDCConfigTTL, oauthStateTTL, oauthCodeTTL int64,
 ) DistributedCache {
 	return DistributedCache{
 		kekTTL:                 kekTTL,
@@ -66,5 +78,7 @@ func NewDistributedCache(
 		publicJWKsTTL:          publicJWKsTTL,
 		accountUsernameTTL:     accountUsernameTTL,
 		wellKnownOIDCConfigTTL: wellKnownOIDCConfigTTL,
+		oauthStateTTL:          oauthStateTTL,
+		oauthCodeTTL:           oauthCodeTTL,
 	}
 }

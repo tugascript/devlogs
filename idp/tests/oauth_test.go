@@ -154,16 +154,16 @@ func callbackBeforeEach(t *testing.T, provider string) (string, string, string) 
 
 	testCache := GetTestCache(t)
 	requestID := uuid.NewString()
-	stateOpts := cache.AddOAuthStateOptions{
+	stateOpts := cache.SaveOAuthStateDataOptions{
 		RequestID: requestID,
 		State:     state,
 		Provider:  provider,
 	}
-	if err := testCache.AddOAuthState(ctx, stateOpts); err != nil {
+	if err := testCache.SaveOAuthStateData(ctx, stateOpts); err != nil {
 		t.Fatalf("Error adding state to cache: %v", err)
 	}
 
-	code, err := testCache.GenerateOAuthCode(ctx, cache.GenerateOAuthOptions{
+	code, err := testCache.GenerateOAuthCode(ctx, cache.GenerateOAuthCodeOptions{
 		RequestID:       requestID,
 		Email:           email,
 		DurationSeconds: GetTestTokens(t).GetOAuthTTL(),
@@ -678,7 +678,7 @@ func TestOAuthToken(t *testing.T) {
 		requestID := uuid.NewString()
 		ctx := context.Background()
 
-		code, err := testCache.GenerateOAuthCode(ctx, cache.GenerateOAuthOptions{
+		code, err := testCache.GenerateOAuthCode(ctx, cache.GenerateOAuthCodeOptions{
 			RequestID:       requestID,
 			Email:           account.Email,
 			DurationSeconds: testTokens.GetOAuthTTL(),

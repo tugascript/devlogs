@@ -116,21 +116,6 @@ func (s *Services) Process2FAAuthHeader(
 	)
 }
 
-func (s *Services) ProcessOAuthHeader(
-	ctx context.Context,
-	opts ProcessAuthHeaderOptions,
-) (tokens.AccountClaims, *exceptions.ServiceError) {
-	return s.processPurposeAuthHeader(
-		ctx,
-		processPurposeAuthHeaderOptions{
-			requestID:    opts.RequestID,
-			authHeader:   opts.AuthHeader,
-			tokenPurpose: tokens.TokenPurposeOAuth,
-			tokenKeyType: database.TokenKeyTypeOauthAuthorization,
-		},
-	)
-}
-
 func (s *Services) GetRefreshTTL() int64 {
 	return s.jwt.GetRefreshTTL()
 }

@@ -589,7 +589,7 @@ func (s *Services) LoginUser(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if _, err := s.database.FindAppProfileIDByAppIDAndUserID(ctx, database.FindAppProfileIDByAppIDAndUserIDParams{
+	if _, err := s.database.FindAppProfileByAppIDAndUserID(ctx, database.FindAppProfileByAppIDAndUserIDParams{
 		AppID:  appDTO.ID(),
 		UserID: userDTO.ID(),
 	}); err != nil {
@@ -848,7 +848,7 @@ func (s *Services) TwoFactorLoginUser(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if _, err := s.database.FindAppProfileIDByAppIDAndUserID(ctx, database.FindAppProfileIDByAppIDAndUserIDParams{
+	if _, err := s.database.FindAppProfileByAppIDAndUserID(ctx, database.FindAppProfileByAppIDAndUserIDParams{
 		AppID:  appDTO.ID(),
 		UserID: userDTO.ID(),
 	}); err != nil {
@@ -1071,7 +1071,7 @@ func (s *Services) RefreshUserAccess(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if _, err := s.database.FindAppProfileIDByAppIDAndUserID(ctx, database.FindAppProfileIDByAppIDAndUserIDParams{
+	if _, err := s.database.FindAppProfileByAppIDAndUserID(ctx, database.FindAppProfileByAppIDAndUserIDParams{
 		AppID:  appDTO.ID(),
 		UserID: userDTO.ID(),
 	}); err != nil {
@@ -1154,7 +1154,7 @@ func (s *Services) ForgotUserPassword(
 		return dtos.MessageDTO{}, serviceErr
 	}
 
-	if _, err := s.database.FindAppProfileIDByAppIDAndUserID(ctx, database.FindAppProfileIDByAppIDAndUserIDParams{
+	if _, err := s.database.FindAppProfileByAppIDAndUserID(ctx, database.FindAppProfileByAppIDAndUserIDParams{
 		AppID:  appDTO.ID(),
 		UserID: userDTO.ID(),
 	}); err != nil {
@@ -1301,7 +1301,7 @@ func (s *Services) ResetUserPassword(
 		return dtos.MessageDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	if _, err := s.database.FindAppProfileIDByAppIDAndUserID(ctx, database.FindAppProfileIDByAppIDAndUserIDParams{
+	if _, err := s.database.FindAppProfileByAppIDAndUserID(ctx, database.FindAppProfileByAppIDAndUserIDParams{
 		AppID:  appDTO.ID(),
 		UserID: userDTO.ID(),
 	}); err != nil {
