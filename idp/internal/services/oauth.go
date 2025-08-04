@@ -8,8 +8,6 @@ package services
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -57,7 +55,7 @@ func (s *Services) AccountOAuthURL(ctx context.Context, opts AccountOAuthURLOpti
 	)
 	logger.InfoContext(ctx, "Getting OAuth authorization url...")
 
-	cm, serviceErr := mapChallengeMethod(opts.ChallengeMethod)
+	challenge, serviceErr := hashChallenge(opts.Challenge, opts.ChallengeMethod)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map challenge method", "serviceErr", serviceErr)
 		return "", serviceErr
@@ -90,12 +88,11 @@ func (s *Services) AccountOAuthURL(ctx context.Context, opts AccountOAuthURLOpti
 	}
 
 	if err := s.cache.SaveOAuthStateData(ctx, cache.SaveOAuthStateDataOptions{
-		RequestID:       opts.RequestID,
-		State:           state,
-		Provider:        opts.Provider,
-		RequestState:    opts.State,
-		Challenge:       opts.Challenge,
-		ChallengeMethod: cm,
+		RequestID:    opts.RequestID,
+		State:        state,
+		Provider:     opts.Provider,
+		RequestState: opts.State,
+		Challenge:    challenge,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to cache State", "error", err)
 		return "", exceptions.NewInternalServerError()
@@ -319,13 +316,12 @@ func (s *Services) ExtLoginAccount(
 	}
 
 	code, err := s.cache.GenerateOAuthCode(ctx, cache.GenerateOAuthCodeOptions{
-		RequestID:       opts.RequestID,
-		Email:           userData.Email,
-		GivenName:       userData.FirstName,
-		FamilyName:      userData.LastName,
-		Provider:        opts.Provider,
-		Challenge:       stateData.Challenge,
-		ChallengeMethod: stateData.ChallengeMethod,
+		RequestID:  opts.RequestID,
+		Email:      userData.Email,
+		GivenName:  userData.FirstName,
+		FamilyName: userData.LastName,
+		Provider:   opts.Provider,
+		Challenge:  stateData.Challenge,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate OAuth code", "error", err)
@@ -342,7 +338,6 @@ func (s *Services) ExtLoginAccount(
 type verifyOAuthChallengeOptions struct {
 	requestID         string
 	challenge         string
-	challengeMethod   string
 	challengeVerifier string
 }
 
@@ -350,29 +345,15 @@ func (s *Services) verifyOAuthChallenge(
 	ctx context.Context,
 	opts verifyOAuthChallengeOptions,
 ) *exceptions.ServiceError {
-	logger := s.buildLogger(opts.requestID, oauthLocation, "verifyOAuthChallenge").With(
-		"challengeMethod", opts.challengeMethod,
-	)
-	switch opts.challengeMethod {
-	case ChallengeMethodPlain:
-		if opts.challengeVerifier != opts.challenge {
-			logger.WarnContext(ctx, "OAuth code verifier does not match challenge")
-			return exceptions.NewUnauthorizedError()
-		}
-	case ChallengeMethodS256:
-		hashedVerifier := sha256.Sum256([]byte(opts.challengeVerifier))
-		decodedVerifier, err := base64.RawURLEncoding.DecodeString(opts.challenge)
-		if err != nil {
-			logger.WarnContext(ctx, "Error decoding OAuth code challenge", "error", err)
-			return exceptions.NewUnauthorizedError()
-		}
-		if !utils.CompareSha256(hashedVerifier[:], decodedVerifier) {
-			logger.DebugContext(ctx, "OAuth code verifier does not match challenge")
-			return exceptions.NewUnauthorizedError()
-		}
-	default:
-		logger.ErrorContext(ctx, "Invalid OAuth code challenge method")
-		return exceptions.NewValidationError("Invalid OAuth code challenge method: " + opts.challengeMethod)
+	logger := s.buildLogger(opts.requestID, oauthLocation, "verifyOAuthChallenge")
+
+	hashedVerifier := utils.Sha256HashBase64([]byte(opts.challengeVerifier))
+	if !utils.CompareSha256([]byte(hashedVerifier), []byte(opts.challenge)) {
+		logger.WarnContext(ctx, "OAuth code challenge verification failed",
+			"challenge", opts.challenge,
+			"challengeVerifier", opts.challengeVerifier,
+		)
+		return exceptions.NewValidationError("OAuth code challenge verification failed")
 	}
 
 	logger.InfoContext(ctx, "OAuth code challenge verified successfully")
@@ -436,13 +417,12 @@ func (s *Services) AppleLoginAccount(
 	}
 
 	code, err := s.cache.GenerateOAuthCode(ctx, cache.GenerateOAuthCodeOptions{
-		RequestID:       opts.RequestID,
-		Email:           opts.Email,
-		GivenName:       opts.FirstName,
-		FamilyName:      opts.LastName,
-		Provider:        AuthProviderApple,
-		Challenge:       stateData.Challenge,
-		ChallengeMethod: stateData.ChallengeMethod,
+		RequestID:  opts.RequestID,
+		Email:      opts.Email,
+		GivenName:  opts.FirstName,
+		FamilyName: opts.LastName,
+		Provider:   AuthProviderApple,
+		Challenge:  stateData.Challenge,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate OAuth code", "error", err)
@@ -493,7 +473,6 @@ func (s *Services) OAuthLoginAccount(
 	if serviceErr := s.verifyOAuthChallenge(ctx, verifyOAuthChallengeOptions{
 		requestID:         opts.RequestID,
 		challenge:         oauthData.Challenge,
-		challengeMethod:   oauthData.ChallengeMethod,
 		challengeVerifier: opts.ChallengeVerifier,
 	}); serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to verify OAuth challenge", "serviceError", serviceErr)

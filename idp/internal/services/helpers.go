@@ -151,15 +151,15 @@ func mapTwoFactorType(twoFactorType string) (database.TwoFactorType, *exceptions
 	}
 }
 
-func mapChallengeMethod(challengeMethod string) (string, *exceptions.ServiceError) {
+func hashChallenge(challenge, challengeMethod string) (string, *exceptions.ServiceError) {
 	if challengeMethod == "" {
-		return ChallengeMethodPlain, nil
+		return utils.Sha256HashBase64([]byte(challenge)), nil
 	}
 	switch utils.Lowered(challengeMethod) {
 	case ChallengeMethodS256:
-		return ChallengeMethodS256, nil
+		return challenge, nil
 	case ChallengeMethodPlain:
-		return ChallengeMethodPlain, nil
+		return utils.Sha256HashBase64([]byte(challenge)), nil
 	default:
 		return "", exceptions.NewValidationError("Invalid challenge method: " + challengeMethod)
 	}

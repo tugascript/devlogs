@@ -23,23 +23,21 @@ const (
 )
 
 type OAuthCodeData struct {
-	Email           string `json:"email"`
-	GivenName       string `json:"given_name"`
-	FamilyName      string `json:"family_name"`
-	Provider        string `json:"provider"`
-	Challenge       string `json:"challenge"`
-	ChallengeMethod string `json:"challenge_method"`
-	Code            string `json:"code"`
+	Email      string `json:"email"`
+	GivenName  string `json:"given_name"`
+	FamilyName string `json:"family_name"`
+	Provider   string `json:"provider"`
+	Challenge  string `json:"challenge"`
+	Code       string `json:"code"`
 }
 
 type GenerateOAuthCodeOptions struct {
-	RequestID       string
-	Email           string
-	GivenName       string
-	FamilyName      string
-	Provider        string
-	Challenge       string
-	ChallengeMethod string
+	RequestID  string
+	Email      string
+	GivenName  string
+	FamilyName string
+	Provider   string
+	Challenge  string
 }
 
 func (c *Cache) GenerateOAuthCode(ctx context.Context, opts GenerateOAuthCodeOptions) (string, error) {
@@ -55,13 +53,12 @@ func (c *Cache) GenerateOAuthCode(ctx context.Context, opts GenerateOAuthCodeOpt
 	key := fmt.Sprintf("%s:%s", oauthCodePrefix, codeID)
 
 	data := OAuthCodeData{
-		Email:           opts.Email,
-		GivenName:       opts.GivenName,
-		FamilyName:      opts.FamilyName,
-		Provider:        opts.Provider,
-		Challenge:       opts.Challenge,
-		ChallengeMethod: opts.ChallengeMethod,
-		Code:            utils.Sha256HashHex([]byte(code)),
+		Email:      opts.Email,
+		GivenName:  opts.GivenName,
+		FamilyName: opts.FamilyName,
+		Provider:   opts.Provider,
+		Challenge:  opts.Challenge,
+		Code:       utils.Sha256HashHex([]byte(code)),
 	}
 	val, err := json.Marshal(data)
 	if err != nil {
