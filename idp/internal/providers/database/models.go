@@ -388,49 +388,6 @@ func (ns NullClaims) Value() (driver.Value, error) {
 	return string(ns.Claims), nil
 }
 
-type CodeChallengeMethod string
-
-const (
-	CodeChallengeMethodNone  CodeChallengeMethod = "none"
-	CodeChallengeMethodPlain CodeChallengeMethod = "plain"
-	CodeChallengeMethodS256  CodeChallengeMethod = "S256"
-)
-
-func (e *CodeChallengeMethod) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = CodeChallengeMethod(s)
-	case string:
-		*e = CodeChallengeMethod(s)
-	default:
-		return fmt.Errorf("unsupported scan type for CodeChallengeMethod: %T", src)
-	}
-	return nil
-}
-
-type NullCodeChallengeMethod struct {
-	CodeChallengeMethod CodeChallengeMethod
-	Valid               bool // Valid is true if CodeChallengeMethod is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullCodeChallengeMethod) Scan(value interface{}) error {
-	if value == nil {
-		ns.CodeChallengeMethod, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.CodeChallengeMethod.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullCodeChallengeMethod) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.CodeChallengeMethod), nil
-}
-
 type CredentialsUsage string
 
 const (
@@ -935,18 +892,17 @@ type AccountAuthProvider struct {
 }
 
 type AccountCredential struct {
-	ID                  int32
-	AccountID           int32
-	AccountPublicID     uuid.UUID
-	CredentialsType     AccountCredentialsType
-	Scopes              []AccountCredentialsScope
-	AuthMethods         []AuthMethod
-	Issuers             []string
-	CodeChallengeMethod CodeChallengeMethod
-	Alias               string
-	ClientID            string
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	ID              int32
+	AccountID       int32
+	AccountPublicID uuid.UUID
+	CredentialsType AccountCredentialsType
+	Scopes          []AccountCredentialsScope
+	AuthMethods     []AuthMethod
+	Issuers         []string
+	Alias           string
+	ClientID        string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type AccountCredentialsKey struct {
@@ -1039,16 +995,15 @@ type App struct {
 }
 
 type AppAuthCodeConfig struct {
-	ID                  int32
-	AccountID           int32
-	AppID               int32
-	CallbackUris        []string
-	LogoutUris          []string
-	AllowedOrigins      []string
-	ResponseTypes       []ResponseType
-	CodeChallengeMethod CodeChallengeMethod
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	ID             int32
+	AccountID      int32
+	AppID          int32
+	CallbackUris   []string
+	LogoutUris     []string
+	AllowedOrigins []string
+	ResponseTypes  []ResponseType
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type AppDesign struct {

@@ -32,57 +32,51 @@ type UpdateAppBodyBase struct {
 }
 
 type CreateAppBodyWeb struct {
-	UsernameColumn      string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
-	Algorithm           string   `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
-	AuthMethods         string   `json:"auth_methods" validate:"required,oneof=client_secret_basic client_secret_post both_client_secrets private_key_jwt"`
-	ResponseTypes       []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
-	CallbackURLs        []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
-	LogoutURLs          []string `json:"logout_urls" validate:"required,unique,min=1,dive,url"`
-	AllowedOrigins      []string `json:"allowed_origins,omitempty" validate:"required_if=AuthMethods private_key_jwt,unique,dive,url"`
-	CodeChallengeMethod string   `json:"code_challenge_method,omitempty" validate:"omitempty,oneof=none S256 plain"`
+	UsernameColumn string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
+	Algorithm      string   `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
+	AuthMethods    string   `json:"auth_methods" validate:"required,oneof=client_secret_basic client_secret_post both_client_secrets private_key_jwt"`
+	ResponseTypes  []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
+	CallbackURLs   []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
+	LogoutURLs     []string `json:"logout_urls" validate:"required,unique,min=1,dive,url"`
+	AllowedOrigins []string `json:"allowed_origins,omitempty" validate:"required_if=AuthMethods private_key_jwt,unique,dive,url"`
 }
 
 type UpdateAppBodyWeb struct {
-	UsernameColumn      string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
-	ResponseTypes       []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
-	CallbackURLs        []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
-	LogoutURLs          []string `json:"logout_urls" validate:"required,unique,min=1,dive,url"`
-	AllowedOrigins      []string `json:"allowed_origins,omitempty" validate:"omitempty,unique,dive,url"`
-	CodeChallengeMethod string   `json:"code_challenge_method,omitempty" validate:"omitempty,oneof=none S256 plain"`
+	UsernameColumn string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
+	ResponseTypes  []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
+	CallbackURLs   []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
+	LogoutURLs     []string `json:"logout_urls" validate:"required,unique,min=1,dive,url"`
+	AllowedOrigins []string `json:"allowed_origins,omitempty" validate:"omitempty,unique,dive,url"`
 }
 
 type CreateAppBodySPA struct {
-	UsernameColumn      string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
-	ResponseTypes       []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
-	CallbackURLs        []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
-	LogoutURLs          []string `json:"logout_urls" validate:"required,unique,min=1,dive,url"`
-	AllowedOrigins      []string `json:"allowed_origins" validate:"required,unique,min=1,dive,url"`
-	CodeChallengeMethod string   `json:"code_challenge_method" validate:"required,oneof=S256 plain"`
+	UsernameColumn string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
+	ResponseTypes  []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
+	CallbackURLs   []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
+	LogoutURLs     []string `json:"logout_urls" validate:"required,unique,min=1,dive,url"`
+	AllowedOrigins []string `json:"allowed_origins" validate:"required,unique,min=1,dive,url"`
 }
 
 type UpdateAppBodySPA struct {
-	UsernameColumn      string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
-	ResponseTypes       []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
-	CallbackURLs        []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
-	LogoutURLs          []string `json:"logout_urls" validate:"required,unique,min=1,dive,url"`
-	AllowedOrigins      []string `json:"allowed_origins" validate:"required,unique,min=1,dive,url"`
-	CodeChallengeMethod string   `json:"code_challenge_method" validate:"required,oneof=S256 plain"`
+	UsernameColumn string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
+	ResponseTypes  []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
+	CallbackURLs   []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
+	LogoutURLs     []string `json:"logout_urls" validate:"required,unique,min=1,dive,url"`
+	AllowedOrigins []string `json:"allowed_origins" validate:"required,unique,min=1,dive,url"`
 }
 
 type CreateAppBodyNative struct {
-	UsernameColumn      string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
-	ResponseTypes       []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
-	CallbackURIs        []string `json:"callback_uris" validate:"required,unique,min=1,dive,uri"`
-	LogoutURIs          []string `json:"logout_uris" validate:"required,unique,min=1,dive,uri"`
-	CodeChallengeMethod string   `json:"code_challenge_method" validate:"required,oneof=S256 plain"`
+	UsernameColumn string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
+	ResponseTypes  []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
+	CallbackURIs   []string `json:"callback_uris" validate:"required,unique,min=1,dive,uri"`
+	LogoutURIs     []string `json:"logout_uris" validate:"required,unique,min=1,dive,uri"`
 }
 
 type UpdateAppBodyNative struct {
-	UsernameColumn      string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
-	ResponseTypes       []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
-	CallbackURIs        []string `json:"callback_uris" validate:"required,unique,min=1,dive,uri"`
-	LogoutURIs          []string `json:"logout_uris" validate:"required,unique,min=1,dive,uri"`
-	CodeChallengeMethod string   `json:"code_challenge_method" validate:"required,oneof=S256 plain"`
+	UsernameColumn string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
+	ResponseTypes  []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
+	CallbackURIs   []string `json:"callback_uris" validate:"required,unique,min=1,dive,uri"`
+	LogoutURIs     []string `json:"logout_uris" validate:"required,unique,min=1,dive,uri"`
 }
 
 type CreateAppBodyBackend struct {

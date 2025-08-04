@@ -1019,7 +1019,8 @@ SET "name" = $2,
     "policy_uri" = $7,
     "software_id" = $8,
     "software_version" = $9,
-    "contacts" = $10
+    "contacts" = $10,
+    "updated_at" = now()
 WHERE "id" = $1
 RETURNING id, account_id, account_public_id, app_type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, contacts, auth_methods, grant_types, auth_providers, username_column, scopes, custom_scopes, default_scopes, default_custom_scopes, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at
 `
@@ -1049,6 +1050,67 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		arg.SoftwareID,
 		arg.SoftwareVersion,
 		arg.Contacts,
+	)
+	var i App
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.AccountPublicID,
+		&i.AppType,
+		&i.Name,
+		&i.ClientID,
+		&i.Version,
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.Contacts,
+		&i.AuthMethods,
+		&i.GrantTypes,
+		&i.AuthProviders,
+		&i.UsernameColumn,
+		&i.Scopes,
+		&i.CustomScopes,
+		&i.DefaultScopes,
+		&i.DefaultCustomScopes,
+		&i.IDTokenTtl,
+		&i.TokenTtl,
+		&i.RefreshTokenTtl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAppScopes = `-- name: UpdateAppScopes :one
+UPDATE "apps"
+SET "scopes" = $2,
+    "default_scopes" = $3,
+    "custom_scopes" = $4,
+    "default_custom_scopes" = $5,
+    "version" = "version" + 1,
+    "updated_at" = now()
+WHERE "id" = $1
+RETURNING id, account_id, account_public_id, app_type, name, client_id, version, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, contacts, auth_methods, grant_types, auth_providers, username_column, scopes, custom_scopes, default_scopes, default_custom_scopes, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at
+`
+
+type UpdateAppScopesParams struct {
+	ID                  int32
+	Scopes              []Scopes
+	DefaultScopes       []Scopes
+	CustomScopes        []string
+	DefaultCustomScopes []string
+}
+
+func (q *Queries) UpdateAppScopes(ctx context.Context, arg UpdateAppScopesParams) (App, error) {
+	row := q.db.QueryRow(ctx, updateAppScopes,
+		arg.ID,
+		arg.Scopes,
+		arg.DefaultScopes,
+		arg.CustomScopes,
+		arg.DefaultCustomScopes,
 	)
 	var i App
 	err := row.Scan(

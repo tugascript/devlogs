@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-04T10:33:46.843Z
+-- Generated at: 2025-08-04T11:12:50.386Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -48,12 +48,6 @@ CREATE TYPE "credentials_usage" AS ENUM (
   'account',
   'app',
   'user'
-);
-
-CREATE TYPE "code_challenge_method" AS ENUM (
-  'none',
-  'plain',
-  'S256'
 );
 
 CREATE TYPE "auth_method" AS ENUM (
@@ -279,7 +273,6 @@ CREATE TABLE "account_credentials" (
   "scopes" account_credentials_scope[] NOT NULL,
   "auth_methods" auth_method[] NOT NULL,
   "issuers" varchar(250)[] NOT NULL,
-  "code_challenge_method" code_challenge_method NOT NULL,
   "alias" varchar(100) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
@@ -477,7 +470,6 @@ CREATE TABLE "app_auth_code_configs" (
   "logout_uris" varchar(250)[] NOT NULL,
   "allowed_origins" varchar(250)[] NOT NULL,
   "response_types" response_type[] NOT NULL,
-  "code_challenge_method" code_challenge_method NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
