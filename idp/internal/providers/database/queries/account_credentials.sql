@@ -20,7 +20,6 @@ INSERT INTO "account_credentials" (
     "account_id",
     "account_public_id",
     "credentials_type",
-    "code_challenge_method",
     "alias",
     "scopes",
     "auth_methods",
@@ -33,8 +32,7 @@ INSERT INTO "account_credentials" (
     $5,
     $6,
     $7,
-    $8,
-    $9
+    $8
 ) RETURNING *;
 
 -- name: UpdateAccountCredentials :one

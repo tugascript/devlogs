@@ -17,7 +17,6 @@ INSERT INTO "app_auth_code_configs" (
     "callback_uris",
     "logout_uris",
     "allowed_origins",
-    "code_challenge_method",
     "response_types"
 ) VALUES (
     $1,
@@ -25,19 +24,17 @@ INSERT INTO "app_auth_code_configs" (
     $3,
     $4,
     $5,
-    $6,
-    $7
-) RETURNING id, account_id, app_id, callback_uris, logout_uris, allowed_origins, response_types, code_challenge_method, created_at, updated_at
+    $6
+) RETURNING id, account_id, app_id, callback_uris, logout_uris, allowed_origins, response_types, created_at, updated_at
 `
 
 type CreateAppAuthCodeConfigParams struct {
-	AccountID           int32
-	AppID               int32
-	CallbackUris        []string
-	LogoutUris          []string
-	AllowedOrigins      []string
-	CodeChallengeMethod CodeChallengeMethod
-	ResponseTypes       []ResponseType
+	AccountID      int32
+	AppID          int32
+	CallbackUris   []string
+	LogoutUris     []string
+	AllowedOrigins []string
+	ResponseTypes  []ResponseType
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -52,7 +49,6 @@ func (q *Queries) CreateAppAuthCodeConfig(ctx context.Context, arg CreateAppAuth
 		arg.CallbackUris,
 		arg.LogoutUris,
 		arg.AllowedOrigins,
-		arg.CodeChallengeMethod,
 		arg.ResponseTypes,
 	)
 	var i AppAuthCodeConfig
@@ -64,7 +60,6 @@ func (q *Queries) CreateAppAuthCodeConfig(ctx context.Context, arg CreateAppAuth
 		&i.LogoutUris,
 		&i.AllowedOrigins,
 		&i.ResponseTypes,
-		&i.CodeChallengeMethod,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -72,7 +67,7 @@ func (q *Queries) CreateAppAuthCodeConfig(ctx context.Context, arg CreateAppAuth
 }
 
 const findAppAuthCodeConfig = `-- name: FindAppAuthCodeConfig :one
-SELECT id, account_id, app_id, callback_uris, logout_uris, allowed_origins, response_types, code_challenge_method, created_at, updated_at FROM "app_auth_code_configs"
+SELECT id, account_id, app_id, callback_uris, logout_uris, allowed_origins, response_types, created_at, updated_at FROM "app_auth_code_configs"
 WHERE "app_id" = $1 LIMIT 1
 `
 
@@ -87,7 +82,6 @@ func (q *Queries) FindAppAuthCodeConfig(ctx context.Context, appID int32) (AppAu
 		&i.LogoutUris,
 		&i.AllowedOrigins,
 		&i.ResponseTypes,
-		&i.CodeChallengeMethod,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -99,20 +93,19 @@ UPDATE "app_auth_code_configs" SET
     "callback_uris" = $3,
     "logout_uris" = $4,
     "allowed_origins" = $5,
-    "code_challenge_method" = $6,
-    "response_types" = $7
+    "response_types" = $6,
+    "updated_at" = now()
 WHERE "account_id" = $1 AND "app_id" = $2
-RETURNING id, account_id, app_id, callback_uris, logout_uris, allowed_origins, response_types, code_challenge_method, created_at, updated_at
+RETURNING id, account_id, app_id, callback_uris, logout_uris, allowed_origins, response_types, created_at, updated_at
 `
 
 type UpdateAppAuthCodeConfigParams struct {
-	AccountID           int32
-	AppID               int32
-	CallbackUris        []string
-	LogoutUris          []string
-	AllowedOrigins      []string
-	CodeChallengeMethod CodeChallengeMethod
-	ResponseTypes       []ResponseType
+	AccountID      int32
+	AppID          int32
+	CallbackUris   []string
+	LogoutUris     []string
+	AllowedOrigins []string
+	ResponseTypes  []ResponseType
 }
 
 func (q *Queries) UpdateAppAuthCodeConfig(ctx context.Context, arg UpdateAppAuthCodeConfigParams) (AppAuthCodeConfig, error) {
@@ -122,7 +115,6 @@ func (q *Queries) UpdateAppAuthCodeConfig(ctx context.Context, arg UpdateAppAuth
 		arg.CallbackUris,
 		arg.LogoutUris,
 		arg.AllowedOrigins,
-		arg.CodeChallengeMethod,
 		arg.ResponseTypes,
 	)
 	var i AppAuthCodeConfig
@@ -134,7 +126,6 @@ func (q *Queries) UpdateAppAuthCodeConfig(ctx context.Context, arg UpdateAppAuth
 		&i.LogoutUris,
 		&i.AllowedOrigins,
 		&i.ResponseTypes,
-		&i.CodeChallengeMethod,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

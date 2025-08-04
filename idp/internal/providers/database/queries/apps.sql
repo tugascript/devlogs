@@ -80,7 +80,19 @@ SET "name" = $2,
     "policy_uri" = $7,
     "software_id" = $8,
     "software_version" = $9,
-    "contacts" = $10
+    "contacts" = $10,
+    "updated_at" = now()
+WHERE "id" = $1
+RETURNING *;
+
+-- name: UpdateAppScopes :one
+UPDATE "apps"
+SET "scopes" = $2,
+    "default_scopes" = $3,
+    "custom_scopes" = $4,
+    "default_custom_scopes" = $5,
+    "version" = "version" + 1,
+    "updated_at" = now()
 WHERE "id" = $1
 RETURNING *;
 

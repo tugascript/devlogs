@@ -11,7 +11,6 @@ INSERT INTO "app_auth_code_configs" (
     "callback_uris",
     "logout_uris",
     "allowed_origins",
-    "code_challenge_method",
     "response_types"
 ) VALUES (
     $1,
@@ -19,8 +18,7 @@ INSERT INTO "app_auth_code_configs" (
     $3,
     $4,
     $5,
-    $6,
-    $7
+    $6
 ) RETURNING *;
 
 -- name: FindAppAuthCodeConfig :one
@@ -32,7 +30,7 @@ UPDATE "app_auth_code_configs" SET
     "callback_uris" = $3,
     "logout_uris" = $4,
     "allowed_origins" = $5,
-    "code_challenge_method" = $6,
-    "response_types" = $7
+    "response_types" = $6,
+    "updated_at" = now()
 WHERE "account_id" = $1 AND "app_id" = $2
 RETURNING *;

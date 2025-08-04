@@ -671,28 +671,27 @@ func (s *Services) createApp(
 }
 
 type createAppWithAuthCodeConfigOptions struct {
-	requestID           string
-	accountID           int32
-	accountPublicID     uuid.UUID
-	appType             database.AppType
-	name                string
-	clientURI           string
-	logoURI             string
-	tosURI              string
-	policyURI           string
-	contacts            []string
-	softwareID          string
-	softwareVersion     string
-	usernameColumn      database.AppUsernameColumn
-	authMethods         []database.AuthMethod
-	grantTypes          []database.GrantType
-	responseTypes       []database.ResponseType
-	codeChallengeMethod database.CodeChallengeMethod
-	callbackURIs        []string
-	logoutURIs          []string
-	allowedOrigins      []string
-	scopes              []string
-	defaultScopes       []string
+	requestID       string
+	accountID       int32
+	accountPublicID uuid.UUID
+	appType         database.AppType
+	name            string
+	clientURI       string
+	logoURI         string
+	tosURI          string
+	policyURI       string
+	contacts        []string
+	softwareID      string
+	softwareVersion string
+	usernameColumn  database.AppUsernameColumn
+	authMethods     []database.AuthMethod
+	grantTypes      []database.GrantType
+	responseTypes   []database.ResponseType
+	callbackURIs    []string
+	logoutURIs      []string
+	allowedOrigins  []string
+	scopes          []string
+	defaultScopes   []string
 }
 
 func (s *Services) createAppWithAuthConfig(
@@ -731,9 +730,8 @@ func (s *Services) createAppWithAuthConfig(
 	}
 
 	authConfig, err := qrs.CreateAppAuthCodeConfig(ctx, database.CreateAppAuthCodeConfigParams{
-		AccountID:           opts.accountID,
-		AppID:               app.ID,
-		CodeChallengeMethod: opts.codeChallengeMethod,
+		AccountID: opts.accountID,
+		AppID:     app.ID,
 		CallbackUris: utils.MapSlice(opts.callbackURIs, func(uri *string) string {
 			return utils.ProcessURL(*uri)
 		}),
@@ -778,19 +776,6 @@ func mapResponseTypes(responseTypes []string) ([]database.ResponseType, *excepti
 	}
 
 	return rts, nil
-}
-
-func mapWebCodeChallengeMethod(method string) (database.CodeChallengeMethod, *exceptions.ServiceError) {
-	switch utils.Lowered(method) {
-	case "s256":
-		return database.CodeChallengeMethodS256, nil
-	case "plain":
-		return database.CodeChallengeMethodPlain, nil
-	case "":
-		return database.CodeChallengeMethodNone, nil
-	default:
-		return "", exceptions.NewValidationError("Unsupported code challenge method")
-	}
 }
 
 type CreateWebAppOptions struct {
@@ -840,12 +825,6 @@ func (s *Services) CreateWebApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	codeChallengeMethod, serviceErr := mapWebCodeChallengeMethod(opts.CodeChallengeMethod)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map code challenge method", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
 	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
@@ -883,28 +862,27 @@ func (s *Services) CreateWebApp(
 	}()
 
 	app, authConfig, err := s.createAppWithAuthConfig(ctx, qrs, createAppWithAuthCodeConfigOptions{
-		requestID:           opts.RequestID,
-		accountID:           accountID,
-		accountPublicID:     opts.AccountPublicID,
-		appType:             database.AppTypeWeb,
-		name:                name,
-		clientURI:           opts.ClientURI,
-		logoURI:             opts.LogoURI,
-		tosURI:              opts.TOSURI,
-		policyURI:           opts.PolicyURI,
-		contacts:            opts.Contacts,
-		softwareID:          opts.SoftwareID,
-		softwareVersion:     opts.SoftwareVersion,
-		usernameColumn:      usernameColumn,
-		authMethods:         authMethods,
-		grantTypes:          authCodeAppGrantTypes,
-		responseTypes:       responseTypes,
-		codeChallengeMethod: codeChallengeMethod,
-		callbackURIs:        opts.CallbackURIs,
-		logoutURIs:          opts.LogoutURIs,
-		allowedOrigins:      opts.AllowedOrigins,
-		scopes:              opts.Scopes,
-		defaultScopes:       opts.DefaultScopes,
+		requestID:       opts.RequestID,
+		accountID:       accountID,
+		accountPublicID: opts.AccountPublicID,
+		appType:         database.AppTypeWeb,
+		name:            name,
+		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		contacts:        opts.Contacts,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+		usernameColumn:  usernameColumn,
+		authMethods:     authMethods,
+		grantTypes:      authCodeAppGrantTypes,
+		responseTypes:   responseTypes,
+		callbackURIs:    opts.CallbackURIs,
+		logoutURIs:      opts.LogoutURIs,
+		allowedOrigins:  opts.AllowedOrigins,
+		scopes:          opts.Scopes,
+		defaultScopes:   opts.DefaultScopes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app and auth config", "error", err)
@@ -996,17 +974,6 @@ func (s *Services) CreateWebApp(
 	}
 }
 
-func mapMandatoryCodeChallengeMethod(method string) (database.CodeChallengeMethod, *exceptions.ServiceError) {
-	switch utils.Lowered(method) {
-	case "s256":
-		return database.CodeChallengeMethodS256, nil
-	case "plain":
-		return database.CodeChallengeMethodPlain, nil
-	default:
-		return "", exceptions.NewValidationError("Unsupported code challenge method")
-	}
-}
-
 type CreateSPAAppOptions struct {
 	RequestID           string
 	AccountPublicID     uuid.UUID
@@ -1039,12 +1006,6 @@ func (s *Services) CreateSPAApp(
 		"name", opts.Name,
 	)
 	logger.InfoContext(ctx, "Creating SPA app...")
-
-	codeChallengeMethod, serviceErr := mapMandatoryCodeChallengeMethod(opts.CodeChallengeMethod)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map code challenge method", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
 
 	responseTypes, serviceErr := mapResponseTypes(opts.ResponseTypes)
 	if serviceErr != nil {
@@ -1089,28 +1050,27 @@ func (s *Services) CreateSPAApp(
 	}()
 
 	app, authConfig, err := s.createAppWithAuthConfig(ctx, qrs, createAppWithAuthCodeConfigOptions{
-		requestID:           opts.RequestID,
-		accountID:           accountID,
-		accountPublicID:     opts.AccountPublicID,
-		appType:             database.AppTypeSpa,
-		name:                name,
-		clientURI:           opts.ClientURI,
-		logoURI:             opts.LogoURI,
-		tosURI:              opts.TOSURI,
-		policyURI:           opts.PolicyURI,
-		contacts:            opts.Contacts,
-		softwareID:          opts.SoftwareID,
-		softwareVersion:     opts.SoftwareVersion,
-		usernameColumn:      usernameColumn,
-		authMethods:         noneAuthMethod,
-		grantTypes:          authCodeAppGrantTypes,
-		responseTypes:       responseTypes,
-		codeChallengeMethod: codeChallengeMethod,
-		callbackURIs:        opts.CallbackURIs,
-		logoutURIs:          opts.LogoutURIs,
-		allowedOrigins:      opts.AllowedOrigins,
-		scopes:              opts.Scopes,
-		defaultScopes:       opts.DefaultScopes,
+		requestID:       opts.RequestID,
+		accountID:       accountID,
+		accountPublicID: opts.AccountPublicID,
+		appType:         database.AppTypeSpa,
+		name:            name,
+		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		contacts:        opts.Contacts,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+		usernameColumn:  usernameColumn,
+		authMethods:     noneAuthMethod,
+		grantTypes:      authCodeAppGrantTypes,
+		responseTypes:   responseTypes,
+		callbackURIs:    opts.CallbackURIs,
+		logoutURIs:      opts.LogoutURIs,
+		allowedOrigins:  opts.AllowedOrigins,
+		scopes:          opts.Scopes,
+		defaultScopes:   opts.DefaultScopes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app and auth config", "error", err)
@@ -1154,12 +1114,6 @@ func (s *Services) CreateNativeApp(
 	)
 	logger.InfoContext(ctx, "Creating Native app...")
 
-	codeChallengeMethod, serviceErr := mapMandatoryCodeChallengeMethod(opts.CodeChallengeMethod)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map code challenge method", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
 	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
@@ -1203,28 +1157,27 @@ func (s *Services) CreateNativeApp(
 	}()
 
 	app, authConfig, err := s.createAppWithAuthConfig(ctx, qrs, createAppWithAuthCodeConfigOptions{
-		requestID:           opts.RequestID,
-		accountID:           accountID,
-		accountPublicID:     opts.AccountPublicID,
-		appType:             database.AppTypeNative,
-		name:                name,
-		clientURI:           opts.ClientURI,
-		logoURI:             opts.LogoURI,
-		tosURI:              opts.TOSURI,
-		policyURI:           opts.PolicyURI,
-		contacts:            opts.Contacts,
-		softwareID:          opts.SoftwareID,
-		softwareVersion:     opts.SoftwareVersion,
-		usernameColumn:      usernameColumn,
-		authMethods:         noneAuthMethod,
-		grantTypes:          authCodeAppGrantTypes,
-		responseTypes:       responseTypes,
-		codeChallengeMethod: codeChallengeMethod,
-		callbackURIs:        opts.CallbackURIs,
-		logoutURIs:          opts.LogoutURIs,
-		scopes:              opts.Scopes,
-		defaultScopes:       opts.DefaultScopes,
-		allowedOrigins:      make([]string, 0),
+		requestID:       opts.RequestID,
+		accountID:       accountID,
+		accountPublicID: opts.AccountPublicID,
+		appType:         database.AppTypeNative,
+		name:            name,
+		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		contacts:        opts.Contacts,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+		usernameColumn:  usernameColumn,
+		authMethods:     noneAuthMethod,
+		grantTypes:      authCodeAppGrantTypes,
+		responseTypes:   responseTypes,
+		callbackURIs:    opts.CallbackURIs,
+		logoutURIs:      opts.LogoutURIs,
+		scopes:          opts.Scopes,
+		defaultScopes:   opts.DefaultScopes,
+		allowedOrigins:  make([]string, 0),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app and auth config", "error", err)
@@ -1936,23 +1889,22 @@ func (s *Services) CreateMCPApp(
 	}()
 
 	app, cfg, err := s.createAppWithAuthConfig(ctx, qrs, createAppWithAuthCodeConfigOptions{
-		requestID:           opts.RequestID,
-		accountID:           accountID,
-		accountPublicID:     opts.AccountPublicID,
-		appType:             database.AppTypeMcp,
-		name:                name,
-		clientURI:           opts.ClientURI,
-		logoURI:             opts.LogoURI,
-		tosURI:              opts.TOSURI,
-		policyURI:           opts.PolicyURI,
-		contacts:            opts.Contacts,
-		softwareID:          opts.SoftwareID,
-		softwareVersion:     opts.SoftwareVersion,
-		usernameColumn:      database.AppUsernameColumnEmail,
-		authMethods:         noneAuthMethod,
-		grantTypes:          authCodeAppGrantTypes,
-		responseTypes:       responseTypes,
-		codeChallengeMethod: database.CodeChallengeMethodS256,
+		requestID:       opts.RequestID,
+		accountID:       accountID,
+		accountPublicID: opts.AccountPublicID,
+		appType:         database.AppTypeMcp,
+		name:            name,
+		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		contacts:        opts.Contacts,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+		usernameColumn:  database.AppUsernameColumnEmail,
+		authMethods:     noneAuthMethod,
+		grantTypes:      authCodeAppGrantTypes,
+		responseTypes:   responseTypes,
 		callbackURIs: utils.MapSlice(opts.CallbackURIs, func(uri *string) string {
 			return utils.ProcessURL(*uri)
 		}),
@@ -1967,7 +1919,7 @@ func (s *Services) CreateMCPApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	return dtos.AppDTO{}, nil
+	return dtos.MapMCPAppToDTO(&app, &cfg), nil
 }
 
 type updateAppOptions struct {
@@ -2035,20 +1987,19 @@ func (s *Services) updateApp(
 }
 
 type updateAppWithAuthCodeConfigOptions struct {
-	requestID           string
-	usernameColumn      database.AppUsernameColumn
-	name                string
-	clientURI           string
-	logoURI             string
-	tosURI              string
-	policyURI           string
-	softwareID          string
-	softwareVersion     string
-	contacts            []string
-	callbackURIs        []string
-	logoutURIs          []string
-	allowedOrigins      []string
-	codeChallengeMethod database.CodeChallengeMethod
+	requestID       string
+	usernameColumn  database.AppUsernameColumn
+	name            string
+	clientURI       string
+	logoURI         string
+	tosURI          string
+	policyURI       string
+	softwareID      string
+	softwareVersion string
+	contacts        []string
+	callbackURIs    []string
+	logoutURIs      []string
+	allowedOrigins  []string
 }
 
 func (s *Services) updateAppWithAuthCodeConfig(
@@ -2093,7 +2044,6 @@ func (s *Services) updateAppWithAuthCodeConfig(
 		AllowedOrigins: utils.MapSlice(opts.allowedOrigins, func(s *string) string {
 			return utils.ProcessURL(*s)
 		}),
-		CodeChallengeMethod: opts.codeChallengeMethod,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update app auth code config", "error", err)
@@ -2105,21 +2055,20 @@ func (s *Services) updateAppWithAuthCodeConfig(
 }
 
 type UpdateWebAppOptions struct {
-	RequestID           string
-	AccountID           int32
-	UsernameColumn      string
-	Name                string
-	ClientURI           string
-	LogoURI             string
-	TOSURI              string
-	PolicyURI           string
-	SoftwareID          string
-	SoftwareVersion     string
-	Contacts            []string
-	CallbackURLs        []string
-	LogoutURLs          []string
-	AllowedOrigins      []string
-	CodeChallengeMethod string
+	RequestID       string
+	AccountID       int32
+	UsernameColumn  string
+	Name            string
+	ClientURI       string
+	LogoURI         string
+	TOSURI          string
+	PolicyURI       string
+	SoftwareID      string
+	SoftwareVersion string
+	Contacts        []string
+	CallbackURLs    []string
+	LogoutURLs      []string
+	AllowedOrigins  []string
 }
 
 func (s *Services) UpdateWebApp(
@@ -2144,12 +2093,6 @@ func (s *Services) UpdateWebApp(
 		}
 	}
 
-	codeChallengeMethod, serviceErr := mapWebCodeChallengeMethod(opts.CodeChallengeMethod)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map code challenge method", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
 	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
@@ -2167,20 +2110,19 @@ func (s *Services) UpdateWebApp(
 	}()
 
 	app, appAuthCodeConfig, err := s.updateAppWithAuthCodeConfig(ctx, appDTO, qrs, updateAppWithAuthCodeConfigOptions{
-		requestID:           opts.RequestID,
-		usernameColumn:      usernameColumn,
-		name:                opts.Name,
-		clientURI:           opts.ClientURI,
-		logoURI:             opts.LogoURI,
-		tosURI:              opts.TOSURI,
-		policyURI:           opts.PolicyURI,
-		softwareID:          opts.SoftwareID,
-		softwareVersion:     opts.SoftwareVersion,
-		callbackURIs:        opts.CallbackURLs,
-		contacts:            opts.Contacts,
-		logoutURIs:          opts.LogoutURLs,
-		allowedOrigins:      opts.AllowedOrigins,
-		codeChallengeMethod: codeChallengeMethod,
+		requestID:       opts.RequestID,
+		usernameColumn:  usernameColumn,
+		name:            opts.Name,
+		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+		callbackURIs:    opts.CallbackURLs,
+		contacts:        opts.Contacts,
+		logoutURIs:      opts.LogoutURLs,
+		allowedOrigins:  opts.AllowedOrigins,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update app and auth code config", "error", err)
@@ -2232,12 +2174,6 @@ func (s *Services) UpdateSPAApp(
 		}
 	}
 
-	codeChallengeMethod, serviceErr := mapMandatoryCodeChallengeMethod(opts.CodeChallengeMethod)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map code challenge method", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
 	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
@@ -2255,20 +2191,19 @@ func (s *Services) UpdateSPAApp(
 	}()
 
 	app, appAuthCodeConfig, err := s.updateAppWithAuthCodeConfig(ctx, appDTO, qrs, updateAppWithAuthCodeConfigOptions{
-		requestID:           opts.RequestID,
-		usernameColumn:      usernameColumn,
-		name:                opts.Name,
-		clientURI:           opts.ClientURI,
-		logoURI:             opts.LogoURI,
-		tosURI:              opts.TOSURI,
-		policyURI:           opts.PolicyURI,
-		softwareID:          opts.SoftwareID,
-		softwareVersion:     opts.SoftwareVersion,
-		callbackURIs:        opts.CallbackURLs,
-		contacts:            opts.Contacts,
-		logoutURIs:          opts.LogoutURLs,
-		allowedOrigins:      opts.AllowedOrigins,
-		codeChallengeMethod: codeChallengeMethod,
+		requestID:       opts.RequestID,
+		usernameColumn:  usernameColumn,
+		name:            opts.Name,
+		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+		callbackURIs:    opts.CallbackURLs,
+		contacts:        opts.Contacts,
+		logoutURIs:      opts.LogoutURLs,
+		allowedOrigins:  opts.AllowedOrigins,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update app and auth code config", "error", err)
@@ -2319,12 +2254,6 @@ func (s *Services) UpdateNativeApp(
 		}
 	}
 
-	codeChallengeMethod, serviceErr := mapMandatoryCodeChallengeMethod(opts.CodeChallengeMethod)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map code challenge method", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
 	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
@@ -2342,20 +2271,19 @@ func (s *Services) UpdateNativeApp(
 	}()
 
 	app, appAuthCodeConfig, err := s.updateAppWithAuthCodeConfig(ctx, appDTO, qrs, updateAppWithAuthCodeConfigOptions{
-		requestID:           opts.RequestID,
-		usernameColumn:      usernameColumn,
-		name:                opts.Name,
-		clientURI:           opts.ClientURI,
-		logoURI:             opts.LogoURI,
-		tosURI:              opts.TOSURI,
-		policyURI:           opts.PolicyURI,
-		softwareID:          opts.SoftwareID,
-		softwareVersion:     opts.SoftwareVersion,
-		callbackURIs:        opts.CallbackURIs,
-		contacts:            opts.Contacts,
-		logoutURIs:          opts.LogoutURIs,
-		allowedOrigins:      make([]string, 0),
-		codeChallengeMethod: codeChallengeMethod,
+		requestID:       opts.RequestID,
+		usernameColumn:  usernameColumn,
+		name:            opts.Name,
+		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+		callbackURIs:    opts.CallbackURIs,
+		contacts:        opts.Contacts,
+		logoutURIs:      opts.LogoutURIs,
+		allowedOrigins:  make([]string, 0),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update app and auth code config", "error", err)
