@@ -93,7 +93,7 @@ func (ur *GoogleUserResponse) ToUserData() UserData {
 		IsVerified: ur.EmailVerified,
 		Gender:     ur.Gender(),
 		BirthDate:  ur.Birthday(),
-		Location: UserLocation{
+		Location: &UserLocation{
 			City:    address.City,
 			Region:  address.Region,
 			Country: address.CountryCode,

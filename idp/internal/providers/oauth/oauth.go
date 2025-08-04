@@ -259,22 +259,23 @@ func getUserResponse(logger *slog.Logger, ctx context.Context, url, token string
 }
 
 type UserLocation struct {
-	City    string
-	Region  string
-	Country string
+	City    string `json:"city"`
+	Region  string `json:"region"`
+	Country string `json:"country"`
 }
 
 type UserData struct {
-	Name       string
-	FirstName  string
-	LastName   string
-	Username   string
-	Picture    string
-	Email      string
-	Gender     string
-	Location   UserLocation
-	BirthDate  string
-	IsVerified bool
+	Name       string        `json:"name"`
+	FirstName  string        `json:"first_name"`
+	LastName   string        `json:"last_name"`
+	Username   string        `json:"username"`
+	ProfileURL string        `json:"profile_url,omitempty"`
+	Picture    string        `json:"picture,omitempty"`
+	Email      string        `json:"email"`
+	Gender     string        `json:"gender,omitempty"`
+	Location   *UserLocation `json:"location,omitempty"`
+	BirthDate  string        `json:"birth_date,omitempty"`
+	IsVerified bool          `json:"is_verified"`
 }
 
 type ToUserData interface {

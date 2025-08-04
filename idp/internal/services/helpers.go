@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/utils"
@@ -37,6 +39,9 @@ const (
 	UsernameColumnEmail    string = "email"
 	UsernameColumnUsername string = "username"
 	UsernameColumnBoth     string = "both"
+
+	ChallengeMethodPlain = "plain"
+	ChallengeMethodS256  = "s256"
 )
 
 func (s *Services) buildLogger(requestID, location, function string) *slog.Logger {
@@ -144,4 +149,34 @@ func mapTwoFactorType(twoFactorType string) (database.TwoFactorType, *exceptions
 	default:
 		return "", exceptions.NewValidationError("invalid two factor type")
 	}
+}
+
+func mapChallengeMethod(challengeMethod string) (string, *exceptions.ServiceError) {
+	if challengeMethod == "" {
+		return ChallengeMethodPlain, nil
+	}
+	switch utils.Lowered(challengeMethod) {
+	case ChallengeMethodS256:
+		return ChallengeMethodS256, nil
+	case ChallengeMethodPlain:
+		return ChallengeMethodPlain, nil
+	default:
+		return "", exceptions.NewValidationError("Invalid challenge method: " + challengeMethod)
+	}
+}
+
+func mapEmptyURL(url string) pgtype.Text {
+	if url == "" {
+		return pgtype.Text{Valid: false}
+	}
+
+	return pgtype.Text{String: utils.ProcessURL(url), Valid: true}
+}
+
+func mapEmptyString(str string) pgtype.Text {
+	if str == "" {
+		return pgtype.Text{Valid: false}
+	}
+
+	return pgtype.Text{String: strings.TrimSpace(str), Valid: true}
 }

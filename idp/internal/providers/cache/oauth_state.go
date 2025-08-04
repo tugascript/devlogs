@@ -8,9 +8,7 @@ package cache
 
 import (
 	"context"
-	"fmt"
-	"strconv"
-	"time"
+	"encoding/json"
 
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -20,111 +18,85 @@ const (
 	oauthStateLocation string = "oauth_state"
 )
 
-type AddOAuthStateOptions struct {
+type SaveOAuthStateDataOptions struct {
 	RequestID       string
 	State           string
 	Provider        string
-	DurationSeconds int64
+	RequestState    string
+	Challenge       string
+	ChallengeMethod string
 }
 
-func (c *Cache) AddOAuthState(ctx context.Context, opts AddOAuthStateOptions) error {
+type OAuthStateData struct {
+	Provider        string `json:"provider"`
+	RequestState    string `json:"request_state"`
+	Challenge       string `json:"challenge"`
+	ChallengeMethod string `json:"challenge_method"`
+}
+
+func (c *Cache) SaveOAuthStateData(ctx context.Context, opts SaveOAuthStateDataOptions) error {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  oauthStateLocation,
-		Method:    "AddOAuthState",
+		Method:    "SaveOAuthStateData",
 		RequestID: opts.RequestID,
 	})
 	logger.DebugContext(ctx, "Adding OAuth state...")
+
+	data := OAuthStateData{
+		Provider:        opts.Provider,
+		RequestState:    opts.RequestState,
+		Challenge:       opts.Challenge,
+		ChallengeMethod: opts.ChallengeMethod,
+	}
+	dataBytes, err := json.Marshal(data)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error marshalling OAuth state data", "error", err)
+		return err
+	}
+
 	return c.storage.Set(
 		oauthStatePrefix+":"+opts.State,
-		[]byte(opts.Provider),
-		time.Duration(opts.DurationSeconds)*time.Second,
+		dataBytes,
+		c.oauthStateTTL,
 	)
 }
 
-func buildUserOAuthStateKey(accountID int32, state, provider string) string {
-	return fmt.Sprintf("%s:%s:provider:%s:account:%d", oauthStatePrefix, state, provider, accountID)
-}
-
-type AddUserOAuthStateOptions struct {
-	RequestID       string
-	AccountID       int32
-	AppID           int32
-	State           string
-	Provider        string
-	DurationSeconds int64
-}
-
-func (c *Cache) AddUserOAuthState(ctx context.Context, opts AddUserOAuthStateOptions) error {
-	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Location:  oauthStateLocation,
-		Method:    "AddUserOAuthState",
-		RequestID: opts.RequestID,
-	})
-	logger.DebugContext(ctx, "Adding user OAuth state...")
-	return c.storage.Set(
-		buildUserOAuthStateKey(opts.AccountID, opts.State, opts.Provider),
-		[]byte(strconv.Itoa(int(opts.AppID))),
-		time.Duration(opts.DurationSeconds)*time.Second,
-	)
-}
-
-type VerifyOAuthStateOptions struct {
+type GetOAuthStateOptions struct {
 	RequestID string
 	State     string
-	Provider  string
 }
 
-func (c *Cache) VerifyOAuthState(ctx context.Context, opts VerifyOAuthStateOptions) (bool, error) {
+func (c *Cache) GetOAuthState(
+	ctx context.Context,
+	opts GetOAuthStateOptions,
+) (OAuthStateData, bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  oauthStateLocation,
-		Method:    "VerifyOAuthState",
+		Method:    "GetOAuthState",
 		RequestID: opts.RequestID,
 	})
-	logger.DebugContext(ctx, "Verifying OAuth state...")
-	valByte, err := c.storage.Get(oauthStatePrefix + ":" + opts.State)
+	logger.DebugContext(ctx, "Getting OAuth state...")
+	key := oauthStatePrefix + ":" + opts.State
+	valByte, err := c.storage.Get(key)
 
 	if err != nil {
 		logger.ErrorContext(ctx, "Error verifying OAuth state", "error", err)
-		return false, err
+		return OAuthStateData{}, false, err
 	}
 	if valByte == nil {
 		logger.DebugContext(ctx, "OAuth state not found")
-		return false, nil
+		return OAuthStateData{}, false, nil
 	}
 
-	return string(valByte) == opts.Provider, nil
-}
-
-type GetOAuthStateAppIDOptions struct {
-	RequestID string
-	AccountID int32
-	State     string
-	Provider  string
-}
-
-func (c *Cache) GetOAuthStateAppID(ctx context.Context, opts GetOAuthStateAppIDOptions) (int, bool, error) {
-	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Location:  oauthStateLocation,
-		Method:    "GetOAuthStateAppID",
-		RequestID: opts.RequestID,
-	})
-	logger.DebugContext(ctx, "Verifying OAuth state...")
-
-	appBytes, err := c.storage.Get(buildUserOAuthStateKey(opts.AccountID, opts.State, opts.Provider))
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to get OAuth state", "error", err)
-		return 0, false, err
+	var data OAuthStateData
+	if err := json.Unmarshal(valByte, &data); err != nil {
+		logger.ErrorContext(ctx, "Error unmarshalling OAuth state data", "error", err)
+		return OAuthStateData{}, false, err
 	}
-	if appBytes == nil {
-		logger.WarnContext(ctx, "OAuth state not found")
-		return 0, false, nil
+	if err := c.storage.Delete(key); err != nil {
+		logger.ErrorContext(ctx, "Error deleting OAuth state", "error", err)
+		return OAuthStateData{}, false, err
 	}
 
-	appID, err := strconv.Atoi(string(appBytes))
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to convert client ID to int", "error", err)
-		return 0, false, err
-	}
-
-	return appID, true, nil
+	return data, true, nil
 }

@@ -30,6 +30,8 @@ type Cache struct {
 	publicJWKsTTL      time.Duration
 	accountUsernameTTL time.Duration
 	wellKnownTTL       time.Duration
+	oauthStateTTL      time.Duration
+	oauthCodeTTL       time.Duration
 }
 
 func NewCache(
@@ -43,6 +45,8 @@ func NewCache(
 	publicJWKsTTL int64,
 	accountUsernameTTL int64,
 	wellKnownTTL int64,
+	oauthStateTTL int64,
+	oauthCodeTTL int64,
 ) *Cache {
 	return &Cache{
 		logger:             logger.With(utils.BaseLayer, logLayer),
@@ -55,6 +59,8 @@ func NewCache(
 		publicJWKsTTL:      time.Duration(publicJWKsTTL) * time.Second,
 		accountUsernameTTL: time.Duration(accountUsernameTTL) * time.Second,
 		wellKnownTTL:       time.Duration(wellKnownTTL) * time.Second,
+		oauthStateTTL:      time.Duration(oauthStateTTL) * time.Second,
+		oauthCodeTTL:       time.Duration(oauthCodeTTL) * time.Second,
 	}
 }
 

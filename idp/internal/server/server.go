@@ -109,6 +109,8 @@ func New(
 		dcCfg.PublicJWKsTTL(),
 		dcCfg.AccountUsernameTTL(),
 		dcCfg.WellKnownOIDCConfigTTL(),
+		dcCfg.OAuthStateTTL(),
+		dcCfg.OAuthCodeTTL(),
 	)
 	logger.InfoContext(ctx, "Finished building distributed cache")
 
@@ -171,7 +173,6 @@ func New(
 		tokensCfg.RefreshTTL(),
 		tokensCfg.ConfirmTTL(),
 		tokensCfg.ResetTTL(),
-		tokensCfg.OAuthTTL(),
 		tokensCfg.TwoFATTL(),
 	)
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")

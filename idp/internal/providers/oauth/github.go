@@ -71,7 +71,7 @@ func processGithubName(name string) (string, string) {
 	return nameSplit[0], ""
 }
 
-func processGithubLocation(location string) UserLocation {
+func processGithubLocation(location string) *UserLocation {
 	locSplit := strings.Split(strings.TrimSpace(location), ",")
 
 	if len(locSplit) == 3 {
@@ -80,14 +80,14 @@ func processGithubLocation(location string) UserLocation {
 		region := strings.TrimSpace(locSplit[1])
 
 		if country != countries.Unknown {
-			return UserLocation{
+			return &UserLocation{
 				City:    city,
 				Region:  region,
 				Country: country.Alpha2(),
 			}
 		}
 
-		return UserLocation{
+		return &UserLocation{
 			City:    city,
 			Region:  region,
 			Country: countries.US.Alpha2(),
@@ -99,13 +99,13 @@ func processGithubLocation(location string) UserLocation {
 		city := strings.TrimSpace(locSplit[0])
 
 		if country != countries.Unknown {
-			return UserLocation{
+			return &UserLocation{
 				City:    city,
 				Country: country.Alpha2(),
 			}
 		}
 
-		return UserLocation{
+		return &UserLocation{
 			City:    city,
 			Region:  countryOrRegion,
 			Country: countries.US.Alpha2(),
@@ -115,12 +115,12 @@ func processGithubLocation(location string) UserLocation {
 	countryOrRegion := strings.TrimSpace(location)
 	country := countries.ByName(countryOrRegion)
 	if country != countries.Unknown {
-		return UserLocation{
+		return &UserLocation{
 			Country: country.Alpha2(),
 		}
 	}
 
-	return UserLocation{
+	return &UserLocation{
 		Region:  countryOrRegion,
 		Country: countries.US.Alpha2(),
 	}

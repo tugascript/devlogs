@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-02T07:38:51.523Z
+-- Generated at: 2025-08-04T10:33:46.843Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -30,7 +30,6 @@ CREATE TYPE "token_key_type" AS ENUM (
   'client_credentials',
   'email_verification',
   'password_reset',
-  'oauth_authorization',
   '2fa_authentication'
 );
 
@@ -66,7 +65,8 @@ CREATE TYPE "auth_method" AS ENUM (
 
 CREATE TYPE "response_type" AS ENUM (
   'code',
-  'token'
+  'id_token',
+  'code id_token'
 );
 
 CREATE TYPE "account_credentials_scope" AS ENUM (
@@ -92,6 +92,7 @@ CREATE TYPE "auth_provider" AS ENUM (
   'github',
   'google',
   'microsoft',
+  'mcp',
   'custom'
 );
 
@@ -291,12 +292,14 @@ CREATE TABLE "account_credentials_mcps" (
   "account_public_id" uuid NOT NULL,
   "account_credentials_id" integer NOT NULL,
   "account_credentials_client_id" varchar(22) NOT NULL,
+  "response_types" response_type[] NOT NULL,
   "client_uri" varchar(250) NOT NULL,
   "logo_uri" varchar(250),
   "policy_uri" varchar(250),
   "tos_uri" varchar(250),
   "software_id" varchar(250) NOT NULL,
   "software_version" varchar(250),
+  "contacts" varchar(250)[] NOT NULL DEFAULT '{}',
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -434,14 +437,15 @@ CREATE TABLE "apps" (
   "policy_uri" varchar(250),
   "software_id" varchar(250),
   "software_version" varchar(250),
-  "response_types" response_type[] NOT NULL,
+  "contacts" varchar(250)[] NOT NULL DEFAULT '{}',
   "auth_methods" auth_method[] NOT NULL,
   "grant_types" grant_type[] NOT NULL,
-  "default_scopes" scopes[] NOT NULL DEFAULT '{ "openid", "email" }',
   "auth_providers" auth_provider[] NOT NULL DEFAULT '{ "username_password" }',
   "username_column" app_username_column NOT NULL,
-  "custom_claims" varchar(250)[] NOT NULL DEFAULT '{}',
-  "custom_scopes" varchar(250)[] NOT NULL DEFAULT '{}',
+  "scopes" scopes[] NOT NULL,
+  "custom_scopes" varchar(250)[] NOT NULL,
+  "default_scopes" scopes[] NOT NULL,
+  "default_custom_scopes" varchar(250)[] NOT NULL,
   "id_token_ttl" integer NOT NULL DEFAULT 3600,
   "token_ttl" integer NOT NULL DEFAULT 900,
   "refresh_token_ttl" integer NOT NULL DEFAULT 259200,
@@ -472,6 +476,7 @@ CREATE TABLE "app_auth_code_configs" (
   "callback_uris" varchar(250)[] NOT NULL,
   "logout_uris" varchar(250)[] NOT NULL,
   "allowed_origins" varchar(250)[] NOT NULL,
+  "response_types" response_type[] NOT NULL,
   "code_challenge_method" code_challenge_method NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
@@ -522,14 +527,12 @@ CREATE TABLE "app_designs" (
 );
 
 CREATE TABLE "app_profiles" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "user_id" integer NOT NULL,
   "app_id" integer NOT NULL,
+  "user_id" integer NOT NULL,
+  "account_id" integer NOT NULL,
   "profile_type" app_profile_type NOT NULL,
-  "profile_data" jsonb NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
-  "updated_at" timestamptz NOT NULL DEFAULT (now())
+  PRIMARY KEY ("app_id", "user_id")
 );
 
 CREATE TABLE "revoked_tokens" (
@@ -603,13 +606,19 @@ CREATE INDEX "account_key_encryption_keys_account_id_idx" ON "account_key_encryp
 
 CREATE UNIQUE INDEX "account_key_encryption_keys_key_encryption_key_id_uidx" ON "account_key_encryption_keys" ("key_encryption_key_id");
 
+CREATE UNIQUE INDEX "account_key_encryption_keys_account_id_key_encryption_key_id_uidx" ON "account_key_encryption_keys" ("account_id", "key_encryption_key_id");
+
 CREATE INDEX "account_data_encryption_keys_account_id_idx" ON "account_data_encryption_keys" ("account_id");
 
 CREATE UNIQUE INDEX "account_data_encryption_keys_account_id_data_encryption_key_id_uidx" ON "account_data_encryption_keys" ("data_encryption_key_id");
 
+CREATE UNIQUE INDEX "account_data_encryption_keys_account_id_data_encryption_key_id_uidx" ON "account_data_encryption_keys" ("account_id", "data_encryption_key_id");
+
 CREATE UNIQUE INDEX "accounts_totps_account_id_uidx" ON "account_totps" ("account_id");
 
 CREATE UNIQUE INDEX "accounts_totps_totp_id_uidx" ON "account_totps" ("totp_id");
+
+CREATE UNIQUE INDEX "accounts_totps_account_id_totp_id_uidx" ON "account_totps" ("account_id", "totp_id");
 
 CREATE UNIQUE INDEX "account_credentials_client_id_uidx" ON "account_credentials" ("client_id");
 
@@ -639,6 +648,8 @@ CREATE UNIQUE INDEX "account_credential_secrets_credentials_secret_id_uidx" ON "
 
 CREATE INDEX "account_credential_secrets_account_credentials_id_idx" ON "account_credentials_secrets" ("account_credentials_id");
 
+CREATE UNIQUE INDEX "account_credential_secrets_account_credentials_id_account_public_id_uidx" ON "account_credentials_secrets" ("account_credentials_id", "account_public_id");
+
 CREATE INDEX "account_credentials_keys_account_id_idx" ON "account_credentials_keys" ("account_id");
 
 CREATE UNIQUE INDEX "account_credentials_keys_credentials_key_id_uidx" ON "account_credentials_keys" ("credentials_key_id");
@@ -648,6 +659,8 @@ CREATE INDEX "account_credentials_keys_account_credentials_id_idx" ON "account_c
 CREATE INDEX "account_credentials_keys_account_public_id_idx" ON "account_credentials_keys" ("account_public_id");
 
 CREATE INDEX "account_credentials_keys_account_credentials_id_jwk_kid_idx" ON "account_credentials_keys" ("account_credentials_id", "jwk_kid");
+
+CREATE UNIQUE INDEX "account_credentials_keys_account_credentials_id_account_public_id_uidx" ON "account_credentials_keys" ("account_credentials_id", "account_public_id");
 
 CREATE INDEX "auth_providers_email_idx" ON "account_auth_providers" ("email");
 
@@ -662,6 +675,8 @@ CREATE UNIQUE INDEX "oidc_configs_account_id_uidx" ON "oidc_configs" ("account_i
 CREATE INDEX "account_token_signing_keys_account_id_idx" ON "account_token_signing_keys" ("account_id");
 
 CREATE UNIQUE INDEX "account_token_signing_keys_token_signing_key_id_uidx" ON "account_token_signing_keys" ("token_signing_key_id");
+
+CREATE UNIQUE INDEX "account_token_signing_keys_account_id_token_signing_key_id_uidx" ON "account_token_signing_keys" ("account_id", "token_signing_key_id");
 
 CREATE UNIQUE INDEX "users_account_id_email_uidx" ON "users" ("account_id", "email");
 
@@ -679,11 +694,15 @@ CREATE UNIQUE INDEX "user_data_encryption_keys_data_encryption_key_id_uidx" ON "
 
 CREATE INDEX "user_data_encryption_keys_account_id_idx" ON "user_data_encryption_keys" ("account_id");
 
+CREATE UNIQUE INDEX "user_data_encryption_keys_user_id_data_encryption_key_id_uidx" ON "user_data_encryption_keys" ("user_id", "data_encryption_key_id");
+
 CREATE UNIQUE INDEX "user_totps_user_id_uidx" ON "user_totps" ("user_id");
 
 CREATE UNIQUE INDEX "user_totps_totp_id_uidx" ON "user_totps" ("totp_id");
 
 CREATE INDEX "user_totps_account_id_idx" ON "user_totps" ("account_id");
+
+CREATE UNIQUE INDEX "user_totps_user_id_totp_id_uidx" ON "user_totps" ("user_id", "totp_id");
 
 CREATE INDEX "user_auth_provider_user_id_idx" ON "user_auth_providers" ("user_id");
 
@@ -711,6 +730,8 @@ CREATE INDEX "user_credentials_secrets_user_credential_id_idx" ON "user_credenti
 
 CREATE INDEX "user_credentials_secrets_user_public_id_idx" ON "user_credentials_secrets" ("user_public_id");
 
+CREATE UNIQUE INDEX "user_credentials_secrets_user_id_user_credential_id_uidx" ON "user_credentials_secrets" ("user_id", "user_credential_id");
+
 CREATE INDEX "user_credentials_keys_user_id_idx" ON "user_credentials_keys" ("user_id");
 
 CREATE UNIQUE INDEX "user_credentials_keys_credentials_key_id_uidx" ON "user_credentials_keys" ("credentials_key_id");
@@ -720,6 +741,8 @@ CREATE INDEX "user_credentials_keys_account_id_idx" ON "user_credentials_keys" (
 CREATE INDEX "user_credentials_keys_user_credential_id_idx" ON "user_credentials_keys" ("user_credential_id");
 
 CREATE INDEX "user_credentials_keys_user_public_id_idx" ON "user_credentials_keys" ("user_public_id");
+
+CREATE UNIQUE INDEX "user_credentials_keys_user_id_user_credential_id_uidx" ON "user_credentials_keys" ("user_id", "user_credential_id");
 
 CREATE INDEX "apps_account_id_idx" ON "apps" ("account_id");
 
@@ -743,11 +766,15 @@ CREATE UNIQUE INDEX "app_secrets_credentials_secret_id_uidx" ON "app_secrets" ("
 
 CREATE INDEX "app_secrets_account_id_idx" ON "app_secrets" ("account_id");
 
+CREATE UNIQUE INDEX "app_secrets_app_id_credentials_secret_id_uidx" ON "app_secrets" ("app_id", "credentials_secret_id");
+
 CREATE INDEX "app_keys_app_id_idx" ON "app_keys" ("app_id");
 
 CREATE UNIQUE INDEX "app_keys_credentials_key_id_uidx" ON "app_keys" ("credentials_key_id");
 
 CREATE INDEX "app_keys_account_id_idx" ON "app_keys" ("account_id");
+
+CREATE UNIQUE INDEX "app_keys_app_id_credentials_key_id_uidx" ON "app_keys" ("app_id", "credentials_key_id");
 
 CREATE INDEX "app_uris_account_id_idx" ON "app_auth_code_configs" ("account_id");
 
@@ -761,7 +788,9 @@ CREATE INDEX "app_related_apps_account_id_idx" ON "app_related_apps" ("account_i
 
 CREATE INDEX "app_related_apps_app_id_idx" ON "app_related_apps" ("app_id");
 
-CREATE UNIQUE INDEX "app_related_apps_related_app_id_uidx" ON "app_related_apps" ("related_app_id");
+CREATE INDEX "app_related_apps_related_app_id_idx" ON "app_related_apps" ("related_app_id");
+
+CREATE UNIQUE INDEX "app_related_apps_app_id_related_app_id_uidx" ON "app_related_apps" ("app_id", "related_app_id");
 
 CREATE INDEX "app_service_configs_account_id_idx" ON "app_service_configs" ("account_id");
 
@@ -771,11 +800,11 @@ CREATE INDEX "app_designs_account_id_idx" ON "app_designs" ("account_id");
 
 CREATE UNIQUE INDEX "app_designs_app_id_uidx" ON "app_designs" ("app_id");
 
-CREATE INDEX "user_profiles_account_id_idx" ON "app_profiles" ("account_id");
+CREATE INDEX "user_profiles_app_id_idx" ON "app_profiles" ("app_id");
 
 CREATE INDEX "user_profiles_user_id_idx" ON "app_profiles" ("user_id");
 
-CREATE INDEX "user_profiles_app_id_idx" ON "app_profiles" ("app_id");
+CREATE INDEX "user_profiles_account_id_idx" ON "app_profiles" ("account_id");
 
 CREATE UNIQUE INDEX "user_profiles_user_id_app_id_uidx" ON "app_profiles" ("user_id", "app_id");
 
@@ -905,8 +934,8 @@ ALTER TABLE "app_designs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" (
 
 ALTER TABLE "app_designs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "app_profiles" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_profiles" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_profiles" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "app_profiles" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_profiles" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;

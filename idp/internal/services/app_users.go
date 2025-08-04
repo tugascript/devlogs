@@ -196,7 +196,7 @@ func (s *Services) ConfirmAppUser(
 		return dtos.UserDTO{}, exceptions.FromDBError(err)
 	}
 
-	if _, err := s.database.FindAppProfileIDByAppIDAndUserID(ctx, database.FindAppProfileIDByAppIDAndUserIDParams{
+	if _, err := s.database.FindAppProfileByAppIDAndUserID(ctx, database.FindAppProfileByAppIDAndUserIDParams{
 		AppID:  opts.AppID,
 		UserID: userDTO.ID(),
 	}); err != nil {

@@ -14,7 +14,17 @@ INSERT INTO "apps" (
   "client_uri",
   "username_column",
   "auth_methods",
-  "grant_types"
+  "grant_types",
+  "logo_uri",
+  "tos_uri",
+  "policy_uri",
+  "contacts",
+  "software_id",
+  "software_version",
+  "scopes",
+  "default_scopes",
+  "custom_scopes",
+  "default_custom_scopes"
 ) VALUES (
   $1,
   $2,
@@ -24,7 +34,17 @@ INSERT INTO "apps" (
   $6,
   $7,
   $8,
-  $9
+  $9,
+  $10,
+  $11,
+  $12,
+  $13,
+  $14,
+  $15,
+  $16,
+  $17,
+  $18,
+  $19
 ) RETURNING *;
 
 
@@ -59,7 +79,8 @@ SET "name" = $2,
     "tos_uri" = $6,
     "policy_uri" = $7,
     "software_id" = $8,
-    "software_version" = $9
+    "software_version" = $9,
+    "contacts" = $10
 WHERE "id" = $1
 RETURNING *;
 

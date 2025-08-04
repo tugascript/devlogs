@@ -18,7 +18,7 @@ var slugRegex = regexp.MustCompile(`^[a-z\d]+(?:(-)[a-z\d]+)*$`)
 
 func slugValidator(fl validator.FieldLevel) bool {
 	input, ok := fl.Field().Interface().(string)
-	if !ok {
+	if !ok || input == "" {
 		return false
 	}
 

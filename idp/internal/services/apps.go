@@ -20,7 +20,13 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const appsLocation string = "apps"
+const (
+	appsLocation string = "apps"
+
+	responseTypeCode        string = "code"
+	responseTypeIDToken     string = "id_token"
+	responseTypeCodeIDToken string = "code id_token"
+)
 
 var authCodeAppGrantTypes = []database.GrantType{database.GrantTypeAuthorizationCode, database.GrantTypeRefreshToken}
 var deviceGrantTypes = []database.GrantType{
@@ -28,6 +34,9 @@ var deviceGrantTypes = []database.GrantType{
 	database.GrantTypeRefreshToken,
 }
 var noneAuthMethod = []database.AuthMethod{database.AuthMethodNone}
+
+var defaultAllowedScopes = []database.Scopes{database.ScopesOpenid, database.ScopesEmail, database.ScopesProfile}
+var defaultDefaultScopes = []database.Scopes{database.ScopesOpenid, database.ScopesEmail}
 
 type GetAppByClientIDAndAccountPublicIDOptions struct {
 	RequestID       string
@@ -484,6 +493,76 @@ func mapUsernameColumn(col string) (database.AppUsernameColumn, *exceptions.Serv
 	}
 }
 
+func updateScopeSlices(
+	stdScopes *[]database.Scopes,
+	customScopes *[]string,
+	scopes []string,
+) {
+	for _, scope := range scopes {
+		switch scope {
+		case string(database.ScopesOpenid):
+			*stdScopes = append(*stdScopes, database.ScopesOpenid)
+		case string(database.ScopesProfile):
+			*stdScopes = append(*stdScopes, database.ScopesProfile)
+		case string(database.ScopesEmail):
+			*stdScopes = append(*stdScopes, database.ScopesEmail)
+		case string(database.ScopesAddress):
+			*stdScopes = append(*stdScopes, database.ScopesAddress)
+		case string(database.ScopesPhone):
+			*stdScopes = append(*stdScopes, database.ScopesPhone)
+		default:
+			*customScopes = append(*customScopes, scope)
+		}
+	}
+}
+
+func mapScopesToStandardAndCustomScopes(
+	scopes []string,
+	defaultScopes []string,
+) ([]database.Scopes, []string, []database.Scopes, []string, *exceptions.ServiceError) {
+	customScopes := make([]string, 0)
+	stdScopes := make([]database.Scopes, 0)
+	if len(scopes) == 0 {
+		if len(defaultScopes) == 0 {
+			return defaultAllowedScopes, customScopes, defaultDefaultScopes, customScopes, nil
+		}
+
+		updateScopeSlices(&stdScopes, &customScopes, defaultScopes)
+		return stdScopes, customScopes, stdScopes, customScopes, nil
+	}
+
+	updateScopeSlices(&stdScopes, &customScopes, scopes)
+	defaultStdScopes := make([]database.Scopes, 0)
+	defaultCustomScopes := make([]string, 0)
+	if len(defaultScopes) == 0 {
+		return stdScopes, customScopes, defaultStdScopes, defaultCustomScopes, nil
+	}
+
+	scopesSet := utils.SliceToHashSet(scopes)
+	for _, s := range defaultScopes {
+		if !scopesSet.Contains(s) {
+			return nil, nil, nil, nil, exceptions.NewValidationError("Invalid default scope")
+		}
+
+		switch s {
+		case string(database.ScopesOpenid):
+			defaultStdScopes = append(defaultStdScopes, database.ScopesOpenid)
+		case string(database.ScopesProfile):
+			defaultStdScopes = append(defaultStdScopes, database.ScopesProfile)
+		case string(database.ScopesEmail):
+			defaultStdScopes = append(defaultStdScopes, database.ScopesEmail)
+		case string(database.ScopesAddress):
+			defaultStdScopes = append(defaultStdScopes, database.ScopesAddress)
+		case string(database.ScopesPhone):
+			defaultStdScopes = append(defaultStdScopes, database.ScopesPhone)
+		default:
+			defaultCustomScopes = append(defaultCustomScopes, s)
+		}
+	}
+
+	return stdScopes, customScopes, defaultStdScopes, defaultCustomScopes, nil
+}
+
 type checkForDuplicateAppsOptions struct {
 	requestID string
 	accountID int32
@@ -517,19 +596,6 @@ func (s *Services) checkForDuplicateApps(
 	return nil
 }
 
-func mapWebCodeChallengeMethod(method string) (database.CodeChallengeMethod, *exceptions.ServiceError) {
-	switch utils.Lowered(method) {
-	case "s256":
-		return database.CodeChallengeMethodS256, nil
-	case "plain":
-		return database.CodeChallengeMethodPlain, nil
-	case "":
-		return database.CodeChallengeMethodNone, nil
-	default:
-		return "", exceptions.NewValidationError("Unsupported code challenge method")
-	}
-}
-
 type createAppOptions struct {
 	requestID       string
 	accountID       int32
@@ -540,6 +606,14 @@ type createAppOptions struct {
 	usernameColumn  database.AppUsernameColumn
 	authMethods     []database.AuthMethod
 	grantTypes      []database.GrantType
+	logoURI         string
+	tosURI          string
+	policyURI       string
+	contacts        []string
+	softwareID      string
+	softwareVersion string
+	scopes          []string
+	defaultScopes   []string
 }
 
 func (s *Services) createApp(
@@ -554,6 +628,15 @@ func (s *Services) createApp(
 	)
 	logger.InfoContext(ctx, "Creating app...")
 
+	stdScopes, customScopes, defaultStdScopes, defaultCustomScopes, serviceErr := mapScopesToStandardAndCustomScopes(
+		opts.scopes,
+		opts.defaultScopes,
+	)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map scopes", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
+
 	clientID := utils.Base62UUID()
 	app, err := qrs.CreateApp(ctx, database.CreateAppParams{
 		AccountID:       opts.accountID,
@@ -565,6 +648,18 @@ func (s *Services) createApp(
 		UsernameColumn:  opts.usernameColumn,
 		AuthMethods:     opts.authMethods,
 		GrantTypes:      opts.grantTypes,
+		LogoUri:         mapEmptyURL(opts.logoURI),
+		TosUri:          mapEmptyURL(opts.tosURI),
+		PolicyUri:       mapEmptyURL(opts.policyURI),
+		Contacts: utils.MapSlice(opts.contacts, func(t *string) string {
+			return utils.Lowered(*t)
+		}),
+		SoftwareID:          mapEmptyString(opts.softwareID),
+		SoftwareVersion:     mapEmptyString(opts.softwareVersion),
+		Scopes:              stdScopes,
+		DefaultScopes:       defaultStdScopes,
+		CustomScopes:        customScopes,
+		DefaultCustomScopes: defaultCustomScopes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -582,13 +677,22 @@ type createAppWithAuthCodeConfigOptions struct {
 	appType             database.AppType
 	name                string
 	clientURI           string
+	logoURI             string
+	tosURI              string
+	policyURI           string
+	contacts            []string
+	softwareID          string
+	softwareVersion     string
 	usernameColumn      database.AppUsernameColumn
 	authMethods         []database.AuthMethod
 	grantTypes          []database.GrantType
+	responseTypes       []database.ResponseType
 	codeChallengeMethod database.CodeChallengeMethod
 	callbackURIs        []string
 	logoutURIs          []string
 	allowedOrigins      []string
+	scopes              []string
+	defaultScopes       []string
 }
 
 func (s *Services) createAppWithAuthConfig(
@@ -609,9 +713,17 @@ func (s *Services) createAppWithAuthConfig(
 		appType:         opts.appType,
 		name:            opts.name,
 		clientURI:       opts.clientURI,
+		logoURI:         opts.logoURI,
+		tosURI:          opts.tosURI,
+		policyURI:       opts.policyURI,
+		contacts:        opts.contacts,
+		softwareID:      opts.softwareID,
+		softwareVersion: opts.softwareVersion,
 		usernameColumn:  opts.usernameColumn,
 		authMethods:     opts.authMethods,
 		grantTypes:      opts.grantTypes,
+		scopes:          opts.scopes,
+		defaultScopes:   opts.defaultScopes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -631,6 +743,7 @@ func (s *Services) createAppWithAuthConfig(
 		AllowedOrigins: utils.MapSlice(opts.allowedOrigins, func(uri *string) string {
 			return utils.ProcessURL(*uri)
 		}),
+		ResponseTypes: opts.responseTypes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app callback/logout URIs", "error", err)
@@ -641,6 +754,45 @@ func (s *Services) createAppWithAuthConfig(
 	return app, authConfig, nil
 }
 
+func mapResponseTypes(responseTypes []string) ([]database.ResponseType, *exceptions.ServiceError) {
+	if len(responseTypes) == 0 {
+		return []database.ResponseType{
+			database.ResponseTypeCode,
+			database.ResponseTypeIDToken,
+			database.ResponseTypeCodeidToken,
+		}, nil
+	}
+
+	rts := make([]database.ResponseType, 0, len(responseTypes))
+	for _, rt := range responseTypes {
+		switch rt {
+		case responseTypeCode:
+			rts = append(rts, database.ResponseTypeCode)
+		case responseTypeIDToken:
+			rts = append(rts, database.ResponseTypeIDToken)
+		case responseTypeCodeIDToken:
+			rts = append(rts, database.ResponseTypeCodeidToken)
+		default:
+			return nil, exceptions.NewValidationError("Unsupported response type: " + rt)
+		}
+	}
+
+	return rts, nil
+}
+
+func mapWebCodeChallengeMethod(method string) (database.CodeChallengeMethod, *exceptions.ServiceError) {
+	switch utils.Lowered(method) {
+	case "s256":
+		return database.CodeChallengeMethodS256, nil
+	case "plain":
+		return database.CodeChallengeMethodPlain, nil
+	case "":
+		return database.CodeChallengeMethodNone, nil
+	default:
+		return "", exceptions.NewValidationError("Unsupported code challenge method")
+	}
+}
+
 type CreateWebAppOptions struct {
 	RequestID           string
 	AccountPublicID     uuid.UUID
@@ -648,12 +800,21 @@ type CreateWebAppOptions struct {
 	Name                string
 	UsernameColumn      string
 	AuthMethods         string
+	ResponseTypes       []string
 	Algorithm           string
 	ClientURI           string
+	LogoURI             string
+	TOSURI              string
+	PolicyURI           string
+	Contacts            []string
+	SoftwareID          string
+	SoftwareVersion     string
 	CallbackURIs        []string
 	LogoutURIs          []string
 	AllowedOrigins      []string
 	CodeChallengeMethod string
+	Scopes              []string
+	DefaultScopes       []string
 }
 
 func (s *Services) CreateWebApp(
@@ -670,6 +831,12 @@ func (s *Services) CreateWebApp(
 	authMethods, serviceErr := mapAuthMethod(opts.AuthMethods)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map auth method", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	responseTypes, serviceErr := mapResponseTypes(opts.ResponseTypes)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
 	}
 
@@ -722,13 +889,22 @@ func (s *Services) CreateWebApp(
 		appType:             database.AppTypeWeb,
 		name:                name,
 		clientURI:           opts.ClientURI,
+		logoURI:             opts.LogoURI,
+		tosURI:              opts.TOSURI,
+		policyURI:           opts.PolicyURI,
+		contacts:            opts.Contacts,
+		softwareID:          opts.SoftwareID,
+		softwareVersion:     opts.SoftwareVersion,
 		usernameColumn:      usernameColumn,
 		authMethods:         authMethods,
 		grantTypes:          authCodeAppGrantTypes,
+		responseTypes:       responseTypes,
 		codeChallengeMethod: codeChallengeMethod,
 		callbackURIs:        opts.CallbackURIs,
 		logoutURIs:          opts.LogoutURIs,
 		allowedOrigins:      opts.AllowedOrigins,
+		scopes:              opts.Scopes,
+		defaultScopes:       opts.DefaultScopes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app and auth config", "error", err)
@@ -837,11 +1013,20 @@ type CreateSPAAppOptions struct {
 	AccountVersion      int32
 	Name                string
 	UsernameColumn      string
+	ResponseTypes       []string
 	ClientURI           string
+	LogoURI             string
+	TOSURI              string
+	PolicyURI           string
+	Contacts            []string
+	SoftwareID          string
+	SoftwareVersion     string
 	CallbackURIs        []string
 	LogoutURIs          []string
 	AllowedOrigins      []string
 	CodeChallengeMethod string
+	Scopes              []string
+	DefaultScopes       []string
 }
 
 func (s *Services) CreateSPAApp(
@@ -858,6 +1043,12 @@ func (s *Services) CreateSPAApp(
 	codeChallengeMethod, serviceErr := mapMandatoryCodeChallengeMethod(opts.CodeChallengeMethod)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map code challenge method", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	responseTypes, serviceErr := mapResponseTypes(opts.ResponseTypes)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
 	}
 
@@ -904,13 +1095,22 @@ func (s *Services) CreateSPAApp(
 		appType:             database.AppTypeSpa,
 		name:                name,
 		clientURI:           opts.ClientURI,
+		logoURI:             opts.LogoURI,
+		tosURI:              opts.TOSURI,
+		policyURI:           opts.PolicyURI,
+		contacts:            opts.Contacts,
+		softwareID:          opts.SoftwareID,
+		softwareVersion:     opts.SoftwareVersion,
 		usernameColumn:      usernameColumn,
 		authMethods:         noneAuthMethod,
 		grantTypes:          authCodeAppGrantTypes,
+		responseTypes:       responseTypes,
 		codeChallengeMethod: codeChallengeMethod,
 		callbackURIs:        opts.CallbackURIs,
 		logoutURIs:          opts.LogoutURIs,
 		allowedOrigins:      opts.AllowedOrigins,
+		scopes:              opts.Scopes,
+		defaultScopes:       opts.DefaultScopes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app and auth config", "error", err)
@@ -928,9 +1128,18 @@ type CreateNativeAppOptions struct {
 	AccountVersion      int32
 	Name                string
 	UsernameColumn      string
+	ResponseTypes       []string
 	ClientURI           string
+	LogoURI             string
+	TOSURI              string
+	PolicyURI           string
+	Contacts            []string
+	SoftwareID          string
+	SoftwareVersion     string
 	CallbackURIs        []string
 	LogoutURIs          []string
+	Scopes              []string
+	DefaultScopes       []string
 	CodeChallengeMethod string
 }
 
@@ -954,6 +1163,12 @@ func (s *Services) CreateNativeApp(
 	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	responseTypes, serviceErr := mapResponseTypes(opts.ResponseTypes)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
 	}
 
@@ -994,12 +1209,21 @@ func (s *Services) CreateNativeApp(
 		appType:             database.AppTypeNative,
 		name:                name,
 		clientURI:           opts.ClientURI,
+		logoURI:             opts.LogoURI,
+		tosURI:              opts.TOSURI,
+		policyURI:           opts.PolicyURI,
+		contacts:            opts.Contacts,
+		softwareID:          opts.SoftwareID,
+		softwareVersion:     opts.SoftwareVersion,
 		usernameColumn:      usernameColumn,
 		authMethods:         noneAuthMethod,
 		grantTypes:          authCodeAppGrantTypes,
+		responseTypes:       responseTypes,
 		codeChallengeMethod: codeChallengeMethod,
 		callbackURIs:        opts.CallbackURIs,
 		logoutURIs:          opts.LogoutURIs,
+		scopes:              opts.Scopes,
+		defaultScopes:       opts.DefaultScopes,
 		allowedOrigins:      make([]string, 0),
 	})
 	if err != nil {
@@ -1022,8 +1246,16 @@ type CreateBackendAppOptions struct {
 	Issuers          []string
 	Algorithm        string
 	ClientURI        string
+	LogoURI          string
+	TOSURI           string
+	PolicyURI        string
+	Contacts         []string
+	SoftwareID       string
+	SoftwareVersion  string
 	ConfirmationURL  string
 	ResetPasswordURL string
+	Scopes           []string
+	DefaultScopes    []string
 }
 
 func (s *Services) CreateBackendApp(
@@ -1092,9 +1324,17 @@ func (s *Services) CreateBackendApp(
 		appType:         database.AppTypeBackend,
 		name:            name,
 		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		contacts:        opts.Contacts,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
 		usernameColumn:  usernameColumn,
 		authMethods:     authMethods,
 		grantTypes:      grantTypes,
+		scopes:          opts.Scopes,
+		defaultScopes:   opts.DefaultScopes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -1208,8 +1448,16 @@ type CreateDeviceAppOptions struct {
 	Name            string
 	UsernameColumn  string
 	ClientURI       string
+	LogoURI         string
+	TOSURI          string
+	PolicyURI       string
+	Contacts        []string
+	SoftwareID      string
+	SoftwareVersion string
 	BackendDomain   string
 	AssociatedApps  []string
+	Scopes          []string
+	DefaultScopes   []string
 }
 
 func (s *Services) CreateDeviceApp(
@@ -1226,6 +1474,15 @@ func (s *Services) CreateDeviceApp(
 	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	stdScopes, customScopes, defaultStdScopes, defaultCustomScopes, serviceErr := mapScopesToStandardAndCustomScopes(
+		opts.Scopes,
+		opts.DefaultScopes,
+	)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map scopes", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
 	}
 
@@ -1261,7 +1518,19 @@ func (s *Services) CreateDeviceApp(
 			ClientID:        clientID,
 			AuthMethods:     noneAuthMethod,
 			ClientUri:       clientURI,
-			GrantTypes:      deviceGrantTypes,
+			LogoUri:         mapEmptyURL(opts.LogoURI),
+			TosUri:          mapEmptyURL(opts.TOSURI),
+			PolicyUri:       mapEmptyURL(opts.PolicyURI),
+			SoftwareID:      mapEmptyString(opts.SoftwareID),
+			SoftwareVersion: mapEmptyString(opts.SoftwareVersion),
+			Contacts: utils.MapSlice(opts.Contacts, func(t *string) string {
+				return utils.Lowered(*t)
+			}),
+			GrantTypes:          deviceGrantTypes,
+			Scopes:              stdScopes,
+			DefaultScopes:       defaultStdScopes,
+			CustomScopes:        customScopes,
+			DefaultCustomScopes: defaultCustomScopes,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -1314,8 +1583,20 @@ func (s *Services) CreateDeviceApp(
 		UsernameColumn:  usernameColumn,
 		ClientID:        clientID,
 		ClientUri:       clientURI,
-		AuthMethods:     noneAuthMethod,
-		GrantTypes:      deviceGrantTypes,
+		LogoUri:         mapEmptyURL(opts.LogoURI),
+		TosUri:          mapEmptyURL(opts.TOSURI),
+		PolicyUri:       mapEmptyURL(opts.PolicyURI),
+		SoftwareID:      mapEmptyString(opts.SoftwareID),
+		SoftwareVersion: mapEmptyString(opts.SoftwareVersion),
+		Contacts: utils.MapSlice(opts.Contacts, func(t *string) string {
+			return utils.Lowered(*t)
+		}),
+		AuthMethods:         noneAuthMethod,
+		GrantTypes:          deviceGrantTypes,
+		Scopes:              stdScopes,
+		DefaultScopes:       defaultStdScopes,
+		CustomScopes:        customScopes,
+		DefaultCustomScopes: defaultCustomScopes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -1359,8 +1640,16 @@ type CreateServiceAppOptions struct {
 	Issuers          []string
 	Algorithm        string
 	ClientURI        string
+	LogoURI          string
+	TOSURI           string
+	PolicyURI        string
+	Contacts         []string
+	SoftwareID       string
+	SoftwareVersion  string
 	UsersAuthMethods string
 	AllowedDomains   []string
+	Scopes           []string
+	DefaultScopes    []string
 }
 
 func (s *Services) CreateServiceApp(
@@ -1444,9 +1733,17 @@ func (s *Services) CreateServiceApp(
 		appType:         database.AppTypeService,
 		name:            name,
 		clientURI:       opts.ClientURI,
+		logoURI:         opts.LogoURI,
+		tosURI:          opts.TOSURI,
+		policyURI:       opts.PolicyURI,
+		contacts:        opts.Contacts,
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
 		usernameColumn:  database.AppUsernameColumnEmail,
 		authMethods:     authMethods,
 		grantTypes:      grantTypes,
+		scopes:          opts.Scopes,
+		defaultScopes:   opts.DefaultScopes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -1554,17 +1851,123 @@ func (s *Services) CreateServiceApp(
 	}
 }
 
-func buildOptionalURL(url string) (pgtype.Text, error) {
-	if url == "" {
-		return pgtype.Text{}, nil
+func mapMCPResponseTypes(responseTypes []string) ([]database.ResponseType, *exceptions.ServiceError) {
+	if len(responseTypes) == 0 {
+		return []database.ResponseType{database.ResponseTypeCode, database.ResponseTypeCodeidToken}, nil
 	}
 
-	var pgURL pgtype.Text
-	if err := pgURL.Scan(utils.ProcessURL(url)); err != nil {
-		return pgtype.Text{}, err
+	rts := make([]database.ResponseType, 0, len(responseTypes))
+	for _, rt := range responseTypes {
+		switch rt {
+		case responseTypeCode:
+			rts = append(rts, database.ResponseTypeCode)
+		case responseTypeCodeIDToken:
+			rts = append(rts, database.ResponseTypeCodeidToken)
+		default:
+			return nil, exceptions.NewValidationError("Unsupported response type: " + rt)
+		}
 	}
 
-	return pgURL, nil
+	return rts, nil
+}
+
+type CreateMCPAppOptions struct {
+	RequestID       string
+	AccountPublicID uuid.UUID
+	AccountVersion  int32
+	Name            string
+	ClientURI       string
+	LogoURI         string
+	TOSURI          string
+	PolicyURI       string
+	Contacts        []string
+	SoftwareID      string
+	SoftwareVersion string
+	CallbackURIs    []string
+	ResponseTypes   []string
+	Scopes          []string
+	DefaultScopes   []string
+}
+
+func (s *Services) CreateMCPApp(
+	ctx context.Context,
+	opts CreateMCPAppOptions,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appsLocation, "CreateMCPApp").With(
+		"accountPublicID", opts.AccountPublicID,
+		"name", opts.Name,
+	)
+	logger.InfoContext(ctx, "Creating MCP app...")
+
+	accountID, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.AccountPublicID,
+		Version:   opts.AccountVersion,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get account ID by public ID and version", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	name := strings.TrimSpace(opts.Name)
+	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
+		requestID: opts.RequestID,
+		accountID: accountID,
+		name:      name,
+	}); serviceErr != nil {
+		logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	responseTypes, serviceErr := mapMCPResponseTypes(opts.ResponseTypes)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return dtos.AppDTO{}, exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	app, cfg, err := s.createAppWithAuthConfig(ctx, qrs, createAppWithAuthCodeConfigOptions{
+		requestID:           opts.RequestID,
+		accountID:           accountID,
+		accountPublicID:     opts.AccountPublicID,
+		appType:             database.AppTypeMcp,
+		name:                name,
+		clientURI:           opts.ClientURI,
+		logoURI:             opts.LogoURI,
+		tosURI:              opts.TOSURI,
+		policyURI:           opts.PolicyURI,
+		contacts:            opts.Contacts,
+		softwareID:          opts.SoftwareID,
+		softwareVersion:     opts.SoftwareVersion,
+		usernameColumn:      database.AppUsernameColumnEmail,
+		authMethods:         noneAuthMethod,
+		grantTypes:          authCodeAppGrantTypes,
+		responseTypes:       responseTypes,
+		codeChallengeMethod: database.CodeChallengeMethodS256,
+		callbackURIs: utils.MapSlice(opts.CallbackURIs, func(uri *string) string {
+			return utils.ProcessURL(*uri)
+		}),
+		logoutURIs:     make([]string, 0),
+		allowedOrigins: make([]string, 0),
+		scopes:         opts.Scopes,
+		defaultScopes:  opts.DefaultScopes,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create app with auth code config", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return dtos.AppDTO{}, serviceErr
+	}
+
+	return dtos.AppDTO{}, nil
 }
 
 type updateAppOptions struct {
@@ -1577,6 +1980,7 @@ type updateAppOptions struct {
 	policyURI       string
 	softwareID      string
 	softwareVersion string
+	contacts        []string
 }
 
 func (s *Services) updateApp(
@@ -1590,24 +1994,6 @@ func (s *Services) updateApp(
 		"appName", appDTO.Name,
 	)
 	logger.InfoContext(ctx, "Updating base app...")
-
-	logoURI, err := buildOptionalURL(opts.logoURI)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to build logo URI", "error", err)
-		return database.App{}, err
-	}
-
-	tosURI, err := buildOptionalURL(opts.tosURI)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to build tos URI", "error", err)
-		return database.App{}, err
-	}
-
-	policyURI, err := buildOptionalURL(opts.policyURI)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to build policy URI", "error", err)
-		return database.App{}, err
-	}
 
 	var softwareID pgtype.Text
 	if opts.softwareID != "" {
@@ -1630,11 +2016,14 @@ func (s *Services) updateApp(
 		UsernameColumn:  opts.usernameColumn,
 		Name:            opts.name,
 		ClientUri:       opts.clientURI,
-		LogoUri:         logoURI,
-		TosUri:          tosURI,
-		PolicyUri:       policyURI,
+		LogoUri:         mapEmptyURL(opts.logoURI),
+		TosUri:          mapEmptyURL(opts.tosURI),
+		PolicyUri:       mapEmptyURL(opts.policyURI),
 		SoftwareID:      softwareID,
 		SoftwareVersion: softwareVersion,
+		Contacts: utils.MapSlice(opts.contacts, func(t *string) string {
+			return utils.Lowered(*t)
+		}),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update app", "error", err)
@@ -1655,6 +2044,7 @@ type updateAppWithAuthCodeConfigOptions struct {
 	policyURI           string
 	softwareID          string
 	softwareVersion     string
+	contacts            []string
 	callbackURIs        []string
 	logoutURIs          []string
 	allowedOrigins      []string
@@ -1684,6 +2074,7 @@ func (s *Services) updateAppWithAuthCodeConfig(
 		policyURI:       opts.policyURI,
 		softwareID:      opts.softwareID,
 		softwareVersion: opts.softwareVersion,
+		contacts:        opts.contacts,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
@@ -1724,6 +2115,7 @@ type UpdateWebAppOptions struct {
 	PolicyURI           string
 	SoftwareID          string
 	SoftwareVersion     string
+	Contacts            []string
 	CallbackURLs        []string
 	LogoutURLs          []string
 	AllowedOrigins      []string
@@ -1785,6 +2177,7 @@ func (s *Services) UpdateWebApp(
 		softwareID:          opts.SoftwareID,
 		softwareVersion:     opts.SoftwareVersion,
 		callbackURIs:        opts.CallbackURLs,
+		contacts:            opts.Contacts,
 		logoutURIs:          opts.LogoutURLs,
 		allowedOrigins:      opts.AllowedOrigins,
 		codeChallengeMethod: codeChallengeMethod,
@@ -1810,6 +2203,7 @@ type UpdateSPAAppOptions struct {
 	PolicyURI           string
 	SoftwareID          string
 	SoftwareVersion     string
+	Contacts            []string
 	CallbackURLs        []string
 	LogoutURLs          []string
 	AllowedOrigins      []string
@@ -1871,6 +2265,7 @@ func (s *Services) UpdateSPAApp(
 		softwareID:          opts.SoftwareID,
 		softwareVersion:     opts.SoftwareVersion,
 		callbackURIs:        opts.CallbackURLs,
+		contacts:            opts.Contacts,
 		logoutURIs:          opts.LogoutURLs,
 		allowedOrigins:      opts.AllowedOrigins,
 		codeChallengeMethod: codeChallengeMethod,
@@ -1896,6 +2291,7 @@ type UpdateNativeAppOptions struct {
 	PolicyURI           string
 	SoftwareID          string
 	SoftwareVersion     string
+	Contacts            []string
 	CallbackURIs        []string
 	LogoutURIs          []string
 	CodeChallengeMethod string
@@ -1956,6 +2352,7 @@ func (s *Services) UpdateNativeApp(
 		softwareID:          opts.SoftwareID,
 		softwareVersion:     opts.SoftwareVersion,
 		callbackURIs:        opts.CallbackURIs,
+		contacts:            opts.Contacts,
 		logoutURIs:          opts.LogoutURIs,
 		allowedOrigins:      make([]string, 0),
 		codeChallengeMethod: codeChallengeMethod,
@@ -1981,6 +2378,7 @@ type UpdateBackendAppOptions struct {
 	PolicyURI        string
 	SoftwareID       string
 	SoftwareVersion  string
+	Contacts         []string
 	ConfirmationURL  string
 	ResetPasswordURL string
 	Issuers          []string
@@ -2034,6 +2432,7 @@ func (s *Services) UpdateBackendApp(
 		policyURI:       opts.PolicyURI,
 		softwareID:      opts.SoftwareID,
 		softwareVersion: opts.SoftwareVersion,
+		contacts:        opts.Contacts,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
@@ -2071,6 +2470,7 @@ type UpdateDeviceAppOptions struct {
 	PolicyURI       string
 	SoftwareID      string
 	SoftwareVersion string
+	Contacts        []string
 	BackendDomain   string
 	AssociatedApps  []string
 }
@@ -2174,6 +2574,7 @@ func (s *Services) UpdateDeviceApp(
 		policyURI:       opts.PolicyURI,
 		softwareID:      opts.SoftwareID,
 		softwareVersion: opts.SoftwareVersion,
+		contacts:        opts.Contacts,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
@@ -2233,6 +2634,7 @@ type UpdateServiceAppOptions struct {
 	PolicyURI       string
 	SoftwareID      string
 	SoftwareVersion string
+	Contacts        []string
 	AllowedDomains  []string
 	Issuers         []string
 }
@@ -2280,6 +2682,7 @@ func (s *Services) UpdateServiceApp(
 		policyURI:       opts.PolicyURI,
 		softwareID:      opts.SoftwareID,
 		softwareVersion: opts.SoftwareVersion,
+		contacts:        opts.Contacts,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update base app", "error", err)

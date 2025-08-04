@@ -144,7 +144,7 @@ func (c *Config) UserCCExpDays() int64 {
 	return c.userCCExpDays
 }
 
-var variables = [43]string{
+var variables = [45]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -188,6 +188,8 @@ var variables = [43]string{
 	"WELLKNOWN_OIDC_CONFIG_CACHE_TTL_SEC",
 	"ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
 	"USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
+	"OAUTH_STATE_TTL_SEC",
+	"OAUTH_CODE_TTL_SEC",
 }
 
 var optionalVariables = [10]string{
@@ -203,7 +205,7 @@ var optionalVariables = [10]string{
 	"MICROSOFT_CLIENT_SECRET",
 }
 
-var numerics = [27]string{
+var numerics = [28]string{
 	"PORT",
 	"MAX_PROCS",
 	"JWT_ACCESS_TTL_SEC",
@@ -211,7 +213,6 @@ var numerics = [27]string{
 	"JWT_REFRESH_TTL_SEC",
 	"JWT_CONFIRM_TTL_SEC",
 	"JWT_RESET_TTL_SEC",
-	"JWT_OAUTH_TTL_SEC",
 	"JWT_2FA_TTL_SEC",
 	"JWT_APPS_TTL_SEC",
 	"RATE_LIMITER_MAX",
@@ -231,6 +232,8 @@ var numerics = [27]string{
 	"WELLKNOWN_OIDC_CONFIG_CACHE_TTL_SEC",
 	"ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
 	"USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
+	"OAUTH_STATE_TTL_SEC",
+	"OAUTH_CODE_TTL_SEC",
 }
 
 func NewConfig(logger *slog.Logger, envPath string) Config {
@@ -288,7 +291,6 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 			intMap["JWT_REFRESH_TTL_SEC"],
 			intMap["JWT_CONFIRM_TTL_SEC"],
 			intMap["JWT_RESET_TTL_SEC"],
-			intMap["JWT_OAUTH_TTL_SEC"],
 			intMap["JWT_2FA_TTL_SEC"],
 			intMap["JWT_APPS_TTL_SEC"],
 		),
@@ -326,6 +328,8 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 			intMap["PUBLIC_JWKS_CACHE_TTL_SEC"],
 			intMap["ACCOUNT_USERNAME_CACHE_TTL_SEC"],
 			intMap["WELLKNOWN_OIDC_CONFIG_CACHE_TTL_SEC"],
+			intMap["OAUTH_STATE_TTL_SEC"],
+			intMap["OAUTH_CODE_TTL_SEC"],
 		),
 		accountCCExpDays: intMap["ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
 		userCCExpDays:    intMap["USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],

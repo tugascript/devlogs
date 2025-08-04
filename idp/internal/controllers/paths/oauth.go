@@ -18,6 +18,5 @@ const (
 	OAuthDeviceAuth string = "/auth/device"
 
 	OAuthAppleCallback string = "/apple/callback"
-	OAuthURL           string = "/:provider"
 	OAuthCallback      string = "/:provider/callback"
 )

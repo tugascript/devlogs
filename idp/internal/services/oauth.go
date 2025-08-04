@@ -8,11 +8,12 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -42,9 +43,12 @@ const (
 var oauthScopes = []oauth.Scope{oauth.ScopeProfile}
 
 type AccountOAuthURLOptions struct {
-	RequestID   string
-	Provider    string
-	RedirectURL string
+	RequestID       string
+	Provider        string
+	RedirectURL     string
+	Challenge       string
+	ChallengeMethod string
+	State           string
 }
 
 func (s *Services) AccountOAuthURL(ctx context.Context, opts AccountOAuthURLOptions) (string, *exceptions.ServiceError) {
@@ -53,13 +57,18 @@ func (s *Services) AccountOAuthURL(ctx context.Context, opts AccountOAuthURLOpti
 	)
 	logger.InfoContext(ctx, "Getting OAuth authorization url...")
 
+	cm, serviceErr := mapChallengeMethod(opts.ChallengeMethod)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map challenge method", "serviceErr", serviceErr)
+		return "", serviceErr
+	}
+
 	authUrlOpts := oauth.AuthorizationURLOptions{
 		RequestID:   opts.RequestID,
 		Scopes:      oauthScopes,
 		RedirectURL: opts.RedirectURL,
 	}
 	var oauthUrl, state string
-	var serviceErr *exceptions.ServiceError
 	switch opts.Provider {
 	case AuthProviderApple:
 		oauthUrl, state, serviceErr = s.oauthProviders.GetAppleAuthorizationURL(ctx, authUrlOpts)
@@ -80,11 +89,13 @@ func (s *Services) AccountOAuthURL(ctx context.Context, opts AccountOAuthURLOpti
 		return "", serviceErr
 	}
 
-	if err := s.cache.AddOAuthState(ctx, cache.AddOAuthStateOptions{
+	if err := s.cache.SaveOAuthStateData(ctx, cache.SaveOAuthStateDataOptions{
 		RequestID:       opts.RequestID,
 		State:           state,
 		Provider:        opts.Provider,
-		DurationSeconds: s.jwt.GetOAuthTTL(),
+		RequestState:    opts.State,
+		Challenge:       opts.Challenge,
+		ChallengeMethod: cm,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to cache State", "error", err)
 		return "", exceptions.NewInternalServerError()
@@ -106,19 +117,25 @@ func (s *Services) extOAuthToken(
 	ctx context.Context,
 	logger *slog.Logger,
 	opts extOAuthTokenOptions,
-) (string, *exceptions.ServiceError) {
-	ok, err := s.cache.VerifyOAuthState(ctx, cache.VerifyOAuthStateOptions{
+) (string, cache.OAuthStateData, *exceptions.ServiceError) {
+	stateData, found, err := s.cache.GetOAuthState(ctx, cache.GetOAuthStateOptions{
 		RequestID: opts.requestID,
 		State:     opts.state,
-		Provider:  opts.provider,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify oauth State", "error", err)
-		return "", exceptions.NewInternalServerError()
+		return "", cache.OAuthStateData{}, exceptions.NewInternalServerError()
 	}
-	if !ok {
+	if !found {
 		logger.WarnContext(ctx, "OAuth State is invalid")
-		return "", exceptions.NewValidationError("OAuth State is invalid")
+		return "", cache.OAuthStateData{}, exceptions.NewValidationError("OAuth State is invalid")
+	}
+	if stateData.Provider != opts.provider {
+		logger.WarnContext(ctx, "OAuth State provider does not match",
+			"expectedProvider", opts.provider,
+			"actualProvider", stateData.Provider,
+		)
+		return "", cache.OAuthStateData{}, exceptions.NewValidationError("OAuth State provider does not match")
 	}
 
 	accessTokenOpts := oauth.AccessTokenOptions{
@@ -140,15 +157,15 @@ func (s *Services) extOAuthToken(
 		token, serviceErr = s.oauthProviders.GetMicrosoftAccessToken(ctx, accessTokenOpts)
 	default:
 		logger.ErrorContext(ctx, "Provider must be 'facebook', 'github', 'google' and 'microsoft'")
-		return "", exceptions.NewInternalServerError()
+		return "", cache.OAuthStateData{}, exceptions.NewInternalServerError()
 	}
 	if serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to get oauth access token", "error", serviceErr)
-		return "", serviceErr
+		return "", cache.OAuthStateData{}, serviceErr
 	}
 
 	logger.InfoContext(ctx, "Got access token successfully")
-	return token, nil
+	return token, stateData, nil
 }
 
 type extOAuthUserOptions struct {
@@ -196,9 +213,11 @@ func (s *Services) extOAuthUser(
 }
 
 type saveExtAccount struct {
-	requestID string
-	provider  string
-	userData  *oauth.UserData
+	requestID  string
+	provider   string
+	email      string
+	givenName  string
+	familyName string
 }
 
 func (s *Services) saveExtAccount(
@@ -208,7 +227,7 @@ func (s *Services) saveExtAccount(
 ) (dtos.AccountDTO, *exceptions.ServiceError) {
 	accountDto, serviceErr := s.GetAccountByEmail(ctx, GetAccountByEmailOptions{
 		RequestID: opts.requestID,
-		Email:     opts.userData.Email,
+		Email:     opts.email,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -218,9 +237,9 @@ func (s *Services) saveExtAccount(
 
 		accountDto, serviceErr := s.CreateAccount(ctx, CreateAccountOptions{
 			RequestID:  opts.requestID,
-			GivenName:  opts.userData.FirstName,
-			FamilyName: opts.userData.LastName,
-			Email:      opts.userData.Email,
+			GivenName:  opts.givenName,
+			FamilyName: opts.familyName,
+			Email:      opts.email,
 			Provider:   opts.provider,
 			Password:   "",
 		})
@@ -262,39 +281,6 @@ func (s *Services) saveExtAccount(
 	return accountDto, nil
 }
 
-type generateOAuthQueryParams struct {
-	requestID string
-	email     string
-	token     string
-}
-
-func (s *Services) generateOAuthQueryParams(
-	ctx context.Context,
-	logger *slog.Logger,
-	opts generateOAuthQueryParams,
-) (string, *exceptions.ServiceError) {
-	oauthTtl := s.jwt.GetOAuthTTL()
-	code, err := s.cache.GenerateOAuthCode(ctx, cache.GenerateOAuthOptions{
-		RequestID:       opts.requestID,
-		Email:           opts.email,
-		DurationSeconds: oauthTtl,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate oauth Code", "error", err)
-		return "", exceptions.NewInternalServerError()
-	}
-
-	queryParams := make(url.Values)
-	queryParams.Add("code", code)
-
-	fragmentParams := make(url.Values)
-	fragmentParams.Add("token_type", "Bearer")
-	fragmentParams.Add("access_token", opts.token)
-	fragmentParams.Add("expires_in", strconv.FormatInt(oauthTtl, 10))
-
-	return fmt.Sprintf("%s#%s", queryParams.Encode(), fragmentParams.Encode()), nil
-}
-
 type ExtLoginAccountOptions struct {
 	RequestID   string
 	Provider    string
@@ -312,7 +298,7 @@ func (s *Services) ExtLoginAccount(
 	)
 	logger.InfoContext(ctx, "External logging in account...")
 
-	token, serviceErr := s.extOAuthToken(ctx, logger, extOAuthTokenOptions{
+	token, stateData, serviceErr := s.extOAuthToken(ctx, logger, extOAuthTokenOptions{
 		requestID:   opts.RequestID,
 		provider:    opts.Provider,
 		code:        opts.Code,
@@ -332,40 +318,65 @@ func (s *Services) ExtLoginAccount(
 		return "", serviceErr
 	}
 
-	accountDTO, serviceErr := s.saveExtAccount(ctx, logger, saveExtAccount{
-		requestID: opts.RequestID,
-		provider:  opts.Provider,
-		userData:  &userData,
+	code, err := s.cache.GenerateOAuthCode(ctx, cache.GenerateOAuthCodeOptions{
+		RequestID:       opts.RequestID,
+		Email:           userData.Email,
+		GivenName:       userData.FirstName,
+		FamilyName:      userData.LastName,
+		Provider:        opts.Provider,
+		Challenge:       stateData.Challenge,
+		ChallengeMethod: stateData.ChallengeMethod,
 	})
-	if serviceErr != nil {
-		return "", serviceErr
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate OAuth code", "error", err)
+		return "", exceptions.NewInternalServerError()
 	}
 
-	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
-		RequestID: opts.RequestID,
-		Token: s.jwt.CreateOAuthToken(tokens.AccountOAuthTokenOptions{
-			PublicID: accountDTO.PublicID,
-			Version:  accountDTO.Version(),
-		}),
-		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
-			RequestID: opts.RequestID,
-			KeyType:   database.TokenKeyTypeOauthAuthorization,
-			TTL:       s.jwt.GetOAuthTTL(),
-		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.RequestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to sign OAuth Token", "serviceError", serviceErr)
-		return "", serviceErr
+	queryParams := make(url.Values)
+	queryParams.Add("code", code)
+	queryParams.Add("state", stateData.RequestState)
+	logger.InfoContext(ctx, "Generated OAuth code successfully")
+	return queryParams.Encode(), nil
+}
+
+type verifyOAuthChallengeOptions struct {
+	requestID         string
+	challenge         string
+	challengeMethod   string
+	challengeVerifier string
+}
+
+func (s *Services) verifyOAuthChallenge(
+	ctx context.Context,
+	opts verifyOAuthChallengeOptions,
+) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.requestID, oauthLocation, "verifyOAuthChallenge").With(
+		"challengeMethod", opts.challengeMethod,
+	)
+	switch opts.challengeMethod {
+	case ChallengeMethodPlain:
+		if opts.challengeVerifier != opts.challenge {
+			logger.WarnContext(ctx, "OAuth code verifier does not match challenge")
+			return exceptions.NewUnauthorizedError()
+		}
+	case ChallengeMethodS256:
+		hashedVerifier := sha256.Sum256([]byte(opts.challengeVerifier))
+		decodedVerifier, err := base64.RawURLEncoding.DecodeString(opts.challenge)
+		if err != nil {
+			logger.WarnContext(ctx, "Error decoding OAuth code challenge", "error", err)
+			return exceptions.NewUnauthorizedError()
+		}
+		if !utils.CompareSha256(hashedVerifier[:], decodedVerifier) {
+			logger.DebugContext(ctx, "OAuth code verifier does not match challenge")
+			return exceptions.NewUnauthorizedError()
+		}
+	default:
+		logger.ErrorContext(ctx, "Invalid OAuth code challenge method")
+		return exceptions.NewValidationError("Invalid OAuth code challenge method: " + opts.challengeMethod)
 	}
 
-	return s.generateOAuthQueryParams(ctx, logger, generateOAuthQueryParams{
-		requestID: opts.RequestID,
-		email:     accountDTO.Email,
-		token:     signedToken,
-	})
+	logger.InfoContext(ctx, "OAuth code challenge verified successfully")
+	return nil
 }
 
 type AppleLoginAccountOptions struct {
@@ -387,16 +398,15 @@ func (s *Services) AppleLoginAccount(
 	)
 	logger.InfoContext(ctx, "Apple account logging in...")
 
-	ok, err := s.cache.VerifyOAuthState(ctx, cache.VerifyOAuthStateOptions{
+	stateData, found, err := s.cache.GetOAuthState(ctx, cache.GetOAuthStateOptions{
 		RequestID: opts.RequestID,
 		State:     opts.State,
-		Provider:  AuthProviderApple,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify oauth State", "error", err)
 		return "", exceptions.NewInternalServerError()
 	}
-	if !ok {
+	if !found {
 		logger.WarnContext(ctx, "OAuth State is invalid")
 		return "", exceptions.NewValidationError("OAuth State is invalid")
 	}
@@ -411,7 +421,7 @@ func (s *Services) AppleLoginAccount(
 		return "", serviceErr
 	}
 
-	ok, serviceErr = s.oauthProviders.ValidateAppleIDToken(ctx, oauth.ValidateAppleIDTokenOptions{
+	ok, serviceErr := s.oauthProviders.ValidateAppleIDToken(ctx, oauth.ValidateAppleIDTokenOptions{
 		RequestID: opts.RequestID,
 		Token:     idToken,
 		Email:     opts.Email,
@@ -425,69 +435,43 @@ func (s *Services) AppleLoginAccount(
 		return "", exceptions.NewUnauthorizedError()
 	}
 
-	userData := oauth.NewAppleUserData(opts.Email, opts.FirstName, opts.LastName)
-	accountDTO, serviceErr := s.saveExtAccount(ctx, logger, saveExtAccount{
-		requestID: opts.RequestID,
-		provider:  AuthProviderApple,
-		userData:  &userData,
+	code, err := s.cache.GenerateOAuthCode(ctx, cache.GenerateOAuthCodeOptions{
+		RequestID:       opts.RequestID,
+		Email:           opts.Email,
+		GivenName:       opts.FirstName,
+		FamilyName:      opts.LastName,
+		Provider:        AuthProviderApple,
+		Challenge:       stateData.Challenge,
+		ChallengeMethod: stateData.ChallengeMethod,
 	})
-	if serviceErr != nil {
-		return "", serviceErr
-	}
-
-	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
-		RequestID: opts.RequestID,
-		Token: s.jwt.CreateOAuthToken(tokens.AccountOAuthTokenOptions{
-			PublicID: accountDTO.PublicID,
-			Version:  accountDTO.Version(),
-		}),
-		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
-			RequestID: opts.RequestID,
-			KeyType:   database.TokenKeyTypeOauthAuthorization,
-			TTL:       s.jwt.GetOAuthTTL(),
-		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.RequestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to generate OAuth Token", "serviceError", serviceErr)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate OAuth code", "error", err)
 		return "", exceptions.NewInternalServerError()
 	}
 
-	return s.generateOAuthQueryParams(ctx, logger, generateOAuthQueryParams{
-		requestID: opts.RequestID,
-		email:     accountDTO.Email,
-		token:     signedToken,
-	})
+	queryParams := make(url.Values)
+	queryParams.Add("code", code)
+	queryParams.Add("state", stateData.RequestState)
+	logger.InfoContext(ctx, "Generated OAuth code successfully")
+	return queryParams.Encode(), nil
 }
 
 type OAuthLoginAccountOptions struct {
-	RequestID string
-	PublicID  uuid.UUID
-	Version   int32
-	Code      string
+	RequestID         string
+	Provider          string
+	Code              string
+	ChallengeVerifier string
 }
 
 func (s *Services) OAuthLoginAccount(
 	ctx context.Context,
 	opts OAuthLoginAccountOptions,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, oauthLocation, "OAuthLoginAccount").With("accountPublicId", opts.PublicID)
+	logger := s.buildLogger(opts.RequestID, oauthLocation, "OAuthLoginAccount")
 	logger.InfoContext(ctx, "OAuth account logging in...")
 
-	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
+	oauthData, ok, err := s.cache.VerifyOAuthCode(ctx, cache.VerifyOAuthCodeOptions{
 		RequestID: opts.RequestID,
-		PublicID:  opts.PublicID,
-		Version:   opts.Version,
-	})
-	if serviceErr != nil {
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	ok, err := s.cache.VerifyOAuthCode(ctx, cache.VerifyOAuthCodeOptions{
-		RequestID: opts.RequestID,
-		Email:     accountDTO.Email,
 		Code:      opts.Code,
 	})
 	if err != nil {
@@ -496,22 +480,36 @@ func (s *Services) OAuthLoginAccount(
 	}
 	if !ok {
 		logger.WarnContext(ctx, "OAuth Code verification failed")
-		return dtos.AuthDTO{}, exceptions.NewValidationError("OAuth Code verification failed")
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	}
+	if oauthData.Provider != opts.Provider {
+		logger.WarnContext(ctx, "OAuth Code provider does not match",
+			"expectedProvider", opts.Provider,
+			"actualProvider", oauthData.Provider,
+		)
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	if accountDTO.TwoFactorType != database.TwoFactorTypeNone {
-		authDTO, serviceErr := s.generate2FAAuth(
-			ctx,
-			logger,
-			opts.RequestID,
-			&accountDTO,
-			"Please provide two factor code",
-		)
-		if serviceErr != nil {
-			return dtos.AuthDTO{}, serviceErr
-		}
+	if serviceErr := s.verifyOAuthChallenge(ctx, verifyOAuthChallengeOptions{
+		requestID:         opts.RequestID,
+		challenge:         oauthData.Challenge,
+		challengeMethod:   oauthData.ChallengeMethod,
+		challengeVerifier: opts.ChallengeVerifier,
+	}); serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to verify OAuth challenge", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
 
-		return authDTO, nil
+	accountDTO, serviceErr := s.saveExtAccount(ctx, logger, saveExtAccount{
+		requestID:  opts.RequestID,
+		provider:   AuthProviderApple,
+		email:      oauthData.Email,
+		givenName:  oauthData.GivenName,
+		familyName: oauthData.FamilyName,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to save external account", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
 	}
 
 	return s.GenerateFullAuthDTO(
