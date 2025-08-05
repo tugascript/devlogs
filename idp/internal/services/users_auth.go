@@ -53,8 +53,6 @@ func mapPurposeTokenTypeToKeyType(tokenType tokens.PurposeTokenType) (database.T
 		return database.TokenKeyTypeEmailVerification, nil
 	case tokens.PurposeTokenTypeReset:
 		return database.TokenKeyTypePasswordReset, nil
-	case tokens.PurposeTokenTypeOAuth:
-		return database.TokenKeyTypeOauthAuthorization, nil
 	case tokens.PurposeTokenTypeTwoFA:
 		return database.TokenKeyType2faAuthentication, nil
 	default:

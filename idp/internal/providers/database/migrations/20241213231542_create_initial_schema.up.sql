@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-04T11:12:50.386Z
+-- Generated at: 2025-08-05T11:48:47.552Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -602,7 +602,7 @@ CREATE UNIQUE INDEX "account_key_encryption_keys_account_id_key_encryption_key_i
 
 CREATE INDEX "account_data_encryption_keys_account_id_idx" ON "account_data_encryption_keys" ("account_id");
 
-CREATE UNIQUE INDEX "account_data_encryption_keys_account_id_data_encryption_key_id_uidx" ON "account_data_encryption_keys" ("data_encryption_key_id");
+CREATE UNIQUE INDEX "account_data_encryption_keys_data_encryption_key_id_uidx" ON "account_data_encryption_keys" ("data_encryption_key_id");
 
 CREATE UNIQUE INDEX "account_data_encryption_keys_account_id_data_encryption_key_id_uidx" ON "account_data_encryption_keys" ("account_id", "data_encryption_key_id");
 
@@ -650,9 +650,7 @@ CREATE INDEX "account_credentials_keys_account_credentials_id_idx" ON "account_c
 
 CREATE INDEX "account_credentials_keys_account_public_id_idx" ON "account_credentials_keys" ("account_public_id");
 
-CREATE INDEX "account_credentials_keys_account_credentials_id_jwk_kid_idx" ON "account_credentials_keys" ("account_credentials_id", "jwk_kid");
-
-CREATE UNIQUE INDEX "account_credentials_keys_account_credentials_id_account_public_id_uidx" ON "account_credentials_keys" ("account_credentials_id", "account_public_id");
+CREATE INDEX "account_credentials_keys_jwk_kid_idx" ON "account_credentials_keys" ("jwk_kid");
 
 CREATE INDEX "auth_providers_email_idx" ON "account_auth_providers" ("email");
 

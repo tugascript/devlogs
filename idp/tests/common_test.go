@@ -10,16 +10,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/go-faker/faker/v4"
-	"github.com/gofiber/fiber/v2"
-	"github.com/jackc/pgx/v5"
-	"github.com/redis/go-redis/v9"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/go-faker/faker/v4"
+	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5"
+	"github.com/redis/go-redis/v9"
 
 	fiberRedis "github.com/gofiber/storage/redis/v3"
 	"github.com/google/uuid"
@@ -73,6 +74,8 @@ func initTestServicesAndApp(t *testing.T) {
 		dcCfg.PublicJWKsTTL(),
 		dcCfg.AccountUsernameTTL(),
 		dcCfg.WellKnownOIDCConfigTTL(),
+		dcCfg.OAuthStateTTL(),
+		dcCfg.OAuthCodeTTL(),
 	)
 	logger.InfoContext(ctx, "Finished building distributed cache")
 
@@ -138,7 +141,6 @@ func initTestServicesAndApp(t *testing.T) {
 		tokensCfg.RefreshTTL(),
 		tokensCfg.ConfirmTTL(),
 		tokensCfg.ResetTTL(),
-		tokensCfg.OAuthTTL(),
 		tokensCfg.TwoFATTL(),
 	)
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")
