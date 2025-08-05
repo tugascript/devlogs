@@ -38,7 +38,18 @@ import (
 )
 
 func TestAccountOAuthURL(t *testing.T) {
-	const oauth2Path = "/v1/auth/oauth2"
+	const oauth2Path = "/v1/auth/oauth2/auth"
+
+	qpBuilder := func(provider string) string {
+		params := make(url.Values)
+		params.Add("client_id", provider)
+		params.Add("response_type", "code")
+		params.Add("scope", "email profile")
+		params.Add("state", generateState(t))
+		params.Add("code_challenge", utils.Sha256HashBase64([]byte(generateState(t))))
+		params.Add("code_challenge_method", "S256")
+		return "?" + params.Encode()
+	}
 
 	testCases := []TestRequestCase[string]{
 		{
@@ -53,7 +64,7 @@ func TestAccountOAuthURL(t *testing.T) {
 				AssertNotEmpty(t, location)
 				AssertStringContains(t, location, "https://appleid.apple.com/auth/authorize")
 			},
-			Path: oauth2Path + "/apple",
+			Path: oauth2Path + qpBuilder(services.AuthProviderApple),
 		},
 		{
 			Name: "GET Facebook should return URL and 302 FOUND",
@@ -67,7 +78,7 @@ func TestAccountOAuthURL(t *testing.T) {
 				AssertNotEmpty(t, location)
 				AssertStringContains(t, location, "https://www.facebook.com/v3.2/dialog/oauth")
 			},
-			Path: oauth2Path + "/facebook",
+			Path: oauth2Path + qpBuilder(services.AuthProviderFacebook),
 		},
 		{
 			Name: "GET GitHub should return URL and 302 FOUND",
@@ -81,7 +92,7 @@ func TestAccountOAuthURL(t *testing.T) {
 				AssertNotEmpty(t, location)
 				AssertStringContains(t, location, "https://github.com/login/oauth/authorize")
 			},
-			Path: oauth2Path + "/github",
+			Path: oauth2Path + qpBuilder(services.AuthProviderGitHub),
 		},
 		{
 			Name: "GET Google should return URL and 302 FOUND",
@@ -95,7 +106,7 @@ func TestAccountOAuthURL(t *testing.T) {
 				AssertNotEmpty(t, location)
 				AssertStringContains(t, location, "https://accounts.google.com/o/oauth2/auth")
 			},
-			Path: oauth2Path + "/google",
+			Path: oauth2Path + qpBuilder(services.AuthProviderGoogle),
 		},
 		{
 			Name: "GET Microsoft should return URL and 302 FOUND",
@@ -109,7 +120,7 @@ func TestAccountOAuthURL(t *testing.T) {
 				AssertNotEmpty(t, location)
 				AssertStringContains(t, location, "https://login.microsoftonline.com/common/oauth2/v2.0/authorize")
 			},
-			Path: oauth2Path + "/microsoft",
+			Path: oauth2Path + qpBuilder(services.AuthProviderMicrosoft),
 		},
 	}
 
@@ -154,19 +165,25 @@ func callbackBeforeEach(t *testing.T, provider string) (string, string, string) 
 
 	testCache := GetTestCache(t)
 	requestID := uuid.NewString()
+	challenge := utils.Sha256HashBase64([]byte(state + requestID))
 	stateOpts := cache.SaveOAuthStateDataOptions{
-		RequestID: requestID,
-		State:     state,
-		Provider:  provider,
+		RequestID:    requestID,
+		State:        state,
+		Provider:     provider,
+		RequestState: generateState(t),
+		Challenge:    challenge,
 	}
 	if err := testCache.SaveOAuthStateData(ctx, stateOpts); err != nil {
 		t.Fatalf("Error adding state to cache: %v", err)
 	}
 
 	code, err := testCache.GenerateOAuthCode(ctx, cache.GenerateOAuthCodeOptions{
-		RequestID:       requestID,
-		Email:           email,
-		DurationSeconds: GetTestTokens(t).GetOAuthTTL(),
+		RequestID:  requestID,
+		Email:      email,
+		GivenName:  faker.FirstName(),
+		FamilyName: faker.LastName(),
+		Provider:   provider,
+		Challenge:  challenge,
 	})
 	if err != nil {
 		t.Fatalf("Error generating OAuth code: %v", err)
@@ -219,9 +236,8 @@ func TestOAuthCallback(t *testing.T) {
 				defer gock.OffAll()
 				location := res.Header.Get("Location")
 				AssertNotEmpty(t, location)
-				AssertStringContains(t, location, "access_token")
-				AssertStringContains(t, location, "token_type")
-				AssertStringContains(t, location, "expires_in")
+				AssertStringContains(t, location, "?code=")
+				AssertStringContains(t, location, "&state=")
 				AssertEqual(t, gock.IsDone(), true)
 			},
 			PathFn: func() string {
@@ -258,9 +274,8 @@ func TestOAuthCallback(t *testing.T) {
 				defer gock.OffAll()
 				location := res.Header.Get("Location")
 				AssertNotEmpty(t, location)
-				AssertStringContains(t, location, "access_token")
-				AssertStringContains(t, location, "token_type")
-				AssertStringContains(t, location, "expires_in")
+				AssertStringContains(t, location, "?code=")
+				AssertStringContains(t, location, "&state=")
 				AssertEqual(t, gock.IsDone(), true)
 			},
 			PathFn: func() string {
@@ -300,9 +315,8 @@ func TestOAuthCallback(t *testing.T) {
 				defer gock.OffAll()
 				location := res.Header.Get("Location")
 				AssertNotEmpty(t, location)
-				AssertStringContains(t, location, "access_token")
-				AssertStringContains(t, location, "token_type")
-				AssertStringContains(t, location, "expires_in")
+				AssertStringContains(t, location, "?code=")
+				AssertStringContains(t, location, "&state=")
 				AssertEqual(t, gock.IsDone(), true)
 			},
 			PathFn: func() string {
@@ -378,9 +392,8 @@ func TestOAuthCallback(t *testing.T) {
 			AssertFn: func(t *testing.T, _ string, res *http.Response) {
 				location := res.Header.Get("Location")
 				AssertNotEmpty(t, location)
-				AssertStringContains(t, location, "access_token")
-				AssertStringContains(t, location, "token_type")
-				AssertStringContains(t, location, "expires_in")
+				AssertStringContains(t, location, "?code=")
+				AssertStringContains(t, location, "&state=")
 				AssertEqual(t, gock.IsDone(), true)
 				defer gock.OffAll()
 			},
@@ -559,9 +572,8 @@ func TestAppleCallback(t *testing.T) {
 			AssertFn: func(t *testing.T, _ bodies.AppleLoginBody, res *http.Response) {
 				location := res.Header.Get("Location")
 				AssertNotEmpty(t, location)
-				AssertStringContains(t, location, "access_token")
-				AssertStringContains(t, location, "token_type")
-				AssertStringContains(t, location, "expires_in")
+				AssertStringContains(t, location, "?code=")
+				AssertStringContains(t, location, "&state=")
 				AssertEqual(t, gock.IsDone(), true)
 			},
 		},
@@ -670,49 +682,26 @@ func TestAppleCallback(t *testing.T) {
 
 func TestOAuthToken(t *testing.T) {
 	const oauthTokenPath = "/v1/auth/oauth2/token"
-	beforeEachAuthorization := func(t *testing.T) (string, string) {
+	beforeEachAuthorization := func(t *testing.T, provider string) (string, string) {
 		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGitHub))
 		testCache := GetTestCache(t)
-		testTokens := GetTestTokens(t)
-		testServices := GetTestServices(t)
 		requestID := uuid.NewString()
 		ctx := context.Background()
+		challenge := uuid.NewString()
 
 		code, err := testCache.GenerateOAuthCode(ctx, cache.GenerateOAuthCodeOptions{
-			RequestID:       requestID,
-			Email:           account.Email,
-			DurationSeconds: testTokens.GetOAuthTTL(),
+			RequestID:  requestID,
+			Email:      account.Email,
+			GivenName:  account.GivenName,
+			FamilyName: account.FamilyName,
+			Provider:   provider,
+			Challenge:  utils.Sha256HashBase64([]byte(challenge)),
 		})
 		if err != nil {
 			t.Fatal("Failed to generate OAuth code", err)
 		}
 
-		accessToken := testTokens.CreateOAuthToken(tokens.AccountOAuthTokenOptions{
-			PublicID: account.PublicID,
-			Version:  account.Version(),
-		})
-		if err != nil {
-			t.Fatal("Failed to create OAuth token", err)
-		}
-
-		sAccessToken, serviceErr := GetTestCrypto(t).SignToken(
-			context.Background(),
-			crypto.SignTokenOptions{
-				RequestID: requestID,
-				Token:     accessToken,
-				GetJWKfn: testServices.BuildGetGlobalEncryptedJWKFn(ctx, services.BuildEncryptedJWKFnOptions{
-					RequestID: requestID,
-					KeyType:   database.TokenKeyTypeOauthAuthorization,
-					TTL:       testTokens.GetOAuthTTL(),
-				}),
-				GetDecryptDEKfn: testServices.BuildGetGlobalDecDEKFn(ctx, requestID),
-			},
-		)
-		if serviceErr != nil {
-			t.Fatal("Failed to sign access token", serviceErr)
-		}
-
-		return code, sAccessToken
+		return code, challenge
 	}
 
 	beforeEachRefresh := func(t *testing.T) string {
@@ -849,11 +838,12 @@ func TestOAuthToken(t *testing.T) {
 		return cred.ClientID, cred.ClientSecret
 	}
 
-	createAuthorizationBody := func(code string) string {
+	createAuthorizationBody := func(provider, code, codeVerifier string) string {
 		form := make(url.Values)
 		form.Add("code", code)
 		form.Add("grant_type", "authorization_code")
-		form.Add("redirect_uri", "https://localhost:3000/auth/callback")
+		form.Add("client_id", provider)
+		form.Add("code_verifier", codeVerifier)
 		return form.Encode()
 	}
 
@@ -904,29 +894,29 @@ func TestOAuthToken(t *testing.T) {
 		{
 			Name: "POST should return 200 OK with authorization_code grant type with valid code and token",
 			ReqFn: func(t *testing.T) (string, string) {
-				code, accessToken := beforeEachAuthorization(t)
-				return createAuthorizationBody(code), accessToken
+				code, challenge := beforeEachAuthorization(t, services.AuthProviderGoogle)
+				return createAuthorizationBody(services.AuthProviderGoogle, code, challenge), ""
 			},
 			ExpStatus: http.StatusOK,
 			AssertFn:  assertFullAuthAccessResponse[string],
 		},
 		{
-			Name: "POST should return 400 BAD REQUEST invalid_grant with authorization_code grant type with invalid code and valid token",
+			Name: "POST should return 400 BAD REQUEST invalid_grant with authorization_code grant type with invalid code",
 			ReqFn: func(t *testing.T) (string, string) {
-				_, accessToken := beforeEachAuthorization(t)
-				return createAuthorizationBody(utils.Base62UUID()), accessToken
+				_, challenge := beforeEachAuthorization(t, services.AuthProviderMicrosoft)
+				return createAuthorizationBody(services.AuthProviderMicrosoft, utils.Base62UUID(), challenge), ""
 			},
-			ExpStatus: http.StatusBadRequest,
+			ExpStatus: http.StatusUnauthorized,
 			AssertFn: func(t *testing.T, req string, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, exceptions.OAuthErrorResponse{})
-				AssertEqual(t, resBody.Error, exceptions.OAuthErrorInvalidGrant)
+				AssertEqual(t, resBody.Error, exceptions.OAuthErrorAccessDenied)
 			},
 		},
 		{
-			Name: "POST should return 401 UNAUTHORIZED access_denied with authorization_code grant type with valid code and invalid token",
+			Name: "POST should return 401 UNAUTHORIZED access_denied with authorization_code grant type with valid code and invalid code verifier",
 			ReqFn: func(t *testing.T) (string, string) {
-				code, accessToken := beforeEachAuthorization(t)
-				return createAuthorizationBody(code), accessToken + "invalid"
+				code, _ := beforeEachAuthorization(t, services.AuthProviderApple)
+				return createAuthorizationBody(services.AuthProviderApple, code, "some"), ""
 			},
 			ExpStatus: http.StatusUnauthorized,
 			AssertFn: func(t *testing.T, req string, res *http.Response) {

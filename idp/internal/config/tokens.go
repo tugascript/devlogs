@@ -22,6 +22,7 @@ func NewTokensConfig(access, accountCredentials, refresh, confirm, reset, twoFA,
 		accountCredentialsTTL: accountCredentials,
 		refreshTTL:            refresh,
 		confirmTTL:            confirm,
+		resetTTL:              reset,
 		twoFATTL:              twoFA,
 		appsTTL:               apps,
 	}

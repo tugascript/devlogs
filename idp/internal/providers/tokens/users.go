@@ -157,8 +157,6 @@ func (t *Tokens) getUserPurposeTTL(tokenType PurposeTokenType) (int64, error) {
 		return t.confirmationTTL, nil
 	case PurposeTokenTypeReset:
 		return t.resetTTL, nil
-	case PurposeTokenTypeOAuth:
-		return t.oauthTTL, nil
 	case PurposeTokenTypeTwoFA:
 		return t.twoFATTL, nil
 	default:

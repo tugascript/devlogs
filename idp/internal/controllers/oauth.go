@@ -11,14 +11,13 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/tugascript/devlogs/idp/internal/utils"
-
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/services"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const (
@@ -216,6 +215,7 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 		RequestID:         requestID,
 		Code:              body.Code,
 		ChallengeVerifier: body.CodeVerifier,
+		Provider:          body.ClientID,
 	})
 	if serviceErr != nil {
 		return oauthErrorResponseMapper(logger, ctx, serviceErr)

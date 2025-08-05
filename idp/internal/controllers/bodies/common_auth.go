@@ -44,7 +44,7 @@ type GrantRefreshTokenBody struct {
 
 type ClientCredentialsBody struct {
 	GrantType    string `json:"grant_type" validate:"required,eq=client_credentials"`
-	Scope        string `json:"scope,omitempty" validate:"omitempty,scopes"`
+	Scope        string `json:"scope,omitempty" validate:"omitempty,multiple_scope"`
 	Audience     string `json:"audience,omitempty" validate:"omitempty,url"`
 	ClientID     string `json:"client_id,omitempty" validate:"omitempty,min=1"`
 	ClientSecret string `json:"client_secret,omitempty" validate:"omitempty,min=1"`
@@ -52,7 +52,7 @@ type ClientCredentialsBody struct {
 
 type JWTGrantBody struct {
 	GrantType string `json:"grant_type" validate:"required,eq=urn:ietf:params:oauth:grant-type:jwt-bearer"`
-	Scope     string `json:"scope,omitempty" validate:"omitempty,scopes"`
+	Scope     string `json:"scope,omitempty" validate:"omitempty,multiple_scope"`
 	Assertion string `json:"assertion" validate:"required,jwt"`
 }
 

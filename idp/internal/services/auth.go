@@ -1536,7 +1536,7 @@ func (s *Services) UpdateAccount2FA(
 		PrefixType:      cache.SensitiveRequestAccountPrefix,
 		PublicID:        accountDTO.PublicID,
 		TwoFactorType:   database.TwoFactorType(opts.TwoFactorType),
-		DurationSeconds: s.jwt.GetOAuthTTL(),
+		DurationSeconds: s.jwt.Get2FATTL(),
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to save two-factor update request", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewInternalServerError()

@@ -132,14 +132,13 @@ func (s *Services) CreateAccountCredentials(
 	}()
 
 	accountCredentials, err := qrs.CreateAccountCredentials(ctx, database.CreateAccountCredentialsParams{
-		ClientID:            utils.Base62UUID(),
-		AccountID:           accountID,
-		AccountPublicID:     opts.AccountPublicID,
-		CredentialsType:     database.AccountCredentialsTypeClient,
-		CodeChallengeMethod: database.CodeChallengeMethodNone,
-		Scopes:              scopes,
-		AuthMethods:         authMethods,
-		Alias:               alias,
+		ClientID:        utils.Base62UUID(),
+		AccountID:       accountID,
+		AccountPublicID: opts.AccountPublicID,
+		CredentialsType: database.AccountCredentialsTypeClient,
+		Scopes:          scopes,
+		AuthMethods:     authMethods,
+		Alias:           alias,
 		Issuers: utils.MapSlice(opts.Issuers, func(url *string) string {
 			return utils.ProcessURL(*url)
 		}),

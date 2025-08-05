@@ -121,7 +121,7 @@ func (c *Cache) VerifyOAuthCode(ctx context.Context, opts VerifyOAuthCodeOptions
 		return OAuthCodeData{}, false, err
 	}
 
-	hashedCode := sha256.Sum256(decodedHashedCode)
+	hashedCode := sha256.Sum256([]byte(parts[1]))
 	if !utils.CompareSha256(hashedCode[:], decodedHashedCode) {
 		logger.DebugContext(ctx, "OAuth code does not match")
 		return OAuthCodeData{}, false, nil

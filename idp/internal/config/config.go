@@ -144,7 +144,7 @@ func (c *Config) UserCCExpDays() int64 {
 	return c.userCCExpDays
 }
 
-var variables = [45]string{
+var variables = [44]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -165,7 +165,6 @@ var variables = [45]string{
 	"JWT_REFRESH_TTL_SEC",
 	"JWT_CONFIRM_TTL_SEC",
 	"JWT_RESET_TTL_SEC",
-	"JWT_OAUTH_TTL_SEC",
 	"JWT_2FA_TTL_SEC",
 	"JWT_APPS_TTL_SEC",
 	"OPENBAO_URL",

@@ -353,7 +353,7 @@ func (s *Services) verifyOAuthChallenge(
 			"challenge", opts.challenge,
 			"challengeVerifier", opts.challengeVerifier,
 		)
-		return exceptions.NewValidationError("OAuth code challenge verification failed")
+		return exceptions.NewUnauthorizedError()
 	}
 
 	logger.InfoContext(ctx, "OAuth code challenge verified successfully")

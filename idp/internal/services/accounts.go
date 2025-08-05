@@ -410,7 +410,7 @@ func (s *Services) UpdateAccountEmail(
 			PrefixType:      cache.SensitiveRequestAccountPrefix,
 			PublicID:        accountDTO.PublicID,
 			Email:           newEmail,
-			DurationSeconds: s.jwt.GetOAuthTTL(),
+			DurationSeconds: s.jwt.Get2FATTL(),
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to cache email update request", "error", err)
@@ -603,7 +603,7 @@ func (s *Services) UpdateAccountPassword(
 			PrefixType:      cache.SensitiveRequestAccountPrefix,
 			PublicID:        accountDTO.PublicID,
 			NewPassword:     opts.NewPassword,
-			DurationSeconds: s.jwt.GetOAuthTTL(),
+			DurationSeconds: s.jwt.Get2FATTL(),
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to cache password update request", "error", err)
@@ -931,7 +931,7 @@ func (s *Services) UpdateAccountUsername(
 			PrefixType:      cache.SensitiveRequestAccountPrefix,
 			PublicID:        accountDTO.PublicID,
 			Username:        username,
-			DurationSeconds: s.jwt.GetOAuthTTL(),
+			DurationSeconds: s.jwt.Get2FATTL(),
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache username update request", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
@@ -1103,7 +1103,7 @@ func (s *Services) DeleteAccount(
 			RequestID:       opts.RequestID,
 			PrefixType:      cache.SensitiveRequestAccountPrefix,
 			PublicID:        accountDTO.PublicID,
-			DurationSeconds: s.jwt.GetOAuthTTL(),
+			DurationSeconds: s.jwt.Get2FATTL(),
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache delete account request", "error", err)
 			return false, dtos.AuthDTO{}, exceptions.NewInternalServerError()
