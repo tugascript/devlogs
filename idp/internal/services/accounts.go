@@ -76,7 +76,7 @@ func (s *Services) CreateAccount(
 	var email string
 	var password pgtype.Text
 	switch authProvider {
-	case database.AuthProviderUsernamePassword:
+	case database.AuthProviderLocal:
 		if opts.Password == "" {
 			logger.WarnContext(ctx, "Password is required for email auth Provider")
 			return dtos.AccountDTO{}, exceptions.NewValidationError("password is required")
@@ -97,9 +97,6 @@ func (s *Services) CreateAccount(
 	case database.AuthProviderApple, database.AuthProviderFacebook, database.AuthProviderGithub,
 		database.AuthProviderGoogle, database.AuthProviderMicrosoft:
 		email = utils.Lowered(opts.Email)
-	case database.AuthProviderCustom:
-		logger.WarnContext(ctx, "Custom auth provider not supported")
-		return dtos.AccountDTO{}, exceptions.NewValidationError("custom auth provider not supported for account creation")
 	default:
 		logger.ErrorContext(ctx, "Provider must be 'email', 'apple', 'facebook', 'github', 'google' or 'microsoft'")
 		return dtos.AccountDTO{}, exceptions.NewInternalServerError()
@@ -137,7 +134,7 @@ func (s *Services) CreateAccount(
 	}
 
 	var account database.Account
-	if authProvider == database.AuthProviderUsernamePassword {
+	if authProvider == database.AuthProviderLocal {
 		account, err = qrs.CreateAccountWithPassword(ctx, database.CreateAccountWithPasswordParams{
 			PublicID:   publicID,
 			GivenName:  opts.GivenName,
@@ -364,7 +361,7 @@ func (s *Services) UpdateAccountEmail(
 		ctx,
 		database.CountAccountAuthProvidersByEmailAndProviderParams{
 			Email:    accountDTO.Email,
-			Provider: database.AuthProviderUsernamePassword,
+			Provider: database.AuthProviderLocal,
 		},
 	)
 	if err != nil {
@@ -573,7 +570,7 @@ func (s *Services) UpdateAccountPassword(
 		ctx,
 		database.CountAccountAuthProvidersByEmailAndProviderParams{
 			Email:    accountDTO.Email,
-			Provider: database.AuthProviderUsernamePassword,
+			Provider: database.AuthProviderLocal,
 		},
 	)
 	if err != nil {
@@ -746,7 +743,7 @@ func (s *Services) CreateAccountPassword(
 		ctx,
 		database.CountAccountAuthProvidersByEmailAndProviderParams{
 			Email:    accountDTO.Email,
-			Provider: database.AuthProviderUsernamePassword,
+			Provider: database.AuthProviderLocal,
 		},
 	)
 	if err != nil {
@@ -792,7 +789,7 @@ func (s *Services) CreateAccountPassword(
 
 	if err = s.database.CreateAccountAuthProvider(ctx, database.CreateAccountAuthProviderParams{
 		Email:    accountDTO.Email,
-		Provider: database.AuthProviderUsernamePassword,
+		Provider: database.AuthProviderLocal,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create password auth provider", "error", err)
 		serviceErr = exceptions.FromDBError(err)
@@ -889,7 +886,7 @@ func (s *Services) UpdateAccountUsername(
 		ctx,
 		database.CountAccountAuthProvidersByEmailAndProviderParams{
 			Email:    accountDTO.Email,
-			Provider: database.AuthProviderUsernamePassword,
+			Provider: database.AuthProviderLocal,
 		},
 	)
 	if err != nil {
@@ -1072,7 +1069,7 @@ func (s *Services) DeleteAccount(
 
 	if _, err := s.database.FindAccountAuthProviderByEmailAndProvider(ctx, database.FindAccountAuthProviderByEmailAndProviderParams{
 		Email:    accountDTO.Email,
-		Provider: database.AuthProviderUsernamePassword,
+		Provider: database.AuthProviderLocal,
 	}); err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code != exceptions.CodeNotFound {

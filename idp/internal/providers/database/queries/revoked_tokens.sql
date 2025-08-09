@@ -7,10 +7,18 @@
 -- name: RevokeToken :exec
 INSERT INTO "revoked_tokens" (
   "token_id",
+  "account_id",
+  "owner",
+  "owner_public_id",
+  "issued_at",
   "expires_at"
 ) VALUES (
   $1,
-  $2
+  $2,
+  $3,
+  $4,
+  $5,
+  $6
 );
 
 -- name: GetRevokedToken :one

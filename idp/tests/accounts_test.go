@@ -31,7 +31,7 @@ func TestGetCurrentAccount(t *testing.T) {
 		{
 			Name: "Should return 200 OK with account data",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return nil, accessToken
 			},
@@ -70,7 +70,7 @@ func TestUpdateAccount(t *testing.T) {
 		{
 			Name: "Should return 200 OK updating account data",
 			ReqFn: func(t *testing.T) (bodies.UpdateAccountBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.UpdateAccountBody{
 					GivenName:  "Updated",
@@ -87,7 +87,7 @@ func TestUpdateAccount(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if validation fails",
 			ReqFn: func(t *testing.T) (bodies.UpdateAccountBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.UpdateAccountBody{
 					GivenName:  "",
@@ -129,7 +129,7 @@ func TestUpdateAccountPassword(t *testing.T) {
 		{
 			Name: "Should return 200 OK updating password",
 			ReqFn: func(t *testing.T) (bodies.UpdatePasswordBody, string) {
-				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				data := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, data)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				newPassword := "NewPassword123!"
@@ -149,7 +149,7 @@ func TestUpdateAccountPassword(t *testing.T) {
 		{
 			Name: "Should return 200 OK pending password update confirmation",
 			ReqFn: func(t *testing.T) (bodies.UpdatePasswordBody, string) {
-				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				data := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, data)
 				testS := GetTestServices(t)
 				requestID := uuid.NewString()
@@ -206,7 +206,7 @@ func TestUpdateAccountPassword(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if validation fails",
 			ReqFn: func(t *testing.T) (bodies.UpdatePasswordBody, string) {
-				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				data := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, data)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				newPassword := "weak"
@@ -226,7 +226,7 @@ func TestUpdateAccountPassword(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if old password is wrong",
 			ReqFn: func(t *testing.T) (bodies.UpdatePasswordBody, string) {
-				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				data := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, data)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				newPassword := "NewPassword123!"
@@ -257,7 +257,7 @@ func TestConfirmUpdateAccountPassword(t *testing.T) {
 	const confirmPasswordPath = v1Path + paths.AccountsBase + paths.AccountPassword + paths.Confirm
 
 	genTwoFactorAccount := func(t *testing.T, twoFactorType string) (dtos.AccountDTO, string) {
-		data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+		data := GenerateFakeAccountData(t, services.AuthProviderLocal)
 		account := CreateTestAccount(t, data)
 		testS := GetTestServices(t)
 		requestID := uuid.NewString()
@@ -499,7 +499,7 @@ func TestCreateAccountPassword(t *testing.T) {
 		{
 			Name: "Should return 409 CONFLICT if account already has a password",
 			ReqFn: func(t *testing.T) (bodies.CreatePasswordBody, string) {
-				data := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				data := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, data)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				newPassword := "AnotherPassword123!"
@@ -543,7 +543,7 @@ func TestUpdateAccountEmail(t *testing.T) {
 		{
 			Name: "Should return 200 OK updating account email",
 			ReqFn: func(t *testing.T) (bodies.UpdateEmailBody, string) {
-				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, accountData)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.UpdateEmailBody{
@@ -561,7 +561,7 @@ func TestUpdateAccountEmail(t *testing.T) {
 		{
 			Name: "Should return 200 OK pending email update confirmation",
 			ReqFn: func(t *testing.T) (bodies.UpdateEmailBody, string) {
-				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, accountData)
 				testS := GetTestServices(t)
 				requestID := uuid.NewString()
@@ -600,7 +600,7 @@ func TestUpdateAccountEmail(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if email is the same as current",
 			ReqFn: func(t *testing.T) (bodies.UpdateEmailBody, string) {
-				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, accountData)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.UpdateEmailBody{
@@ -617,12 +617,12 @@ func TestUpdateAccountEmail(t *testing.T) {
 		{
 			Name: "Should return 409 CONFLICT if email is already in use",
 			ReqFn: func(t *testing.T) (bodies.UpdateEmailBody, string) {
-				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, accountData)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 
 				// Create another account with the same email
-				anotherAccountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				anotherAccountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				CreateTestAccount(t, anotherAccountData)
 
 				return bodies.UpdateEmailBody{
@@ -639,7 +639,7 @@ func TestUpdateAccountEmail(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if validation fails",
 			ReqFn: func(t *testing.T) (bodies.UpdateEmailBody, string) {
-				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, accountData)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.UpdateEmailBody{
@@ -657,7 +657,7 @@ func TestUpdateAccountEmail(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if password is wrong",
 			ReqFn: func(t *testing.T) (bodies.UpdateEmailBody, string) {
-				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, accountData)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.UpdateEmailBody{
@@ -697,7 +697,7 @@ func TestConfirmUpdateAccountEmail(t *testing.T) {
 	const confirmEmailPath = v1Path + paths.AccountsBase + paths.AccountEmail + paths.Confirm
 
 	genTwoFactorAccount := func(t *testing.T, twoFactorType string) (dtos.AccountDTO, string, string) {
-		accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+		accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 		account := CreateTestAccount(t, accountData)
 		testS := GetTestServices(t)
 		requestID := uuid.NewString()
@@ -899,7 +899,7 @@ func TestUpdateAccountUsername(t *testing.T) {
 		{
 			Name: "Should return 200 OK updating account username",
 			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
-				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, accountData)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.UpdateAccountUsernameBody{
@@ -935,7 +935,7 @@ func TestUpdateAccountUsername(t *testing.T) {
 		{
 			Name: "Should return 200 OK pending username update confirmation if 2FA enabled",
 			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
-				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, accountData)
 				testS := GetTestServices(t)
 				requestID := uuid.NewString()
@@ -971,7 +971,7 @@ func TestUpdateAccountUsername(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if username is the same as current",
 			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
-				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, accountData)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.UpdateAccountUsernameBody{
@@ -988,10 +988,10 @@ func TestUpdateAccountUsername(t *testing.T) {
 		{
 			Name: "Should return 409 CONFLICT if username is already in use",
 			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
-				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, accountData)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
-				anotherAccountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				anotherAccountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				anotherAccount := CreateTestAccount(t, anotherAccountData)
 				return bodies.UpdateAccountUsernameBody{
 					Username: anotherAccount.Username,
@@ -1007,7 +1007,7 @@ func TestUpdateAccountUsername(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if validation fails",
 			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
-				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, accountData)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.UpdateAccountUsernameBody{
@@ -1025,7 +1025,7 @@ func TestUpdateAccountUsername(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if password is wrong",
 			ReqFn: func(t *testing.T) (bodies.UpdateAccountUsernameBody, string) {
-				accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+				accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 				account := CreateTestAccount(t, accountData)
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.UpdateAccountUsernameBody{
@@ -1065,7 +1065,7 @@ func TestConfirmUpdateAccountUsername(t *testing.T) {
 	const confirmUsernamePath = v1Path + paths.AccountsBase + paths.AccountUsername + paths.Confirm
 
 	genTwoFactorAccount := func(t *testing.T, twoFactorType string) (dtos.AccountDTO, string, string) {
-		accountData := GenerateFakeAccountData(t, services.AuthProviderUsernamePassword)
+		accountData := GenerateFakeAccountData(t, services.AuthProviderLocal)
 		account := CreateTestAccount(t, accountData)
 		testS := GetTestServices(t)
 		requestID := uuid.NewString()

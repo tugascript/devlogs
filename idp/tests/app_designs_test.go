@@ -48,7 +48,7 @@ func TestCreateAppDesign(t *testing.T) {
 		{
 			Name: "Should return 201 CREATED with app design data",
 			ReqFn: func(t *testing.T) (bodies.AppDesignBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				setAppClientID(CreateTestWebApp(t, &account))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
@@ -90,7 +90,7 @@ func TestCreateAppDesign(t *testing.T) {
 		{
 			Name: "Should return 201 CREATED with only light colors",
 			ReqFn: func(t *testing.T) (bodies.AppDesignBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				setAppClientID(CreateTestWebApp(t, &account))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
@@ -121,7 +121,7 @@ func TestCreateAppDesign(t *testing.T) {
 		{
 			Name: "Should return 409 CONFLICT if app design already exists",
 			ReqFn: func(t *testing.T) (bodies.AppDesignBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -164,7 +164,7 @@ func TestCreateAppDesign(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if validation fails",
 			ReqFn: func(t *testing.T) (bodies.AppDesignBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				setAppClientID(CreateTestWebApp(t, &account))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
@@ -207,7 +207,7 @@ func TestCreateAppDesign(t *testing.T) {
 		{
 			Name: "Should return 403 FORBIDDEN if no apps write scope",
 			ReqFn: func(t *testing.T) (bodies.AppDesignBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				setAppClientID(CreateTestWebApp(t, &account))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
@@ -229,7 +229,7 @@ func TestCreateAppDesign(t *testing.T) {
 		{
 			Name: "Should return 404 NOT FOUND if app does not exist",
 			ReqFn: func(t *testing.T) (bodies.AppDesignBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return bodies.AppDesignBody{
@@ -268,7 +268,7 @@ func TestGetAppDesign(t *testing.T) {
 		{
 			Name: "Should return 200 OK with app design data",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -322,7 +322,7 @@ func TestGetAppDesign(t *testing.T) {
 		{
 			Name: "Should return 404 NOT FOUND if app design does not exist",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				setAppClientID(CreateTestWebApp(t, &account))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
@@ -348,7 +348,7 @@ func TestGetAppDesign(t *testing.T) {
 		{
 			Name: "Should return 403 FORBIDDEN if no apps write scope",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				setAppClientID(CreateTestWebApp(t, &account))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
@@ -363,7 +363,7 @@ func TestGetAppDesign(t *testing.T) {
 		{
 			Name: "Should return 404 NOT FOUND if app does not exist",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return nil, accessToken
@@ -395,7 +395,7 @@ func TestUpdateAppDesign(t *testing.T) {
 		{
 			Name: "Should return 200 OK updating app design data",
 			ReqFn: func(t *testing.T) (bodies.AppDesignBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -456,7 +456,7 @@ func TestUpdateAppDesign(t *testing.T) {
 		{
 			Name: "Should return 404 NOT FOUND if app design does not exist",
 			ReqFn: func(t *testing.T) (bodies.AppDesignBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				setAppClientID(CreateTestWebApp(t, &account))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
@@ -478,7 +478,7 @@ func TestUpdateAppDesign(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if validation fails",
 			ReqFn: func(t *testing.T) (bodies.AppDesignBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -540,7 +540,7 @@ func TestUpdateAppDesign(t *testing.T) {
 		{
 			Name: "Should return 403 FORBIDDEN if no apps write scope",
 			ReqFn: func(t *testing.T) (bodies.AppDesignBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				setAppClientID(CreateTestWebApp(t, &account))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
@@ -562,7 +562,7 @@ func TestUpdateAppDesign(t *testing.T) {
 		{
 			Name: "Should return 404 NOT FOUND if app does not exist",
 			ReqFn: func(t *testing.T) (bodies.AppDesignBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return bodies.AppDesignBody{
@@ -601,7 +601,7 @@ func TestDeleteAppDesign(t *testing.T) {
 		{
 			Name: "Should return 204 NO CONTENT when deleting app design",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -636,7 +636,7 @@ func TestDeleteAppDesign(t *testing.T) {
 		{
 			Name: "Should return 404 NOT FOUND if app design does not exist",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				setAppClientID(CreateTestWebApp(t, &account))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
@@ -662,7 +662,7 @@ func TestDeleteAppDesign(t *testing.T) {
 		{
 			Name: "Should return 403 FORBIDDEN if no apps write scope",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				setAppClientID(CreateTestWebApp(t, &account))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
@@ -677,7 +677,7 @@ func TestDeleteAppDesign(t *testing.T) {
 		{
 			Name: "Should return 404 NOT FOUND if app does not exist",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return nil, accessToken

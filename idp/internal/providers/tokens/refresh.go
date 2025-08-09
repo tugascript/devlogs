@@ -36,23 +36,37 @@ func (t *Tokens) CreateRefreshToken(opts AccountRefreshTokenOptions) (*jwt.Token
 	})
 }
 
-func (t *Tokens) VerifyRefreshToken(token string, getPublicJWK GetPublicJWK) (AccountClaims, []AccountScope, uuid.UUID, time.Time, error) {
+type VerifyRefreshTokenResult struct {
+	AccountClaims AccountClaims
+	Scopes        []AccountScope
+	TokenID       uuid.UUID
+	IssuedAt      time.Time
+	ExpiresAt     time.Time
+}
+
+func (t *Tokens) VerifyRefreshToken(token string, getPublicJWK GetPublicJWK) (VerifyRefreshTokenResult, error) {
 	claims, err := verifyAuthToken(token, buildVerifyKey(utils.SupportedCryptoSuiteEd25519, getPublicJWK))
 	if err != nil {
-		return AccountClaims{}, nil, uuid.Nil, time.Time{}, err
+		return VerifyRefreshTokenResult{}, err
 	}
 
 	scopes, err := splitAccountScopes(claims.Scope)
 	if err != nil {
-		return AccountClaims{}, nil, uuid.Nil, time.Time{}, err
+		return VerifyRefreshTokenResult{}, err
 	}
 
 	tokenID, err := uuid.Parse(claims.ID)
 	if err != nil {
-		return AccountClaims{}, nil, uuid.Nil, time.Time{}, err
+		return VerifyRefreshTokenResult{}, err
 	}
 
-	return claims.AccountClaims, scopes, tokenID, claims.ExpiresAt.Time, nil
+	return VerifyRefreshTokenResult{
+		AccountClaims: claims.AccountClaims,
+		Scopes:        scopes,
+		TokenID:       tokenID,
+		IssuedAt:      claims.IssuedAt.Time,
+		ExpiresAt:     claims.ExpiresAt.Time,
+	}, nil
 }
 
 func (t *Tokens) GetRefreshTTL() int64 {

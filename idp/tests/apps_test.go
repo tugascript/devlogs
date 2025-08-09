@@ -57,13 +57,12 @@ type createAppBody struct {
 	Algorithm      string `json:"algorithm,omitempty"`
 
 	// Web/SPA specific fields
-	AuthMethods         string   `json:"auth_methods,omitempty"`
-	CallbackURLs        []string `json:"callback_urls,omitempty"`
-	LogoutURLs          []string `json:"logout_urls,omitempty"`
-	AllowedOrigins      []string `json:"allowed_origins,omitempty"`
-	CodeChallengeMethod string   `json:"code_challenge_method,omitempty"`
+	AuthMethods    string   `json:"auth_methods,omitempty"`
+	CallbackURLs   []string `json:"callback_urls,omitempty"`
+	LogoutURLs     []string `json:"logout_urls,omitempty"`
+	AllowedOrigins []string `json:"allowed_origins,omitempty"`
 
-	// Native specific fields
+	// Native-specific fields
 	CallbackURIs []string `json:"callback_uris,omitempty"`
 	LogoutURIs   []string `json:"logout_uris,omitempty"`
 
@@ -72,10 +71,10 @@ type createAppBody struct {
 	ConfirmationURL  string   `json:"confirmation_url,omitempty"`
 	ResetPasswordURL string   `json:"reset_password_url,omitempty"`
 
-	// Device specific fields
+	// Device-specific fields
 	AssociatedApps []string `json:"associated_apps,omitempty"`
 
-	// Service specific fields
+	// Service-specific fields
 	UsersAuthMethods string   `json:"users_auth_methods,omitempty"`
 	AllowedDomains   []string `json:"allowed_domains,omitempty"`
 }
@@ -85,20 +84,19 @@ func TestCreateApp(t *testing.T) {
 		{
 			Name: "Should return 201 CREATED with web app data",
 			ReqFn: func(t *testing.T) (createAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return createAppBody{
-					Type:                "web",
-					Name:                "Test Web App",
-					ClientURI:           "https://test-web-app.example.com",
-					UsernameColumn:      "email",
-					Algorithm:           "ES256",
-					AuthMethods:         "client_secret_basic",
-					CallbackURLs:        []string{"https://test-web-app.example.com/callback"},
-					LogoutURLs:          []string{"https://test-web-app.example.com/logout"},
-					AllowedOrigins:      []string{"https://test-web-app.example.com"},
-					CodeChallengeMethod: "S256",
+					Type:           "web",
+					Name:           "Test Web App",
+					ClientURI:      "https://test-web-app.example.com",
+					UsernameColumn: "email",
+					Algorithm:      "ES256",
+					AuthMethods:    "client_secret_basic",
+					CallbackURLs:   []string{"https://test-web-app.example.com/callback"},
+					LogoutURLs:     []string{"https://test-web-app.example.com/logout"},
+					AllowedOrigins: []string{"https://test-web-app.example.com"},
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -118,18 +116,17 @@ func TestCreateApp(t *testing.T) {
 		{
 			Name: "Should return 201 CREATED with SPA app data",
 			ReqFn: func(t *testing.T) (createAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return createAppBody{
-					Type:                "spa",
-					Name:                "Test SPA App",
-					ClientURI:           "https://test-spa-app.example.com",
-					UsernameColumn:      "email",
-					CallbackURLs:        []string{"https://test-spa-app.example.com/callback"},
-					LogoutURLs:          []string{"https://test-spa-app.example.com/logout"},
-					AllowedOrigins:      []string{"https://test-spa-app.example.com"},
-					CodeChallengeMethod: "S256",
+					Type:           "spa",
+					Name:           "Test SPA App",
+					ClientURI:      "https://test-spa-app.example.com",
+					UsernameColumn: "email",
+					CallbackURLs:   []string{"https://test-spa-app.example.com/callback"},
+					LogoutURLs:     []string{"https://test-spa-app.example.com/logout"},
+					AllowedOrigins: []string{"https://test-spa-app.example.com"},
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -149,17 +146,16 @@ func TestCreateApp(t *testing.T) {
 		{
 			Name: "Should return 201 CREATED with native app data",
 			ReqFn: func(t *testing.T) (createAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return createAppBody{
-					Type:                "native",
-					Name:                "Test Native App",
-					ClientURI:           "https://test-native-app.example.com",
-					UsernameColumn:      "email",
-					CallbackURIs:        []string{"com.testnativeapp://callback"},
-					LogoutURIs:          []string{"com.testnativeapp://logout"},
-					CodeChallengeMethod: "plain",
+					Type:           "native",
+					Name:           "Test Native App",
+					ClientURI:      "https://test-native-app.example.com",
+					UsernameColumn: "email",
+					CallbackURIs:   []string{"com.testnativeapp://callback"},
+					LogoutURIs:     []string{"com.testnativeapp://logout"},
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -179,7 +175,7 @@ func TestCreateApp(t *testing.T) {
 		{
 			Name: "Should return 201 CREATED with backend app data",
 			ReqFn: func(t *testing.T) (createAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return createAppBody{
@@ -211,7 +207,7 @@ func TestCreateApp(t *testing.T) {
 		{
 			Name: "Should return 201 CREATED with device app data",
 			ReqFn: func(t *testing.T) (createAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return createAppBody{
@@ -239,7 +235,7 @@ func TestCreateApp(t *testing.T) {
 		{
 			Name: "Should return 201 CREATED with service app data",
 			ReqFn: func(t *testing.T) (createAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return createAppBody{
@@ -268,9 +264,36 @@ func TestCreateApp(t *testing.T) {
 			},
 		},
 		{
+			Name: "Should return 201 CREATED with a MCP app data",
+			ReqFn: func(t *testing.T) (createAppBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
+
+				return createAppBody{
+					Type:         "mcp",
+					Name:         "Test Service App",
+					ClientURI:    "https://test-service-app.example.com",
+					Issuers:      []string{"https://test-service-app.example.com"},
+					CallbackURIs: []string{"https://test-service-app.example.com/callback"},
+				}, accessToken
+			},
+			PathFn: func() string {
+				return v1Path + paths.AppsBase
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
+				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.ClientURI, resBody.ClientURI)
+				AssertEqual(t, database.AppTypeMcp, resBody.AppType)
+				AssertNotEmpty(t, resBody.ClientID)
+				AssertEmpty(t, resBody.ClientSecretID)
+			},
+		},
+		{
 			Name: "Should return 400 BAD REQUEST if validation fails",
 			ReqFn: func(t *testing.T) (createAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return createAppBody{
@@ -306,7 +329,7 @@ func TestCreateApp(t *testing.T) {
 		{
 			Name: "Should return 403 FORBIDDEN if no apps write scope",
 			ReqFn: func(t *testing.T) (createAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
 				return createAppBody{
@@ -337,7 +360,7 @@ func TestListApps(t *testing.T) {
 		{
 			Name: "Should return 200 OK with apps list",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
 				// Create some test apps
@@ -360,7 +383,7 @@ func TestListApps(t *testing.T) {
 					t.Fatal("Failed to create test web app", err)
 				}
 
-				_, err = tServs.CreateSPAApp(context.Background(), services.CreateSPAAppOptions{
+				_, err = tServs.CreateSPANativeApp(context.Background(), services.CreateSPANativeAppOptions{
 					RequestID:           uuid.New().String(),
 					AccountPublicID:     account.PublicID,
 					AccountVersion:      account.Version(),
@@ -391,7 +414,7 @@ func TestListApps(t *testing.T) {
 		{
 			Name: "Should return 200 OK with filtered apps by name",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
 				// Create some test apps
@@ -430,7 +453,7 @@ func TestListApps(t *testing.T) {
 		{
 			Name: "Should return 200 OK with filtered apps by type",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
 				// Create some test apps
@@ -480,7 +503,7 @@ func TestListApps(t *testing.T) {
 		{
 			Name: "Should return 403 FORBIDDEN if no apps read scope",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return nil, accessToken
@@ -512,7 +535,7 @@ func TestGetAppWithRelatedConfigs(t *testing.T) {
 		{
 			Name: "Should return 200 OK with app and related configs",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
@@ -534,7 +557,7 @@ func TestGetAppWithRelatedConfigs(t *testing.T) {
 		{
 			Name: "Should return 404 NOT FOUND if app does not exist",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
 				return nil, accessToken
@@ -559,7 +582,7 @@ func TestGetAppWithRelatedConfigs(t *testing.T) {
 		{
 			Name: "Should return 403 FORBIDDEN if no apps read scope",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return nil, accessToken
@@ -610,7 +633,7 @@ func CreateTestSPAApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
 	tServs := GetTestServices(t)
 	ctx := context.Background()
 
-	appDTO, err := tServs.CreateSPAApp(ctx, services.CreateSPAAppOptions{
+	appDTO, err := tServs.CreateSPANativeApp(ctx, services.CreateSPANativeAppOptions{
 		RequestID:           uuid.New().String(),
 		AccountPublicID:     account.PublicID,
 		AccountVersion:      account.Version(),
@@ -703,7 +726,7 @@ func CreateTestServiceApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
 		AccountPublicID:  account.PublicID,
 		AccountVersion:   account.Version(),
 		Name:             "Test Service App",
-		AuthMethods:      "private_key_jwt",
+		AuthMethod:       "private_key_jwt",
 		Algorithm:        "ES256",
 		ClientURI:        "https://test-service-app.example.com",
 		Issuers:          []string{"https://test-service-app.example.com"},
@@ -762,7 +785,7 @@ func TestUpdateApp(t *testing.T) {
 		{
 			Name: "Should return 200 OK updating web app data",
 			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -800,7 +823,7 @@ func TestUpdateApp(t *testing.T) {
 		{
 			Name: "Should return 200 OK updating SPA app data",
 			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestSPAApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -828,7 +851,7 @@ func TestUpdateApp(t *testing.T) {
 		{
 			Name: "Should return 200 OK updating native app data",
 			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestNativeApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -854,7 +877,7 @@ func TestUpdateApp(t *testing.T) {
 		{
 			Name: "Should return 200 OK updating backend app data",
 			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestBackendApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -881,7 +904,7 @@ func TestUpdateApp(t *testing.T) {
 		{
 			Name: "Should return 200 OK updating device app data",
 			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestDeviceApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -906,7 +929,7 @@ func TestUpdateApp(t *testing.T) {
 		{
 			Name: "Should return 200 OK updating service app data",
 			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestServiceApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -932,7 +955,7 @@ func TestUpdateApp(t *testing.T) {
 		{
 			Name: "Should return 404 NOT FOUND if app does not exist",
 			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return UpdateAppBody{
@@ -949,7 +972,7 @@ func TestUpdateApp(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if validation fails",
 			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -985,7 +1008,7 @@ func TestUpdateApp(t *testing.T) {
 		{
 			Name: "Should return 403 FORBIDDEN if no apps write scope",
 			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
 				return UpdateAppBody{
@@ -1020,7 +1043,7 @@ func TestDeleteApp(t *testing.T) {
 		{
 			Name: "Should return 204 NO CONTENT when deleting app",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -1033,7 +1056,7 @@ func TestDeleteApp(t *testing.T) {
 			ExpStatus: http.StatusNoContent,
 			AssertFn: func(t *testing.T, _ any, res *http.Response) {
 				// Verify app was deleted by trying to get it
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
 				getRes := PerformTestRequest(t, GetTestServer(t).App, 0, http.MethodGet, v1Path+paths.AppsBase+"/"+appClientID, "Bearer", accessToken, "application/json", nil)
@@ -1043,7 +1066,7 @@ func TestDeleteApp(t *testing.T) {
 		{
 			Name: "Should return 404 NOT FOUND if app does not exist",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return nil, accessToken
@@ -1068,7 +1091,7 @@ func TestDeleteApp(t *testing.T) {
 		{
 			Name: "Should return 403 FORBIDDEN if no apps write scope",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
 				return nil, accessToken
@@ -1100,7 +1123,7 @@ func TestListAppSecrets(t *testing.T) {
 		{
 			Name: "Should return 200 OK with app secrets list",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
@@ -1120,7 +1143,7 @@ func TestListAppSecrets(t *testing.T) {
 		{
 			Name: "Should return 404 NOT FOUND if app does not exist",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
 				return nil, accessToken
@@ -1145,7 +1168,7 @@ func TestListAppSecrets(t *testing.T) {
 		{
 			Name: "Should return 403 FORBIDDEN if no apps read scope",
 			ReqFn: func(t *testing.T) (any, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return nil, accessToken
@@ -1177,7 +1200,7 @@ func TestCreateAppSecret(t *testing.T) {
 		{
 			Name: "Should return 201 CREATED with new app secret",
 			ReqFn: func(t *testing.T) (bodies.CreateCredentialsSecretBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -1198,7 +1221,7 @@ func TestCreateAppSecret(t *testing.T) {
 		{
 			Name: "Should return 404 NOT FOUND if app does not exist",
 			ReqFn: func(t *testing.T) (bodies.CreateCredentialsSecretBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return bodies.CreateCredentialsSecretBody{
@@ -1214,7 +1237,7 @@ func TestCreateAppSecret(t *testing.T) {
 		{
 			Name: "Should return 400 BAD REQUEST if validation fails",
 			ReqFn: func(t *testing.T) (bodies.CreateCredentialsSecretBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
@@ -1248,7 +1271,7 @@ func TestCreateAppSecret(t *testing.T) {
 		{
 			Name: "Should return 403 FORBIDDEN if no apps write scope",
 			ReqFn: func(t *testing.T) (bodies.CreateCredentialsSecretBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderUsernamePassword))
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
 				return bodies.CreateCredentialsSecretBody{

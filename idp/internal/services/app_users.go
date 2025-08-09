@@ -50,7 +50,7 @@ func (s *Services) CreateAppUser(
 	}
 
 	var password pgtype.Text
-	if authProvider == database.AuthProviderUsernamePassword {
+	if authProvider == database.AuthProviderLocal {
 		if opts.Password == "" {
 			logger.WarnContext(ctx, "Password is required")
 			return dtos.UserDTO{}, exceptions.NewValidationError("Password is required")
@@ -105,7 +105,7 @@ func (s *Services) CreateAppUser(
 
 	publicID := uuid.New()
 	var user database.User
-	if authProvider == database.AuthProviderUsernamePassword {
+	if authProvider == database.AuthProviderLocal {
 		user, err = qrs.CreateUserWithPassword(ctx, database.CreateUserWithPasswordParams{
 			PublicID:  publicID,
 			AccountID: opts.AccountID,
