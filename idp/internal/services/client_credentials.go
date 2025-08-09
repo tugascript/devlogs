@@ -14,6 +14,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -297,6 +298,76 @@ func (s *Services) BuildGetClientCredentialsKeyPublicJWKFn(
 
 		logger.InfoContext(ctx, "Successfully fetched client credentials key")
 		return utils.JsonToJWK(publicJWK)
+	}
+}
+
+func (s *Services) BuildGetAccountClientCredentialsSecretFn(
+	ctx context.Context,
+	requestID string,
+) tokens.GetDecryptedSecret {
+	logger := s.buildLogger(requestID, clientCredentialsLocation, "BuildGetAccountClientCredentialsSecretFn")
+	logger.InfoContext(ctx, "Building get client credentials secret function...")
+
+	return func(secretID string) (string, error) {
+		logger.InfoContext(ctx, "Getting client credentials secret by ID...")
+
+		secret, err := s.database.FindCredentialsSecretBySecretIDAndUsage(ctx,
+			database.FindCredentialsSecretBySecretIDAndUsageParams{
+				SecretID: secretID,
+				Usage:    database.CredentialsUsageAccount,
+			},
+		)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to find client credentials secret", "error", err)
+			return "", err
+		}
+		if secret.StorageMode != database.SecretStorageModeEncrypted {
+			logger.WarnContext(ctx, "Client credentials secret is not encrypted", "storageMode", secret.StorageMode)
+			return "", errors.New("client credentials secret is not encrypted")
+		}
+
+		decryptedSecret, err := s.crypto.DecryptWithDEK(ctx, crypto.DecryptWithDEKOptions{
+			RequestID: requestID,
+			GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
+				RequestID: requestID,
+				AccountID: secret.AccountID,
+			}),
+			GetEncryptDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+				RequestID: requestID,
+				AccountID: secret.AccountID,
+			}),
+			StoreReEncryptedDataFn: func(
+				_ crypto.EntityID,
+				dekID crypto.DEKID,
+				ciphertext crypto.DEKCiphertext,
+			) *exceptions.ServiceError {
+				if err := s.database.UpdateCredentialsSecretClientSecret(
+					ctx,
+					database.UpdateCredentialsSecretClientSecretParams{
+						ID:           secret.ID,
+						ClientSecret: ciphertext,
+						DekKid:       pgtype.Text{Valid: true, String: dekID},
+					},
+				); err != nil {
+					logger.ErrorContext(ctx, "Failed to update client credentials secret with re-encrypted DEK",
+						"error", err,
+					)
+					return exceptions.FromDBError(err)
+				}
+
+				logger.InfoContext(ctx, "Successfully updated client credentials secret with re-encrypted DEK")
+				return nil
+			},
+			EntityID:   secretID,
+			Ciphertext: secret.ClientSecret,
+		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to decrypt client credentials secret", "error", err)
+			return "", err
+		}
+
+		logger.InfoContext(ctx, "Successfully fetched client credentials secret")
+		return decryptedSecret, nil
 	}
 }
 

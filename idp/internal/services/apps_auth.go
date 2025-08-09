@@ -8,6 +8,7 @@ package services
 
 import (
 	"context"
+
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"

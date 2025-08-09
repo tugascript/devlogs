@@ -26,6 +26,7 @@ type SupportedCryptoSuite string
 const (
 	SupportedCryptoSuiteEd25519 SupportedCryptoSuite = "EdDSA"
 	SupportedCryptoSuiteES256   SupportedCryptoSuite = "ES256"
+	SupportedCryptoSuiteHS256   SupportedCryptoSuite = "HS256"
 )
 
 func GetSupportedCryptoSuite(cryptoSuite string) (SupportedCryptoSuite, error) {

@@ -12,7 +12,13 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-func (t *Tokens) VerifyJWTBearerGrantToken(token string, getPublicJWK GetPublicJWK) (jwt.RegisteredClaims, string, error) {
+type GetDecryptedSecret = func(secretID string) (string, error)
+
+func (t *Tokens) VerifyJWTBearerGrantToken(
+	token string,
+	getPublicJWK GetPublicJWK,
+	getDecodedSecret GetDecryptedSecret,
+) (jwt.RegisteredClaims, string, error) {
 	var claims jwt.RegisteredClaims
 	var kid string
 	var err error
@@ -25,6 +31,10 @@ func (t *Tokens) VerifyJWTBearerGrantToken(token string, getPublicJWK GetPublicJ
 		cryptoSuite, err := extractTokenAlgorithm(token)
 		if err != nil {
 			return nil, err
+		}
+
+		if cryptoSuite == utils.SupportedCryptoSuiteHS256 {
+			return getDecodedSecret(kid)
 		}
 
 		var jwk utils.JWK

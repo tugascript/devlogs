@@ -34,6 +34,8 @@ func extractTokenAlgorithm(token *jwt.Token) (utils.SupportedCryptoSuite, error)
 		return utils.SupportedCryptoSuiteEd25519, nil
 	case jwt.SigningMethodES256.Alg():
 		return utils.SupportedCryptoSuiteES256, nil
+	case jwt.SigningMethodHS256.Alg():
+		return utils.SupportedCryptoSuiteHS256, nil
 	default:
 		return "", fmt.Errorf("unsupported algorithm: %s", alg)
 	}

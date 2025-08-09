@@ -215,7 +215,7 @@ func MapWebAppWithSecretToDTO(
 		IDTokenTTL:              app.IDTokenTtl,
 		TokenTTL:                app.TokenTtl,
 		RefreshTokenTTL:         app.RefreshTokenTtl,
-		ClientSecretID:          secret,
+		ClientSecretID:          secretID,
 		ClientSecret:            fmt.Sprintf("%s.%s", secretID, secret),
 		ClientSecretExp:         expiresAt.Unix(),
 	}
