@@ -1,28 +1,8 @@
 # Project Status
 
-## Mailer
-
-### Features
-
-#### Mailer Done
-
-- Basic email queue
-
-#### Mailer On-Going
-
-NONE
-
-#### Mailer Todo
-
-- Add tests to basic queue
-- Rewrite multi core logic
-- Add tests to multi core logic
-
 ## IDP
 
-### IDP Features
-
-#### IDP Done
+### IDP Done
 
 - Account standard authentication
 - Multiple secrets Account Keys
@@ -44,12 +24,15 @@ NONE
   - device
   - service
 
-#### IDP On-Going
+### IDP On-Going
 
 - Add MCP app support
 
-#### IDP Todo
+### IDP Todo
 
+- Add OAuth Dynamic Registration for:
+  - accounts
+  - apps
 - Account key generation
 - Dynamic OIDC configs
 - User authentication for each app type:
@@ -58,18 +41,35 @@ NONE
   - backend
   - device
   - service
-- Add custom external auth providers
+  - MCP
 
-### IDP Testing
+## Mailer
 
-#### Tested
+### Mailer Done
+
+- Basic email queue
+
+### Mailer On-Going
 
 NONE
 
-#### Testing
+### Mailer Todo
+
+- Change Queue from Redis to RabbitMQ
+- Use templates instead of full emails
+
+## Scripts
+
+### Scripts Done
 
 NONE
 
-### IDP Future
+### Scripts On-Going
 
-- Add mTLS
+NONE
+
+### Scripts Todo
+
+- Add a revoked tokens cleanup script
+- Add a expired JWKs cleanup script
+- Add script to add root client JWKs for dynamic registration
