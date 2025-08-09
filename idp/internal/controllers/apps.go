@@ -300,7 +300,7 @@ func (c *Controllers) createServiceApp(
 		SoftwareVersion:       baseBody.SoftwareVersion,
 		Scopes:                baseBody.Scopes,
 		DefaultScopes:         baseBody.DefaultScopes,
-		UsersAuthMethod:       body.UsersAuthMethods,
+		UsersAuthMethod:       body.UsersAuthMethod,
 		Domain:                baseBody.Domain,
 		Transport:             body.Transport,
 		AllowedDomains:        body.AllowedDomains,

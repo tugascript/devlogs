@@ -752,7 +752,7 @@ func TestOAuthToken(t *testing.T) {
 			AccountVersion:  account.Version(),
 			Alias:           "update-cred",
 			Scopes:          []string{"account:admin"},
-			AuthMethods:     "private_key_jwt",
+			AuthMethod:      "private_key_jwt",
 			Issuers:         []string{"https://issuer.example.com"},
 			Algorithm:       string(algorithm),
 		})
@@ -828,7 +828,7 @@ func TestOAuthToken(t *testing.T) {
 			AccountVersion:  account.Version(),
 			Alias:           "update-cred",
 			Scopes:          []string{"account:admin"},
-			AuthMethods:     am,
+			AuthMethod:      am,
 			Issuers:         []string{"https://issuer.example.com"},
 		})
 		if serviceErr != nil {

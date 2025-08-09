@@ -103,11 +103,11 @@ type UpdateAppBodyDevice struct {
 }
 
 type CreateAppBodyService struct {
-	Transport        string   `json:"transport" validate:"required,oneof=http https"`
-	AuthMethods      string   `json:"auth_methods" validate:"required,oneof=client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
-	Algorithm        string   `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
-	UsersAuthMethods string   `json:"users_auth_methods" validate:"required,oneof=client_secret_basic client_secret_post both_client_secrets private_key_jwt"`
-	AllowedDomains   []string `json:"allowed_domains,omitempty" validate:"required_if=UsersAuthMethods private_key_jwt,unique,dive,fqdn"`
+	Transport       string   `json:"transport" validate:"required,oneof=http https"`
+	AuthMethods     string   `json:"auth_methods" validate:"required,oneof=client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
+	Algorithm       string   `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
+	UsersAuthMethod string   `json:"users_auth_method" validate:"required,oneof=client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
+	AllowedDomains  []string `json:"allowed_domains,omitempty" validate:"required_if=UsersAuthMethod private_key_jwt,unique,dive,fqdn"`
 }
 
 type UpdateAppBodyService struct {

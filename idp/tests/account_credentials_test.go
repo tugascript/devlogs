@@ -50,14 +50,14 @@ func TestCreateAccountCredentials(t *testing.T) {
 
 	testCases := []TestRequestCase[bodies.CreateAccountCredentialsBody]{
 		{
-			Name: "Should return 201 CREATED with secret and both client secrets",
+			Name: "Should return 201 CREATED with secret and client_secret_jwt",
 			ReqFn: func(t *testing.T) (bodies.CreateAccountCredentialsBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.CreateAccountCredentialsBody{
 					Scopes:     []string{"account:admin"},
 					Alias:      "admin",
-					AuthMethod: "both_client_secrets",
+					AuthMethod: "client_secret_jwt",
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -68,9 +68,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertNotEmpty(t, resBody.ClientSecret)
 				AssertNotEmpty(t, resBody.ClientSecretExp)
 				AssertEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 2)
-				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodClientSecretBasic)
-				AssertEqual(t, resBody.TokenEndpointAuthMetho[1], database.AuthMethodClientSecretPost)
+				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodClientSecretJwt)
 				AssertEqual(t, len(resBody.Issuers), 0)
 			},
 		},
@@ -95,8 +93,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertEmpty(t, resBody.ClientSecret)
 				AssertNotEmpty(t, resBody.ClientSecretExp)
 				AssertNotEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 1)
-				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodPrivateKeyJwt)
+				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodPrivateKeyJwt)
 			},
 		},
 		{
@@ -120,8 +117,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertEmpty(t, resBody.ClientSecret)
 				AssertNotEmpty(t, resBody.ClientSecretExp)
 				AssertNotEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 1)
-				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodPrivateKeyJwt)
+				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodPrivateKeyJwt)
 			},
 		},
 		{
@@ -144,8 +140,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertEmpty(t, resBody.ClientSecret)
 				AssertNotEmpty(t, resBody.ClientSecretExp)
 				AssertNotEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 1)
-				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodPrivateKeyJwt)
+				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodPrivateKeyJwt)
 			},
 		},
 		{
@@ -167,8 +162,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertNotEmpty(t, resBody.ClientSecret)
 				AssertNotEmpty(t, resBody.ClientSecretExp)
 				AssertEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 1)
-				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodClientSecretPost)
+				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodClientSecretPost)
 			},
 		},
 		{
@@ -190,8 +184,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertNotEmpty(t, resBody.ClientSecret)
 				AssertNotEmpty(t, resBody.ClientSecretExp)
 				AssertEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 1)
-				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodClientSecretBasic)
+				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodClientSecretBasic)
 			},
 		},
 		{
@@ -231,7 +224,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertEqual(t, resBody.Fields[0].Param, "scopes[0]")
 				AssertEqual(t, resBody.Fields[1].Param, "scopes[1]")
 				AssertEqual(t, resBody.Fields[2].Param, "alias")
-				AssertEqual(t, resBody.Fields[3].Param, "auth_methods")
+				AssertEqual(t, resBody.Fields[3].Param, "auth_method")
 			},
 		},
 		{
@@ -246,7 +239,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 					AccountVersion:  account.Version(),
 					Alias:           "existing-alias",
 					Scopes:          []string{"account:users:read", "account:users:write"},
-					AuthMethods:     "private_key_jwt",
+					AuthMethod:      "private_key_jwt",
 				}); err != nil {
 					t.Fatal("Failed to create initial account credentials", err)
 				}
@@ -313,8 +306,8 @@ func TestListAccountCredentials(t *testing.T) {
 		authMethodsList := []string{
 			"client_secret_basic",
 			"client_secret_post",
+			"client_secret_jwt",
 			"private_key_jwt",
-			"both_client_secrets",
 		}
 		scopesList := [][]string{
 			{"account:admin"},
@@ -340,7 +333,7 @@ func TestListAccountCredentials(t *testing.T) {
 				AccountVersion:  account.Version(),
 				Alias:           alias,
 				Scopes:          scopes,
-				AuthMethods:     authMethods,
+				AuthMethod:      authMethods,
 				Issuers:         issuers,
 			})
 			if err != nil {
@@ -479,7 +472,7 @@ func TestGetAccountCredentials(t *testing.T) {
 			AccountVersion:  account.Version(),
 			Alias:           "get-cred",
 			Scopes:          []string{"account:admin"},
-			AuthMethods:     "client_secret_basic",
+			AuthMethod:      "client_secret_basic",
 			Issuers:         []string{"https://issuer.example.com"},
 		})
 		if err != nil {
@@ -501,8 +494,7 @@ func TestGetAccountCredentials(t *testing.T) {
 				resBody := AssertTestResponseBody(t, res, dtos.AccountCredentialsDTO{})
 				AssertNotEmpty(t, resBody.ClientID)
 				AssertNotEmpty(t, resBody.Alias)
-				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 1)
-				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodClientSecretBasic)
+				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodClientSecretBasic)
 				AssertEmpty(t, resBody.ClientSecret)
 				AssertEmpty(t, resBody.ClientSecretJWK)
 			},
@@ -546,7 +538,7 @@ func TestGetAccountCredentials(t *testing.T) {
 					AccountVersion:  account.Version(),
 					Alias:           "forbidden-cred",
 					Scopes:          []string{"account:admin"},
-					AuthMethods:     "client_secret_basic",
+					AuthMethod:      "client_secret_basic",
 				})
 				if err != nil {
 					t.Fatalf("Failed to create account credentials: %v", err)
@@ -585,7 +577,7 @@ func TestUpdateAccountCredentials(t *testing.T) {
 			AccountVersion:  account.Version(),
 			Alias:           "update-cred",
 			Scopes:          []string{"account:admin"},
-			AuthMethods:     "client_secret_basic",
+			AuthMethod:      "client_secret_basic",
 			Issuers:         []string{"https://issuer.example.com"},
 		})
 		if err != nil {
@@ -651,7 +643,7 @@ func TestUpdateAccountCredentials(t *testing.T) {
 					AccountVersion:  account.Version(),
 					Alias:           "existing-alias",
 					Scopes:          []string{"account:users:read"},
-					AuthMethods:     "client_secret_basic",
+					AuthMethod:      "client_secret_basic",
 					Issuers:         []string{"updated.example.com"},
 				}); err != nil {
 					t.Fatalf("Failed to create initial account credentials: %v", err)
@@ -664,7 +656,7 @@ func TestUpdateAccountCredentials(t *testing.T) {
 					Alias:           "other-alias",
 					Scopes:          []string{"account:users:read"},
 					Issuers:         []string{"https://updated.example.com"},
-					AuthMethods:     "client_secret_basic",
+					AuthMethod:      "client_secret_basic",
 				})
 				if err != nil {
 					t.Fatalf("Failed to create initial account credentials: %v", err)
@@ -729,7 +721,7 @@ func TestUpdateAccountCredentials(t *testing.T) {
 					AccountVersion:  account.Version(),
 					Alias:           "forbidden-cred",
 					Scopes:          []string{"account:admin"},
-					AuthMethods:     "client_secret_basic",
+					AuthMethod:      "client_secret_basic",
 					Issuers:         []string{"https://issuer.example.com"},
 				})
 				if err != nil {
@@ -773,7 +765,7 @@ func TestDeleteAccountCredentials(t *testing.T) {
 			AccountVersion:  account.Version(),
 			Alias:           "delete-cred",
 			Scopes:          []string{"account:admin"},
-			AuthMethods:     "client_secret_basic",
+			AuthMethod:      "client_secret_basic",
 			Issuers:         []string{"https://issuer.example.com"},
 		})
 		if err != nil {
@@ -834,7 +826,7 @@ func TestDeleteAccountCredentials(t *testing.T) {
 					AccountVersion:  account.Version(),
 					Alias:           "forbidden-cred",
 					Scopes:          []string{"account:admin"},
-					AuthMethods:     "client_secret_basic",
+					AuthMethod:      "client_secret_basic",
 				})
 				if err != nil {
 					t.Fatalf("Failed to create account credentials: %v", err)
@@ -875,7 +867,7 @@ func TestRevokeAccountCredentialsSecret(t *testing.T) {
 			Alias:           "revoke-cred",
 			Scopes:          []string{"account:admin"},
 			Issuers:         []string{"https://issuer.example.com"},
-			AuthMethods:     authMethods,
+			AuthMethod:      authMethods,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create account credentials: %v", err)
@@ -899,9 +891,25 @@ func TestRevokeAccountCredentialsSecret(t *testing.T) {
 
 	testCases := []TestRequestCase[any]{
 		{
-			Name: "Should return 200 OK on successful secret revoke for client_secret_post and client_secret_basic",
+			Name: "Should return 200 OK on successful secret revoke for client_secret_post",
 			ReqFn: func(t *testing.T) (any, string) {
-				accessToken := revokeAccountCredentialBeforeEach(t, "both_client_secrets")
+				accessToken := revokeAccountCredentialBeforeEach(t, "client_secret_post")
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertEqual(t, resBody.PublicID, secretID)
+				AssertEqual(t, resBody.Status, "revoked")
+				AssertEmpty(t, resBody.ClientSecretJWK)
+				AssertEmpty(t, resBody.ClientSecret)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 200 OK on successful secret revoke for client_secret_jwt",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := revokeAccountCredentialBeforeEach(t, "client_secret_jwt")
 				return nil, accessToken
 			},
 			ExpStatus: http.StatusOK,
@@ -973,7 +981,7 @@ func TestRevokeAccountCredentialsSecret(t *testing.T) {
 					AccountVersion:  account.Version(),
 					Alias:           "forbidden-cred",
 					Scopes:          []string{"account:admin"},
-					AuthMethods:     "client_secret_basic",
+					AuthMethod:      "client_secret_basic",
 				})
 				if err != nil {
 					t.Fatalf("Failed to create account credentials: %v", err)
@@ -1012,7 +1020,7 @@ func TestListAccountCredentialsSecret(t *testing.T) {
 			Alias:           "list-cred",
 			Scopes:          []string{"account:admin"},
 			Issuers:         []string{"https://issuer.example.com"},
-			AuthMethods:     authMethods,
+			AuthMethod:      authMethods,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create account credentials: %v", err)
@@ -1027,9 +1035,9 @@ func TestListAccountCredentialsSecret(t *testing.T) {
 
 	testCases := []TestRequestCase[any]{
 		{
-			Name: "Should return 200 OK with secrets for both_client_secrets",
+			Name: "Should return 200 OK with secrets for client_secret_post",
 			ReqFn: func(t *testing.T) (any, string) {
-				accessToken := listAccountCredentialBeforeEach(t, "both_client_secrets")
+				accessToken := listAccountCredentialBeforeEach(t, "client_secret_post")
 				return nil, accessToken
 			},
 			ExpStatus: http.StatusOK,
@@ -1089,7 +1097,7 @@ func TestListAccountCredentialsSecret(t *testing.T) {
 					Alias:           "forbidden-cred",
 					Scopes:          []string{"account:admin"},
 					Issuers:         []string{"https://issuer.example.com"},
-					AuthMethods:     "client_secret_basic",
+					AuthMethod:      "client_secret_basic",
 				})
 				if err != nil {
 					t.Fatalf("Failed to create account credentials: %v", err)
@@ -1130,7 +1138,7 @@ func TestCreateAccountCredentialsSecret(t *testing.T) {
 				Alias:           "create-secret-cred",
 				Scopes:          []string{"account:admin"},
 				Issuers:         []string{"https://issuer.example.com"},
-				AuthMethods:     authMethods,
+				AuthMethod:      authMethods,
 			},
 		)
 		if err != nil {
@@ -1148,9 +1156,36 @@ func TestCreateAccountCredentialsSecret(t *testing.T) {
 
 	testCases := []TestRequestCase[any]{
 		{
-			Name: "Should return 201 CREATED and create new secret for both_client_secrets when the main one is revoked",
+			Name: "Should return 201 CREATED and create new secret for client_secret_post when the main one is revoked",
 			ReqFn: func(t *testing.T) (any, string) {
-				accessToken := createAccountCredentialBeforeEach(t, "both_client_secrets")
+				accessToken := createAccountCredentialBeforeEach(t, "client_secret_post")
+				if _, err := GetTestServices(t).RevokeAccountCredentialsSecretOrKey(
+					context.Background(),
+					services.RevokeAccountCredentialsSecretOrKeyOptions{
+						RequestID:       uuid.NewString(),
+						AccountPublicID: account.PublicID,
+						AccountVersion:  account.Version(),
+						ClientID:        clientID,
+						SecretID:        secretID,
+					},
+				); err != nil {
+					t.Fatalf("Failed to revoke account credentials secret: %v", err)
+				}
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertNotEmpty(t, resBody.PublicID)
+				AssertEqual(t, resBody.Status, "active")
+				AssertNotEmpty(t, resBody.ClientSecret)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 201 CREATED and create new secret for client_secret_jwt when the main one is revoked",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := createAccountCredentialBeforeEach(t, "client_secret_jwt")
 				if _, err := GetTestServices(t).RevokeAccountCredentialsSecretOrKey(
 					context.Background(),
 					services.RevokeAccountCredentialsSecretOrKeyOptions{
@@ -1202,9 +1237,34 @@ func TestCreateAccountCredentialsSecret(t *testing.T) {
 			PathFn: pathFN,
 		},
 		{
-			Name: "Should return 201 CREATED and create new secret for both_client_secrets when the main on is almost expired",
+			Name: "Should return 201 CREATED and create new secret for client_secret_post when the main one is almost expired",
 			ReqFn: func(t *testing.T) (any, string) {
-				accessToken := createAccountCredentialBeforeEach(t, "both_client_secrets")
+				accessToken := createAccountCredentialBeforeEach(t, "client_secret_post")
+				if err := GetTestDatabase(t).UpdateCredentialsSecretExpiresAtAndCreatedAt(
+					context.Background(),
+					database.UpdateCredentialsSecretExpiresAtAndCreatedAtParams{
+						SecretID:  secretID,
+						ExpiresAt: time.Now().Add(24 * time.Hour),        // Set to 24 hours from now
+						CreatedAt: time.Now().Add(-24 * 365 * time.Hour), // Set to 1 year ago
+					},
+				); err != nil {
+					t.Fatalf("Failed to revoke account credentials secret: %v", err)
+				}
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertNotEmpty(t, resBody.PublicID)
+				AssertEqual(t, resBody.Status, "active")
+				AssertNotEmpty(t, resBody.ClientSecret)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 201 CREATED and create new secret for client_secret_jwt when the main one is almost expired",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := createAccountCredentialBeforeEach(t, "client_secret_jwt")
 				if err := GetTestDatabase(t).UpdateCredentialsSecretExpiresAtAndCreatedAt(
 					context.Background(),
 					database.UpdateCredentialsSecretExpiresAtAndCreatedAtParams{
@@ -1252,9 +1312,34 @@ func TestCreateAccountCredentialsSecret(t *testing.T) {
 			PathFn: pathFN,
 		},
 		{
-			Name: "Should return 201 CREATED and create new secret for both_client_secrets when the main on is expired",
+			Name: "Should return 201 CREATED and create new secret for client_secret_post when the main one is expired",
 			ReqFn: func(t *testing.T) (any, string) {
-				accessToken := createAccountCredentialBeforeEach(t, "both_client_secrets")
+				accessToken := createAccountCredentialBeforeEach(t, "client_secret_post")
+				if err := GetTestDatabase(t).UpdateCredentialsSecretExpiresAtAndCreatedAt(
+					context.Background(),
+					database.UpdateCredentialsSecretExpiresAtAndCreatedAtParams{
+						SecretID:  secretID,
+						ExpiresAt: time.Now().Add(-24 * time.Hour),       // Set to 24 hours from now
+						CreatedAt: time.Now().Add(-24 * 366 * time.Hour), // Set to 1 year ago
+					},
+				); err != nil {
+					t.Fatalf("Failed to revoke account credentials secret: %v", err)
+				}
+				return nil, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
+				AssertNotEmpty(t, resBody.PublicID)
+				AssertEqual(t, resBody.Status, "active")
+				AssertNotEmpty(t, resBody.ClientSecret)
+			},
+			PathFn: pathFN,
+		},
+		{
+			Name: "Should return 201 CREATED and create new secret for client_secret_jwt when the main one is expired",
+			ReqFn: func(t *testing.T) (any, string) {
+				accessToken := createAccountCredentialBeforeEach(t, "client_secret_jwt")
 				if err := GetTestDatabase(t).UpdateCredentialsSecretExpiresAtAndCreatedAt(
 					context.Background(),
 					database.UpdateCredentialsSecretExpiresAtAndCreatedAtParams{
@@ -1333,7 +1418,7 @@ func TestCreateAccountCredentialsSecret(t *testing.T) {
 					AccountVersion:  account.Version(),
 					Alias:           "forbidden-cred",
 					Scopes:          []string{"account:admin"},
-					AuthMethods:     "client_secret_basic",
+					AuthMethod:      "client_secret_basic",
 				})
 				if err != nil {
 					t.Fatalf("Failed to create account credentials: %v", err)
@@ -1371,7 +1456,7 @@ func TestGetAccountCredentialsSecret(t *testing.T) {
 			Alias:           "get-secret-cred",
 			Scopes:          []string{"account:admin"},
 			Issuers:         []string{"https://issuer.example.com"},
-			AuthMethods:     authMethods,
+			AuthMethod:      authMethods,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create account credentials: %v", err)
@@ -1387,9 +1472,9 @@ func TestGetAccountCredentialsSecret(t *testing.T) {
 
 	testCases := []TestRequestCase[any]{
 		{
-			Name: "Should return 200 OK with secret for both_client_secrets",
+			Name: "Should return 200 OK with secret for client_secret_post",
 			ReqFn: func(t *testing.T) (any, string) {
-				accessToken := getAccountCredentialSecretBeforeEach(t, "both_client_secrets")
+				accessToken := getAccountCredentialSecretBeforeEach(t, "client_secret_post")
 				return nil, accessToken
 			},
 			ExpStatus: http.StatusOK,
@@ -1460,7 +1545,7 @@ func TestGetAccountCredentialsSecret(t *testing.T) {
 					Alias:           "forbidden-cred",
 					Scopes:          []string{"account:admin"},
 					Issuers:         []string{"https://issuer.example.com"},
-					AuthMethods:     "client_secret_basic",
+					AuthMethod:      "client_secret_basic",
 				})
 				if err != nil {
 					t.Fatalf("Failed to create account credentials: %v", err)
