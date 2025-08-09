@@ -16,15 +16,15 @@ import (
 )
 
 type AccountCredentialsDTO struct {
-	ClientID        string                             `json:"client_id"`
-	Alias           string                             `json:"alias"`
-	Scopes          []database.AccountCredentialsScope `json:"scopes"`
-	AuthMethods     []database.AuthMethod              `json:"auth_methods"`
-	Issuers         []string                           `json:"issuers,omitempty"`
-	ClientSecretID  string                             `json:"client_secret_id,omitempty"`
-	ClientSecret    string                             `json:"client_secret,omitempty"`
-	ClientSecretJWK utils.JWK                          `json:"client_secret_jwk,omitempty"`
-	ClientSecretExp int64                              `json:"client_secret_exp,omitempty"`
+	ClientID                string                             `json:"client_id"`
+	Alias                   string                             `json:"alias"`
+	Scopes                  []database.AccountCredentialsScope `json:"scopes"`
+	TokenEndpointAuthMethod database.AuthMethod                `json:"token_endpoint_auth_method"`
+	Issuers                 []string                           `json:"issuers,omitempty"`
+	ClientSecretID          string                             `json:"client_secret_id,omitempty"`
+	ClientSecret            string                             `json:"client_secret,omitempty"`
+	ClientSecretJWK         utils.JWK                          `json:"client_secret_jwk,omitempty"`
+	ClientSecretExp         int64                              `json:"client_secret_exp,omitempty"`
 
 	id        int32
 	accountId int32
@@ -66,13 +66,13 @@ func MapAccountCredentialsToDTO(
 	accountCredential *database.AccountCredential,
 ) AccountCredentialsDTO {
 	return AccountCredentialsDTO{
-		id:          accountCredential.ID,
-		ClientID:    accountCredential.ClientID,
-		Alias:       accountCredential.Alias,
-		Scopes:      accountCredential.Scopes,
-		Issuers:     accountCredential.Issuers,
-		AuthMethods: accountCredential.AuthMethods,
-		accountId:   accountCredential.AccountID,
+		id:                      accountCredential.ID,
+		ClientID:                accountCredential.ClientID,
+		Alias:                   accountCredential.Alias,
+		Scopes:                  accountCredential.Scopes,
+		Issuers:                 accountCredential.Issuers,
+		TokenEndpointAuthMethod: accountCredential.TokenEndpointAuthMethod,
+		accountId:               accountCredential.AccountID,
 	}
 }
 
@@ -82,16 +82,16 @@ func MapAccountCredentialsToDTOWithJWK(
 	exp time.Time,
 ) AccountCredentialsDTO {
 	return AccountCredentialsDTO{
-		id:              accountKeys.ID,
-		Alias:           accountKeys.Alias,
-		ClientID:        accountKeys.ClientID,
-		ClientSecretID:  jwk.GetKeyID(),
-		ClientSecretJWK: jwk,
-		ClientSecretExp: exp.Unix(),
-		Scopes:          accountKeys.Scopes,
-		Issuers:         accountKeys.Issuers,
-		AuthMethods:     accountKeys.AuthMethods,
-		accountId:       accountKeys.AccountID,
+		id:                      accountKeys.ID,
+		Alias:                   accountKeys.Alias,
+		ClientID:                accountKeys.ClientID,
+		ClientSecretID:          jwk.GetKeyID(),
+		ClientSecretJWK:         jwk,
+		ClientSecretExp:         exp.Unix(),
+		Scopes:                  accountKeys.Scopes,
+		Issuers:                 accountKeys.Issuers,
+		TokenEndpointAuthMethod: accountKeys.TokenEndpointAuthMethod,
+		accountId:               accountKeys.AccountID,
 	}
 }
 
@@ -102,15 +102,15 @@ func MapAccountCredentialsToDTOWithSecret(
 	exp time.Time,
 ) AccountCredentialsDTO {
 	return AccountCredentialsDTO{
-		id:              accountKeys.ID,
-		Alias:           accountKeys.Alias,
-		ClientID:        accountKeys.ClientID,
-		ClientSecretID:  secretID,
-		ClientSecret:    fmt.Sprintf("%s.%s", secretID, secret),
-		ClientSecretExp: exp.Unix(),
-		Scopes:          accountKeys.Scopes,
-		Issuers:         accountKeys.Issuers,
-		AuthMethods:     accountKeys.AuthMethods,
-		accountId:       accountKeys.AccountID,
+		id:                      accountKeys.ID,
+		Alias:                   accountKeys.Alias,
+		ClientID:                accountKeys.ClientID,
+		ClientSecretID:          secretID,
+		ClientSecret:            fmt.Sprintf("%s.%s", secretID, secret),
+		ClientSecretExp:         exp.Unix(),
+		Scopes:                  accountKeys.Scopes,
+		Issuers:                 accountKeys.Issuers,
+		TokenEndpointAuthMethod: accountKeys.TokenEndpointAuthMethod,
+		accountId:               accountKeys.AccountID,
 	}
 }

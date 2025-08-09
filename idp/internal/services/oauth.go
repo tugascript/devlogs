@@ -614,10 +614,10 @@ func (s *Services) validateAccountJWTClaims(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	if !slices.Contains(accountClientsDTO.AuthMethods, database.AuthMethodPrivateKeyJwt) {
+	if accountClientsDTO.TokenEndpointAuthMethod != database.AuthMethodPrivateKeyJwt {
 		logger.InfoContext(ctx, "Account credentials does not support JWT Bearer login",
 			"clientID", opts.claims.Subject,
-			"authMethods", accountClientsDTO.AuthMethods,
+			"authMethods", accountClientsDTO.TokenEndpointAuthMethod,
 		)
 		return dtos.AccountCredentialsDTO{}, exceptions.NewForbiddenError()
 	}
@@ -888,9 +888,9 @@ func (s *Services) ClientCredentialsAccountLogin(
 		logger.WarnContext(ctx, "Failed to get account credentials by public ID", "serviceError", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
-	if !slices.Contains(accountClientsDTO.AuthMethods, opts.AuthMethod) {
+	if accountClientsDTO.TokenEndpointAuthMethod != opts.AuthMethod {
 		logger.WarnContext(ctx, "Account credentials does not support client credentials login",
-			"authMethods", accountClientsDTO.AuthMethods,
+			"authMethods", accountClientsDTO.TokenEndpointAuthMethod,
 		)
 		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 

@@ -22,7 +22,7 @@ INSERT INTO "account_credentials" (
     "credentials_type",
     "alias",
     "scopes",
-    "auth_methods",
+    "token_endpoint_auth_method",
     "issuers"
 ) VALUES (
     $1,

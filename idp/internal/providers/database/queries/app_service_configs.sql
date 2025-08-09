@@ -8,17 +8,15 @@
 INSERT INTO "app_service_configs" (
     "account_id",
     "app_id",
-    "auth_methods",
-    "grant_types",
-    "allowed_domains",
-    "issuers"
+    "user_auth_method",
+    "user_grant_types",
+    "allowed_domains"
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
-    $5,
-    $6
+    $5
 ) RETURNING *;
 
 -- name: FindAppServiceConfig :one
@@ -28,7 +26,6 @@ WHERE "app_id" = $1 LIMIT 1;
 -- name: UpdateAppServiceConfig :one
 UPDATE "app_service_configs"
 SET "allowed_domains" = $3,
-    "issuers" = $4,
     "updated_at" = now()
 WHERE "account_id" = $1 AND "app_id" = $2
 RETURNING *;

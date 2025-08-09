@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-05T11:48:47.552Z
+-- Generated at: 2025-08-09T03:04:43.592Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -54,6 +54,7 @@ CREATE TYPE "auth_method" AS ENUM (
   'none',
   'client_secret_basic',
   'client_secret_post',
+  'client_secret_jwt',
   'private_key_jwt'
 );
 
@@ -79,15 +80,25 @@ CREATE TYPE "account_credentials_type" AS ENUM (
   'mcp'
 );
 
+CREATE TYPE "transport" AS ENUM (
+  'http',
+  'https',
+  'stdio',
+  'streamable_http'
+);
+
+CREATE TYPE "creation_source" AS ENUM (
+  'account',
+  'dynamic_registration'
+);
+
 CREATE TYPE "auth_provider" AS ENUM (
-  'username_password',
+  'local',
   'apple',
   'facebook',
   'github',
   'google',
-  'microsoft',
-  'mcp',
-  'custom'
+  'microsoft'
 );
 
 CREATE TYPE "claims" AS ENUM (
@@ -145,10 +156,25 @@ CREATE TYPE "grant_type" AS ENUM (
   'urn:ietf:params:oauth:grant-type:jwt-bearer'
 );
 
+CREATE TYPE "initial_access_token_generation_method" AS ENUM (
+  'manual',
+  'authorization_code'
+);
+
+CREATE TYPE "software_statement_verification_method" AS ENUM (
+  'manual',
+  'jwks_uri'
+);
+
 CREATE TYPE "app_profile_type" AS ENUM (
   'human',
   'machine',
   'ai_agent'
+);
+
+CREATE TYPE "token_owner" AS ENUM (
+  'user',
+  'account'
 );
 
 CREATE TABLE "key_encryption_keys" (
@@ -210,7 +236,7 @@ CREATE TABLE "accounts" (
 CREATE TABLE "totps" (
   "id" serial PRIMARY KEY,
   "dek_kid" varchar(22) NOT NULL,
-  "url" varchar(250) NOT NULL,
+  "url" varchar(512) NOT NULL,
   "secret" text NOT NULL,
   "recovery_codes" jsonb NOT NULL,
   "usage" totp_usage NOT NULL,
@@ -271,8 +297,8 @@ CREATE TABLE "account_credentials" (
   "account_public_id" uuid NOT NULL,
   "credentials_type" account_credentials_type NOT NULL,
   "scopes" account_credentials_scope[] NOT NULL,
-  "auth_methods" auth_method[] NOT NULL,
-  "issuers" varchar(250)[] NOT NULL,
+  "token_endpoint_auth_method" auth_method NOT NULL,
+  "issuers" varchar(255)[] NOT NULL,
   "alias" varchar(100) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
@@ -285,14 +311,17 @@ CREATE TABLE "account_credentials_mcps" (
   "account_public_id" uuid NOT NULL,
   "account_credentials_id" integer NOT NULL,
   "account_credentials_client_id" varchar(22) NOT NULL,
+  "creation_source" creation_source NOT NULL,
+  "transport" transport NOT NULL,
   "response_types" response_type[] NOT NULL,
-  "client_uri" varchar(250) NOT NULL,
-  "logo_uri" varchar(250),
-  "policy_uri" varchar(250),
-  "tos_uri" varchar(250),
-  "software_id" varchar(250) NOT NULL,
-  "software_version" varchar(250),
-  "contacts" varchar(250)[] NOT NULL DEFAULT '{}',
+  "callback_uris" varchar(2048)[] NOT NULL,
+  "client_uri" varchar(512) NOT NULL,
+  "logo_uri" varchar(512),
+  "policy_uri" varchar(512),
+  "tos_uri" varchar(512),
+  "software_id" varchar(512) NOT NULL,
+  "software_version" varchar(512),
+  "contacts" varchar(512)[] NOT NULL DEFAULT '{}',
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -330,8 +359,8 @@ CREATE TABLE "oidc_configs" (
   "account_id" integer NOT NULL,
   "claims_supported" claims[] NOT NULL DEFAULT '{ "sub", "email", "email_verified", "given_name", "family_name" }',
   "scopes_supported" scopes[] NOT NULL DEFAULT '{ "openid", "email", "profile" }',
-  "custom_claims" varchar(250)[] NOT NULL DEFAULT '{}',
-  "custom_scopes" varchar(250)[] NOT NULL DEFAULT '{}',
+  "custom_claims" varchar(512)[] NOT NULL DEFAULT '{}',
+  "custom_scopes" varchar(512)[] NOT NULL DEFAULT '{}',
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -391,7 +420,7 @@ CREATE TABLE "user_credentials" (
   "app_id" integer NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "auth_methods" auth_method[] NOT NULL,
-  "issuers" varchar(250)[] NOT NULL,
+  "issuers" varchar(512)[] NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -424,24 +453,30 @@ CREATE TABLE "apps" (
   "name" varchar(100) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "version" integer NOT NULL DEFAULT 1,
-  "client_uri" varchar(250) NOT NULL,
-  "logo_uri" varchar(250),
-  "tos_uri" varchar(250),
-  "policy_uri" varchar(250),
-  "software_id" varchar(250),
+  "creation_source" creation_source NOT NULL,
+  "client_uri" varchar(512) NOT NULL,
+  "logo_uri" varchar(512),
+  "tos_uri" varchar(512),
+  "policy_uri" varchar(512),
+  "software_id" varchar(250) NOT NULL,
   "software_version" varchar(250),
-  "contacts" varchar(250)[] NOT NULL DEFAULT '{}',
-  "auth_methods" auth_method[] NOT NULL,
-  "grant_types" grant_type[] NOT NULL,
-  "auth_providers" auth_provider[] NOT NULL DEFAULT '{ "username_password" }',
-  "username_column" app_username_column NOT NULL,
+  "contacts" varchar(250)[] NOT NULL,
+  "token_endpoint_auth_method" auth_method NOT NULL,
   "scopes" scopes[] NOT NULL,
-  "custom_scopes" varchar(250)[] NOT NULL,
+  "custom_scopes" varchar(512)[] NOT NULL,
+  "grant_types" grant_type[] NOT NULL,
+  "domain" varchar(250) NOT NULL,
+  "transport" transport NOT NULL,
+  "allow_user_registration" bool NOT NULL,
+  "auth_providers" auth_provider[] NOT NULL,
+  "username_column" app_username_column NOT NULL,
   "default_scopes" scopes[] NOT NULL,
-  "default_custom_scopes" varchar(250)[] NOT NULL,
-  "id_token_ttl" integer NOT NULL DEFAULT 3600,
-  "token_ttl" integer NOT NULL DEFAULT 900,
-  "refresh_token_ttl" integer NOT NULL DEFAULT 259200,
+  "default_custom_scopes" varchar(512)[] NOT NULL,
+  "redirect_uris" varchar(2048)[] NOT NULL,
+  "response_types" response_type[] NOT NULL,
+  "id_token_ttl" integer NOT NULL DEFAULT 300,
+  "token_ttl" integer NOT NULL DEFAULT 300,
+  "refresh_token_ttl" integer NOT NULL DEFAULT 604800,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -462,29 +497,6 @@ CREATE TABLE "app_keys" (
   PRIMARY KEY ("app_id", "credentials_key_id")
 );
 
-CREATE TABLE "app_auth_code_configs" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "app_id" integer NOT NULL,
-  "callback_uris" varchar(250)[] NOT NULL,
-  "logout_uris" varchar(250)[] NOT NULL,
-  "allowed_origins" varchar(250)[] NOT NULL,
-  "response_types" response_type[] NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now()),
-  "updated_at" timestamptz NOT NULL DEFAULT (now())
-);
-
-CREATE TABLE "app_server_configs" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "app_id" integer NOT NULL,
-  "issuers" varchar(250)[] NOT NULL,
-  "confirmation_url" varchar(250) NOT NULL,
-  "reset_password_url" varchar(250) NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now()),
-  "updated_at" timestamptz NOT NULL DEFAULT (now())
-);
-
 CREATE TABLE "app_related_apps" (
   "account_id" integer NOT NULL,
   "app_id" integer NOT NULL,
@@ -498,9 +510,8 @@ CREATE TABLE "app_service_configs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "app_id" integer NOT NULL,
-  "issuers" varchar(250)[] NOT NULL,
-  "auth_methods" auth_method[] NOT NULL,
-  "grant_types" grant_type[] NOT NULL,
+  "user_auth_method" auth_method NOT NULL,
+  "user_grant_types" grant_type[] NOT NULL,
   "allowed_domains" varchar(250)[] NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
@@ -512,8 +523,32 @@ CREATE TABLE "app_designs" (
   "app_id" integer NOT NULL,
   "light_colors" jsonb NOT NULL,
   "dark_colors" jsonb,
-  "logo_url" varchar(250),
-  "favicon_url" varchar(250),
+  "logo_url" varchar(512),
+  "favicon_url" varchar(512),
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "dynamic_registration_configs" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "allowed_app_types" app_type[] NOT NULL,
+  "whitelisted_domains" varchar(250)[] NOT NULL,
+  "default_allow_user_registration" boolean NOT NULL,
+  "default_auth_providers" auth_provider[] NOT NULL,
+  "default_username_column" app_username_column NOT NULL,
+  "default_allowed_scopes" scopes[] NOT NULL,
+  "default_scopes" scopes[] NOT NULL,
+  "require_software_statement_app_types" app_type[] NOT NULL,
+  "software_statement_verification_methods" software_statement_verification_method[] NOT NULL,
+  "require_initial_access_token_app_types" app_type[] NOT NULL,
+  "initial_access_token_generation_methods" initial_access_token_generation_method[] NOT NULL,
+  "initial_access_token_ttl" integer NOT NULL DEFAULT 3600,
+  "initial_access_token_max_uses" int NOT NULL DEFAULT 1,
+  "allowed_grant_types" grant_type[] NOT NULL DEFAULT '{ "authorization_code", "refresh_token", "client_credentials", "urn:ietf:params:oauth:grant-type:device_code", "urn:ietf:params:oauth:grant-type:jwt-bearer" }',
+  "allowed_response_types" response_type[] NOT NULL DEFAULT '{ "code", "id_token", "code id_token" }',
+  "allowed_token_endpoint_auth_methods" auth_method[] NOT NULL DEFAULT '{ "none", "client_secret_post", "client_secret_basic", "client_secret_jwt", "private_key_jwt" }',
+  "max_redirect_uris" int NOT NULL DEFAULT 10,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -530,6 +565,10 @@ CREATE TABLE "app_profiles" (
 CREATE TABLE "revoked_tokens" (
   "id" serial PRIMARY KEY,
   "token_id" uuid NOT NULL,
+  "account_id" integer NOT NULL,
+  "owner" token_owner NOT NULL,
+  "owner_public_id" uuid NOT NULL,
+  "issued_at" timestamptz NOT NULL,
   "expires_at" timestamptz NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -766,14 +805,6 @@ CREATE INDEX "app_keys_account_id_idx" ON "app_keys" ("account_id");
 
 CREATE UNIQUE INDEX "app_keys_app_id_credentials_key_id_uidx" ON "app_keys" ("app_id", "credentials_key_id");
 
-CREATE INDEX "app_uris_account_id_idx" ON "app_auth_code_configs" ("account_id");
-
-CREATE UNIQUE INDEX "app_uris_app_id_uidx" ON "app_auth_code_configs" ("app_id");
-
-CREATE INDEX "app_server_urls_account_id_idx" ON "app_server_configs" ("account_id");
-
-CREATE UNIQUE INDEX "app_server_urls_app_id_uidx" ON "app_server_configs" ("app_id");
-
 CREATE INDEX "app_related_apps_account_id_idx" ON "app_related_apps" ("account_id");
 
 CREATE INDEX "app_related_apps_app_id_idx" ON "app_related_apps" ("app_id");
@@ -790,6 +821,8 @@ CREATE INDEX "app_designs_account_id_idx" ON "app_designs" ("account_id");
 
 CREATE UNIQUE INDEX "app_designs_app_id_uidx" ON "app_designs" ("app_id");
 
+CREATE INDEX "dynamic_registrations_configs_account_id_idx" ON "dynamic_registration_configs" ("account_id");
+
 CREATE INDEX "user_profiles_app_id_idx" ON "app_profiles" ("app_id");
 
 CREATE INDEX "user_profiles_user_id_idx" ON "app_profiles" ("user_id");
@@ -799,6 +832,10 @@ CREATE INDEX "user_profiles_account_id_idx" ON "app_profiles" ("account_id");
 CREATE UNIQUE INDEX "user_profiles_user_id_app_id_uidx" ON "app_profiles" ("user_id", "app_id");
 
 CREATE UNIQUE INDEX "revoked_tokens_token_id_uidx" ON "revoked_tokens" ("token_id");
+
+CREATE INDEX "revoked_tokens_account_id_idx" ON "revoked_tokens" ("account_id");
+
+CREATE INDEX "revoked_tokens_expires_at_idx" ON "revoked_tokens" ("expires_at");
 
 ALTER TABLE "data_encryption_keys" ADD FOREIGN KEY ("kek_kid") REFERENCES "key_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -902,14 +939,6 @@ ALTER TABLE "app_keys" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DE
 
 ALTER TABLE "app_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "app_auth_code_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "app_auth_code_configs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "app_server_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "app_server_configs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
-
 ALTER TABLE "app_related_apps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_related_apps" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
@@ -924,8 +953,12 @@ ALTER TABLE "app_designs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" (
 
 ALTER TABLE "app_designs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
+ALTER TABLE "dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
 ALTER TABLE "app_profiles" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_profiles" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_profiles" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "revoked_tokens" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;

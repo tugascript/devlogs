@@ -15,7 +15,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
-	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -40,7 +39,7 @@ type UserAuthTokenOptions struct {
 	UserPublicID    uuid.UUID
 	UserVersion     int32
 	UserRoles       []string
-	Scopes          []database.Scopes
+	Scopes          []string
 	TokenSubject    string
 	AppClientID     string
 	AppVersion      int32
@@ -90,9 +89,7 @@ func (t *Tokens) CreateUserAuthToken(opts UserAuthTokenOptions) (*jwt.Token, err
 			ClientID: opts.AppClientID,
 			Version:  opts.AppVersion,
 		},
-		Scope: strings.Join(utils.MapSlice(opts.Scopes, func(scope *database.Scopes) string {
-			return string(*scope)
-		}), " "),
+		Scope: strings.Join(opts.Scopes, " "),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: iss,
 			Audience: utils.MapSlice(opts.Paths, func(path *string) string {
@@ -111,7 +108,7 @@ func (t *Tokens) VerifyUserAuthToken(
 	token string,
 	cryptoSuite utils.SupportedCryptoSuite,
 	getPublicJWK GetPublicJWK,
-) (UserAuthClaims, AppClaims, []database.Scopes, uuid.UUID, time.Time, error) {
+) (UserAuthClaims, AppClaims, []string, uuid.UUID, time.Time, error) {
 	claims := new(userAuthTokenClaims)
 
 	_, err := jwt.ParseWithClaims(token, claims, buildVerifyKey(cryptoSuite, getPublicJWK))
@@ -124,9 +121,7 @@ func (t *Tokens) VerifyUserAuthToken(
 		return UserAuthClaims{}, AppClaims{}, nil, uuid.Nil, time.Time{}, err
 	}
 
-	return claims.UserAuthClaims, claims.AppClaims, utils.MapSlice(strings.Split(claims.Scope, " "), func(scope *string) database.Scopes {
-		return database.Scopes(*scope)
-	}), tokenID, claims.ExpiresAt.Time, nil
+	return claims.UserAuthClaims, claims.AppClaims, strings.Split(claims.Scope, " "), tokenID, claims.ExpiresAt.Time, nil
 }
 
 type UserPurposeClaims struct {

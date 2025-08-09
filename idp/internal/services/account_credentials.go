@@ -65,7 +65,7 @@ type CreateAccountCredentialsOptions struct {
 	AccountVersion  int32
 	Alias           string
 	Scopes          []string
-	AuthMethods     string
+	AuthMethod      string
 	Issuers         []string
 	Algorithm       string
 }
@@ -78,13 +78,13 @@ func (s *Services) CreateAccountCredentials(
 		"accountPublicID", opts.AccountPublicID,
 		"scopes", opts.Scopes,
 		"alias", opts.Alias,
-		"authMethods", opts.AuthMethods,
+		"authMethod", opts.AuthMethod,
 	)
 	logger.InfoContext(ctx, "Creating account keys...")
 
-	authMethods, serviceErr := mapAuthMethod(opts.AuthMethods)
+	authMethod, serviceErr := mapAuthMethod(opts.AuthMethod)
 	if serviceErr != nil {
-		logger.WarnContext(ctx, "Failed to map auth method", "error", serviceErr, "authMethods", opts.AuthMethods)
+		logger.WarnContext(ctx, "Failed to map auth method", "error", serviceErr, "authMethod", opts.AuthMethod)
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
@@ -132,13 +132,13 @@ func (s *Services) CreateAccountCredentials(
 	}()
 
 	accountCredentials, err := qrs.CreateAccountCredentials(ctx, database.CreateAccountCredentialsParams{
-		ClientID:        utils.Base62UUID(),
-		AccountID:       accountID,
-		AccountPublicID: opts.AccountPublicID,
-		CredentialsType: database.AccountCredentialsTypeClient,
-		Scopes:          scopes,
-		AuthMethods:     authMethods,
-		Alias:           alias,
+		ClientID:                utils.Base62UUID(),
+		AccountID:               accountID,
+		AccountPublicID:         opts.AccountPublicID,
+		CredentialsType:         database.AccountCredentialsTypeClient,
+		Scopes:                  scopes,
+		TokenEndpointAuthMethod: authMethod,
+		Alias:                   alias,
 		Issuers: utils.MapSlice(opts.Issuers, func(url *string) string {
 			return utils.ProcessURL(*url)
 		}),
@@ -149,7 +149,7 @@ func (s *Services) CreateAccountCredentials(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	switch opts.AuthMethods {
+	switch opts.AuthMethod {
 	case AuthMethodPrivateKeyJwt:
 		var dbPrms database.CreateCredentialsKeyParams
 		var jwk utils.JWK
@@ -187,7 +187,7 @@ func (s *Services) CreateAccountCredentials(
 		}
 
 		return dtos.MapAccountCredentialsToDTOWithJWK(&accountCredentials, jwk, dbPrms.ExpiresAt), nil
-	case AuthMethodClientSecretBasic, AuthMethodClientSecretPost, AuthMethodBothClientSecrets:
+	case AuthMethodClientSecretBasic, AuthMethodClientSecretPost:
 		var dbPrms database.CreateCredentialsSecretParams
 		var secret string
 		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
@@ -222,7 +222,7 @@ func (s *Services) CreateAccountCredentials(
 
 		return dtos.MapAccountCredentialsToDTOWithSecret(&accountCredentials, clientSecret.SecretID, secret, dbPrms.ExpiresAt), nil
 	default:
-		logger.ErrorContext(ctx, "Invalid auth method", "authMethods", opts.AuthMethods)
+		logger.ErrorContext(ctx, "Invalid auth method", "authMethod", opts.AuthMethod)
 		serviceErr = exceptions.NewInternalServerError()
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
@@ -707,8 +707,7 @@ func (s *Services) RotateAccountCredentialsSecret(
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
-	amHashSet := utils.SliceToHashSet(accountCredentialsDTO.AuthMethods)
-	if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
+	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodPrivateKeyJwt {
 		return s.rotateAccountCredentialsKey(ctx, rotateAccountCredentialsKeyOptions{
 			requestID:            opts.RequestID,
 			accountID:            accountCredentialsDTO.AccountID(),
@@ -717,7 +716,7 @@ func (s *Services) RotateAccountCredentialsSecret(
 			cryptoSuite:          mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
 		})
 	}
-	if amHashSet.Contains(database.AuthMethodClientSecretBasic) || amHashSet.Contains(database.AuthMethodClientSecretPost) {
+	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretBasic || accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost {
 		return s.rotateAccountCredentialsSecret(ctx, rotateAccountCredentialsSecretOptions{
 			requestID:            opts.RequestID,
 			accountID:            accountCredentialsDTO.AccountID(),
@@ -851,8 +850,7 @@ func (s *Services) ListAccountCredentialsSecretsOrKeys(
 		return nil, 0, serviceErr
 	}
 
-	amHashSet := utils.SliceToHashSet(accountCredentialsDTO.AuthMethods)
-	if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
+	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodPrivateKeyJwt {
 		return s.listAccountCredentialsKeys(ctx, listAccountCredentialsKeysOptions{
 			requestID:            opts.RequestID,
 			accountCredentialsID: accountCredentialsDTO.ID(),
@@ -860,7 +858,8 @@ func (s *Services) ListAccountCredentialsSecretsOrKeys(
 			limit:                opts.Limit,
 		})
 	}
-	if amHashSet.Contains(database.AuthMethodClientSecretBasic) || amHashSet.Contains(database.AuthMethodClientSecretPost) {
+	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretBasic ||
+		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost {
 		return s.listAccountCredentialsSecrets(ctx, listAccountCredentialsSecretsOptions{
 			requestID:            opts.RequestID,
 			accountCredentialsID: accountCredentialsDTO.ID(),
@@ -977,15 +976,15 @@ func (s *Services) GetAccountCredentialsSecretOrKey(
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
-	amHashSet := utils.SliceToHashSet(accountCredentialsDTO.AuthMethods)
-	if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
+	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodPrivateKeyJwt {
 		return s.getAccountCredentialsKeyByID(ctx, getAccountCredentialsKeyByIDOptions{
 			requestID:            opts.RequestID,
 			accountCredentialsID: accountCredentialsDTO.ID(),
 			publicKID:            opts.SecretID,
 		})
 	}
-	if amHashSet.Contains(database.AuthMethodClientSecretBasic) || amHashSet.Contains(database.AuthMethodClientSecretPost) {
+	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretBasic ||
+		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost {
 		return s.getAccountCredentialsSecretByID(ctx, getAccountCredentialsSecretByIDOptions{
 			requestID:            opts.RequestID,
 			accountCredentialsID: accountCredentialsDTO.ID(),
@@ -1088,15 +1087,15 @@ func (s *Services) RevokeAccountCredentialsSecretOrKey(
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
-	amHashSet := utils.SliceToHashSet(accountCredentialsDTO.AuthMethods)
-	if amHashSet.Contains(database.AuthMethodPrivateKeyJwt) {
+	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodPrivateKeyJwt {
 		return s.revokeAccountCredentialsKey(ctx, revokeAccountCredentialsKeyOptions{
 			requestID:            opts.RequestID,
 			accountCredentialsID: accountCredentialsDTO.ID(),
 			publicKID:            opts.SecretID,
 		})
 	}
-	if amHashSet.Contains(database.AuthMethodClientSecretBasic) || amHashSet.Contains(database.AuthMethodClientSecretPost) {
+	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretBasic ||
+		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost {
 		return s.revokeAccountCredentialsSecret(ctx, revokeAccountCredentialsSecretOptions{
 			requestID:            opts.RequestID,
 			accountCredentialsID: accountCredentialsDTO.ID(),

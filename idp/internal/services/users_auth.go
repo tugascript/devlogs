@@ -70,7 +70,7 @@ type ProcessUserAuthHeaderOptions struct {
 func (s *Services) ProcessUserAuthHeader(
 	ctx context.Context,
 	opts ProcessUserAuthHeaderOptions,
-) (tokens.UserAuthClaims, tokens.AppClaims, []database.Scopes, *exceptions.ServiceError) {
+) (tokens.UserAuthClaims, tokens.AppClaims, []string, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "ProcessUserAuthHeader").With(
 		"tokenType", opts.TokenType,
 		"accountId", opts.AccountID,
@@ -255,7 +255,7 @@ func (s *Services) RegisterUser(
 		return dtos.MessageDTO{}, serviceErr
 	}
 
-	if !slices.Contains(appDTO.AuthProviders, database.AuthProviderUsernamePassword) {
+	if !slices.Contains(appDTO.AuthProviders, database.AuthProviderLocal) {
 		logger.WarnContext(ctx, "Invalid Provider")
 		return dtos.MessageDTO{}, exceptions.NewForbiddenError()
 	}
@@ -267,7 +267,7 @@ func (s *Services) RegisterUser(
 		Email:     opts.Email,
 		Username:  opts.Username,
 		Password:  opts.Password,
-		Provider:  AuthProviderUsernamePassword,
+		Provider:  AuthProviderLocal,
 		UserData:  opts.UserData,
 	})
 	if serviceErr != nil {
@@ -298,7 +298,7 @@ func (s *Services) generateFullUserAuthDTO(
 	accountID int32,
 	userDTO *dtos.UserDTO,
 	appDTO *dtos.AppDTO,
-	scopes []database.Scopes,
+	scopes []string,
 	accountUsername,
 	logSuccessMessage string,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
@@ -419,8 +419,8 @@ func (s *Services) ConfirmAuthUser(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if !slices.Contains(appDTO.AuthProviders, database.AuthProviderUsernamePassword) {
-		logger.WarnContext(ctx, "Invalid Provider", "Provider", AuthProviderUsernamePassword)
+	if !slices.Contains(appDTO.AuthProviders, database.AuthProviderLocal) {
+		logger.WarnContext(ctx, "Invalid Provider", "Provider", AuthProviderLocal)
 		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 	}
 
@@ -566,8 +566,8 @@ func (s *Services) LoginUser(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if !slices.Contains(appDTO.AuthProviders, database.AuthProviderUsernamePassword) {
-		logger.WarnContext(ctx, "Invalid Provider", "Provider", AuthProviderUsernamePassword)
+	if !slices.Contains(appDTO.AuthProviders, database.AuthProviderLocal) {
+		logger.WarnContext(ctx, "Invalid Provider", "Provider", AuthProviderLocal)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
@@ -1131,7 +1131,7 @@ func (s *Services) ForgotUserPassword(
 		return dtos.MessageDTO{}, serviceErr
 	}
 
-	if !slices.Contains(appDTO.AuthProviders, database.AuthProviderUsernamePassword) {
+	if !slices.Contains(appDTO.AuthProviders, database.AuthProviderLocal) {
 		logger.WarnContext(ctx, "Username and password provider missing", "appProviders", appDTO.AuthProviders)
 		return dtos.MessageDTO{}, exceptions.NewForbiddenError()
 	}
@@ -1269,7 +1269,7 @@ func (s *Services) ResetUserPassword(
 		return dtos.MessageDTO{}, serviceErr
 	}
 
-	if !slices.Contains(appDTO.AuthProviders, database.AuthProviderUsernamePassword) {
+	if !slices.Contains(appDTO.AuthProviders, database.AuthProviderLocal) {
 		logger.WarnContext(ctx, "Username and password provider missing", "appProviders", appDTO.AuthProviders)
 		return dtos.MessageDTO{}, exceptions.NewForbiddenError()
 	}
@@ -1327,7 +1327,7 @@ func (s *Services) ResetUserPassword(
 
 	_, err = s.database.FindUserAuthProviderByUserIDAndProvider(ctx, database.FindUserAuthProviderByUserIDAndProviderParams{
 		UserID:   userDTO.ID(),
-		Provider: database.AuthProviderUsernamePassword,
+		Provider: database.AuthProviderLocal,
 	})
 	if err == nil {
 		if _, err := s.database.UpdateUserPassword(ctx, database.UpdateUserPasswordParams{
@@ -1368,7 +1368,7 @@ func (s *Services) ResetUserPassword(
 	if err = qrs.CreateUserAuthProvider(ctx, database.CreateUserAuthProviderParams{
 		AccountID: opts.AccountID,
 		UserID:    userDTO.ID(),
-		Provider:  database.AuthProviderUsernamePassword,
+		Provider:  database.AuthProviderLocal,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create username and password user auth provider", "error", err)
 		serviceErr = exceptions.FromDBError(err)

@@ -68,9 +68,9 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertNotEmpty(t, resBody.ClientSecret)
 				AssertNotEmpty(t, resBody.ClientSecretExp)
 				AssertEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, len(resBody.AuthMethods), 2)
-				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodClientSecretBasic)
-				AssertEqual(t, resBody.AuthMethods[1], database.AuthMethodClientSecretPost)
+				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 2)
+				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodClientSecretBasic)
+				AssertEqual(t, resBody.TokenEndpointAuthMetho[1], database.AuthMethodClientSecretPost)
 				AssertEqual(t, len(resBody.Issuers), 0)
 			},
 		},
@@ -95,8 +95,8 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertEmpty(t, resBody.ClientSecret)
 				AssertNotEmpty(t, resBody.ClientSecretExp)
 				AssertNotEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, len(resBody.AuthMethods), 1)
-				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodPrivateKeyJwt)
+				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 1)
+				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodPrivateKeyJwt)
 			},
 		},
 		{
@@ -120,8 +120,8 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertEmpty(t, resBody.ClientSecret)
 				AssertNotEmpty(t, resBody.ClientSecretExp)
 				AssertNotEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, len(resBody.AuthMethods), 1)
-				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodPrivateKeyJwt)
+				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 1)
+				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodPrivateKeyJwt)
 			},
 		},
 		{
@@ -144,8 +144,8 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertEmpty(t, resBody.ClientSecret)
 				AssertNotEmpty(t, resBody.ClientSecretExp)
 				AssertNotEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, len(resBody.AuthMethods), 1)
-				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodPrivateKeyJwt)
+				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 1)
+				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodPrivateKeyJwt)
 			},
 		},
 		{
@@ -167,8 +167,8 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertNotEmpty(t, resBody.ClientSecret)
 				AssertNotEmpty(t, resBody.ClientSecretExp)
 				AssertEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, len(resBody.AuthMethods), 1)
-				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodClientSecretPost)
+				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 1)
+				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodClientSecretPost)
 			},
 		},
 		{
@@ -190,8 +190,8 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertNotEmpty(t, resBody.ClientSecret)
 				AssertNotEmpty(t, resBody.ClientSecretExp)
 				AssertEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, len(resBody.AuthMethods), 1)
-				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodClientSecretBasic)
+				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 1)
+				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodClientSecretBasic)
 			},
 		},
 		{
@@ -501,8 +501,8 @@ func TestGetAccountCredentials(t *testing.T) {
 				resBody := AssertTestResponseBody(t, res, dtos.AccountCredentialsDTO{})
 				AssertNotEmpty(t, resBody.ClientID)
 				AssertNotEmpty(t, resBody.Alias)
-				AssertEqual(t, len(resBody.AuthMethods), 1)
-				AssertEqual(t, resBody.AuthMethods[0], database.AuthMethodClientSecretBasic)
+				AssertEqual(t, len(resBody.TokenEndpointAuthMetho), 1)
+				AssertEqual(t, resBody.TokenEndpointAuthMetho[0], database.AuthMethodClientSecretBasic)
 				AssertEmpty(t, resBody.ClientSecret)
 				AssertEmpty(t, resBody.ClientSecretJWK)
 			},

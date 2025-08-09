@@ -18,23 +18,26 @@ import (
 )
 
 const (
-	AuthMethodBothClientSecrets string = "both_client_secrets"
 	AuthMethodPrivateKeyJwt     string = "private_key_jwt"
 	AuthMethodClientSecretBasic string = "client_secret_basic"
 	AuthMethodClientSecretPost  string = "client_secret_post"
+	AuthMethodClientSecretJWT   string = "client_secret_jwt"
 	AuthMethodNone              string = "none"
 
-	AuthProviderGoogle           string = "google"
-	AuthProviderGitHub           string = "github"
-	AuthProviderApple            string = "apple"
-	AuthProviderMicrosoft        string = "microsoft"
-	AuthProviderFacebook         string = "facebook"
-	AuthProviderUsernamePassword string = "username_password"
-	AuthProviderCustom           string = "custom"
+	AuthProviderGoogle    string = "google"
+	AuthProviderGitHub    string = "github"
+	AuthProviderApple     string = "apple"
+	AuthProviderMicrosoft string = "microsoft"
+	AuthProviderFacebook  string = "facebook"
+	AuthProviderLocal     string = "local"
 
 	TwoFactorNone  string = "none"
 	TwoFactorEmail string = "email"
 	TwoFactorTotp  string = "totp"
+
+	ResponseTypeCode        string = "code"
+	ResponseTypeIdToken     string = "id_token"
+	ResponseTypeCodeIdToken string = "code id_token"
 
 	UsernameColumnEmail    string = "email"
 	UsernameColumnUsername string = "username"
@@ -68,22 +71,41 @@ func extractAuthHeaderToken(ah string) (string, *exceptions.ServiceError) {
 	return ahSlice[1], nil
 }
 
-func mapAuthMethod(authMethod string) ([]database.AuthMethod, *exceptions.ServiceError) {
-	if authMethod == AuthMethodBothClientSecrets {
-		return []database.AuthMethod{
-			database.AuthMethodClientSecretBasic,
-			database.AuthMethodClientSecretPost,
-		}, nil
+func mapAuthMethod(authMethod string) (database.AuthMethod, *exceptions.ServiceError) {
+	switch authMethod {
+	case AuthMethodPrivateKeyJwt:
+		return database.AuthMethodPrivateKeyJwt, nil
+	case AuthMethodClientSecretBasic:
+		return database.AuthMethodClientSecretBasic, nil
+	case AuthMethodClientSecretPost:
+		return database.AuthMethodClientSecretPost, nil
+	case AuthMethodNone:
+		return database.AuthMethodNone, nil
+	default:
+		return "", exceptions.NewValidationError("invalid auth method")
+	}
+}
+
+func mapResponseTypes(responseTypes []string) ([]database.ResponseType, *exceptions.ServiceError) {
+	if len(responseTypes) == 0 {
+		return nil, exceptions.NewValidationError("response types cannot be empty")
 	}
 
-	am := database.AuthMethod(authMethod)
-	switch am {
-	case database.AuthMethodClientSecretBasic, database.AuthMethodClientSecretPost,
-		database.AuthMethodPrivateKeyJwt, database.AuthMethodNone:
-		return []database.AuthMethod{am}, nil
-	default:
-		return nil, exceptions.NewValidationError("invalid auth method")
+	var dbResponseTypes []database.ResponseType
+	for _, rt := range responseTypes {
+		switch utils.Lowered(rt) {
+		case ResponseTypeCode:
+			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeCode)
+		case ResponseTypeIdToken:
+			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeIDToken)
+		case ResponseTypeCodeIdToken:
+			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeCodeidToken)
+		default:
+			return nil, exceptions.NewValidationError("invalid response type: " + rt)
+		}
 	}
+
+	return dbResponseTypes, nil
 }
 
 func mapClaim(claim string) (database.Claims, *exceptions.ServiceError) {
@@ -113,9 +135,8 @@ func mapAuthProvider(provider string) (database.AuthProvider, *exceptions.Servic
 
 	authProvider := database.AuthProvider(provider)
 	switch authProvider {
-	case database.AuthProviderUsernamePassword,
-		database.AuthProviderApple, database.AuthProviderFacebook, database.AuthProviderGithub,
-		database.AuthProviderGoogle, database.AuthProviderMicrosoft, database.AuthProviderCustom:
+	case database.AuthProviderLocal, database.AuthProviderApple, database.AuthProviderFacebook,
+		database.AuthProviderGithub, database.AuthProviderGoogle, database.AuthProviderMicrosoft:
 		return authProvider, nil
 	default:
 		return "", exceptions.NewValidationError("invalid provider")

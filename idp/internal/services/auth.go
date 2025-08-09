@@ -191,7 +191,7 @@ func (s *Services) RegisterAccount(
 		Email:      opts.Email,
 		Password:   opts.Password,
 		Username:   opts.Username,
-		Provider:   AuthProviderUsernamePassword,
+		Provider:   AuthProviderLocal,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to create account", "error", serviceErr)
@@ -672,7 +672,7 @@ func (s *Services) LogoutAccount(
 	logger := s.buildLogger(opts.RequestID, authLocation, "LogoutAccount")
 	logger.InfoContext(ctx, "Logging out account...")
 
-	claims, _, tokenID, exp, err := s.jwt.VerifyRefreshToken(
+	data, err := s.jwt.VerifyRefreshToken(
 		opts.RefreshToken,
 		s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
 			RequestID: opts.RequestID,
@@ -686,7 +686,7 @@ func (s *Services) LogoutAccount(
 
 	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		PublicID:  claims.AccountID,
+		PublicID:  data.AccountClaims.AccountID,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to find account of refresh token")
@@ -694,15 +694,15 @@ func (s *Services) LogoutAccount(
 	}
 
 	accountVersion := accountDTO.Version()
-	if accountVersion != claims.AccountVersion {
+	if accountVersion != data.AccountClaims.AccountVersion {
 		logger.WarnContext(ctx, "Account versions do not match",
-			"claimsVersion", claims.AccountVersion,
+			"claimsVersion", data.AccountClaims.AccountVersion,
 			"accountVersion", accountVersion,
 		)
 		return exceptions.NewUnauthorizedError()
 	}
 
-	blt, err := s.database.GetRevokedToken(ctx, tokenID)
+	blt, err := s.database.GetRevokedToken(ctx, data.TokenID)
 	if err != nil {
 		if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
 			logger.ErrorContext(ctx, "Failed to fetch revoked token", "error", err)
@@ -714,8 +714,12 @@ func (s *Services) LogoutAccount(
 	}
 
 	if err := s.database.RevokeToken(ctx, database.RevokeTokenParams{
-		TokenID:   tokenID,
-		ExpiresAt: exp,
+		TokenID:       data.TokenID,
+		AccountID:     accountDTO.ID(),
+		Owner:         database.TokenOwnerAccount,
+		OwnerPublicID: accountDTO.PublicID,
+		ExpiresAt:     data.ExpiresAt,
+		IssuedAt:      data.IssuedAt,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to revoke the token", "error", err)
 		return exceptions.NewInternalServerError()
@@ -737,7 +741,7 @@ func (s *Services) RefreshTokenAccount(
 	logger := s.buildLogger(opts.RequestID, authLocation, "RefreshTokenAccount")
 	logger.InfoContext(ctx, "Refreshing account access token...")
 
-	claims, scopes, id, exp, err := s.jwt.VerifyRefreshToken(
+	data, err := s.jwt.VerifyRefreshToken(
 		opts.RefreshToken,
 		s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
 			RequestID: opts.RequestID,
@@ -749,7 +753,7 @@ func (s *Services) RefreshTokenAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	blt, err := s.database.GetRevokedToken(ctx, id)
+	blt, err := s.database.GetRevokedToken(ctx, data.TokenID)
 	if err != nil {
 		if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
 			logger.ErrorContext(ctx, "Failed to get blacklisted token", "error", err)
@@ -762,7 +766,7 @@ func (s *Services) RefreshTokenAccount(
 
 	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
-		PublicID:  claims.AccountID,
+		PublicID:  data.AccountClaims.AccountID,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -775,17 +779,21 @@ func (s *Services) RefreshTokenAccount(
 	}
 
 	accountVersion := accountDTO.Version()
-	if accountVersion != claims.AccountVersion {
+	if accountVersion != data.AccountClaims.AccountVersion {
 		logger.WarnContext(ctx, "Account versions do not match",
-			"claimsVersion", claims.AccountVersion,
+			"claimsVersion", data.AccountClaims.AccountVersion,
 			"accountVersion", accountVersion,
 		)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
 	if err := s.database.RevokeToken(ctx, database.RevokeTokenParams{
-		TokenID:   id,
-		ExpiresAt: exp,
+		TokenID:       data.TokenID,
+		AccountID:     accountDTO.ID(),
+		Owner:         database.TokenOwnerAccount,
+		OwnerPublicID: accountDTO.PublicID,
+		ExpiresAt:     data.ExpiresAt,
+		IssuedAt:      data.IssuedAt,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to blacklist previous refresh token", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
@@ -796,7 +804,7 @@ func (s *Services) RefreshTokenAccount(
 		logger,
 		opts.RequestID,
 		&accountDTO,
-		scopes,
+		data.Scopes,
 		"Refreshed access token successfully",
 	)
 }
@@ -1482,7 +1490,7 @@ func (s *Services) UpdateAccount2FA(
 		ctx,
 		database.CountAccountAuthProvidersByEmailAndProviderParams{
 			Email:    accountDTO.Email,
-			Provider: database.AuthProviderUsernamePassword,
+			Provider: database.AuthProviderLocal,
 		},
 	)
 	if err != nil {

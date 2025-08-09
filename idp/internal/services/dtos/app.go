@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
-
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -42,9 +41,11 @@ type AppDTO struct {
 	accountID int32
 	version   int32
 
-	AppType  database.AppType `json:"app_type"`
-	Name     string           `json:"name"`
-	ClientID string           `json:"client_id"`
+	AppType   database.AppType   `json:"app_type"`
+	Name      string             `json:"name"`
+	ClientID  string             `json:"client_id"`
+	Domain    string             `json:"domain"`
+	Transport database.Transport `json:"transport"`
 
 	ClientURI       string `json:"client_uri,omitempty"`
 	LogoURI         string `json:"logo_uri,omitempty"`
@@ -53,34 +54,29 @@ type AppDTO struct {
 	SoftwareID      string `json:"software_id,omitempty"`
 	SoftwareVersion string `json:"software_version,omitempty"`
 
-	AuthMethods    []database.AuthMethod      `json:"auth_methods"`
-	GrantTypes     []database.GrantType       `json:"grant_types"`
-	DefaultScopes  []database.Scopes          `json:"default_scopes"`
-	UsernameColumn database.AppUsernameColumn `json:"username_column"`
-	AuthProviders  []database.AuthProvider    `json:"auth_providers"`
+	TokenEndpointAuthMethod database.AuthMethod        `json:"token_endpoint_auth_method"`
+	GrantTypes              []database.GrantType       `json:"grant_types"`
+	DefaultScopes           []string                   `json:"default_scopes"`
+	Scopes                  []string                   `json:"scopes"`
+	UsernameColumn          database.AppUsernameColumn `json:"username_column"`
+	AuthProviders           []database.AuthProvider    `json:"auth_providers"`
+	RedirectURIs            []string                   `json:"redirect_uris,omitempty"`
+	ResponseTypes           []database.ResponseType    `json:"response_types,omitempty"`
 
 	IDTokenTTL      int32 `json:"id_token_ttl"`
 	TokenTTL        int32 `json:"token_ttl"`
 	RefreshTokenTTL int32 `json:"refresh_token_ttl,omitempty"`
-
-	CallbackURIs   []string `json:"callback_uris,omitempty"`
-	LogoutURIs     []string `json:"logout_uris,omitempty"`
-	AllowedOrigins []string `json:"allowed_origins,omitempty"`
 
 	ClientSecretID  string    `json:"client_secret_id,omitempty"`
 	ClientSecret    string    `json:"client_secret,omitempty"`
 	ClientSecretJWK utils.JWK `json:"client_secret_jwk,omitempty"`
 	ClientSecretExp int64     `json:"client_secret_exp,omitempty"`
 
-	Issuers          []string `json:"issuers,omitempty"`
-	ConfirmationURL  string   `json:"confirmation_url,omitempty"`
-	ResetPasswordURL string   `json:"reset_password_url,omitempty"`
-
 	RelatedApps []RelatedAppDTO `json:"related_apps,omitempty"`
 
-	UsersAuthMethods []database.AuthMethod `json:"users_auth_methods,omitempty"`
-	UsersGrantTypes  []database.GrantType  `json:"users_auth_providers,omitempty"`
-	AllowedDomains   []string              `json:"allowed_domains,omitempty"`
+	UsersAuthMethod database.AuthMethod  `json:"users_auth_method,omitempty"`
+	UsersGrantTypes []database.GrantType `json:"users_auth_providers,omitempty"`
+	AllowedDomains  []string             `json:"allowed_domains,omitempty"`
 }
 
 func (a *AppDTO) ID() int32 {
@@ -116,310 +112,235 @@ func (a *AppDTO) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func mapScopes(scopes []database.Scopes, customScopes []string) []string {
+	allScopes := make([]string, len(scopes)+len(customScopes))
+	for i, scope := range scopes {
+		allScopes[i] = string(scope)
+	}
+	for i, scope := range customScopes {
+		allScopes[len(scopes)+i] = scope
+	}
+	return allScopes
+}
+
 func MapAppToDTO(app *database.App) AppDTO {
 	return AppDTO{
-		id:              app.ID,
-		accountID:       app.AccountID,
-		version:         app.Version,
-		AppType:         app.AppType,
-		ClientID:        app.ClientID,
-		Name:            app.Name,
-		ClientURI:       app.ClientUri,
-		LogoURI:         app.LogoUri.String,
-		TosURI:          app.TosUri.String,
-		PolicyURI:       app.PolicyUri.String,
-		SoftwareID:      app.SoftwareID.String,
-		SoftwareVersion: app.SoftwareVersion.String,
-		AuthMethods:     app.AuthMethods,
-		GrantTypes:      app.GrantTypes,
-		DefaultScopes:   app.DefaultScopes,
-		UsernameColumn:  app.UsernameColumn,
-		AuthProviders:   app.AuthProviders,
-		IDTokenTTL:      app.IDTokenTtl,
-		TokenTTL:        app.TokenTtl,
-		RefreshTokenTTL: app.RefreshTokenTtl,
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		ClientID:                app.ClientID,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		RedirectURIs:            app.RedirectUris,
+		ResponseTypes:           app.ResponseTypes,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
 	}
 }
 
-func MapWebAppToDTO(
-	app *database.App,
-	authConfig *database.AppAuthCodeConfig,
-) AppDTO {
-	var allowedOrigins []string
-	if len(authConfig.AllowedOrigins) > 0 {
-		allowedOrigins = authConfig.AllowedOrigins
-	}
-
+func MapWebNativeSPAMCPAppToDTO(app *database.App) AppDTO {
 	return AppDTO{
-		id:              app.ID,
-		accountID:       app.AccountID,
-		version:         app.Version,
-		AppType:         app.AppType,
-		Name:            app.Name,
-		ClientID:        app.ClientID,
-		ClientURI:       app.ClientUri,
-		LogoURI:         app.LogoUri.String,
-		TosURI:          app.TosUri.String,
-		PolicyURI:       app.PolicyUri.String,
-		SoftwareID:      app.SoftwareID.String,
-		SoftwareVersion: app.SoftwareVersion.String,
-		AuthMethods:     app.AuthMethods,
-		GrantTypes:      app.GrantTypes,
-		DefaultScopes:   app.DefaultScopes,
-		UsernameColumn:  app.UsernameColumn,
-		AuthProviders:   app.AuthProviders,
-		IDTokenTTL:      app.IDTokenTtl,
-		TokenTTL:        app.TokenTtl,
-		RefreshTokenTTL: app.RefreshTokenTtl,
-		CallbackURIs:    authConfig.CallbackUris,
-		LogoutURIs:      authConfig.LogoutUris,
-		AllowedOrigins:  allowedOrigins,
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		ClientID:                app.ClientID,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		RedirectURIs:            app.RedirectUris,
+		ResponseTypes:           app.ResponseTypes,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
 	}
 }
 
 func MapWebAppWithSecretToDTO(
 	app *database.App,
-	authConfig *database.AppAuthCodeConfig,
-	secretID string,
-	secret string,
-	expiresAt time.Time,
-) AppDTO {
-	var allowedOrigins []string
-	if len(authConfig.AllowedOrigins) > 0 {
-		allowedOrigins = authConfig.AllowedOrigins
-	}
-
-	return AppDTO{
-		id:              app.ID,
-		accountID:       app.AccountID,
-		version:         app.Version,
-		AppType:         app.AppType,
-		Name:            app.Name,
-		ClientID:        app.ClientID,
-		ClientURI:       app.ClientUri,
-		LogoURI:         app.LogoUri.String,
-		TosURI:          app.TosUri.String,
-		PolicyURI:       app.PolicyUri.String,
-		SoftwareID:      app.SoftwareID.String,
-		SoftwareVersion: app.SoftwareVersion.String,
-		AuthMethods:     app.AuthMethods,
-		GrantTypes:      app.GrantTypes,
-		DefaultScopes:   app.DefaultScopes,
-		UsernameColumn:  app.UsernameColumn,
-		AuthProviders:   app.AuthProviders,
-		IDTokenTTL:      app.IDTokenTtl,
-		TokenTTL:        app.TokenTtl,
-		RefreshTokenTTL: app.RefreshTokenTtl,
-		CallbackURIs:    authConfig.CallbackUris,
-		LogoutURIs:      authConfig.LogoutUris,
-		AllowedOrigins:  allowedOrigins,
-		ClientSecretID:  secret,
-		ClientSecret:    fmt.Sprintf("%s.%s", secretID, secret),
-		ClientSecretExp: expiresAt.Unix(),
-	}
-}
-
-func MapWebAppWithJWKToDTO(
-	app *database.App,
-	authConfig *database.AppAuthCodeConfig,
-	jwk utils.JWK,
-	exp time.Time,
-) AppDTO {
-	var allowedOrigins []string
-	if len(authConfig.AllowedOrigins) > 0 {
-		allowedOrigins = authConfig.AllowedOrigins
-	}
-
-	return AppDTO{
-		id:              app.ID,
-		accountID:       app.AccountID,
-		version:         app.Version,
-		AppType:         app.AppType,
-		Name:            app.Name,
-		ClientID:        app.ClientID,
-		ClientURI:       app.ClientUri,
-		LogoURI:         app.LogoUri.String,
-		TosURI:          app.TosUri.String,
-		PolicyURI:       app.PolicyUri.String,
-		SoftwareID:      app.SoftwareID.String,
-		SoftwareVersion: app.SoftwareVersion.String,
-		AuthMethods:     app.AuthMethods,
-		GrantTypes:      app.GrantTypes,
-		DefaultScopes:   app.DefaultScopes,
-		UsernameColumn:  app.UsernameColumn,
-		AuthProviders:   app.AuthProviders,
-		IDTokenTTL:      app.IDTokenTtl,
-		TokenTTL:        app.TokenTtl,
-		RefreshTokenTTL: app.RefreshTokenTtl,
-		CallbackURIs:    authConfig.CallbackUris,
-		LogoutURIs:      authConfig.LogoutUris,
-		AllowedOrigins:  allowedOrigins,
-		ClientSecretID:  jwk.GetKeyID(),
-		ClientSecretJWK: jwk,
-		ClientSecretExp: exp.Unix(),
-	}
-}
-
-func MapSPAAppToDTO(
-	app *database.App,
-	authConfig *database.AppAuthCodeConfig,
-) AppDTO {
-	return AppDTO{
-		id:              app.ID,
-		accountID:       app.AccountID,
-		version:         app.Version,
-		AppType:         app.AppType,
-		Name:            app.Name,
-		ClientID:        app.ClientID,
-		ClientURI:       app.ClientUri,
-		LogoURI:         app.LogoUri.String,
-		TosURI:          app.TosUri.String,
-		PolicyURI:       app.PolicyUri.String,
-		SoftwareID:      app.SoftwareID.String,
-		SoftwareVersion: app.SoftwareVersion.String,
-		AuthMethods:     app.AuthMethods,
-		GrantTypes:      app.GrantTypes,
-		DefaultScopes:   app.DefaultScopes,
-		UsernameColumn:  app.UsernameColumn,
-		AuthProviders:   app.AuthProviders,
-		IDTokenTTL:      app.IDTokenTtl,
-		TokenTTL:        app.TokenTtl,
-		RefreshTokenTTL: app.RefreshTokenTtl,
-		CallbackURIs:    authConfig.CallbackUris,
-		LogoutURIs:      authConfig.LogoutUris,
-		AllowedOrigins:  authConfig.AllowedOrigins,
-	}
-}
-
-func MapNativeAppToDTO(
-	app *database.App,
-	authConfig *database.AppAuthCodeConfig,
-) AppDTO {
-	return AppDTO{
-		id:              app.ID,
-		accountID:       app.AccountID,
-		version:         app.Version,
-		AppType:         app.AppType,
-		Name:            app.Name,
-		ClientID:        app.ClientID,
-		ClientURI:       app.ClientUri,
-		LogoURI:         app.LogoUri.String,
-		TosURI:          app.TosUri.String,
-		PolicyURI:       app.PolicyUri.String,
-		SoftwareID:      app.SoftwareID.String,
-		SoftwareVersion: app.SoftwareVersion.String,
-		AuthMethods:     app.AuthMethods,
-		GrantTypes:      app.GrantTypes,
-		DefaultScopes:   app.DefaultScopes,
-		UsernameColumn:  app.UsernameColumn,
-		AuthProviders:   app.AuthProviders,
-		IDTokenTTL:      app.IDTokenTtl,
-		TokenTTL:        app.TokenTtl,
-		RefreshTokenTTL: app.RefreshTokenTtl,
-		CallbackURIs:    authConfig.CallbackUris,
-		LogoutURIs:      authConfig.LogoutUris,
-	}
-}
-
-func MapBackendAppWithJWKToDTO(
-	app *database.App,
-	serverCfg *database.AppServerConfig,
-	jwk utils.JWK,
-	exp time.Time,
-) AppDTO {
-	return AppDTO{
-		id:               app.ID,
-		accountID:        app.AccountID,
-		version:          app.Version,
-		AppType:          app.AppType,
-		Name:             app.Name,
-		ClientID:         app.ClientID,
-		ClientURI:        app.ClientUri,
-		LogoURI:          app.LogoUri.String,
-		TosURI:           app.TosUri.String,
-		PolicyURI:        app.PolicyUri.String,
-		SoftwareID:       app.SoftwareID.String,
-		SoftwareVersion:  app.SoftwareVersion.String,
-		AuthMethods:      app.AuthMethods,
-		GrantTypes:       app.GrantTypes,
-		DefaultScopes:    app.DefaultScopes,
-		UsernameColumn:   app.UsernameColumn,
-		AuthProviders:    app.AuthProviders,
-		IDTokenTTL:       app.IDTokenTtl,
-		TokenTTL:         app.TokenTtl,
-		RefreshTokenTTL:  app.RefreshTokenTtl,
-		ClientSecretID:   jwk.GetKeyID(),
-		ClientSecretJWK:  jwk,
-		ClientSecretExp:  exp.Unix(),
-		ConfirmationURL:  serverCfg.ConfirmationUrl,
-		ResetPasswordURL: serverCfg.ResetPasswordUrl,
-		Issuers:          serverCfg.Issuers,
-	}
-}
-
-func MapBackendAppWithSecretToDTO(
-	app *database.App,
-	serverCfg *database.AppServerConfig,
 	secretID string,
 	secret string,
 	expiresAt time.Time,
 ) AppDTO {
 	return AppDTO{
-		id:               app.ID,
-		accountID:        app.AccountID,
-		version:          app.Version,
-		AppType:          app.AppType,
-		Name:             app.Name,
-		ClientID:         app.ClientID,
-		ClientURI:        app.ClientUri,
-		LogoURI:          app.LogoUri.String,
-		TosURI:           app.TosUri.String,
-		PolicyURI:        app.PolicyUri.String,
-		SoftwareID:       app.SoftwareID.String,
-		SoftwareVersion:  app.SoftwareVersion.String,
-		AuthMethods:      app.AuthMethods,
-		GrantTypes:       app.GrantTypes,
-		DefaultScopes:    app.DefaultScopes,
-		UsernameColumn:   app.UsernameColumn,
-		AuthProviders:    app.AuthProviders,
-		IDTokenTTL:       app.IDTokenTtl,
-		TokenTTL:         app.TokenTtl,
-		RefreshTokenTTL:  app.RefreshTokenTtl,
-		ClientSecretID:   secretID,
-		ClientSecret:     fmt.Sprintf("%s.%s", secretID, secret),
-		ClientSecretExp:  expiresAt.Unix(),
-		ConfirmationURL:  serverCfg.ConfirmationUrl,
-		ResetPasswordURL: serverCfg.ResetPasswordUrl,
-		Issuers:          serverCfg.Issuers,
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		ClientID:                app.ClientID,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		RedirectURIs:            app.RedirectUris,
+		ResponseTypes:           app.ResponseTypes,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
+		ClientSecretID:          secret,
+		ClientSecret:            fmt.Sprintf("%s.%s", secretID, secret),
+		ClientSecretExp:         expiresAt.Unix(),
 	}
 }
 
-func MapDeviceAppToDTO(
-	app *database.App,
-	relatedApps []database.App,
-	backendDomain string,
-) AppDTO {
+func MapWebAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) AppDTO {
 	return AppDTO{
-		id:              app.ID,
-		accountID:       app.AccountID,
-		version:         app.Version,
-		AppType:         app.AppType,
-		Name:            app.Name,
-		ClientID:        app.ClientID,
-		ClientURI:       app.ClientUri,
-		LogoURI:         app.LogoUri.String,
-		TosURI:          app.TosUri.String,
-		PolicyURI:       app.PolicyUri.String,
-		SoftwareID:      app.SoftwareID.String,
-		SoftwareVersion: app.SoftwareVersion.String,
-		AuthMethods:     app.AuthMethods,
-		GrantTypes:      app.GrantTypes,
-		DefaultScopes:   app.DefaultScopes,
-		UsernameColumn:  app.UsernameColumn,
-		AuthProviders:   app.AuthProviders,
-		IDTokenTTL:      app.IDTokenTtl,
-		TokenTTL:        app.TokenTtl,
-		RefreshTokenTTL: app.RefreshTokenTtl,
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		ClientID:                app.ClientID,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		RedirectURIs:            app.RedirectUris,
+		ResponseTypes:           app.ResponseTypes,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
+		ClientSecretID:          jwk.GetKeyID(),
+		ClientSecretJWK:         jwk,
+		ClientSecretExp:         exp.Unix(),
+	}
+}
+
+func MapBackendAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) AppDTO {
+	return AppDTO{
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		ClientID:                app.ClientID,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
+		ClientSecretID:          jwk.GetKeyID(),
+		ClientSecretJWK:         jwk,
+		ClientSecretExp:         exp.Unix(),
+	}
+}
+
+func MapBackendAppWithSecretToDTO(app *database.App, secretID string, secret string, expiresAt time.Time) AppDTO {
+	return AppDTO{
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		ClientID:                app.ClientID,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
+		ClientSecretID:          secretID,
+		ClientSecret:            fmt.Sprintf("%s.%s", secretID, secret),
+		ClientSecretExp:         expiresAt.Unix(),
+	}
+}
+
+func MapDeviceAppToDTO(app *database.App, relatedApps []database.App, backendDomain string) AppDTO {
+	return AppDTO{
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientID:                app.ClientID,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
 		RelatedApps: utils.MapSlice(relatedApps, func(ra *database.App) RelatedAppDTO {
 			return newRelatedAppDTO(ra, backendDomain, paths.AppsBase)
 		}),
@@ -433,33 +354,34 @@ func MapServiceAppWithJWKToDTO(
 	exp time.Time,
 ) AppDTO {
 	return AppDTO{
-		id:               app.ID,
-		accountID:        app.AccountID,
-		version:          app.Version,
-		AppType:          app.AppType,
-		Name:             app.Name,
-		ClientID:         app.ClientID,
-		ClientURI:        app.ClientUri,
-		LogoURI:          app.LogoUri.String,
-		TosURI:           app.TosUri.String,
-		PolicyURI:        app.PolicyUri.String,
-		SoftwareID:       app.SoftwareID.String,
-		SoftwareVersion:  app.SoftwareVersion.String,
-		AuthMethods:      app.AuthMethods,
-		GrantTypes:       app.GrantTypes,
-		DefaultScopes:    app.DefaultScopes,
-		UsernameColumn:   app.UsernameColumn,
-		AuthProviders:    app.AuthProviders,
-		IDTokenTTL:       app.IDTokenTtl,
-		TokenTTL:         app.TokenTtl,
-		RefreshTokenTTL:  app.RefreshTokenTtl,
-		AllowedDomains:   serviceCfg.AllowedDomains,
-		UsersAuthMethods: serviceCfg.AuthMethods,
-		UsersGrantTypes:  serviceCfg.GrantTypes,
-		ClientSecretID:   jwk.GetKeyID(),
-		ClientSecretJWK:  jwk,
-		ClientSecretExp:  exp.Unix(),
-		Issuers:          serviceCfg.Issuers,
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		ClientID:                app.ClientID,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
+		ClientSecretID:          jwk.GetKeyID(),
+		ClientSecretExp:         exp.Unix(),
+		UsersAuthMethod:         serviceCfg.UserAuthMethod,
+		UsersGrantTypes:         serviceCfg.UserGrantTypes,
+		AllowedDomains:          serviceCfg.AllowedDomains,
 	}
 }
 
@@ -471,64 +393,63 @@ func MapServiceAppWithSecretToDTO(
 	expiresAt time.Time,
 ) AppDTO {
 	return AppDTO{
-		id:               app.ID,
-		accountID:        app.AccountID,
-		version:          app.Version,
-		AppType:          app.AppType,
-		Name:             app.Name,
-		ClientID:         app.ClientID,
-		ClientURI:        app.ClientUri,
-		LogoURI:          app.LogoUri.String,
-		TosURI:           app.TosUri.String,
-		PolicyURI:        app.PolicyUri.String,
-		SoftwareID:       app.SoftwareID.String,
-		SoftwareVersion:  app.SoftwareVersion.String,
-		AuthMethods:      app.AuthMethods,
-		GrantTypes:       app.GrantTypes,
-		DefaultScopes:    app.DefaultScopes,
-		UsernameColumn:   app.UsernameColumn,
-		AuthProviders:    app.AuthProviders,
-		IDTokenTTL:       app.IDTokenTtl,
-		TokenTTL:         app.TokenTtl,
-		RefreshTokenTTL:  app.RefreshTokenTtl,
-		AllowedDomains:   serviceCfg.AllowedDomains,
-		UsersAuthMethods: serviceCfg.AuthMethods,
-		UsersGrantTypes:  serviceCfg.GrantTypes,
-		ClientSecretID:   secretID,
-		ClientSecret:     fmt.Sprintf("%s.%s", secretID, secret),
-		ClientSecretExp:  expiresAt.Unix(),
-		Issuers:          serviceCfg.Issuers,
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		ClientID:                app.ClientID,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
+		ClientSecretID:          secretID,
+		ClientSecret:            fmt.Sprintf("%s.%s", secretID, secret),
+		ClientSecretExp:         expiresAt.Unix(),
+		UsersAuthMethod:         serviceCfg.UserAuthMethod,
+		UsersGrantTypes:         serviceCfg.UserGrantTypes,
+		AllowedDomains:          serviceCfg.AllowedDomains,
 	}
 }
 
-func MapBackendAppToDTO(
-	app *database.App,
-	serverCfg *database.AppServerConfig,
-) AppDTO {
+func MapBackendAppToDTO(app *database.App) AppDTO {
 	return AppDTO{
-		id:               app.ID,
-		accountID:        app.AccountID,
-		version:          app.Version,
-		AppType:          app.AppType,
-		Name:             app.Name,
-		ClientID:         app.ClientID,
-		ClientURI:        app.ClientUri,
-		LogoURI:          app.LogoUri.String,
-		TosURI:           app.TosUri.String,
-		PolicyURI:        app.PolicyUri.String,
-		SoftwareID:       app.SoftwareID.String,
-		SoftwareVersion:  app.SoftwareVersion.String,
-		AuthMethods:      app.AuthMethods,
-		GrantTypes:       app.GrantTypes,
-		DefaultScopes:    app.DefaultScopes,
-		UsernameColumn:   app.UsernameColumn,
-		AuthProviders:    app.AuthProviders,
-		IDTokenTTL:       app.IDTokenTtl,
-		TokenTTL:         app.TokenTtl,
-		RefreshTokenTTL:  app.RefreshTokenTtl,
-		ConfirmationURL:  serverCfg.ConfirmationUrl,
-		ResetPasswordURL: serverCfg.ResetPasswordUrl,
-		Issuers:          serverCfg.Issuers,
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		ClientID:                app.ClientID,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
 	}
 }
 
@@ -537,58 +458,97 @@ func MapServiceAppToDTO(
 	serviceCfg *database.AppServiceConfig,
 ) AppDTO {
 	return AppDTO{
-		id:               app.ID,
-		accountID:        app.AccountID,
-		version:          app.Version,
-		AppType:          app.AppType,
-		Name:             app.Name,
-		ClientID:         app.ClientID,
-		ClientURI:        app.ClientUri,
-		LogoURI:          app.LogoUri.String,
-		TosURI:           app.TosUri.String,
-		PolicyURI:        app.PolicyUri.String,
-		SoftwareID:       app.SoftwareID.String,
-		SoftwareVersion:  app.SoftwareVersion.String,
-		AuthMethods:      app.AuthMethods,
-		GrantTypes:       app.GrantTypes,
-		DefaultScopes:    app.DefaultScopes,
-		UsernameColumn:   app.UsernameColumn,
-		AuthProviders:    app.AuthProviders,
-		IDTokenTTL:       app.IDTokenTtl,
-		TokenTTL:         app.TokenTtl,
-		RefreshTokenTTL:  app.RefreshTokenTtl,
-		AllowedDomains:   serviceCfg.AllowedDomains,
-		UsersAuthMethods: serviceCfg.AuthMethods,
-		UsersGrantTypes:  serviceCfg.GrantTypes,
-		Issuers:          serviceCfg.Issuers,
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		ClientID:                app.ClientID,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AllowedDomains:          serviceCfg.AllowedDomains,
+		UsersAuthMethod:         serviceCfg.UserAuthMethod,
+		UsersGrantTypes:         serviceCfg.UserGrantTypes,
 	}
 }
 
-func MapMCPAppToDTO(
+func MapMCPAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) AppDTO {
+	return AppDTO{
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		ClientID:                app.ClientID,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
+		ClientSecretID:          jwk.GetKeyID(),
+		ClientSecretExp:         exp.Unix(),
+	}
+}
+
+func MapMCPAppWithSecretToDTO(
 	app *database.App,
-	authConfig *database.AppAuthCodeConfig,
+	secretID string,
+	secret string,
+	expiresAt time.Time,
 ) AppDTO {
 	return AppDTO{
-		id:              app.ID,
-		accountID:       app.AccountID,
-		version:         app.Version,
-		AppType:         app.AppType,
-		Name:            app.Name,
-		ClientID:        app.ClientID,
-		ClientURI:       app.ClientUri,
-		LogoURI:         app.LogoUri.String,
-		TosURI:          app.TosUri.String,
-		PolicyURI:       app.PolicyUri.String,
-		SoftwareID:      app.SoftwareID.String,
-		SoftwareVersion: app.SoftwareVersion.String,
-		AuthMethods:     app.AuthMethods,
-		GrantTypes:      app.GrantTypes,
-		DefaultScopes:   app.DefaultScopes,
-		UsernameColumn:  app.UsernameColumn,
-		AuthProviders:   app.AuthProviders,
-		IDTokenTTL:      app.IDTokenTtl,
-		TokenTTL:        app.TokenTtl,
-		RefreshTokenTTL: app.RefreshTokenTtl,
-		CallbackURIs:    authConfig.CallbackUris,
+		id:                      app.ID,
+		accountID:               app.AccountID,
+		version:                 app.Version,
+		AppType:                 app.AppType,
+		Name:                    app.Name,
+		ClientID:                app.ClientID,
+		Domain:                  app.Domain,
+		Transport:               app.Transport,
+		ClientURI:               app.ClientUri,
+		LogoURI:                 app.LogoUri.String,
+		TosURI:                  app.TosUri.String,
+		PolicyURI:               app.PolicyUri.String,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion.String,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		GrantTypes:              app.GrantTypes,
+		DefaultScopes:           mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
+		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
+		UsernameColumn:          app.UsernameColumn,
+		AuthProviders:           app.AuthProviders,
+		IDTokenTTL:              app.IDTokenTtl,
+		TokenTTL:                app.TokenTtl,
+		RefreshTokenTTL:         app.RefreshTokenTtl,
+		ClientSecretID:          secretID,
+		ClientSecret:            fmt.Sprintf("%s.%s", secretID, secret),
+		ClientSecretExp:         expiresAt.Unix(),
 	}
 }
