@@ -72,6 +72,40 @@ func (q *Queries) DeleteAllCredentialsSecrets(ctx context.Context) error {
 	return err
 }
 
+const findCredentialsSecretBySecretIDAndUsage = `-- name: FindCredentialsSecretBySecretIDAndUsage :one
+SELECT id, secret_id, client_secret, storage_mode, dek_kid, is_revoked, usage, account_id, expires_at, created_at, updated_at FROM "credentials_secrets"
+WHERE
+    "secret_id" = $1 AND
+    "usage" = $2 AND
+    "is_revoked" = false AND
+    "expires_at" > now()
+LIMIT 1
+`
+
+type FindCredentialsSecretBySecretIDAndUsageParams struct {
+	SecretID string
+	Usage    CredentialsUsage
+}
+
+func (q *Queries) FindCredentialsSecretBySecretIDAndUsage(ctx context.Context, arg FindCredentialsSecretBySecretIDAndUsageParams) (CredentialsSecret, error) {
+	row := q.db.QueryRow(ctx, findCredentialsSecretBySecretIDAndUsage, arg.SecretID, arg.Usage)
+	var i CredentialsSecret
+	err := row.Scan(
+		&i.ID,
+		&i.SecretID,
+		&i.ClientSecret,
+		&i.StorageMode,
+		&i.DekKid,
+		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const revokeCredentialsSecret = `-- name: RevokeCredentialsSecret :one
 UPDATE "credentials_secrets" SET
     "is_revoked" = true,
@@ -97,6 +131,25 @@ func (q *Queries) RevokeCredentialsSecret(ctx context.Context, id int32) (Creden
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const updateCredentialsSecretClientSecret = `-- name: UpdateCredentialsSecretClientSecret :exec
+UPDATE "credentials_secrets" SET
+    "client_secret" = $2,
+    "dek_kid" = $3,
+    "updated_at" = now()
+WHERE "id" = $1
+`
+
+type UpdateCredentialsSecretClientSecretParams struct {
+	ID           int32
+	ClientSecret string
+	DekKid       pgtype.Text
+}
+
+func (q *Queries) UpdateCredentialsSecretClientSecret(ctx context.Context, arg UpdateCredentialsSecretClientSecretParams) error {
+	_, err := q.db.Exec(ctx, updateCredentialsSecretClientSecret, arg.ID, arg.ClientSecret, arg.DekKid)
+	return err
 }
 
 const updateCredentialsSecretExpiresAtAndCreatedAt = `-- name: UpdateCredentialsSecretExpiresAtAndCreatedAt :exec

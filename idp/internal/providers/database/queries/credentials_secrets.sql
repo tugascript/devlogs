@@ -30,12 +30,28 @@ UPDATE "credentials_secrets" SET
 WHERE "id" = $1
 RETURNING *;
 
+-- name: UpdateCredentialsSecretClientSecret :exec
+UPDATE "credentials_secrets" SET
+    "client_secret" = $2,
+    "dek_kid" = $3,
+    "updated_at" = now()
+WHERE "id" = $1;
+
 -- name: UpdateCredentialsSecretExpiresAtAndCreatedAt :exec
 UPDATE "credentials_secrets" SET
     "expires_at" = $2,
     "created_at" = $3,
     "updated_at" = now()
 WHERE "secret_id" = $1;
+
+-- name: FindCredentialsSecretBySecretIDAndUsage :one
+SELECT * FROM "credentials_secrets"
+WHERE
+    "secret_id" = $1 AND
+    "usage" = $2 AND
+    "is_revoked" = false AND
+    "expires_at" > now()
+LIMIT 1;
 
 -- name: DeleteAllCredentialsSecrets :exec
 DELETE FROM "credentials_secrets";

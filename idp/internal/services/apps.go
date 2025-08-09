@@ -2773,19 +2773,7 @@ func (s *Services) ListAppCredentialsSecretsOrKeys(
 	switch appDTO.AppType {
 	case database.AppTypeSpa, database.AppTypeNative, database.AppTypeDevice:
 		return nil, 0, exceptions.NewConflictError("App type does not support secrets or keys")
-	case database.AppTypeBackend, database.AppTypeService:
-		// Backend and Service apps: use keys only when app uses private_key_jwt
-		if appDTO.TokenEndpointAuthMethod != database.AuthMethodPrivateKeyJwt {
-			return nil, 0, exceptions.NewConflictError("App type does not support secrets or keys")
-		}
-		return s.listAppKeys(ctx, listAppKeysOptions{
-			requestID: opts.RequestID,
-			appID:     appDTO.ID(),
-			offset:    opts.Offset,
-			limit:     opts.Limit,
-		})
-	case database.AppTypeWeb:
-		// Web apps can use client secrets or private key jwt
+	case database.AppTypeBackend, database.AppTypeService, database.AppTypeWeb:
 		if appDTO.TokenEndpointAuthMethod == database.AuthMethodPrivateKeyJwt {
 			return s.listAppKeys(ctx, listAppKeysOptions{
 				requestID: opts.RequestID,

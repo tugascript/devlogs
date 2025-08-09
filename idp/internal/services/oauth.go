@@ -614,7 +614,8 @@ func (s *Services) validateAccountJWTClaims(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	if accountClientsDTO.TokenEndpointAuthMethod != database.AuthMethodPrivateKeyJwt {
+	if accountClientsDTO.TokenEndpointAuthMethod != database.AuthMethodPrivateKeyJwt &&
+		accountClientsDTO.TokenEndpointAuthMethod != database.AuthMethodClientSecretJwt {
 		logger.InfoContext(ctx, "Account credentials does not support JWT Bearer login",
 			"clientID", opts.claims.Subject,
 			"authMethods", accountClientsDTO.TokenEndpointAuthMethod,
@@ -768,13 +769,17 @@ func (s *Services) JWTBearerAccountLogin(
 	logger := s.buildLogger(opts.RequestID, oauthLocation, "JWTBearerAccountLogin")
 	logger.InfoContext(ctx, "JWT Bearer account logging in...")
 
-	claims, kid, err := s.jwt.VerifyJWTBearerGrantToken(opts.Token, s.BuildGetClientCredentialsKeyPublicJWKFn(
-		ctx,
-		BuildGetClientCredentialsKeyFnOptions{
-			RequestID: opts.RequestID,
-			Usage:     database.CredentialsUsageAccount,
-		},
-	))
+	claims, kid, err := s.jwt.VerifyJWTBearerGrantToken(
+		opts.Token,
+		s.BuildGetClientCredentialsKeyPublicJWKFn(
+			ctx,
+			BuildGetClientCredentialsKeyFnOptions{
+				RequestID: opts.RequestID,
+				Usage:     database.CredentialsUsageAccount,
+			},
+		),
+		s.BuildGetAccountClientCredentialsSecretFn(ctx, opts.RequestID),
+	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify JWT Bearer", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
