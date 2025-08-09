@@ -31,6 +31,7 @@ type Services struct {
 	dekExpDays       time.Duration
 	jwkExpDays       time.Duration
 	accountCCExpDays time.Duration
+	appCCExpDays     time.Duration
 	userCCExpDays    time.Duration
 }
 
@@ -46,6 +47,7 @@ func NewServices(
 	dekExpDays int64,
 	jwkExpDays int64,
 	accountCCExpDays int64,
+	appCCExpDays int64,
 	userCCExpDays int64,
 ) *Services {
 	return &Services{
@@ -60,6 +62,7 @@ func NewServices(
 		dekExpDays:       utils.ToDaysDuration(dekExpDays),
 		jwkExpDays:       utils.ToDaysDuration(jwkExpDays),
 		accountCCExpDays: utils.ToDaysDuration(accountCCExpDays),
+		appCCExpDays:     utils.ToDaysDuration(appCCExpDays),
 		userCCExpDays:    utils.ToDaysDuration(userCCExpDays),
 	}
 }

@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-09T03:04:43.592Z
+-- Generated at: 2025-08-09T04:11:49.429Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -48,6 +48,11 @@ CREATE TYPE "credentials_usage" AS ENUM (
   'account',
   'app',
   'user'
+);
+
+CREATE TYPE "secret_storage_mode" AS ENUM (
+  'hashed',
+  'encrypted'
 );
 
 CREATE TYPE "auth_method" AS ENUM (
@@ -249,6 +254,8 @@ CREATE TABLE "credentials_secrets" (
   "id" serial PRIMARY KEY,
   "secret_id" varchar(26) NOT NULL,
   "client_secret" text NOT NULL,
+  "storage_mode" secret_storage_mode NOT NULL,
+  "dek_kid" varchar(22),
   "is_revoked" boolean NOT NULL DEFAULT false,
   "usage" credentials_usage NOT NULL,
   "account_id" integer NOT NULL,
@@ -623,6 +630,8 @@ CREATE INDEX "credential_secrets_is_revoked_usage_expires_at_idx" ON "credential
 
 CREATE INDEX "credential_secrets_secret_id_is_revoked_expires_at_idx" ON "credentials_secrets" ("secret_id", "is_revoked", "expires_at");
 
+CREATE INDEX "credential_secrets_dek_kid_idx" ON "credentials_secrets" ("dek_kid");
+
 CREATE INDEX "credential_secrets_account_id_idx" ON "credentials_secrets" ("account_id");
 
 CREATE UNIQUE INDEX "credential_keys_public_kid_uidx" ON "credentials_keys" ("public_kid");
@@ -846,6 +855,8 @@ ALTER TABLE "totps" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys
 ALTER TABLE "totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "credentials_secrets" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "credentials_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

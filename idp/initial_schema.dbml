@@ -174,11 +174,18 @@ Enum credentials_usage {
     "user"
 }
 
+Enum secret_storage_mode {
+    "hashed" // Store secrets as hashes
+    "encrypted" // Store secrets encrypted with a data encryption key
+}
+
 Table credentials_secrets as CS {
     id serial [pk]
 
     secret_id varchar(26) [not null]
     client_secret text [not null]
+    storage_mode secret_storage_mode [not null]
+    dek_kid varchar(22) [null]
     is_revoked boolean [not null, default: false]
     usage credentials_usage [not null]
 
@@ -193,10 +200,12 @@ Table credentials_secrets as CS {
         (expires_at) [name: 'credential_secrets_expires_at_idx']
         (is_revoked, usage, expires_at) [name: 'credential_secrets_is_revoked_usage_expires_at_idx']
         (secret_id, is_revoked, expires_at) [name: 'credential_secrets_secret_id_is_revoked_expires_at_idx']
+        (dek_kid) [name: 'credential_secrets_dek_kid_idx']
         (account_id) [name: 'credential_secrets_account_id_idx']
     }
 }
 Ref: CS.account_id > A.id [delete: cascade]
+Ref: CS.dek_kid > DEK.kid [delete: cascade, update: cascade]
 
 Table credentials_keys as CK {
     id serial [pk]

@@ -8,6 +8,8 @@ package database
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createCredentialsSecret = `-- name: CreateCredentialsSecret :one
@@ -16,6 +18,8 @@ INSERT INTO "credentials_secrets" (
     "account_id",
     "secret_id",
     "client_secret",
+    "storage_mode",
+    "dek_kid",
     "expires_at",
     "usage"
 ) VALUES (
@@ -23,14 +27,18 @@ INSERT INTO "credentials_secrets" (
     $2,
     $3,
     $4,
-    $5
-) RETURNING id, secret_id, client_secret, is_revoked, usage, account_id, expires_at, created_at, updated_at
+    $5,
+    $6,
+    $7
+) RETURNING "id"
 `
 
 type CreateCredentialsSecretParams struct {
 	AccountID    int32
 	SecretID     string
 	ClientSecret string
+	StorageMode  SecretStorageMode
+	DekKid       pgtype.Text
 	ExpiresAt    time.Time
 	Usage        CredentialsUsage
 }
@@ -40,27 +48,19 @@ type CreateCredentialsSecretParams struct {
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) CreateCredentialsSecret(ctx context.Context, arg CreateCredentialsSecretParams) (CredentialsSecret, error) {
+func (q *Queries) CreateCredentialsSecret(ctx context.Context, arg CreateCredentialsSecretParams) (int32, error) {
 	row := q.db.QueryRow(ctx, createCredentialsSecret,
 		arg.AccountID,
 		arg.SecretID,
 		arg.ClientSecret,
+		arg.StorageMode,
+		arg.DekKid,
 		arg.ExpiresAt,
 		arg.Usage,
 	)
-	var i CredentialsSecret
-	err := row.Scan(
-		&i.ID,
-		&i.SecretID,
-		&i.ClientSecret,
-		&i.IsRevoked,
-		&i.Usage,
-		&i.AccountID,
-		&i.ExpiresAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+	var id int32
+	err := row.Scan(&id)
+	return id, err
 }
 
 const deleteAllCredentialsSecrets = `-- name: DeleteAllCredentialsSecrets :exec
@@ -77,7 +77,7 @@ UPDATE "credentials_secrets" SET
     "is_revoked" = true,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, secret_id, client_secret, is_revoked, usage, account_id, expires_at, created_at, updated_at
+RETURNING id, secret_id, client_secret, storage_mode, dek_kid, is_revoked, usage, account_id, expires_at, created_at, updated_at
 `
 
 func (q *Queries) RevokeCredentialsSecret(ctx context.Context, id int32) (CredentialsSecret, error) {
@@ -87,6 +87,8 @@ func (q *Queries) RevokeCredentialsSecret(ctx context.Context, id int32) (Creden
 		&i.ID,
 		&i.SecretID,
 		&i.ClientSecret,
+		&i.StorageMode,
+		&i.DekKid,
 		&i.IsRevoked,
 		&i.Usage,
 		&i.AccountID,

@@ -53,7 +53,7 @@ func (q *Queries) CreateAppSecret(ctx context.Context, arg CreateAppSecretParams
 }
 
 const findAppSecretByAppIDAndSecretID = `-- name: FindAppSecretByAppIDAndSecretID :one
-SELECT csr.id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
+SELECT csr.id, csr.secret_id, csr.client_secret, csr.storage_mode, csr.dek_kid, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
 LEFT JOIN "app_secrets" "as" ON "as"."credentials_secret_id" = "csr"."id"
 WHERE 
     "as"."app_id" = $1 AND 
@@ -73,6 +73,8 @@ func (q *Queries) FindAppSecretByAppIDAndSecretID(ctx context.Context, arg FindA
 		&i.ID,
 		&i.SecretID,
 		&i.ClientSecret,
+		&i.StorageMode,
+		&i.DekKid,
 		&i.IsRevoked,
 		&i.Usage,
 		&i.AccountID,
@@ -84,7 +86,7 @@ func (q *Queries) FindAppSecretByAppIDAndSecretID(ctx context.Context, arg FindA
 }
 
 const findPaginatedAppSecretsByAppID = `-- name: FindPaginatedAppSecretsByAppID :many
-SELECT csr.id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
+SELECT csr.id, csr.secret_id, csr.client_secret, csr.storage_mode, csr.dek_kid, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
 LEFT JOIN "app_secrets" "as" ON "as"."credentials_secret_id" = "csr"."id"
 WHERE "as"."app_id" = $1
 ORDER BY "csr"."expires_at" DESC
@@ -110,6 +112,8 @@ func (q *Queries) FindPaginatedAppSecretsByAppID(ctx context.Context, arg FindPa
 			&i.ID,
 			&i.SecretID,
 			&i.ClientSecret,
+			&i.StorageMode,
+			&i.DekKid,
 			&i.IsRevoked,
 			&i.Usage,
 			&i.AccountID,

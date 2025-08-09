@@ -9,6 +9,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -188,24 +189,22 @@ func (s *Services) CreateAccountCredentials(
 
 		return dtos.MapAccountCredentialsToDTOWithJWK(&accountCredentials, jwk, dbPrms.ExpiresAt), nil
 	case AuthMethodClientSecretBasic, AuthMethodClientSecretPost:
-		var dbPrms database.CreateCredentialsSecretParams
-		var secret string
-		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
-			requestID: opts.RequestID,
-			accountID: accountID,
-			expiresIn: s.accountCCExpDays,
-			usage:     database.CredentialsUsageAccount,
+		var ccID int32
+		var secretID, secret string
+		var exp time.Time
+		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
+			requestID:   opts.RequestID,
+			accountID:   accountID,
+			storageMode: mapCCSecretStorageMode(opts.AuthMethod),
+			expiresIn:   s.appCCExpDays,
+			usage:       database.CredentialsUsageApp,
+			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+				RequestID: opts.RequestID,
+				AccountID: accountID,
+			}),
 		})
 		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
-			return dtos.AccountCredentialsDTO{}, serviceErr
-		}
-
-		var clientSecret database.CredentialsSecret
-		clientSecret, err = qrs.CreateCredentialsSecret(ctx, dbPrms)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
-			serviceErr = exceptions.FromDBError(err)
+			logger.ErrorContext(ctx, "Failed to create client credentials secret", "serviceError", serviceErr)
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
@@ -213,14 +212,14 @@ func (s *Services) CreateAccountCredentials(
 			AccountID:            accountID,
 			AccountPublicID:      opts.AccountPublicID,
 			AccountCredentialsID: accountCredentials.ID,
-			CredentialsSecretID:  clientSecret.ID,
+			CredentialsSecretID:  ccID,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to create account credential secret", "error", err)
 			serviceErr = exceptions.FromDBError(err)
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
-		return dtos.MapAccountCredentialsToDTOWithSecret(&accountCredentials, clientSecret.SecretID, secret, dbPrms.ExpiresAt), nil
+		return dtos.MapAccountCredentialsToDTOWithSecret(&accountCredentials, secretID, secret, exp), nil
 	default:
 		logger.ErrorContext(ctx, "Invalid auth method", "authMethod", opts.AuthMethod)
 		serviceErr = exceptions.NewInternalServerError()
@@ -583,6 +582,7 @@ func (s *Services) rotateAccountCredentialsKey(
 type createAccountCredentialsSecretOptions struct {
 	requestID            string
 	accountID            int32
+	storageMode          database.SecretStorageMode
 	accountCredentialsID int32
 }
 
@@ -596,17 +596,7 @@ func (s *Services) createAccountCredentialsSecret(
 	)
 	logger.InfoContext(ctx, "Creating account credentials secret...")
 
-	dbPrms, secret, serviceErr := s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
-		requestID: opts.requestID,
-		accountID: opts.accountID,
-		expiresIn: s.accountCCExpDays,
-		usage:     database.CredentialsUsageAccount,
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
-		return dtos.ClientCredentialsSecretDTO{}, serviceErr
-	}
-
+	var serviceErr *exceptions.ServiceError
 	qrs, txn, err := s.database.BeginTx(ctx)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
@@ -617,30 +607,40 @@ func (s *Services) createAccountCredentialsSecret(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	clientSecret, err := qrs.CreateCredentialsSecret(ctx, dbPrms)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
-		serviceErr = exceptions.FromDBError(err)
+	ccID, secretID, secret, exp, serviceErr := s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
+		requestID:   opts.requestID,
+		accountID:   opts.accountID,
+		storageMode: opts.storageMode,
+		expiresIn:   s.appCCExpDays,
+		usage:       database.CredentialsUsageAccount,
+		dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			RequestID: opts.requestID,
+			AccountID: opts.accountID,
+		}),
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to create client credentials secret", "serviceError", serviceErr)
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
 	if err = qrs.CreateAccountCredentialSecret(ctx, database.CreateAccountCredentialSecretParams{
 		AccountID:            opts.accountID,
 		AccountCredentialsID: opts.accountCredentialsID,
-		CredentialsSecretID:  clientSecret.ID,
+		CredentialsSecretID:  ccID,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create account credential secret", "error", err)
 		serviceErr = exceptions.FromDBError(err)
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
 	}
 
-	return dtos.MapCredentialsSecretToDTOWithSecret(&clientSecret, secret), nil
+	return dtos.CreateCredentialsSecretToDTOWithSecret(ccID, secretID, secret, exp), nil
 }
 
 type rotateAccountCredentialsSecretOptions struct {
 	requestID            string
 	accountID            int32
 	accountCredentialsID int32
+	authMethod           database.AuthMethod
 }
 
 func (s *Services) rotateAccountCredentialsSecret(
@@ -664,12 +664,22 @@ func (s *Services) rotateAccountCredentialsSecret(
 			return dtos.ClientCredentialsSecretDTO{}, serviceErr
 		}
 
-		return s.createAccountCredentialsSecret(ctx, createAccountCredentialsSecretOptions(opts))
+		return s.createAccountCredentialsSecret(ctx, createAccountCredentialsSecretOptions{
+			requestID:            opts.requestID,
+			accountID:            opts.accountID,
+			storageMode:          mapCCSecretStorageMode(string(opts.authMethod)),
+			accountCredentialsID: opts.accountCredentialsID,
+		})
 	}
 
 	if isMoreThanHalfExpiry(currentSecret.CreatedAt, currentSecret.ExpiresAt) {
 		logger.InfoContext(ctx, "Current account credentials secret is more than half expired, creating a new one")
-		return s.createAccountCredentialsSecret(ctx, createAccountCredentialsSecretOptions(opts))
+		return s.createAccountCredentialsSecret(ctx, createAccountCredentialsSecretOptions{
+			requestID:            opts.requestID,
+			accountID:            opts.accountID,
+			storageMode:          currentSecret.StorageMode,
+			accountCredentialsID: opts.accountCredentialsID,
+		})
 	}
 
 	logger.WarnContext(ctx, "Current account credentials secret is not more than half expired, returning it")
@@ -716,11 +726,14 @@ func (s *Services) RotateAccountCredentialsSecret(
 			cryptoSuite:          mapAlgorithmToTokenCryptoSuite(opts.Algorithm),
 		})
 	}
-	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretBasic || accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost {
+	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretBasic ||
+		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost ||
+		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretJwt {
 		return s.rotateAccountCredentialsSecret(ctx, rotateAccountCredentialsSecretOptions{
 			requestID:            opts.RequestID,
 			accountID:            accountCredentialsDTO.AccountID(),
 			accountCredentialsID: accountCredentialsDTO.ID(),
+			authMethod:           accountCredentialsDTO.TokenEndpointAuthMethod,
 		})
 	}
 
