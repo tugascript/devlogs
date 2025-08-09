@@ -203,6 +203,7 @@ func initTestServicesAndApp(t *testing.T) {
 		cfg.DEKExpirationDays(),
 		cfg.JWKExpirationDays(),
 		cfg.AccountCCExpDays(),
+		cfg.AppCCExpDays(),
 		cfg.UserCCExpDays(),
 	)
 

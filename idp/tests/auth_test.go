@@ -686,7 +686,7 @@ func TestRefreshToken(t *testing.T) {
 		_, refreshToken := GenerateTestAccountAuthTokens(t, &account)
 		testDb := GetTestDatabase(t)
 		testTokens := GetTestTokens(t)
-		_, _, id, exp, err := testTokens.VerifyRefreshToken(refreshToken, GetTestServices(t).BuildGetGlobalPublicKeyFn(
+		data, err := testTokens.VerifyRefreshToken(refreshToken, GetTestServices(t).BuildGetGlobalPublicKeyFn(
 			context.Background(),
 			services.BuildGetGlobalVerifyKeyFnOptions{
 				RequestID: uuid.NewString(),
@@ -697,11 +697,11 @@ func TestRefreshToken(t *testing.T) {
 			t.Fatal("Failed to verify refresh token", err)
 		}
 		var expiresAt pgtype.Timestamp
-		if err := expiresAt.Scan(exp); err != nil {
+		if err := expiresAt.Scan(data.ExpiresAt); err != nil {
 			t.Fatal("Failed to scan expiresAt", err)
 		}
 		if err := testDb.RevokeToken(context.Background(), database.RevokeTokenParams{
-			TokenID:   id,
+			TokenID:   data.TokenID,
 			ExpiresAt: expiresAt.Time,
 		}); err != nil {
 			t.Fatal("Failed to blacklist token", err)
