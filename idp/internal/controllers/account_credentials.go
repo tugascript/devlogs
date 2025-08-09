@@ -51,7 +51,7 @@ func (c *Controllers) CreateAccountCredentials(ctx *fiber.Ctx) error {
 			AccountVersion:  accountClaims.AccountVersion,
 			Alias:           body.Alias,
 			Scopes:          body.Scopes,
-			AuthMethod:      body.AuthMethods,
+			AuthMethod:      body.AuthMethod,
 			Issuers:         body.Issuers,
 		},
 	)

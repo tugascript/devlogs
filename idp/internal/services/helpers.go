@@ -172,6 +172,14 @@ func mapTwoFactorType(twoFactorType string) (database.TwoFactorType, *exceptions
 	}
 }
 
+func mapCCSecretStorageMode(authMethod string) database.SecretStorageMode {
+	if authMethod == AuthMethodClientSecretJWT {
+		return database.SecretStorageModeEncrypted
+	}
+
+	return database.SecretStorageModeHashed
+}
+
 func hashChallenge(challenge, challengeMethod string) (string, *exceptions.ServiceError) {
 	if challengeMethod == "" {
 		return utils.Sha256HashBase64([]byte(challenge)), nil

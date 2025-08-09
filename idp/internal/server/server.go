@@ -265,6 +265,7 @@ func New(
 		cfg.JWKExpirationDays(),
 		cfg.AccountCCExpDays(),
 		cfg.UserCCExpDays(),
+		cfg.AppCCExpDays(),
 	)
 	logger.InfoContext(ctx, "Finished building services")
 

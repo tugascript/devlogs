@@ -55,9 +55,9 @@ func TestCreateAccountCredentials(t *testing.T) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.CreateAccountCredentialsBody{
-					Scopes:      []string{"account:admin"},
-					Alias:       "admin",
-					AuthMethods: "both_client_secrets",
+					Scopes:     []string{"account:admin"},
+					Alias:      "admin",
+					AuthMethod: "both_client_secrets",
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -80,11 +80,11 @@ func TestCreateAccountCredentials(t *testing.T) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.CreateAccountCredentialsBody{
-					Scopes:      []string{"account:credentials:read", "account:credentials:write"},
-					Alias:       "super-key",
-					AuthMethods: "private_key_jwt",
-					Issuers:     []string{"https://issuer.example.com"},
-					Algorithm:   "ES256",
+					Scopes:     []string{"account:credentials:read", "account:credentials:write"},
+					Alias:      "super-key",
+					AuthMethod: "private_key_jwt",
+					Issuers:    []string{"https://issuer.example.com"},
+					Algorithm:  "ES256",
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -105,11 +105,11 @@ func TestCreateAccountCredentials(t *testing.T) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.CreateAccountCredentialsBody{
-					Scopes:      []string{"account:credentials:read", "account:credentials:write"},
-					Alias:       "super-key",
-					AuthMethods: "private_key_jwt",
-					Issuers:     []string{"https://issuer.example.com"},
-					Algorithm:   "EdDSA",
+					Scopes:     []string{"account:credentials:read", "account:credentials:write"},
+					Alias:      "super-key",
+					AuthMethod: "private_key_jwt",
+					Issuers:    []string{"https://issuer.example.com"},
+					Algorithm:  "EdDSA",
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -130,10 +130,10 @@ func TestCreateAccountCredentials(t *testing.T) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.CreateAccountCredentialsBody{
-					Scopes:      []string{"account:credentials:read", "account:credentials:write"},
-					Alias:       "super-key",
-					AuthMethods: "private_key_jwt",
-					Issuers:     []string{"https://issuer.example.com"},
+					Scopes:     []string{"account:credentials:read", "account:credentials:write"},
+					Alias:      "super-key",
+					AuthMethod: "private_key_jwt",
+					Issuers:    []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -154,9 +154,9 @@ func TestCreateAccountCredentials(t *testing.T) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.CreateAccountCredentialsBody{
-					Scopes:      []string{"account:apps:read", "account:apps:write"},
-					Alias:       "app-keys",
-					AuthMethods: "client_secret_post",
+					Scopes:     []string{"account:apps:read", "account:apps:write"},
+					Alias:      "app-keys",
+					AuthMethod: "client_secret_post",
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -177,9 +177,9 @@ func TestCreateAccountCredentials(t *testing.T) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsWrite})
 				return bodies.CreateAccountCredentialsBody{
-					Scopes:      []string{"account:users:read", "account:users:write"},
-					Alias:       "user-keys",
-					AuthMethods: "client_secret_basic",
+					Scopes:     []string{"account:users:read", "account:users:write"},
+					Alias:      "user-keys",
+					AuthMethod: "client_secret_basic",
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
@@ -200,9 +200,9 @@ func TestCreateAccountCredentials(t *testing.T) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.CreateAccountCredentialsBody{
-					Scopes:      []string{"account:credentials:read", "account:credentials:write"},
-					Alias:       "super-key",
-					AuthMethods: "private_key_jwt",
+					Scopes:     []string{"account:credentials:read", "account:credentials:write"},
+					Alias:      "super-key",
+					AuthMethod: "private_key_jwt",
 				}, accessToken
 			},
 			ExpStatus: http.StatusBadRequest,
@@ -218,10 +218,10 @@ func TestCreateAccountCredentials(t *testing.T) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
 				return bodies.CreateAccountCredentialsBody{
-					Scopes:      []string{"invalid:scope", "account:users:readsd"},
-					Alias:       "invalid asdfasd ### scope",
-					AuthMethods: "client_secret_not_valid",
-					Issuers:     []string{"https://issuer.example.com"},
+					Scopes:     []string{"invalid:scope", "account:users:readsd"},
+					Alias:      "invalid asdfasd ### scope",
+					AuthMethod: "client_secret_not_valid",
+					Issuers:    []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusBadRequest,
@@ -252,10 +252,10 @@ func TestCreateAccountCredentials(t *testing.T) {
 				}
 
 				return bodies.CreateAccountCredentialsBody{
-					Scopes:      []string{"account:admin"},
-					Alias:       "existing-alias",
-					AuthMethods: "client_secret_basic",
-					Issuers:     []string{"https://issuer.example.com"},
+					Scopes:     []string{"account:admin"},
+					Alias:      "existing-alias",
+					AuthMethod: "client_secret_basic",
+					Issuers:    []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusConflict,
@@ -268,10 +268,10 @@ func TestCreateAccountCredentials(t *testing.T) {
 			Name: "Should return 401 UNAUTHORIZED without access token",
 			ReqFn: func(t *testing.T) (bodies.CreateAccountCredentialsBody, string) {
 				return bodies.CreateAccountCredentialsBody{
-					Scopes:      []string{"account:credentials:write", "account:auth_providers:read"},
-					Alias:       "user-keys",
-					AuthMethods: "client_secret_basic",
-					Issuers:     []string{"https://issuer.example.com"},
+					Scopes:     []string{"account:credentials:write", "account:auth_providers:read"},
+					Alias:      "user-keys",
+					AuthMethod: "client_secret_basic",
+					Issuers:    []string{"https://issuer.example.com"},
 				}, ""
 			},
 			ExpStatus: http.StatusUnauthorized,
@@ -283,10 +283,10 @@ func TestCreateAccountCredentials(t *testing.T) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsRead})
 				return bodies.CreateAccountCredentialsBody{
-					Scopes:      []string{"account:apps:read", "account:apps:write"},
-					Alias:       "app-keys",
-					AuthMethods: "client_secret_post",
-					Issuers:     []string{"https://issuer.example.com"},
+					Scopes:     []string{"account:apps:read", "account:apps:write"},
+					Alias:      "app-keys",
+					AuthMethod: "client_secret_post",
+					Issuers:    []string{"https://issuer.example.com"},
 				}, accessToken
 			},
 			ExpStatus: http.StatusForbidden,

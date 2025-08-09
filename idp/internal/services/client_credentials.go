@@ -19,8 +19,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/utils"
@@ -35,22 +37,26 @@ const (
 
 	clientCredentialsIDLength     = 22 // Client ID length is 22 characters, which is the length of a base62 encoded UUID
 	clientCredentialsSecretLength = 65 // Client Secret length is at least 65 characters, which is the length of a base64 encoded secret + secret id
-
 )
 
 type clientCredentialsSecretOptions struct {
-	requestID string
-	accountID int32
-	expiresIn time.Duration
-	usage     database.CredentialsUsage
+	requestID   string
+	accountID   int32
+	storageMode database.SecretStorageMode
+	expiresIn   time.Duration
+	usage       database.CredentialsUsage
+	dekFN       crypto.GetDEKtoEncrypt
 }
 
 func (s *Services) clientCredentialsSecret(
 	ctx context.Context,
+	qrs *database.Queries,
 	opts clientCredentialsSecretOptions,
-) (database.CreateCredentialsSecretParams, string, *exceptions.ServiceError) {
+) (int32, string, string, time.Time, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, clientCredentialsLocation, "clientCredentialsSecret").With(
-		"AccountID", opts.accountID,
+		"accountId", opts.accountID,
+		"usage", opts.usage,
+		"storageMode", opts.storageMode,
 	)
 	logger.InfoContext(ctx, "Generating client credentials secret...")
 
@@ -58,22 +64,63 @@ func (s *Services) clientCredentialsSecret(
 	secret, err := utils.GenerateBase64Secret(clientCredentialsSecretBytes)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate secret", "error", err)
-		return database.CreateCredentialsSecretParams{}, "", exceptions.NewInternalServerError()
+		return 0, "", "", time.Time{}, exceptions.NewInternalServerError()
 	}
 
-	hashedSecret, err := utils.Argon2HashString(secret)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to hash secret", "error", err)
-		return database.CreateCredentialsSecretParams{}, "", exceptions.NewInternalServerError()
+	exp := time.Now().Add(opts.expiresIn)
+	if opts.storageMode == database.SecretStorageModeHashed {
+		hashedSecret, err := utils.Argon2HashString(secret)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to hash secret", "error", err)
+			return 0, "", "", time.Time{}, exceptions.NewInternalServerError()
+		}
+
+		id, err := qrs.CreateCredentialsSecret(ctx, database.CreateCredentialsSecretParams{
+			AccountID:    opts.accountID,
+			SecretID:     secretID,
+			ClientSecret: hashedSecret,
+			StorageMode:  opts.storageMode,
+			DekKid:       pgtype.Text{Valid: false},
+			ExpiresAt:    exp,
+			Usage:        opts.usage,
+		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create credentials secret", "error", err)
+			return 0, "", "", time.Time{}, exceptions.FromDBError(err)
+		}
+
+		logger.InfoContext(ctx, "Created credentials secret with hashed storage mode", "secretId", secretID)
+		return id, secretID, secret, exp, nil
 	}
 
-	return database.CreateCredentialsSecretParams{
+	dekID, encryptedSecret, serviceErr := s.crypto.EncryptWithDEK(ctx, crypto.EncryptWithDEKOptions{
+		RequestID: opts.requestID,
+		GetDEKfn:  opts.dekFN,
+		PlainText: secret,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to encrypt secret with DEK", "serviceError", serviceErr)
+		return 0, "", "", time.Time{}, exceptions.NewInternalServerError()
+	}
+
+	id, err := qrs.CreateCredentialsSecret(ctx, database.CreateCredentialsSecretParams{
 		AccountID:    opts.accountID,
 		SecretID:     secretID,
-		ClientSecret: hashedSecret,
-		ExpiresAt:    time.Now().Add(opts.expiresIn),
+		ClientSecret: encryptedSecret,
+		StorageMode:  opts.storageMode,
+		DekKid:       pgtype.Text{String: dekID, Valid: true},
+		ExpiresAt:    exp,
 		Usage:        opts.usage,
-	}, secret, nil
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create credentials secret with DEK", "error", err)
+		return 0, "", "", time.Time{}, exceptions.FromDBError(err)
+	}
+
+	logger.InfoContext(ctx, "Created credentials secret with DEK storage mode",
+		"secretId", secretID, "dekId", dekID,
+	)
+	return id, secretID, secret, exp, nil
 }
 
 func mapAlgorithmToTokenCryptoSuite(algorithm string) utils.SupportedCryptoSuite {

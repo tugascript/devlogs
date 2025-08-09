@@ -63,7 +63,7 @@ func (q *Queries) CreateAccountCredentialSecret(ctx context.Context, arg CreateA
 }
 
 const findAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID = `-- name: FindAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID :one
-SELECT csr.id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
+SELECT csr.id, csr.secret_id, csr.client_secret, csr.storage_mode, csr.dek_kid, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
 LEFT JOIN "account_credentials_secrets" "acs" ON "acs"."credentials_secret_id" = "csr"."id"
 WHERE 
     "acs"."account_credentials_id" = $1 AND 
@@ -83,6 +83,8 @@ func (q *Queries) FindAccountCredentialSecretByAccountCredentialIDAndCredentials
 		&i.ID,
 		&i.SecretID,
 		&i.ClientSecret,
+		&i.StorageMode,
+		&i.DekKid,
 		&i.IsRevoked,
 		&i.Usage,
 		&i.AccountID,
@@ -94,7 +96,7 @@ func (q *Queries) FindAccountCredentialSecretByAccountCredentialIDAndCredentials
 }
 
 const findCurrentAccountCredentialSecretByAccountCredentialID = `-- name: FindCurrentAccountCredentialSecretByAccountCredentialID :one
-SELECT csr.id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
+SELECT csr.id, csr.secret_id, csr.client_secret, csr.storage_mode, csr.dek_kid, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
 LEFT JOIN "account_credentials_secrets" "acs" ON "acs"."credentials_secret_id" = "csr"."id"
 WHERE 
     "acs"."account_credentials_id" = $1 AND 
@@ -110,6 +112,8 @@ func (q *Queries) FindCurrentAccountCredentialSecretByAccountCredentialID(ctx co
 		&i.ID,
 		&i.SecretID,
 		&i.ClientSecret,
+		&i.StorageMode,
+		&i.DekKid,
 		&i.IsRevoked,
 		&i.Usage,
 		&i.AccountID,
@@ -121,7 +125,7 @@ func (q *Queries) FindCurrentAccountCredentialSecretByAccountCredentialID(ctx co
 }
 
 const findPaginatedAccountCredentialSecretsByAccountCredentialID = `-- name: FindPaginatedAccountCredentialSecretsByAccountCredentialID :many
-SELECT csr.id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
+SELECT csr.id, csr.secret_id, csr.client_secret, csr.storage_mode, csr.dek_kid, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
 LEFT JOIN "account_credentials_secrets" "acs" ON "acs"."credentials_secret_id" = "csr"."id"
 WHERE "acs"."account_credentials_id" = $1
 ORDER BY "csr"."expires_at" DESC
@@ -147,6 +151,8 @@ func (q *Queries) FindPaginatedAccountCredentialSecretsByAccountCredentialID(ctx
 			&i.ID,
 			&i.SecretID,
 			&i.ClientSecret,
+			&i.StorageMode,
+			&i.DekKid,
 			&i.IsRevoked,
 			&i.Usage,
 			&i.AccountID,
@@ -165,7 +171,7 @@ func (q *Queries) FindPaginatedAccountCredentialSecretsByAccountCredentialID(ctx
 }
 
 const findValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID = `-- name: FindValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretID :one
-SELECT csr.id, csr.secret_id, csr.client_secret, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
+SELECT csr.id, csr.secret_id, csr.client_secret, csr.storage_mode, csr.dek_kid, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
 LEFT JOIN "account_credentials_secrets" "acs" ON "acs"."credentials_secret_id" = "csr"."id"
 WHERE
     "acs"."account_credentials_id" = $1 AND
@@ -187,6 +193,8 @@ func (q *Queries) FindValidAccountCredentialSecretByAccountCredentialIDAndCreden
 		&i.ID,
 		&i.SecretID,
 		&i.ClientSecret,
+		&i.StorageMode,
+		&i.DekKid,
 		&i.IsRevoked,
 		&i.Usage,
 		&i.AccountID,

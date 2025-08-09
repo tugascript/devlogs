@@ -42,6 +42,7 @@ type Config struct {
 	jwkExpirationDays    int64
 	accountCCExpDays     int64
 	userCCExpDays        int64
+	appCCExpDays         int64
 }
 
 func (c *Config) Port() int64 {
@@ -144,7 +145,11 @@ func (c *Config) UserCCExpDays() int64 {
 	return c.userCCExpDays
 }
 
-var variables = [44]string{
+func (c *Config) AppCCExpDays() int64 {
+	return c.appCCExpDays
+}
+
+var variables = [45]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -187,6 +192,7 @@ var variables = [44]string{
 	"WELLKNOWN_OIDC_CONFIG_CACHE_TTL_SEC",
 	"ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
 	"USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
+	"APP_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
 	"OAUTH_STATE_TTL_SEC",
 	"OAUTH_CODE_TTL_SEC",
 }
@@ -204,7 +210,7 @@ var optionalVariables = [10]string{
 	"MICROSOFT_CLIENT_SECRET",
 }
 
-var numerics = [28]string{
+var numerics = [29]string{
 	"PORT",
 	"MAX_PROCS",
 	"JWT_ACCESS_TTL_SEC",
@@ -231,6 +237,7 @@ var numerics = [28]string{
 	"WELLKNOWN_OIDC_CONFIG_CACHE_TTL_SEC",
 	"ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
 	"USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
+	"APP_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
 	"OAUTH_STATE_TTL_SEC",
 	"OAUTH_CODE_TTL_SEC",
 }
@@ -332,5 +339,6 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 		),
 		accountCCExpDays: intMap["ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
 		userCCExpDays:    intMap["USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
+		appCCExpDays:     intMap["APP_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
 	}
 }

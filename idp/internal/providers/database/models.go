@@ -732,6 +732,48 @@ func (ns NullScopes) Value() (driver.Value, error) {
 	return string(ns.Scopes), nil
 }
 
+type SecretStorageMode string
+
+const (
+	SecretStorageModeHashed    SecretStorageMode = "hashed"
+	SecretStorageModeEncrypted SecretStorageMode = "encrypted"
+)
+
+func (e *SecretStorageMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SecretStorageMode(s)
+	case string:
+		*e = SecretStorageMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SecretStorageMode: %T", src)
+	}
+	return nil
+}
+
+type NullSecretStorageMode struct {
+	SecretStorageMode SecretStorageMode
+	Valid             bool // Valid is true if SecretStorageMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSecretStorageMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.SecretStorageMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SecretStorageMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSecretStorageMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SecretStorageMode), nil
+}
+
 type SoftwareStatementVerificationMethod string
 
 const (
@@ -1284,6 +1326,8 @@ type CredentialsSecret struct {
 	ID           int32
 	SecretID     string
 	ClientSecret string
+	StorageMode  SecretStorageMode
+	DekKid       pgtype.Text
 	IsRevoked    bool
 	Usage        CredentialsUsage
 	AccountID    int32

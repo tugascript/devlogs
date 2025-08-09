@@ -9,6 +9,7 @@ package services
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -909,30 +910,28 @@ func (s *Services) CreateWebApp(
 		logger.InfoContext(ctx, "Created web app successfully with private key JWT auth method successfully")
 		return dtos.MapWebAppWithJWKToDTO(&app, jwk, clientKey.ExpiresAt), nil
 	case AuthMethodClientSecretPost, AuthMethodClientSecretBasic, AuthMethodClientSecretJWT:
-		var dbPrms database.CreateCredentialsSecretParams
-		var secret string
-		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
-			requestID: opts.RequestID,
-			accountID: accountID,
-			expiresIn: s.accountCCExpDays,
-			usage:     database.CredentialsUsageApp,
+		var ccID int32
+		var secretID, secret string
+		var exp time.Time
+		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
+			requestID:   opts.RequestID,
+			accountID:   accountID,
+			storageMode: mapCCSecretStorageMode(opts.AuthMethod),
+			expiresIn:   s.appCCExpDays,
+			usage:       database.CredentialsUsageApp,
+			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+				RequestID: opts.RequestID,
+				AccountID: accountID,
+			}),
 		})
 		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		var clientSecret database.CredentialsSecret
-		clientSecret, err = qrs.CreateCredentialsSecret(ctx, dbPrms)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
-			serviceErr = exceptions.FromDBError(err)
+			logger.ErrorContext(ctx, "Failed to create client credentials secret", "serviceError", serviceErr)
 			return dtos.AppDTO{}, serviceErr
 		}
 
 		if err = qrs.CreateAppSecret(ctx, database.CreateAppSecretParams{
 			AppID:               app.ID,
-			CredentialsSecretID: clientSecret.ID,
+			CredentialsSecretID: ccID,
 			AccountID:           accountID,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to create app secret", "error", err)
@@ -941,7 +940,7 @@ func (s *Services) CreateWebApp(
 		}
 
 		logger.InfoContext(ctx, "Created web app successfully with client secret auth method successfully")
-		return dtos.MapWebAppWithSecretToDTO(&app, clientSecret.SecretID, secret, clientSecret.ExpiresAt), nil
+		return dtos.MapWebAppWithSecretToDTO(&app, secretID, secret, exp), nil
 	default:
 		logger.ErrorContext(ctx, "Unsupported auth method", "authMethod", opts.AuthMethod)
 		serviceErr = exceptions.NewValidationError("Unsupported auth method")
@@ -1201,30 +1200,28 @@ func (s *Services) CreateBackendApp(
 		logger.InfoContext(ctx, "Created backend app successfully with private key JWT auth method successfully")
 		return dtos.MapBackendAppWithJWKToDTO(&app, jwk, clientKey.ExpiresAt), nil
 	case AuthMethodClientSecretPost, AuthMethodClientSecretBasic, AuthMethodClientSecretJWT:
-		var dbPrms database.CreateCredentialsSecretParams
-		var secret string
-		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
-			requestID: opts.RequestID,
-			accountID: accountID,
-			expiresIn: s.accountCCExpDays,
-			usage:     database.CredentialsUsageApp,
+		var ccID int32
+		var secretID, secret string
+		var exp time.Time
+		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
+			requestID:   opts.RequestID,
+			accountID:   accountID,
+			storageMode: mapCCSecretStorageMode(opts.AuthMethod),
+			expiresIn:   s.appCCExpDays,
+			usage:       database.CredentialsUsageApp,
+			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+				RequestID: opts.RequestID,
+				AccountID: accountID,
+			}),
 		})
 		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		var clientSecret database.CredentialsSecret
-		clientSecret, err = qrs.CreateCredentialsSecret(ctx, dbPrms)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
-			serviceErr = exceptions.FromDBError(err)
+			logger.ErrorContext(ctx, "Failed to create client credentials secret", "serviceError", serviceErr)
 			return dtos.AppDTO{}, serviceErr
 		}
 
 		if err = qrs.CreateAppSecret(ctx, database.CreateAppSecretParams{
 			AppID:               app.ID,
-			CredentialsSecretID: clientSecret.ID,
+			CredentialsSecretID: ccID,
 			AccountID:           accountID,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to create app secret", "error", err)
@@ -1233,12 +1230,7 @@ func (s *Services) CreateBackendApp(
 		}
 
 		logger.InfoContext(ctx, "Created backend app successfully with client secret auth method successfully")
-		return dtos.MapBackendAppWithSecretToDTO(
-			&app,
-			clientSecret.SecretID,
-			secret,
-			clientSecret.ExpiresAt,
-		), nil
+		return dtos.MapBackendAppWithSecretToDTO(&app, secretID, secret, exp), nil
 	default:
 		logger.ErrorContext(ctx, "Unsupported auth method", "authMethod", opts.AuthMethod)
 		serviceErr = exceptions.NewValidationError("Unsupported auth method")
@@ -1631,31 +1623,29 @@ func (s *Services) CreateServiceApp(
 
 		logger.InfoContext(ctx, "Created service app successfully with private key JWT auth method successfully")
 		return dtos.MapServiceAppWithJWKToDTO(&app, &appService, jwk, clientKey.ExpiresAt), nil
-	case AuthMethodClientSecretPost, AuthMethodClientSecretBasic:
-		var dbPrms database.CreateCredentialsSecretParams
-		var secret string
-		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
-			requestID: opts.RequestID,
-			accountID: accountID,
-			expiresIn: s.accountCCExpDays,
-			usage:     database.CredentialsUsageApp,
+	case AuthMethodClientSecretPost, AuthMethodClientSecretBasic, AuthMethodClientSecretJWT:
+		var ccID int32
+		var secretID, secret string
+		var exp time.Time
+		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
+			requestID:   opts.RequestID,
+			accountID:   accountID,
+			storageMode: mapCCSecretStorageMode(opts.AuthMethod),
+			expiresIn:   s.appCCExpDays,
+			usage:       database.CredentialsUsageApp,
+			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+				RequestID: opts.RequestID,
+				AccountID: accountID,
+			}),
 		})
 		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		var clientSecret database.CredentialsSecret
-		clientSecret, err = qrs.CreateCredentialsSecret(ctx, dbPrms)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
-			serviceErr = exceptions.FromDBError(err)
+			logger.ErrorContext(ctx, "Failed to create client credentials secret", "serviceError", serviceErr)
 			return dtos.AppDTO{}, serviceErr
 		}
 
 		if err = qrs.CreateAppSecret(ctx, database.CreateAppSecretParams{
 			AppID:               app.ID,
-			CredentialsSecretID: clientSecret.ID,
+			CredentialsSecretID: ccID,
 			AccountID:           accountID,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to create app secret", "error", err)
@@ -1664,13 +1654,7 @@ func (s *Services) CreateServiceApp(
 		}
 
 		logger.InfoContext(ctx, "Created service app successfully with client secret auth method successfully")
-		return dtos.MapServiceAppWithSecretToDTO(
-			&app,
-			&appService,
-			clientSecret.SecretID,
-			secret,
-			clientSecret.ExpiresAt,
-		), nil
+		return dtos.MapServiceAppWithSecretToDTO(&app, &appService, secretID, secret, exp), nil
 	default:
 		logger.ErrorContext(ctx, "Unsupported auth method", "authMethod", opts.AuthMethod)
 		serviceErr = exceptions.NewValidationError("Unsupported auth method")
@@ -1927,30 +1911,28 @@ func (s *Services) CreateMCPApp(
 		logger.InfoContext(ctx, "Created service app successfully with private key JWT auth method successfully")
 		return dtos.MapMCPAppWithJWKToDTO(&app, jwk, clientKey.ExpiresAt), nil
 	case AuthMethodClientSecretPost, AuthMethodClientSecretBasic, AuthMethodClientSecretJWT:
-		var dbPrms database.CreateCredentialsSecretParams
-		var secret string
-		dbPrms, secret, serviceErr = s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
-			requestID: opts.RequestID,
-			accountID: accountID,
-			expiresIn: s.accountCCExpDays,
-			usage:     database.CredentialsUsageApp,
+		var ccID int32
+		var secretID, secret string
+		var exp time.Time
+		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
+			requestID:   opts.RequestID,
+			accountID:   accountID,
+			storageMode: mapCCSecretStorageMode(opts.AuthMethod),
+			expiresIn:   s.appCCExpDays,
+			usage:       database.CredentialsUsageApp,
+			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+				RequestID: opts.RequestID,
+				AccountID: accountID,
+			}),
 		})
 		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		var clientSecret database.CredentialsSecret
-		clientSecret, err = qrs.CreateCredentialsSecret(ctx, dbPrms)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
-			serviceErr = exceptions.FromDBError(err)
+			logger.ErrorContext(ctx, "Failed to create client credentials secret", "serviceError", serviceErr)
 			return dtos.AppDTO{}, serviceErr
 		}
 
 		if err = qrs.CreateAppSecret(ctx, database.CreateAppSecretParams{
 			AppID:               app.ID,
-			CredentialsSecretID: clientSecret.ID,
+			CredentialsSecretID: ccID,
 			AccountID:           accountID,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to create app secret", "error", err)
@@ -1959,12 +1941,7 @@ func (s *Services) CreateMCPApp(
 		}
 
 		logger.InfoContext(ctx, "Created service app successfully with client secret auth method successfully")
-		return dtos.MapMCPAppWithSecretToDTO(
-			&app,
-			clientSecret.SecretID,
-			secret,
-			clientSecret.ExpiresAt,
-		), nil
+		return dtos.MapMCPAppWithSecretToDTO(&app, secretID, secret, exp), nil
 	default:
 		logger.ErrorContext(ctx, "Unsupported auth method", "authMethod", opts.AuthMethod)
 		serviceErr = exceptions.NewValidationError("Unsupported auth method")
@@ -3160,9 +3137,10 @@ func (s *Services) rotateAppKey(
 }
 
 type rotateAppSecretOptions struct {
-	requestID string
-	accountID int32
-	appID     int32
+	requestID  string
+	accountID  int32
+	appID      int32
+	authMethod database.AuthMethod
 }
 
 func (s *Services) rotateAppSecret(
@@ -3184,26 +3162,25 @@ func (s *Services) rotateAppSecret(
 		s.database.FinalizeTx(ctx, txn, err, nil)
 	}()
 
-	dbPrms, secret, serviceErr := s.clientCredentialsSecret(ctx, clientCredentialsSecretOptions{
-		requestID: opts.requestID,
-		accountID: opts.accountID,
-		expiresIn: s.accountCCExpDays,
-		usage:     database.CredentialsUsageApp,
+	id, secretID, secret, exp, serviceErr := s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
+		requestID:   opts.requestID,
+		accountID:   opts.accountID,
+		storageMode: mapCCSecretStorageMode(string(opts.authMethod)),
+		expiresIn:   s.accountCCExpDays,
+		usage:       database.CredentialsUsageApp,
+		dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			RequestID: opts.requestID,
+			AccountID: opts.accountID,
+		}),
 	})
 	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to generate client credentials secret", "serviceError", serviceErr)
+		logger.ErrorContext(ctx, "Failed to create client credentials secret", "serviceError", serviceErr)
 		return dtos.ClientCredentialsSecretDTO{}, serviceErr
-	}
-
-	clientSecret, err := qrs.CreateCredentialsSecret(ctx, dbPrms)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create client secret", "error", err)
-		return dtos.ClientCredentialsSecretDTO{}, exceptions.FromDBError(err)
 	}
 
 	if err = qrs.CreateAppSecret(ctx, database.CreateAppSecretParams{
 		AppID:               opts.appID,
-		CredentialsSecretID: clientSecret.ID,
+		CredentialsSecretID: id,
 		AccountID:           opts.accountID,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create app secret", "error", err)
@@ -3211,7 +3188,7 @@ func (s *Services) rotateAppSecret(
 	}
 
 	logger.InfoContext(ctx, "App secret rotated successfully")
-	return dtos.MapCredentialsSecretToDTOWithSecret(&clientSecret, secret), nil
+	return dtos.CreateCredentialsSecretToDTOWithSecret(id, secretID, secret, exp), nil
 }
 
 type RotateAppCredentialsSecretOrKeyOptions struct {
@@ -3272,9 +3249,10 @@ func (s *Services) RotateAppCredentialsSecretOrKey(
 			appDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost ||
 			appDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretJwt {
 			return s.rotateAppSecret(ctx, rotateAppSecretOptions{
-				requestID: opts.RequestID,
-				accountID: accountID,
-				appID:     appDTO.ID(),
+				requestID:  opts.RequestID,
+				authMethod: appDTO.TokenEndpointAuthMethod,
+				accountID:  accountID,
+				appID:      appDTO.ID(),
 			})
 		}
 

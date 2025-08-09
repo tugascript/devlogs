@@ -37,10 +37,6 @@ type ClientCredentialsSecretDTO struct {
 	Type                  string    `json:"type"`
 }
 
-func (s *ClientCredentialsSecretDTO) ID() int32 {
-	return s.id
-}
-
 func (s *ClientCredentialsSecretDTO) UnmarshalJSON(data []byte) error {
 	type Alias ClientCredentialsSecretDTO
 	aux := &struct {
@@ -73,6 +69,10 @@ func (s *ClientCredentialsSecretDTO) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (s *ClientCredentialsSecretDTO) ID() int32 {
+	return s.id
+}
+
 func getCredentialsSecretStatus(secret *database.CredentialsSecret) string {
 	if secret.IsRevoked {
 		return ClientCredentialSecretStatusRevoked
@@ -94,17 +94,19 @@ func MapCredentialsSecretToDTO(
 	}
 }
 
-func MapCredentialsSecretToDTOWithSecret(
-	secret *database.CredentialsSecret,
-	secretVal string,
+func CreateCredentialsSecretToDTOWithSecret(
+	id int32,
+	secretID string,
+	secret string,
+	exp time.Time,
 ) ClientCredentialsSecretDTO {
 	return ClientCredentialsSecretDTO{
-		id:              secret.ID,
-		PublicID:        secret.SecretID,
+		id:              id,
+		PublicID:        secretID,
 		Type:            ClientCredentialSecretTypeSecret,
-		Status:          getCredentialsSecretStatus(secret),
-		ClientSecret:    fmt.Sprintf("%s.%s", secret.SecretID, secretVal),
-		ClientSecretExp: secret.ExpiresAt.Unix(),
+		Status:          ClientCredentialSecretStatusActive,
+		ClientSecret:    fmt.Sprintf("%s.%s", secretID, secret),
+		ClientSecretExp: exp.Unix(),
 	}
 }
 
