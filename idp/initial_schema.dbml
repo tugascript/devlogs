@@ -294,6 +294,8 @@ Enum response_type {
 }
 
 Enum account_credentials_scope {
+    "email"
+    "profile"
     "account:admin"
     "account:users:read"
     "account:users:write"

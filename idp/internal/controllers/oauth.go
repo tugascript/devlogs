@@ -296,9 +296,52 @@ func (c *Controllers) accountJWTBearer(ctx *fiber.Ctx, requestID string) error {
 func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, oauthLocation, "accountClientCredentials")
 
+	baseBody := bodies.ClientCredentialsBaseBody{
+		GrantType: ctx.FormValue("grant_type"),
+		Scope:     ctx.FormValue("scope"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &baseBody); err != nil {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+	}
+
+	scopes, serviceErr := c.services.ProcessAccountCredentialsScope(
+		ctx.UserContext(),
+		services.ProcessAccountCredentialsScopeOptions{
+			RequestID: requestID,
+			Scope:     baseBody.Scope,
+		},
+	)
+	if serviceErr != nil {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidScope)
+	}
+
+	clientAssertionType := ctx.FormValue("client_assertion_type")
+	if clientAssertionType != "" {
+		body := bodies.ClientCredentialsJWTBody{
+			ClientAssertion:     ctx.FormValue("client_assertion"),
+			ClientAssertionType: clientAssertionType,
+		}
+
+		if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
+			return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+		}
+
+		authDTO, serviceErr := c.services.JWTBearerAccountLogin(ctx.UserContext(), services.JWTBearerAccountLoginOptions{
+			RequestID:     requestID,
+			Token:         body.ClientAssertion,
+			Scopes:        scopes,
+			BackendDomain: c.backendDomain,
+		})
+		if serviceErr != nil {
+			return oauthClientCredentialsErrorResponse(logger, ctx, serviceErr)
+		}
+
+		ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)
+		logResponse(logger, ctx, fiber.StatusOK)
+		return ctx.Status(fiber.StatusOK).JSON(&authDTO)
+	}
+
 	body := bodies.ClientCredentialsBody{
-		GrantType:    ctx.FormValue("grant_type"),
-		Scope:        ctx.FormValue("scope"),
 		Audience:     ctx.FormValue("audience"),
 		ClientID:     ctx.FormValue("client_id"),
 		ClientSecret: ctx.FormValue("client_secret"),
@@ -323,17 +366,6 @@ func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string)
 	)
 	if serviceErr != nil {
 		return oauthClientCredentialsErrorResponse(logger, ctx, serviceErr)
-	}
-
-	scopes, serviceErr := c.services.ProcessAccountCredentialsScope(
-		ctx.UserContext(),
-		services.ProcessAccountCredentialsScopeOptions{
-			RequestID: requestID,
-			Scope:     body.Scope,
-		},
-	)
-	if serviceErr != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidScope)
 	}
 
 	authDTO, serviceErr := c.services.ClientCredentialsAccountLogin(

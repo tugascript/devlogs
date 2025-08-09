@@ -556,8 +556,8 @@ func (s *Services) ProcessAccountCredentialsScope(
 		case database.AccountCredentialsScopeAccountAdmin, database.AccountCredentialsScopeAccountUsersRead,
 			database.AccountCredentialsScopeAccountUsersWrite, database.AccountCredentialsScopeAccountAppsRead,
 			database.AccountCredentialsScopeAccountAppsWrite, database.AccountCredentialsScopeAccountCredentialsRead,
-			database.AccountCredentialsScopeAccountCredentialsWrite,
-			database.AccountCredentialsScopeAccountAuthProvidersRead:
+			database.AccountCredentialsScopeAccountCredentialsWrite, database.AccountCredentialsScopeProfile,
+			database.AccountCredentialsScopeAccountAuthProvidersRead, database.AccountCredentialsScopeEmail:
 			scopes = append(scopes, scope)
 		default:
 			logger.WarnContext(ctx, "Invalid scope", "scope", scope)

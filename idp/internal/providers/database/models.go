@@ -16,6 +16,8 @@ import (
 type AccountCredentialsScope string
 
 const (
+	AccountCredentialsScopeEmail                    AccountCredentialsScope = "email"
+	AccountCredentialsScopeProfile                  AccountCredentialsScope = "profile"
 	AccountCredentialsScopeAccountAdmin             AccountCredentialsScope = "account:admin"
 	AccountCredentialsScopeAccountUsersRead         AccountCredentialsScope = "account:users:read"
 	AccountCredentialsScopeAccountUsersWrite        AccountCredentialsScope = "account:users:write"
