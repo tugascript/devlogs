@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-09T04:11:49.429Z
+-- Generated at: 2025-08-09T21:37:27.219Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -70,6 +70,8 @@ CREATE TYPE "response_type" AS ENUM (
 );
 
 CREATE TYPE "account_credentials_scope" AS ENUM (
+  'email',
+  'profile',
   'account:admin',
   'account:users:read',
   'account:users:write',
