@@ -64,7 +64,7 @@ const deleteExternalAccountAuthProviders = `-- name: DeleteExternalAccountAuthPr
 DELETE FROM "account_auth_providers"
 WHERE 
   "email" = $1 AND 
-  "provider" != 'username_password'
+  "provider" != 'local'
 `
 
 func (q *Queries) DeleteExternalAccountAuthProviders(ctx context.Context, email string) error {

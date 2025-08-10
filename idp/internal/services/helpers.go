@@ -79,6 +79,8 @@ func mapAuthMethod(authMethod string) (database.AuthMethod, *exceptions.ServiceE
 		return database.AuthMethodClientSecretBasic, nil
 	case AuthMethodClientSecretPost:
 		return database.AuthMethodClientSecretPost, nil
+	case AuthMethodClientSecretJWT:
+		return database.AuthMethodClientSecretJwt, nil
 	case AuthMethodNone:
 		return database.AuthMethodNone, nil
 	default:
@@ -88,7 +90,11 @@ func mapAuthMethod(authMethod string) (database.AuthMethod, *exceptions.ServiceE
 
 func mapResponseTypes(responseTypes []string) ([]database.ResponseType, *exceptions.ServiceError) {
 	if len(responseTypes) == 0 {
-		return nil, exceptions.NewValidationError("response types cannot be empty")
+		return []database.ResponseType{
+			database.ResponseTypeCode,
+			database.ResponseTypeIDToken,
+			database.ResponseTypeCodeidToken,
+		}, nil
 	}
 
 	var dbResponseTypes []database.ResponseType

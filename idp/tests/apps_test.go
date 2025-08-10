@@ -62,17 +62,9 @@ type createAppBody struct {
 	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method,omitempty"`
 	AuthMethods             string   `json:"auth_methods,omitempty"`
 	CallbackURLs            []string `json:"callback_urls,omitempty"`
-	LogoutURLs              []string `json:"logout_urls,omitempty"`
-	AllowedOrigins          []string `json:"allowed_origins,omitempty"`
 
 	// Native-specific fields
 	CallbackURIs []string `json:"callback_uris,omitempty"`
-	LogoutURIs   []string `json:"logout_uris,omitempty"`
-
-	// Backend specific fields
-	Issuers          []string `json:"issuers,omitempty"`
-	ConfirmationURL  string   `json:"confirmation_url,omitempty"`
-	ResetPasswordURL string   `json:"reset_password_url,omitempty"`
 
 	// Device-specific fields
 	AssociatedApps []string `json:"associated_apps,omitempty"`
@@ -94,15 +86,15 @@ func TestCreateApp(t *testing.T) {
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return createAppBody{
-					Type:           "web",
-					Name:           "Test Web App",
-					ClientURI:      "https://test-web-app.example.com",
-					UsernameColumn: "email",
-					Algorithm:      "ES256",
-					AuthMethods:    "client_secret_basic",
-					CallbackURLs:   []string{"https://test-web-app.example.com/callback"},
-					LogoutURLs:     []string{"https://test-web-app.example.com/logout"},
-					AllowedOrigins: []string{"https://test-web-app.example.com"},
+					Type:                    "web",
+					Name:                    "Test Web App",
+					ClientURI:               "https://test-web-app.example.com",
+					Domain:                  "test-web-app.example.com",
+					UsernameColumn:          "email",
+					Algorithm:               "ES256",
+					AuthMethods:             "client_secret_basic",
+					CallbackURLs:            []string{"https://test-web-app.example.com/callback"},
+					TokenEndpointAuthMethod: "client_secret_basic",
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -129,10 +121,9 @@ func TestCreateApp(t *testing.T) {
 					Type:           "spa",
 					Name:           "Test SPA App",
 					ClientURI:      "https://test-spa-app.example.com",
+					Domain:         "test-spa-app.example.com",
 					UsernameColumn: "email",
 					CallbackURLs:   []string{"https://test-spa-app.example.com/callback"},
-					LogoutURLs:     []string{"https://test-spa-app.example.com/logout"},
-					AllowedOrigins: []string{"https://test-spa-app.example.com"},
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -161,7 +152,6 @@ func TestCreateApp(t *testing.T) {
 					ClientURI:      "https://test-native-app.example.com",
 					UsernameColumn: "email",
 					CallbackURIs:   []string{"com.testnativeapp://callback"},
-					LogoutURIs:     []string{"com.testnativeapp://logout"},
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -185,15 +175,12 @@ func TestCreateApp(t *testing.T) {
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return createAppBody{
-					Type:             "backend",
-					Name:             "Test Backend App",
-					ClientURI:        "https://test-backend-app.example.com",
-					UsernameColumn:   "email",
-					AuthMethod:       "private_key_jwt",
-					Algorithm:        "EdDSA",
-					Issuers:          []string{"https://test-backend-app.example.com"},
-					ConfirmationURL:  "https://test-backend-app.example.com/confirm",
-					ResetPasswordURL: "https://test-backend-app.example.com/reset",
+					Type:           "backend",
+					Name:           "Test Backend App",
+					ClientURI:      "https://test-backend-app.example.com",
+					UsernameColumn: "email",
+					AuthMethod:     "private_key_jwt",
+					Algorithm:      "EdDSA",
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -615,17 +602,19 @@ func CreateTestWebApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
 	ctx := context.Background()
 
 	appDTO, err := tServs.CreateWebApp(ctx, services.CreateWebAppOptions{
-		RequestID:       uuid.New().String(),
-		AccountPublicID: account.PublicID,
-		AccountVersion:  account.Version(),
-		Name:            "Test App",
-		UsernameColumn:  "email",
-		AuthMethod:      "client_secret_post",
-		Algorithm:       "ES256",
-		ClientURI:       "https://test-app.example.com",
-		Domain:          "test-app.example.com",
-		Transport:       "https",
-		CallbackURLs:    []string{"https://test-app.example.com/callback"},
+		RequestID:             uuid.New().String(),
+		AccountPublicID:       account.PublicID,
+		CreationSource:        database.CreationSourceAccount,
+		AccountVersion:        account.Version(),
+		Name:                  "Test App",
+		UsernameColumn:        "email",
+		AuthMethod:            "client_secret_post",
+		Algorithm:             "ES256",
+		ClientURI:             "https://test-app.example.com",
+		Domain:                "test-app.example.com",
+		Transport:             "https",
+		CallbackURLs:          []string{"https://test-app.example.com/callback"},
+		AllowUserRegistration: true,
 	})
 	if err != nil {
 		t.Fatal("Failed to create test app", err)

@@ -30,7 +30,8 @@ INSERT INTO "apps" (
   "transport",
   "redirect_uris",
   "response_types",
-  "allow_user_registration"
+  "allow_user_registration",
+  "auth_providers"
 ) VALUES (
   $1,
   $2,
@@ -56,7 +57,8 @@ INSERT INTO "apps" (
   $22,
   $23,
   $24,
-  $25
+  $25,
+  $26
 ) RETURNING *;
 
 
@@ -98,6 +100,7 @@ SET "name" = $2,
     "redirect_uris" = $13,
     "allow_user_registration" = $14,
     "response_types" = $15,
+    "auth_providers" = $16,
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1

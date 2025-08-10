@@ -15,21 +15,21 @@ import (
 func (r *Routes) AccountsRoutes(app *fiber.App) {
 	router := v1PathRouter(app).Group(paths.AccountsBase)
 
-	router.Get(paths.AccountMe, r.controllers.AccountAccessClaimsMiddleware, r.controllers.GetCurrentAccount)
+	router.Get(paths.AccountUserInfo, r.controllers.AccountAccessClaimsMiddleware, r.controllers.GetCurrentAccount)
 	router.Put(
-		paths.AccountMe,
+		paths.AccountUserInfo,
 		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
 		r.controllers.UpdateAccount,
 	)
 	router.Delete(
-		paths.AccountMe,
+		paths.AccountUserInfo,
 		r.controllers.AccountAccessClaimsMiddleware,
 		r.controllers.AdminScopeMiddleware,
 		r.controllers.DeleteAccount,
 	)
 	router.Post(
-		paths.AccountMe+paths.Confirm,
+		paths.AccountUserInfo+paths.Confirm,
 		r.controllers.TwoFAAccessClaimsMiddleware,
 		r.controllers.ConfirmDeleteAccount,
 	)

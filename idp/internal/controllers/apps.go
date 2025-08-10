@@ -72,6 +72,8 @@ func (c *Controllers) createWebApp(
 		DefaultScopes:         baseBody.DefaultScopes,
 		CallbackURLs:          body.CallbackURLs,
 		ResponseTypes:         body.ResponseTypes,
+		AuthProviders:         baseBody.AuthProviders,
+		Transport:             body.Transport,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -119,6 +121,7 @@ func (c *Controllers) createSPAApp(
 		CallbackURIs:          body.CallbackURLs,
 		Scopes:                baseBody.Scopes,
 		DefaultScopes:         baseBody.DefaultScopes,
+		AuthProviders:         baseBody.AuthProviders,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -166,6 +169,7 @@ func (c *Controllers) createNativeApp(
 		DefaultScopes:         baseBody.DefaultScopes,
 		CallbackURIs:          body.CallbackURIs,
 		ResponseTypes:         body.ResponseTypes,
+		AuthProviders:         baseBody.AuthProviders,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -212,6 +216,7 @@ func (c *Controllers) createBackendApp(
 		Transport:             body.Transport,
 		Scopes:                baseBody.Scopes,
 		DefaultScopes:         baseBody.DefaultScopes,
+		AuthProviders:         baseBody.AuthProviders,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -257,6 +262,7 @@ func (c *Controllers) createDeviceApp(
 		Scopes:                baseBody.Scopes,
 		DefaultScopes:         baseBody.DefaultScopes,
 		AssociatedApps:        body.AssociatedApps,
+		AuthProviders:         baseBody.AuthProviders,
 		Transport:             body.Transport,
 	})
 	if serviceErr != nil {
@@ -304,6 +310,7 @@ func (c *Controllers) createServiceApp(
 		Domain:                baseBody.Domain,
 		Transport:             body.Transport,
 		AllowedDomains:        body.AllowedDomains,
+		AuthProviders:         baseBody.AuthProviders,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -352,6 +359,7 @@ func (c *Controllers) createMCPApp(
 		CallbackURIs:          body.CallbackURIs,
 		ResponseTypes:         body.ResponseTypes,
 		Domain:                baseBody.Domain,
+		AuthProviders:         baseBody.AuthProviders,
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -560,6 +568,7 @@ func (c *Controllers) updateWebApp(
 			Contacts:              baseBody.Contacts,
 			CallbackURIs:          body.CallbackURLs,
 			ResponseTypes:         body.ResponseTypes,
+			AuthProviders:         baseBody.AuthProviders,
 		},
 	)
 	if serviceErr != nil {
@@ -619,6 +628,7 @@ func (c *Controllers) updateSPAApp(
 			Contacts:              baseBody.Contacts,
 			CallbackURIs:          body.CallbackURLs,
 			ResponseTypes:         body.ResponseTypes,
+			AuthProviders:         baseBody.AuthProviders,
 		},
 	)
 	if serviceErr != nil {
@@ -678,6 +688,7 @@ func (c *Controllers) updateNativeApp(
 			Contacts:              baseBody.Contacts,
 			CallbackURIs:          body.CallbackURIs,
 			ResponseTypes:         body.ResponseTypes,
+			AuthProviders:         baseBody.AuthProviders,
 		},
 	)
 	if serviceErr != nil {
@@ -735,6 +746,7 @@ func (c *Controllers) updateServiceApp(
 			SoftwareVersion:       baseBody.SoftwareVersion,
 			Contacts:              baseBody.Contacts,
 			AllowedDomains:        body.AllowedDomains,
+			AuthProviders:         baseBody.AuthProviders,
 		},
 	)
 	if serviceErr != nil {
@@ -792,6 +804,7 @@ func (c *Controllers) updateBackendApp(
 			SoftwareID:            baseBody.SoftwareID,
 			SoftwareVersion:       baseBody.SoftwareVersion,
 			Contacts:              baseBody.Contacts,
+			AuthProviders:         baseBody.AuthProviders,
 		},
 	)
 	if serviceErr != nil {
@@ -851,6 +864,7 @@ func (c *Controllers) updateDeviceApp(
 			Contacts:              baseBody.Contacts,
 			BackendDomain:         c.backendDomain,
 			AssociatedApps:        body.AssociatedApps,
+			AuthProviders:         baseBody.AuthProviders,
 		},
 	)
 	if serviceErr != nil {
@@ -909,6 +923,7 @@ func (c *Controllers) updateMCPApp(
 			CallbackURIs:          body.CallbackURIs,
 			ResponseTypes:         body.ResponseTypes,
 			AllowUserRegistration: baseBody.AllowUserRegistration,
+			AuthProviders:         baseBody.AuthProviders,
 		},
 	)
 	if serviceErr != nil {
