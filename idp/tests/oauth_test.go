@@ -815,7 +815,7 @@ func TestOAuthToken(t *testing.T) {
 	beforeEachClientCredentials := func(t *testing.T, authMethods string) (string, string) {
 		var am string
 		switch authMethods {
-		case "client_secret_basic", "client_secret_post", "both_client_secrets":
+		case "client_secret_basic", "client_secret_post", "client_secret_jwt":
 			am = authMethods
 		default:
 			t.Fatalf("Unsupported auth methods: %s", authMethods)
@@ -836,6 +836,52 @@ func TestOAuthToken(t *testing.T) {
 		}
 
 		return cred.ClientID, cred.ClientSecret
+	}
+
+	generateHS256AccessToken := func(
+		t *testing.T,
+		secretID string,
+		secret string,
+		issuer string,
+		clientID string,
+		expDuration time.Duration,
+		iat *time.Time,
+		nbf *time.Time,
+	) string {
+		mapTime := func(tm *time.Time) *jwt.NumericDate {
+			if tm == nil {
+				return nil
+			}
+			return jwt.NewNumericDate(*tm)
+		}
+
+		mapExp := func(ia *time.Time, nb *time.Time) *jwt.NumericDate {
+			if ia != nil {
+				return jwt.NewNumericDate(ia.Add(expDuration))
+			}
+			if nb != nil {
+				return jwt.NewNumericDate(nb.Add(expDuration))
+			}
+			return jwt.NewNumericDate(time.Now().Add(expDuration))
+		}
+
+		claims := jwt.RegisteredClaims{
+			Issuer:    issuer,
+			Subject:   clientID,
+			Audience:  jwt.ClaimStrings{"https://" + GetTestConfig(t).BackendDomain()},
+			ExpiresAt: mapExp(iat, nbf),
+			NotBefore: mapTime(nbf),
+			IssuedAt:  mapTime(iat),
+			ID:        uuid.NewString(),
+		}
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		token.Header["kid"] = secretID
+		signedToken, err := token.SignedString([]byte(secret))
+		if err != nil {
+			t.Fatalf("Failed to sign token: %v", err)
+		}
+
+		return signedToken
 	}
 
 	createAuthorizationBody := func(provider, code, codeVerifier string) string {
@@ -888,6 +934,18 @@ func TestOAuthToken(t *testing.T) {
 		form.Add("client_id", clientID)
 		form.Add("client_secret", clientSecret)
 		return form.Encode(), ""
+	}
+
+	createClientCredentialsJWTBody := func(token string, scope string) string {
+		form := make(url.Values)
+		form.Add("assertion", token)
+		form.Add("grant_type", "client_credentials")
+		form.Add("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
+		form.Add("client_assertion", token)
+		if scope != "" {
+			form.Add("scope", scope)
+		}
+		return form.Encode()
 	}
 
 	testCases := []TestRequestCase[string]{
@@ -1213,7 +1271,7 @@ func TestOAuthToken(t *testing.T) {
 			AssertFn:  assertAuthAccessResponse[string],
 		},
 		{
-			Name: "POST should return 200 OK with client_credentials grant type with valid client_id and client_secret, with both auth methods using basic auth and a valid audience",
+			Name: "POST should return 200 OK with client_credentials grant type with valid client_id and client_secret using basic auth and a valid audience",
 			ReqFn: func(t *testing.T) (string, string) {
 				clientID, clientSecret := beforeEachClientCredentials(t, "client_secret_basic")
 				body, authHeader := createClientCredentialsBodyAndAH(
@@ -1230,7 +1288,7 @@ func TestOAuthToken(t *testing.T) {
 			TokenType: "Basic",
 		},
 		{
-			Name: "POST should return 200 OK with client_credentials grant type with valid client_id and client_secret, with both auth methods using post auth and a valid scope",
+			Name: "POST should return 200 OK with client_credentials grant type with valid client_id and client_secret using post auth and a valid scope",
 			ReqFn: func(t *testing.T) (string, string) {
 				clientID, clientSecret := beforeEachClientCredentials(t, "client_secret_post")
 				body, _ := createClientCredentialsBodyAndAH(
@@ -1240,6 +1298,46 @@ func TestOAuthToken(t *testing.T) {
 					"",
 					"account:users:read account:admin",
 				)
+				return body, ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+		},
+		{
+			Name: "POST should return 200 OK with client_credentials grant type with valid client_id and client_secret using jwt auth and a valid scope",
+			ReqFn: func(t *testing.T) (string, string) {
+				clientID, clientSecret := beforeEachClientCredentials(t, "client_secret_jwt")
+				secretID := strings.Split(clientSecret, ".")[0]
+				now := time.Now()
+				bearerToken := generateHS256AccessToken(
+					t,
+					secretID,
+					clientSecret,
+					"https://issuer.example.com",
+					clientID,
+					1*time.Minute,
+					&now,
+					&now,
+				)
+				body := createClientCredentialsJWTBody(bearerToken, "account:users:read account:admin")
+				return body, ""
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn:  assertAuthAccessResponse[string],
+		},
+		{
+			Name: "POST should return 200 OK with client_credentials grant type with valid private key using jwt auth and no scope",
+			ReqFn: func(t *testing.T) (string, string) {
+				now := time.Now()
+				bearerToken := beforeEachBearerJWT(
+					t,
+					database.TokenCryptoSuiteES256,
+					"https://issuer.example.com",
+					2*time.Minute,
+					&now,
+					&now,
+				)
+				body := createClientCredentialsJWTBody(bearerToken, "")
 				return body, ""
 			},
 			ExpStatus: http.StatusOK,

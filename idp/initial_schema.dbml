@@ -182,7 +182,7 @@ Enum secret_storage_mode {
 Table credentials_secrets as CS {
     id serial [pk]
 
-    secret_id varchar(26) [not null]
+    secret_id varchar(22) [not null]
     client_secret text [not null]
     storage_mode secret_storage_mode [not null]
     dek_kid varchar(22) [null]
@@ -391,6 +391,7 @@ Table account_credentials_secrets as ACS {
 
     account_credentials_id integer [not null]
     account_public_id uuid [not null]
+    secret_id varchar(22) [not null]
 
     created_at timestamptz [not null, default: `now()`]
 
@@ -400,7 +401,7 @@ Table account_credentials_secrets as ACS {
         (account_public_id) [name: 'account_credential_secrets_account_public_id_idx']
         (credentials_secret_id) [unique, name: 'account_credential_secrets_credentials_secret_id_uidx']
         (account_credentials_id) [name: 'account_credential_secrets_account_credentials_id_idx']
-        (account_credentials_id, account_public_id) [unique, name: 'account_credential_secrets_account_credentials_id_account_public_id_uidx']
+        (account_credentials_id, secret_id) [name: 'account_credential_secrets_account_credentials_id_secret_id_idx']
     }
 }
 Ref: ACS.account_id > A.id [delete: cascade]
@@ -422,7 +423,7 @@ Table account_credentials_keys as ACK {
         (credentials_key_id) [unique, name: 'account_credentials_keys_credentials_key_id_uidx']
         (account_credentials_id) [name: 'account_credentials_keys_account_credentials_id_idx']
         (account_public_id) [name: 'account_credentials_keys_account_public_id_idx']
-        (jwk_kid) [name: 'account_credentials_keys_jwk_kid_idx']
+        (account_credentials_id, jwk_kid) [name: 'account_credentials_account_credentials_id_keys_jwk_kid_idx']
     }
 }
 Ref: ACK.account_id > A.id [delete: cascade]

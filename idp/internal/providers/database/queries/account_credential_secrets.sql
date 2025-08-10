@@ -9,13 +9,23 @@ INSERT INTO "account_credentials_secrets" (
     "account_credentials_id",
     "credentials_secret_id",
     "account_id",
-    "account_public_id"
+    "account_public_id",
+    "secret_id"
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
+    $4,
+    $5
 );
+
+-- name: FindAccountCredentialsSecretAccountByAccountCredentialIDAndSecretID :one
+SELECT "a".* FROM "accounts" AS "a"
+LEFT JOIN "account_credentials_secrets" AS "acs" ON "acs"."account_id" = "a"."id"
+WHERE
+    "acs"."account_credentials_id" = $1 AND
+    "acs"."secret_id" = $2
+LIMIT 1;
 
 -- name: FindPaginatedAccountCredentialSecretsByAccountCredentialID :many
 SELECT "csr".* FROM "credentials_secrets" "csr"

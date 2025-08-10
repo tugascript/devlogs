@@ -31,12 +31,14 @@ INSERT INTO "account_credentials_secrets" (
     "account_credentials_id",
     "credentials_secret_id",
     "account_id",
-    "account_public_id"
+    "account_public_id",
+    "secret_id"
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
+    $4,
+    $5
 )
 `
 
@@ -45,6 +47,7 @@ type CreateAccountCredentialSecretParams struct {
 	CredentialsSecretID  int32
 	AccountID            int32
 	AccountPublicID      uuid.UUID
+	SecretID             string
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -58,6 +61,7 @@ func (q *Queries) CreateAccountCredentialSecret(ctx context.Context, arg CreateA
 		arg.CredentialsSecretID,
 		arg.AccountID,
 		arg.AccountPublicID,
+		arg.SecretID,
 	)
 	return err
 }
@@ -89,6 +93,42 @@ func (q *Queries) FindAccountCredentialSecretByAccountCredentialIDAndCredentials
 		&i.Usage,
 		&i.AccountID,
 		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findAccountCredentialsSecretAccountByAccountCredentialIDAndSecretID = `-- name: FindAccountCredentialsSecretAccountByAccountCredentialIDAndSecretID :one
+SELECT a.id, a.public_id, a.given_name, a.family_name, a.username, a.email, a.organization, a.password, a.version, a.email_verified, a.is_active, a.two_factor_type, a.created_at, a.updated_at FROM "accounts" AS "a"
+LEFT JOIN "account_credentials_secrets" AS "acs" ON "acs"."account_id" = "a"."id"
+WHERE
+    "acs"."account_credentials_id" = $1 AND
+    "acs"."secret_id" = $2
+LIMIT 1
+`
+
+type FindAccountCredentialsSecretAccountByAccountCredentialIDAndSecretIDParams struct {
+	AccountCredentialsID int32
+	SecretID             string
+}
+
+func (q *Queries) FindAccountCredentialsSecretAccountByAccountCredentialIDAndSecretID(ctx context.Context, arg FindAccountCredentialsSecretAccountByAccountCredentialIDAndSecretIDParams) (Account, error) {
+	row := q.db.QueryRow(ctx, findAccountCredentialsSecretAccountByAccountCredentialIDAndSecretID, arg.AccountCredentialsID, arg.SecretID)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.GivenName,
+		&i.FamilyName,
+		&i.Username,
+		&i.Email,
+		&i.Organization,
+		&i.Password,
+		&i.Version,
+		&i.EmailVerified,
+		&i.IsActive,
+		&i.TwoFactorType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

@@ -15,6 +15,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -308,22 +309,17 @@ func (s *Services) BuildGetAccountClientCredentialsSecretFn(
 	logger := s.buildLogger(requestID, clientCredentialsLocation, "BuildGetAccountClientCredentialsSecretFn")
 	logger.InfoContext(ctx, "Building get client credentials secret function...")
 
-	return func(secretID string) (string, error) {
+	return func(secretID string) ([]byte, error) {
 		logger.InfoContext(ctx, "Getting client credentials secret by ID...")
 
-		secret, err := s.database.FindCredentialsSecretBySecretIDAndUsage(ctx,
-			database.FindCredentialsSecretBySecretIDAndUsageParams{
-				SecretID: secretID,
-				Usage:    database.CredentialsUsageAccount,
-			},
-		)
+		secret, err := s.database.FindValidCredentialsSecretBySecretID(ctx, secretID)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to find client credentials secret", "error", err)
-			return "", err
+			return nil, err
 		}
 		if secret.StorageMode != database.SecretStorageModeEncrypted {
 			logger.WarnContext(ctx, "Client credentials secret is not encrypted", "storageMode", secret.StorageMode)
-			return "", errors.New("client credentials secret is not encrypted")
+			return nil, errors.New("client credentials secret is not encrypted")
 		}
 
 		decryptedSecret, serviceErr := s.crypto.DecryptWithDEK(ctx, crypto.DecryptWithDEKOptions{
@@ -363,11 +359,11 @@ func (s *Services) BuildGetAccountClientCredentialsSecretFn(
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to decrypt client credentials secret", "serviceError", serviceErr)
-			return "", serviceErr
+			return nil, serviceErr
 		}
 
 		logger.InfoContext(ctx, "Successfully fetched client credentials secret")
-		return decryptedSecret, nil
+		return []byte(fmt.Sprintf("%s.%s", secretID, decryptedSecret)), nil
 	}
 }
 

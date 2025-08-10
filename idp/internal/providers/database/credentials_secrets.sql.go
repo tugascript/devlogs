@@ -72,23 +72,17 @@ func (q *Queries) DeleteAllCredentialsSecrets(ctx context.Context) error {
 	return err
 }
 
-const findCredentialsSecretBySecretIDAndUsage = `-- name: FindCredentialsSecretBySecretIDAndUsage :one
+const findValidCredentialsSecretBySecretID = `-- name: FindValidCredentialsSecretBySecretID :one
 SELECT id, secret_id, client_secret, storage_mode, dek_kid, is_revoked, usage, account_id, expires_at, created_at, updated_at FROM "credentials_secrets"
 WHERE
     "secret_id" = $1 AND
-    "usage" = $2 AND
     "is_revoked" = false AND
     "expires_at" > now()
 LIMIT 1
 `
 
-type FindCredentialsSecretBySecretIDAndUsageParams struct {
-	SecretID string
-	Usage    CredentialsUsage
-}
-
-func (q *Queries) FindCredentialsSecretBySecretIDAndUsage(ctx context.Context, arg FindCredentialsSecretBySecretIDAndUsageParams) (CredentialsSecret, error) {
-	row := q.db.QueryRow(ctx, findCredentialsSecretBySecretIDAndUsage, arg.SecretID, arg.Usage)
+func (q *Queries) FindValidCredentialsSecretBySecretID(ctx context.Context, secretID string) (CredentialsSecret, error) {
+	row := q.db.QueryRow(ctx, findValidCredentialsSecretBySecretID, secretID)
 	var i CredentialsSecret
 	err := row.Scan(
 		&i.ID,
