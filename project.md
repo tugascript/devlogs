@@ -23,16 +23,16 @@
   - backend
   - device
   - service
+  - mcp
 
 ### IDP On-Going
-
-- Add MCP app support
-
-### IDP Todo
 
 - Add OAuth Dynamic Registration for:
   - accounts
   - apps
+
+### IDP Todo
+
 - Account key generation
 - Dynamic OIDC configs
 - User authentication for each app type:
