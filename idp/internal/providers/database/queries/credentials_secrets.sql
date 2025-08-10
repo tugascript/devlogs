@@ -44,11 +44,10 @@ UPDATE "credentials_secrets" SET
     "updated_at" = now()
 WHERE "secret_id" = $1;
 
--- name: FindCredentialsSecretBySecretIDAndUsage :one
+-- name: FindValidCredentialsSecretBySecretID :one
 SELECT * FROM "credentials_secrets"
 WHERE
     "secret_id" = $1 AND
-    "usage" = $2 AND
     "is_revoked" = false AND
     "expires_at" > now()
 LIMIT 1;

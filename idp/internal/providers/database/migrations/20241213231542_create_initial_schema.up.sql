@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-10T03:55:42.584Z
+-- Generated at: 2025-08-10T08:33:39.963Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -254,7 +254,7 @@ CREATE TABLE "totps" (
 
 CREATE TABLE "credentials_secrets" (
   "id" serial PRIMARY KEY,
-  "secret_id" varchar(26) NOT NULL,
+  "secret_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
   "storage_mode" secret_storage_mode NOT NULL,
   "dek_kid" varchar(22),
@@ -340,6 +340,7 @@ CREATE TABLE "account_credentials_secrets" (
   "credentials_secret_id" integer NOT NULL,
   "account_credentials_id" integer NOT NULL,
   "account_public_id" uuid NOT NULL,
+  "secret_id" varchar(22) NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("account_id", "credentials_secret_id")
 );
@@ -690,7 +691,7 @@ CREATE UNIQUE INDEX "account_credential_secrets_credentials_secret_id_uidx" ON "
 
 CREATE INDEX "account_credential_secrets_account_credentials_id_idx" ON "account_credentials_secrets" ("account_credentials_id");
 
-CREATE UNIQUE INDEX "account_credential_secrets_account_credentials_id_account_public_id_uidx" ON "account_credentials_secrets" ("account_credentials_id", "account_public_id");
+CREATE INDEX "account_credential_secrets_account_credentials_id_secret_id_idx" ON "account_credentials_secrets" ("account_credentials_id", "secret_id");
 
 CREATE INDEX "account_credentials_keys_account_id_idx" ON "account_credentials_keys" ("account_id");
 
@@ -700,7 +701,7 @@ CREATE INDEX "account_credentials_keys_account_credentials_id_idx" ON "account_c
 
 CREATE INDEX "account_credentials_keys_account_public_id_idx" ON "account_credentials_keys" ("account_public_id");
 
-CREATE INDEX "account_credentials_keys_jwk_kid_idx" ON "account_credentials_keys" ("jwk_kid");
+CREATE INDEX "account_credentials_account_credentials_id_keys_jwk_kid_idx" ON "account_credentials_keys" ("account_credentials_id", "jwk_kid");
 
 CREATE INDEX "auth_providers_email_idx" ON "account_auth_providers" ("email");
 

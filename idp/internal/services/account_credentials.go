@@ -197,7 +197,7 @@ func (s *Services) CreateAccountCredentials(
 			accountID:   accountID,
 			storageMode: mapCCSecretStorageMode(opts.AuthMethod),
 			expiresIn:   s.appCCExpDays,
-			usage:       database.CredentialsUsageApp,
+			usage:       database.CredentialsUsageAccount,
 			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
 				RequestID: opts.RequestID,
 				AccountID: accountID,
@@ -213,6 +213,7 @@ func (s *Services) CreateAccountCredentials(
 			AccountPublicID:      opts.AccountPublicID,
 			AccountCredentialsID: accountCredentials.ID,
 			CredentialsSecretID:  ccID,
+			SecretID:             secretID,
 		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to create account credential secret", "error", err)
 			serviceErr = exceptions.FromDBError(err)
@@ -582,6 +583,7 @@ func (s *Services) rotateAccountCredentialsKey(
 type createAccountCredentialsSecretOptions struct {
 	requestID            string
 	accountID            int32
+	accountPublicID      uuid.UUID
 	storageMode          database.SecretStorageMode
 	accountCredentialsID int32
 }
@@ -625,8 +627,10 @@ func (s *Services) createAccountCredentialsSecret(
 
 	if err = qrs.CreateAccountCredentialSecret(ctx, database.CreateAccountCredentialSecretParams{
 		AccountID:            opts.accountID,
+		AccountPublicID:      opts.accountPublicID,
 		AccountCredentialsID: opts.accountCredentialsID,
 		CredentialsSecretID:  ccID,
+		SecretID:             secretID,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create account credential secret", "error", err)
 		serviceErr = exceptions.FromDBError(err)
@@ -639,6 +643,7 @@ func (s *Services) createAccountCredentialsSecret(
 type rotateAccountCredentialsSecretOptions struct {
 	requestID            string
 	accountID            int32
+	accountPublicID      uuid.UUID
 	accountCredentialsID int32
 	authMethod           database.AuthMethod
 }
@@ -667,6 +672,7 @@ func (s *Services) rotateAccountCredentialsSecret(
 		return s.createAccountCredentialsSecret(ctx, createAccountCredentialsSecretOptions{
 			requestID:            opts.requestID,
 			accountID:            opts.accountID,
+			accountPublicID:      opts.accountPublicID,
 			storageMode:          mapCCSecretStorageMode(string(opts.authMethod)),
 			accountCredentialsID: opts.accountCredentialsID,
 		})
@@ -677,6 +683,7 @@ func (s *Services) rotateAccountCredentialsSecret(
 		return s.createAccountCredentialsSecret(ctx, createAccountCredentialsSecretOptions{
 			requestID:            opts.requestID,
 			accountID:            opts.accountID,
+			accountPublicID:      opts.accountPublicID,
 			storageMode:          currentSecret.StorageMode,
 			accountCredentialsID: opts.accountCredentialsID,
 		})
@@ -732,6 +739,7 @@ func (s *Services) RotateAccountCredentialsSecret(
 		return s.rotateAccountCredentialsSecret(ctx, rotateAccountCredentialsSecretOptions{
 			requestID:            opts.RequestID,
 			accountID:            accountCredentialsDTO.AccountID(),
+			accountPublicID:      opts.AccountPublicID,
 			accountCredentialsID: accountCredentialsDTO.ID(),
 			authMethod:           accountCredentialsDTO.TokenEndpointAuthMethod,
 		})

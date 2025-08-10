@@ -769,7 +769,7 @@ func (s *Services) JWTBearerAccountLogin(
 	logger := s.buildLogger(opts.RequestID, oauthLocation, "JWTBearerAccountLogin")
 	logger.InfoContext(ctx, "JWT Bearer account logging in...")
 
-	claims, kid, err := s.jwt.VerifyJWTBearerGrantToken(
+	claims, cryptoSuite, kid, err := s.jwt.VerifyJWTBearerGrantToken(
 		opts.Token,
 		s.BuildGetClientCredentialsKeyPublicJWKFn(
 			ctx,
@@ -795,13 +795,28 @@ func (s *Services) JWTBearerAccountLogin(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	account, err := s.database.FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKID(
-		ctx,
-		database.FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKIDParams{
-			AccountCredentialsID: accountClientsDTO.ID(),
-			JwkKid:               kid,
-		},
-	)
+	var account database.Account
+	switch cryptoSuite {
+	case utils.SupportedCryptoSuiteES256, utils.SupportedCryptoSuiteEd25519:
+		account, err = s.database.FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKID(
+			ctx,
+			database.FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKIDParams{
+				AccountCredentialsID: accountClientsDTO.ID(),
+				JwkKid:               kid,
+			},
+		)
+	case utils.SupportedCryptoSuiteHS256:
+		account, err = s.database.FindAccountCredentialsSecretAccountByAccountCredentialIDAndSecretID(
+			ctx,
+			database.FindAccountCredentialsSecretAccountByAccountCredentialIDAndSecretIDParams{
+				AccountCredentialsID: accountClientsDTO.ID(),
+				SecretID:             kid,
+			},
+		)
+	default:
+		logger.ErrorContext(ctx, "Unsupported crypto suite", "cryptoSuite", cryptoSuite)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code == exceptions.CodeNotFound {

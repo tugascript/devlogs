@@ -1195,6 +1195,7 @@ type AccountCredentialsSecret struct {
 	CredentialsSecretID  int32
 	AccountCredentialsID int32
 	AccountPublicID      uuid.UUID
+	SecretID             string
 	CreatedAt            time.Time
 }
 
