@@ -8,6 +8,7 @@ package services
 
 import (
 	"context"
+	"net/url"
 	"strings"
 	"time"
 
@@ -620,6 +621,27 @@ func (s *Services) checkForDuplicateApps(
 	return nil
 }
 
+func mapDomain(clientURI string, domain string) (string, *exceptions.ServiceError) {
+	trimmed := strings.TrimSpace(domain)
+	if trimmed != "" {
+		return trimmed, nil
+	}
+
+	parsed, err := url.Parse(strings.TrimSpace(clientURI))
+	if err != nil || parsed == nil {
+		return "", exceptions.NewValidationError("Invalid client URI")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", exceptions.NewValidationError("Invalid client URI")
+	}
+
+	host := parsed.Hostname()
+	if strings.TrimSpace(host) == "" {
+		return "", exceptions.NewValidationError("Invalid client URI")
+	}
+	return host, nil
+}
+
 type createAppOptions struct {
 	requestID             string
 	accountID             int32
@@ -671,6 +693,12 @@ func (s *Services) createApp(
 		return database.App{}, serviceErr
 	}
 
+	derivedDomain, serviceErr := mapDomain(opts.clientURI, opts.domain)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map domain", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
+
 	stdScopes, customScopes, defaultStdScopes, defaultCustomScopes, serviceErr := mapScopesToStandardAndCustomScopes(
 		opts.scopes,
 		opts.defaultScopes,
@@ -702,7 +730,7 @@ func (s *Services) createApp(
 		DefaultScopes:           defaultStdScopes,
 		CustomScopes:            customScopes,
 		DefaultCustomScopes:     defaultCustomScopes,
-		Domain:                  opts.domain,
+		Domain:                  derivedDomain,
 		Transport:               opts.transport,
 		ResponseTypes:           opts.responseTypes,
 		AuthProviders:           authProviders,
@@ -745,6 +773,12 @@ func (s *Services) createSingleApp(
 		return database.App{}, serviceErr
 	}
 
+	derivedDomain, serviceErr := mapDomain(opts.clientURI, opts.domain)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map domain", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
+
 	stdScopes, customScopes, defaultStdScopes, defaultCustomScopes, serviceErr := mapScopesToStandardAndCustomScopes(
 		opts.scopes,
 		opts.defaultScopes,
@@ -776,7 +810,7 @@ func (s *Services) createSingleApp(
 		DefaultScopes:           defaultStdScopes,
 		CustomScopes:            customScopes,
 		DefaultCustomScopes:     defaultCustomScopes,
-		Domain:                  opts.domain,
+		Domain:                  derivedDomain,
 		Transport:               opts.transport,
 		AuthProviders:           authProviders,
 		ResponseTypes:           opts.responseTypes,
@@ -2029,6 +2063,12 @@ func (s *Services) updateApp(
 		return database.App{}, serviceErr
 	}
 
+	derivedDomain, serviceErr := mapDomain(opts.clientURI, opts.domain)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map domain", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
+
 	var softwareVersion pgtype.Text
 	if opts.softwareVersion != "" {
 		if err := softwareVersion.Scan(opts.softwareVersion); err != nil {
@@ -2047,7 +2087,7 @@ func (s *Services) updateApp(
 		PolicyUri:             mapEmptyURL(opts.policyURI),
 		SoftwareID:            opts.softwareID,
 		SoftwareVersion:       softwareVersion,
-		Domain:                opts.domain,
+		Domain:                derivedDomain,
 		Transport:             opts.transport,
 		AllowUserRegistration: opts.allowUserRegistration,
 		ResponseTypes:         opts.responseTypes,
@@ -2091,6 +2131,12 @@ func (s *Services) updateSingleApp(
 		return database.App{}, serviceErr
 	}
 
+	derivedDomain, serviceErr := mapDomain(opts.clientURI, opts.domain)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map domain", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
+
 	var softwareVersion pgtype.Text
 	if opts.softwareVersion != "" {
 		if err := softwareVersion.Scan(opts.softwareVersion); err != nil {
@@ -2109,7 +2155,7 @@ func (s *Services) updateSingleApp(
 		PolicyUri:             mapEmptyURL(opts.policyURI),
 		SoftwareID:            opts.softwareID,
 		SoftwareVersion:       softwareVersion,
-		Domain:                opts.domain,
+		Domain:                derivedDomain,
 		Transport:             opts.transport,
 		AllowUserRegistration: opts.allowUserRegistration,
 		ResponseTypes:         opts.responseTypes,
@@ -2215,10 +2261,11 @@ func (s *Services) UpdateWebSPANativeApp(
 		}
 	}
 
-	// Default domain/transport to current values when not provided
-	domain := opts.Domain
-	if strings.TrimSpace(domain) == "" {
-		domain = appDTO.Domain
+	// Derive domain from client URI when not provided
+	domain, serviceErr := mapDomain(opts.ClientURI, opts.Domain)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map domain", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
 	}
 
 	app, serviceErr := s.updateSingleApp(ctx, appDTO, updateAppOptions{
@@ -2644,11 +2691,18 @@ func (s *Services) UpdateMCPApp(
 		}
 	}
 
+	// Derive domain from client URI when not provided
+	derivedDomain, serviceErr := mapDomain(opts.ClientURI, opts.Domain)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map domain", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+
 	app, err := s.updateSingleApp(ctx, appDTO, updateAppOptions{
 		requestID:             opts.RequestID,
 		usernameColumn:        opts.UsernameColumn,
 		transport:             appDTO.Transport,
-		domain:                opts.Domain,
+		domain:                derivedDomain,
 		name:                  name,
 		allowUserRegistration: opts.AllowUserRegistration,
 		clientURI:             opts.ClientURI,
