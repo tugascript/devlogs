@@ -326,7 +326,7 @@ func (s *Services) BuildGetAccountClientCredentialsSecretFn(
 			return "", errors.New("client credentials secret is not encrypted")
 		}
 
-		decryptedSecret, err := s.crypto.DecryptWithDEK(ctx, crypto.DecryptWithDEKOptions{
+		decryptedSecret, serviceErr := s.crypto.DecryptWithDEK(ctx, crypto.DecryptWithDEKOptions{
 			RequestID: requestID,
 			GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
 				RequestID: requestID,
@@ -361,9 +361,9 @@ func (s *Services) BuildGetAccountClientCredentialsSecretFn(
 			EntityID:   secretID,
 			Ciphertext: secret.ClientSecret,
 		})
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to decrypt client credentials secret", "error", err)
-			return "", err
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to decrypt client credentials secret", "serviceError", serviceErr)
+			return "", serviceErr
 		}
 
 		logger.InfoContext(ctx, "Successfully fetched client credentials secret")

@@ -9,7 +9,7 @@ package bodies
 type CreateAppBodyBase struct {
 	Type                  string   `json:"type" validate:"required,oneof=web spa native backend device service mcp"`
 	Name                  string   `json:"name" validate:"required,min=3,max=50"`
-	Domain                string   `json:"domain" validate:"required,fqdn,max=250"`
+	Domain                string   `json:"domain" validate:"omitempty,fqdn,max=250"`
 	ClientURI             string   `json:"client_uri" validate:"required,url"`
 	LogoURI               string   `json:"logo_uri,omitempty" validate:"omitempty,url"`
 	TOSURI                string   `json:"tos_uri,omitempty" validate:"omitempty,url"`
@@ -26,7 +26,7 @@ type CreateAppBodyBase struct {
 
 type UpdateAppBodyBase struct {
 	Name                  string   `json:"name" validate:"required,max=50,min=3"`
-	Domain                string   `json:"domain" validate:"required,fqdn,max=250"`
+	Domain                string   `json:"domain" validate:"omitempty,fqdn,max=250"`
 	ClientURI             string   `json:"client_uri" validate:"required,url"`
 	LogoURI               string   `json:"logo_uri,omitempty" validate:"omitempty,url"`
 	TOSURI                string   `json:"tos_uri,omitempty" validate:"omitempty,url"`
@@ -85,12 +85,12 @@ type CreateAppBodyBackend struct {
 	Transport   string `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	AuthMethods string `json:"auth_methods" validate:"required,oneof=client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
 	Algorithm   string `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
-	Domain      string `json:"domain" validate:"required,fqdn"`
+	Domain      string `json:"domain" validate:"omitempty,fqdn"`
 }
 
 type UpdateAppBodyBackend struct {
 	Transport string `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
-	Domain    string `json:"domain" validate:"required,fqdn"`
+	Domain    string `json:"domain" validate:"omitempty,fqdn"`
 }
 
 type CreateAppBodyDevice struct {
