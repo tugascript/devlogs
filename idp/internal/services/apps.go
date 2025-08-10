@@ -567,6 +567,26 @@ func mapScopesToStandardAndCustomScopes(
 	return stdScopes, customScopes, defaultStdScopes, defaultCustomScopes, nil
 }
 
+func mapAuthProviders(authProviders []string) ([]database.AuthProvider, *exceptions.ServiceError) {
+	if len(authProviders) == 0 {
+		return []database.AuthProvider{database.AuthProviderLocal}, nil
+	}
+
+	validAuthProviders := make([]database.AuthProvider, 0, len(authProviders))
+	for _, provider := range authProviders {
+		dbp := database.AuthProvider(provider)
+		switch dbp {
+		case database.AuthProviderLocal, database.AuthProviderApple, database.AuthProviderFacebook,
+			database.AuthProviderGoogle, database.AuthProviderGithub, database.AuthProviderMicrosoft:
+			validAuthProviders = append(validAuthProviders, dbp)
+		default:
+			return nil, exceptions.NewValidationError("Unsupported auth provider: " + provider)
+		}
+	}
+
+	return validAuthProviders, nil
+}
+
 type checkForDuplicateAppsOptions struct {
 	requestID string
 	accountID int32
@@ -611,7 +631,7 @@ type createAppOptions struct {
 	clientURI             string
 	domain                string
 	transport             database.Transport
-	usernameColumn        database.AppUsernameColumn
+	usernameColumn        string
 	authMethod            database.AuthMethod
 	grantTypes            []database.GrantType
 	logoURI               string
@@ -624,6 +644,7 @@ type createAppOptions struct {
 	defaultScopes         []string
 	redirectURIs          []string
 	responseTypes         []database.ResponseType
+	authProviders         []string
 }
 
 func (s *Services) createApp(
@@ -637,6 +658,18 @@ func (s *Services) createApp(
 		"appType", opts.appType,
 	)
 	logger.InfoContext(ctx, "Creating app...")
+
+	usernameColumn, serviceErr := mapUsernameColumn(opts.usernameColumn)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
+
+	authProviders, serviceErr := mapAuthProviders(opts.authProviders)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map auth providers", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
 
 	stdScopes, customScopes, defaultStdScopes, defaultCustomScopes, serviceErr := mapScopesToStandardAndCustomScopes(
 		opts.scopes,
@@ -657,7 +690,7 @@ func (s *Services) createApp(
 		CreationSource:          opts.creationSource,
 		ClientUri:               utils.ProcessURL(opts.clientURI),
 		AllowUserRegistration:   opts.allowUserRegistration,
-		UsernameColumn:          opts.usernameColumn,
+		UsernameColumn:          usernameColumn,
 		TokenEndpointAuthMethod: opts.authMethod,
 		GrantTypes:              opts.grantTypes,
 		LogoUri:                 mapEmptyURL(opts.logoURI),
@@ -672,6 +705,7 @@ func (s *Services) createApp(
 		Domain:                  opts.domain,
 		Transport:               opts.transport,
 		ResponseTypes:           opts.responseTypes,
+		AuthProviders:           authProviders,
 		RedirectUris: utils.MapSlice(opts.redirectURIs, func(t *string) string {
 			return utils.ProcessURL(*t)
 		}),
@@ -699,6 +733,18 @@ func (s *Services) createSingleApp(
 	)
 	logger.InfoContext(ctx, "Creating app...")
 
+	authProviders, serviceErr := mapAuthProviders(opts.authProviders)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map auth providers", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
+
+	usernameColumn, serviceErr := mapUsernameColumn(opts.usernameColumn)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
+
 	stdScopes, customScopes, defaultStdScopes, defaultCustomScopes, serviceErr := mapScopesToStandardAndCustomScopes(
 		opts.scopes,
 		opts.defaultScopes,
@@ -718,27 +764,28 @@ func (s *Services) createSingleApp(
 		ClientID:                clientID,
 		ClientUri:               utils.ProcessURL(opts.clientURI),
 		AllowUserRegistration:   opts.allowUserRegistration,
-		UsernameColumn:          opts.usernameColumn,
+		UsernameColumn:          usernameColumn,
 		TokenEndpointAuthMethod: opts.authMethod,
 		GrantTypes:              opts.grantTypes,
 		LogoUri:                 mapEmptyURL(opts.logoURI),
 		TosUri:                  mapEmptyURL(opts.tosURI),
 		PolicyUri:               mapEmptyURL(opts.policyURI),
-		Contacts: utils.MapSlice(opts.contacts, func(t *string) string {
-			return utils.Lowered(*t)
-		}),
-		SoftwareID:          opts.softwareID,
-		SoftwareVersion:     mapEmptyString(opts.softwareVersion),
-		Scopes:              stdScopes,
-		DefaultScopes:       defaultStdScopes,
-		CustomScopes:        customScopes,
-		DefaultCustomScopes: defaultCustomScopes,
-		Domain:              opts.domain,
-		Transport:           opts.transport,
+		SoftwareID:              opts.softwareID,
+		SoftwareVersion:         mapEmptyString(opts.softwareVersion),
+		Scopes:                  stdScopes,
+		DefaultScopes:           defaultStdScopes,
+		CustomScopes:            customScopes,
+		DefaultCustomScopes:     defaultCustomScopes,
+		Domain:                  opts.domain,
+		Transport:               opts.transport,
+		AuthProviders:           authProviders,
+		ResponseTypes:           opts.responseTypes,
 		RedirectUris: utils.MapSlice(opts.redirectURIs, func(t *string) string {
 			return utils.ProcessURL(*t)
 		}),
-		ResponseTypes: opts.responseTypes,
+		Contacts: utils.MapSlice(opts.contacts, func(t *string) string {
+			return utils.Lowered(*t)
+		}),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -780,6 +827,7 @@ type CreateWebAppOptions struct {
 	ResponseTypes         []string
 	Scopes                []string
 	DefaultScopes         []string
+	AuthProviders         []string
 }
 
 func (s *Services) CreateWebApp(
@@ -802,12 +850,6 @@ func (s *Services) CreateWebApp(
 	responseTypes, serviceErr := mapResponseTypes(opts.ResponseTypes)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
 	}
 
@@ -852,7 +894,7 @@ func (s *Services) CreateWebApp(
 		clientURI:             opts.ClientURI,
 		domain:                opts.Domain,
 		transport:             mapStandardTransport(opts.Transport),
-		usernameColumn:        usernameColumn,
+		usernameColumn:        opts.UsernameColumn,
 		authMethod:            authMethod,
 		grantTypes:            authCodeAppGrantTypes,
 		logoURI:               opts.LogoURI,
@@ -865,6 +907,7 @@ func (s *Services) CreateWebApp(
 		defaultScopes:         opts.DefaultScopes,
 		redirectURIs:          opts.CallbackURLs,
 		responseTypes:         responseTypes,
+		authProviders:         opts.AuthProviders,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app and auth config", "error", err)
@@ -970,6 +1013,7 @@ type CreateSPANativeAppOptions struct {
 	CallbackURIs          []string
 	Scopes                []string
 	DefaultScopes         []string
+	AuthProviders         []string
 }
 
 func (s *Services) CreateSPANativeApp(
@@ -986,12 +1030,6 @@ func (s *Services) CreateSPANativeApp(
 	responseTypes, serviceErr := mapResponseTypes(opts.ResponseTypes)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
 	}
 
@@ -1026,7 +1064,7 @@ func (s *Services) CreateSPANativeApp(
 		clientURI:             opts.ClientURI,
 		domain:                opts.Domain,
 		transport:             mapStandardTransport(opts.Transport),
-		usernameColumn:        usernameColumn,
+		usernameColumn:        opts.UsernameColumn,
 		authMethod:            database.AuthMethodNone,
 		grantTypes:            authCodeAppGrantTypes,
 		logoURI:               opts.LogoURI,
@@ -1039,6 +1077,7 @@ func (s *Services) CreateSPANativeApp(
 		defaultScopes:         opts.DefaultScopes,
 		redirectURIs:          opts.CallbackURIs,
 		responseTypes:         responseTypes,
+		authProviders:         opts.AuthProviders,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to create app and auth config", "serviceError", serviceErr)
@@ -1070,6 +1109,7 @@ type CreateBackendAppOptions struct {
 	Transport             string
 	Scopes                []string
 	DefaultScopes         []string
+	AuthProviders         []string
 }
 
 func (s *Services) CreateBackendApp(
@@ -1082,12 +1122,6 @@ func (s *Services) CreateBackendApp(
 		"name", opts.Name,
 	)
 	logger.InfoContext(ctx, "Creating backend app...")
-
-	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
 
 	authMethod, serviceErr := mapAuthMethod(opts.AuthMethod)
 	if serviceErr != nil {
@@ -1142,7 +1176,7 @@ func (s *Services) CreateBackendApp(
 		clientURI:             opts.ClientURI,
 		domain:                opts.Domain,
 		transport:             mapStandardTransport(opts.Transport),
-		usernameColumn:        usernameColumn,
+		usernameColumn:        opts.UsernameColumn,
 		authMethod:            authMethod,
 		grantTypes:            grantTypes,
 		logoURI:               opts.LogoURI,
@@ -1155,6 +1189,7 @@ func (s *Services) CreateBackendApp(
 		defaultScopes:         opts.DefaultScopes,
 		redirectURIs:          make([]string, 0),
 		responseTypes:         make([]database.ResponseType, 0),
+		authProviders:         opts.AuthProviders,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -1259,6 +1294,7 @@ type CreateDeviceAppOptions struct {
 	AssociatedApps        []string
 	Scopes                []string
 	DefaultScopes         []string
+	AuthProviders         []string
 }
 
 func (s *Services) CreateDeviceApp(
@@ -1271,21 +1307,6 @@ func (s *Services) CreateDeviceApp(
 		"name", opts.Name,
 	)
 	logger.InfoContext(ctx, "Creating device app...")
-
-	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	stdScopes, customScopes, defaultStdScopes, defaultCustomScopes, serviceErr := mapScopesToStandardAndCustomScopes(
-		opts.Scopes,
-		opts.DefaultScopes,
-	)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map scopes", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
 
 	accountID, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
@@ -1307,37 +1328,33 @@ func (s *Services) CreateDeviceApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	clientID := utils.Base62UUID()
-	clientURI := utils.ProcessURL(opts.ClientURI)
 	if len(opts.AssociatedApps) == 0 {
-		app, err := s.database.CreateApp(ctx, database.CreateAppParams{
-			AccountID:               accountID,
-			AccountPublicID:         opts.AccountPublicID,
-			CreationSource:          opts.CreationSource,
-			AppType:                 database.AppTypeDevice,
-			Name:                    name,
-			ClientID:                clientID,
-			ClientUri:               clientURI,
-			AllowUserRegistration:   opts.AllowUserRegistration,
-			UsernameColumn:          usernameColumn,
-			TokenEndpointAuthMethod: database.AuthMethodNone,
-			GrantTypes:              deviceGrantTypes,
-			LogoUri:                 mapEmptyURL(opts.LogoURI),
-			TosUri:                  mapEmptyURL(opts.TOSURI),
-			PolicyUri:               mapEmptyURL(opts.PolicyURI),
-			Contacts: utils.MapSlice(opts.Contacts, func(t *string) string {
+		app, err := s.createSingleApp(ctx, createAppOptions{
+			accountID:             accountID,
+			accountPublicID:       opts.AccountPublicID,
+			creationSource:        opts.CreationSource,
+			appType:               database.AppTypeDevice,
+			name:                  name,
+			clientURI:             opts.ClientURI,
+			allowUserRegistration: opts.AllowUserRegistration,
+			usernameColumn:        opts.UsernameColumn,
+			authMethod:            database.AuthMethodNone,
+			grantTypes:            deviceGrantTypes,
+			logoURI:               opts.LogoURI,
+			tosURI:                opts.TOSURI,
+			policyURI:             opts.PolicyURI,
+			contacts: utils.MapSlice(opts.Contacts, func(t *string) string {
 				return utils.Lowered(*t)
 			}),
-			SoftwareID:          opts.SoftwareID,
-			SoftwareVersion:     mapEmptyString(opts.SoftwareVersion),
-			Scopes:              stdScopes,
-			DefaultScopes:       defaultStdScopes,
-			CustomScopes:        customScopes,
-			DefaultCustomScopes: defaultCustomScopes,
-			Domain:              opts.Domain,
-			Transport:           mapStandardTransport(opts.Transport),
-			RedirectUris:        make([]string, 0),
-			ResponseTypes:       make([]database.ResponseType, 0),
+			softwareID:      opts.SoftwareID,
+			softwareVersion: opts.SoftwareVersion,
+			scopes:          opts.Scopes,
+			defaultScopes:   opts.DefaultScopes,
+			domain:          opts.Domain,
+			transport:       mapStandardTransport(opts.Transport),
+			redirectURIs:    make([]string, 0),
+			responseTypes:   make([]database.ResponseType, 0),
+			authProviders:   opts.AuthProviders,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -1382,34 +1399,32 @@ func (s *Services) CreateDeviceApp(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	app, err := qrs.CreateApp(ctx, database.CreateAppParams{
-		AccountID:               accountID,
-		AccountPublicID:         opts.AccountPublicID,
-		CreationSource:          opts.CreationSource,
-		AppType:                 database.AppTypeDevice,
-		Name:                    name,
-		ClientID:                clientID,
-		ClientUri:               clientURI,
-		AllowUserRegistration:   opts.AllowUserRegistration,
-		UsernameColumn:          usernameColumn,
-		TokenEndpointAuthMethod: database.AuthMethodNone,
-		GrantTypes:              deviceGrantTypes,
-		LogoUri:                 mapEmptyURL(opts.LogoURI),
-		TosUri:                  mapEmptyURL(opts.TOSURI),
-		PolicyUri:               mapEmptyURL(opts.PolicyURI),
-		Contacts: utils.MapSlice(opts.Contacts, func(t *string) string {
+	app, err := s.createApp(ctx, qrs, createAppOptions{
+		accountID:             accountID,
+		accountPublicID:       opts.AccountPublicID,
+		creationSource:        opts.CreationSource,
+		appType:               database.AppTypeDevice,
+		name:                  name,
+		clientURI:             opts.ClientURI,
+		allowUserRegistration: opts.AllowUserRegistration,
+		usernameColumn:        opts.UsernameColumn,
+		authMethod:            database.AuthMethodNone,
+		grantTypes:            deviceGrantTypes,
+		logoURI:               opts.LogoURI,
+		tosURI:                opts.TOSURI,
+		policyURI:             opts.PolicyURI,
+		contacts: utils.MapSlice(opts.Contacts, func(t *string) string {
 			return utils.Lowered(*t)
 		}),
-		SoftwareID:          opts.SoftwareID,
-		SoftwareVersion:     mapEmptyString(opts.SoftwareVersion),
-		Scopes:              stdScopes,
-		DefaultScopes:       defaultStdScopes,
-		CustomScopes:        customScopes,
-		DefaultCustomScopes: defaultCustomScopes,
-		Domain:              opts.Domain,
-		Transport:           database.TransportHttps,
-		RedirectUris:        make([]string, 0),
-		ResponseTypes:       make([]database.ResponseType, 0),
+		softwareID:      opts.SoftwareID,
+		softwareVersion: opts.SoftwareVersion,
+		scopes:          opts.Scopes,
+		defaultScopes:   opts.DefaultScopes,
+		domain:          opts.Domain,
+		transport:       mapStandardTransport(opts.Transport),
+		redirectURIs:    make([]string, 0),
+		responseTypes:   make([]database.ResponseType, 0),
+		authProviders:   opts.AuthProviders,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -1470,6 +1485,7 @@ type CreateServiceAppOptions struct {
 	AllowedDomains        []string
 	Scopes                []string
 	DefaultScopes         []string
+	AuthProviders         []string
 }
 
 func (s *Services) CreateServiceApp(
@@ -1553,7 +1569,7 @@ func (s *Services) CreateServiceApp(
 		clientURI:             opts.ClientURI,
 		domain:                opts.Domain,
 		transport:             mapStandardTransport(opts.Transport),
-		usernameColumn:        database.AppUsernameColumnEmail,
+		usernameColumn:        opts.UsernameColumn,
 		authMethod:            authMethod,
 		grantTypes:            grantTypes,
 		logoURI:               opts.LogoURI,
@@ -1566,6 +1582,7 @@ func (s *Services) CreateServiceApp(
 		defaultScopes:         opts.DefaultScopes,
 		redirectURIs:          make([]string, 0),
 		responseTypes:         make([]database.ResponseType, 0),
+		authProviders:         opts.AuthProviders,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -1737,6 +1754,7 @@ type CreateMCPAppOptions struct {
 	CallbackURIs          []string
 	ResponseTypes         []string
 	Domain                string
+	AuthProviders         []string
 }
 
 func (s *Services) CreateMCPApp(
@@ -1764,12 +1782,6 @@ func (s *Services) CreateMCPApp(
 	responseTypes, serviceErr := mapMCPResponseTypes(transport, opts.ResponseTypes)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
 	}
 
@@ -1810,7 +1822,7 @@ func (s *Services) CreateMCPApp(
 			clientURI:             opts.ClientURI,
 			domain:                opts.Domain,
 			transport:             transport,
-			usernameColumn:        usernameColumn,
+			usernameColumn:        opts.UsernameColumn,
 			authMethod:            authMethod,
 			grantTypes:            authCodeAppGrantTypes,
 			logoURI:               opts.LogoURI,
@@ -1823,6 +1835,7 @@ func (s *Services) CreateMCPApp(
 			defaultScopes:         opts.DefaultScopes,
 			redirectURIs:          opts.CallbackURIs,
 			responseTypes:         responseTypes,
+			authProviders:         opts.AuthProviders,
 		})
 		if serviceErr != nil {
 			logger.ErrorContext(ctx, "Failed to create MCP app", "serviceError", serviceErr)
@@ -1853,7 +1866,7 @@ func (s *Services) CreateMCPApp(
 		clientURI:             opts.ClientURI,
 		domain:                opts.Domain,
 		transport:             transport,
-		usernameColumn:        usernameColumn,
+		usernameColumn:        opts.UsernameColumn,
 		authMethod:            authMethod,
 		grantTypes:            authCodeAppGrantTypes,
 		logoURI:               opts.LogoURI,
@@ -1866,6 +1879,7 @@ func (s *Services) CreateMCPApp(
 		defaultScopes:         opts.DefaultScopes,
 		redirectURIs:          make([]string, 0),
 		responseTypes:         responseTypes,
+		authProviders:         opts.AuthProviders,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app with auth code config", "error", err)
@@ -1949,9 +1963,32 @@ func (s *Services) CreateMCPApp(
 	}
 }
 
+func mapUpdateAuthProviders(
+	authProviders []string,
+	currentAuthProviders []database.AuthProvider,
+) ([]database.AuthProvider, *exceptions.ServiceError) {
+	if len(authProviders) == 0 {
+		return currentAuthProviders, nil
+	}
+
+	validAuthProviders := make([]database.AuthProvider, 0, len(authProviders))
+	for _, provider := range authProviders {
+		dbp := database.AuthProvider(provider)
+		switch dbp {
+		case database.AuthProviderLocal, database.AuthProviderApple, database.AuthProviderFacebook,
+			database.AuthProviderGoogle, database.AuthProviderGithub, database.AuthProviderMicrosoft:
+			validAuthProviders = append(validAuthProviders, dbp)
+		default:
+			return nil, exceptions.NewValidationError("Unsupported auth provider: " + provider)
+		}
+	}
+
+	return validAuthProviders, nil
+}
+
 type updateAppOptions struct {
 	requestID             string
-	usernameColumn        database.AppUsernameColumn
+	usernameColumn        string
 	transport             database.Transport
 	allowUserRegistration bool
 	domain                string
@@ -1965,6 +2002,7 @@ type updateAppOptions struct {
 	contacts              []string
 	redirectURIs          []string
 	responseTypes         []database.ResponseType
+	authProviders         []string
 }
 
 func (s *Services) updateApp(
@@ -1979,6 +2017,18 @@ func (s *Services) updateApp(
 	)
 	logger.InfoContext(ctx, "Updating base app...")
 
+	usernameColumn, serviceErr := mapUsernameColumn(opts.usernameColumn)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
+
+	authProviders, serviceErr := mapUpdateAuthProviders(opts.authProviders, appDTO.AuthProviders)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map auth providers", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
+
 	var softwareVersion pgtype.Text
 	if opts.softwareVersion != "" {
 		if err := softwareVersion.Scan(opts.softwareVersion); err != nil {
@@ -1990,7 +2040,7 @@ func (s *Services) updateApp(
 	app, err := qrs.UpdateApp(ctx, database.UpdateAppParams{
 		ID:                    appDTO.ID(),
 		Name:                  opts.name,
-		UsernameColumn:        opts.usernameColumn,
+		UsernameColumn:        usernameColumn,
 		ClientUri:             opts.clientURI,
 		LogoUri:               mapEmptyURL(opts.logoURI),
 		TosUri:                mapEmptyURL(opts.tosURI),
@@ -2001,6 +2051,7 @@ func (s *Services) updateApp(
 		Transport:             opts.transport,
 		AllowUserRegistration: opts.allowUserRegistration,
 		ResponseTypes:         opts.responseTypes,
+		AuthProviders:         authProviders,
 		Contacts: utils.MapSlice(opts.contacts, func(t *string) string {
 			return utils.Lowered(*t)
 		}),
@@ -2028,6 +2079,18 @@ func (s *Services) updateSingleApp(
 	)
 	logger.InfoContext(ctx, "Updating base app...")
 
+	usernameColumn, serviceErr := mapUsernameColumn(opts.usernameColumn)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
+
+	authProviders, serviceErr := mapUpdateAuthProviders(opts.authProviders, appDTO.AuthProviders)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map auth providers", "serviceError", serviceErr)
+		return database.App{}, serviceErr
+	}
+
 	var softwareVersion pgtype.Text
 	if opts.softwareVersion != "" {
 		if err := softwareVersion.Scan(opts.softwareVersion); err != nil {
@@ -2039,7 +2102,7 @@ func (s *Services) updateSingleApp(
 	app, err := s.database.UpdateApp(ctx, database.UpdateAppParams{
 		ID:                    appDTO.ID(),
 		Name:                  opts.name,
-		UsernameColumn:        opts.usernameColumn,
+		UsernameColumn:        usernameColumn,
 		ClientUri:             opts.clientURI,
 		LogoUri:               mapEmptyURL(opts.logoURI),
 		TosUri:                mapEmptyURL(opts.tosURI),
@@ -2050,6 +2113,7 @@ func (s *Services) updateSingleApp(
 		Transport:             opts.transport,
 		AllowUserRegistration: opts.allowUserRegistration,
 		ResponseTypes:         opts.responseTypes,
+		AuthProviders:         authProviders,
 		Contacts: utils.MapSlice(opts.contacts, func(t *string) string {
 			return utils.Lowered(*t)
 		}),
@@ -2077,6 +2141,31 @@ func mapStandardTransportUpdate(
 	return currentTransport
 }
 
+func mapResponseTypesUpdate(
+	responseTypes []string,
+	currentResponseTypes []database.ResponseType,
+) ([]database.ResponseType, *exceptions.ServiceError) {
+	if len(responseTypes) == 0 {
+		return currentResponseTypes, nil
+	}
+
+	var dbResponseTypes []database.ResponseType
+	for _, rt := range responseTypes {
+		switch utils.Lowered(rt) {
+		case ResponseTypeCode:
+			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeCode)
+		case ResponseTypeIdToken:
+			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeIDToken)
+		case ResponseTypeCodeIdToken:
+			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeCodeidToken)
+		default:
+			return nil, exceptions.NewValidationError("invalid response type: " + rt)
+		}
+	}
+
+	return dbResponseTypes, nil
+}
+
 type UpdateWebSPANativeAppOptions struct {
 	RequestID             string
 	AccountID             int32
@@ -2094,6 +2183,7 @@ type UpdateWebSPANativeAppOptions struct {
 	Contacts              []string
 	CallbackURIs          []string
 	ResponseTypes         []string
+	AuthProviders         []string
 }
 
 func (s *Services) UpdateWebSPANativeApp(
@@ -2108,13 +2198,7 @@ func (s *Services) UpdateWebSPANativeApp(
 	)
 	logger.InfoContext(ctx, "Updating web or SPA or native app...")
 
-	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
-	responseTypes, serviceErr := mapResponseTypes(opts.ResponseTypes)
+	responseTypes, serviceErr := mapResponseTypesUpdate(opts.ResponseTypes, appDTO.ResponseTypes)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
@@ -2139,7 +2223,7 @@ func (s *Services) UpdateWebSPANativeApp(
 
 	app, serviceErr := s.updateSingleApp(ctx, appDTO, updateAppOptions{
 		requestID:             opts.RequestID,
-		usernameColumn:        usernameColumn,
+		usernameColumn:        opts.UsernameColumn,
 		transport:             mapStandardTransportUpdate(appDTO.Transport, opts.Transport),
 		domain:                domain,
 		name:                  name,
@@ -2153,6 +2237,7 @@ func (s *Services) UpdateWebSPANativeApp(
 		contacts:              opts.Contacts,
 		redirectURIs:          opts.CallbackURIs,
 		responseTypes:         responseTypes,
+		authProviders:         opts.AuthProviders,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to update app", "serviceError", serviceErr)
@@ -2178,6 +2263,7 @@ type UpdateBackendAppOptions struct {
 	SoftwareID            string
 	SoftwareVersion       string
 	Contacts              []string
+	AuthProviders         []string
 }
 
 func (s *Services) UpdateBackendApp(
@@ -2202,12 +2288,7 @@ func (s *Services) UpdateBackendApp(
 		}
 	}
 
-	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
+	var serviceErr *exceptions.ServiceError
 	qrs, txn, err := s.database.BeginTx(ctx)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
@@ -2221,7 +2302,7 @@ func (s *Services) UpdateBackendApp(
 	// Ensure we always persist a valid domain and transport
 	app, err := s.updateApp(ctx, appDTO, qrs, updateAppOptions{
 		requestID:             opts.RequestID,
-		usernameColumn:        usernameColumn,
+		usernameColumn:        opts.UsernameColumn,
 		domain:                opts.Domain,
 		transport:             mapStandardTransportUpdate(appDTO.Transport, opts.Transport),
 		allowUserRegistration: opts.AllowUserRegistration,
@@ -2235,6 +2316,7 @@ func (s *Services) UpdateBackendApp(
 		contacts:              opts.Contacts,
 		redirectURIs:          make([]string, 0),
 		responseTypes:         make([]database.ResponseType, 0),
+		authProviders:         opts.AuthProviders,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
@@ -2264,6 +2346,7 @@ type UpdateDeviceAppOptions struct {
 	Contacts              []string
 	BackendDomain         string
 	AssociatedApps        []string
+	AuthProviders         []string
 }
 
 func (s *Services) UpdateDeviceApp(
@@ -2288,12 +2371,7 @@ func (s *Services) UpdateDeviceApp(
 		}
 	}
 
-	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
+	var serviceErr *exceptions.ServiceError
 	relatedApps, err := s.database.FindRelatedAppsByAppID(ctx, appDTO.ID())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to find related apps", "error", err)
@@ -2357,7 +2435,7 @@ func (s *Services) UpdateDeviceApp(
 
 	app, err := s.updateApp(ctx, appDTO, qrs, updateAppOptions{
 		requestID:             opts.RequestID,
-		usernameColumn:        usernameColumn,
+		usernameColumn:        opts.UsernameColumn,
 		domain:                opts.Domain,
 		transport:             mapStandardTransportUpdate(appDTO.Transport, opts.Transport),
 		allowUserRegistration: opts.AllowUserRegistration,
@@ -2371,6 +2449,7 @@ func (s *Services) UpdateDeviceApp(
 		contacts:              opts.Contacts,
 		redirectURIs:          make([]string, 0),
 		responseTypes:         make([]database.ResponseType, 0),
+		authProviders:         opts.AuthProviders,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
@@ -2424,6 +2503,7 @@ type UpdateServiceAppOptions struct {
 	RequestID             string
 	AccountID             int32
 	Name                  string
+	UsernameColumn        string
 	Domain                string
 	Transport             string
 	AllowUserRegistration bool
@@ -2435,6 +2515,7 @@ type UpdateServiceAppOptions struct {
 	SoftwareVersion       string
 	Contacts              []string
 	AllowedDomains        []string
+	AuthProviders         []string
 }
 
 func (s *Services) UpdateServiceApp(
@@ -2472,7 +2553,7 @@ func (s *Services) UpdateServiceApp(
 
 	app, err := s.updateApp(ctx, appDTO, qrs, updateAppOptions{
 		requestID:             opts.RequestID,
-		usernameColumn:        database.AppUsernameColumnEmail, // Service apps always use email
+		usernameColumn:        opts.UsernameColumn, // Service apps always use email
 		transport:             mapStandardTransportUpdate(appDTO.Transport, opts.Transport),
 		allowUserRegistration: opts.AllowUserRegistration,
 		domain:                opts.Domain,
@@ -2486,6 +2567,7 @@ func (s *Services) UpdateServiceApp(
 		contacts:              opts.Contacts,
 		redirectURIs:          make([]string, 0),
 		responseTypes:         make([]database.ResponseType, 0),
+		authProviders:         opts.AuthProviders,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update base app", "error", err)
@@ -2524,6 +2606,7 @@ type UpdateMCPAppOptions struct {
 	Contacts              []string
 	CallbackURIs          []string
 	ResponseTypes         []string
+	AuthProviders         []string
 }
 
 func (s *Services) UpdateMCPApp(
@@ -2548,12 +2631,6 @@ func (s *Services) UpdateMCPApp(
 		}
 	}
 
-	usernameColumn, serviceErr := mapUsernameColumn(opts.UsernameColumn)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map username column", "serviceError", serviceErr)
-		return dtos.AppDTO{}, serviceErr
-	}
-
 	responseTypes, serviceErr := mapMCPResponseTypes(appDTO.Transport, opts.ResponseTypes)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
@@ -2569,7 +2646,7 @@ func (s *Services) UpdateMCPApp(
 
 	app, err := s.updateSingleApp(ctx, appDTO, updateAppOptions{
 		requestID:             opts.RequestID,
-		usernameColumn:        usernameColumn,
+		usernameColumn:        opts.UsernameColumn,
 		transport:             appDTO.Transport,
 		domain:                opts.Domain,
 		name:                  name,
@@ -2583,6 +2660,7 @@ func (s *Services) UpdateMCPApp(
 		contacts:              opts.Contacts,
 		redirectURIs:          utils.ToEmptySlice(opts.CallbackURIs),
 		responseTypes:         responseTypes,
+		authProviders:         opts.AuthProviders,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update MCP app", "error", err)

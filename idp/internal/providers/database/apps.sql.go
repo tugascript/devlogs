@@ -127,7 +127,8 @@ INSERT INTO "apps" (
   "transport",
   "redirect_uris",
   "response_types",
-  "allow_user_registration"
+  "allow_user_registration",
+  "auth_providers"
 ) VALUES (
   $1,
   $2,
@@ -153,7 +154,8 @@ INSERT INTO "apps" (
   $22,
   $23,
   $24,
-  $25
+  $25,
+  $26
 ) RETURNING id, account_id, account_public_id, app_type, name, client_id, version, creation_source, client_uri, logo_uri, tos_uri, policy_uri, software_id, software_version, contacts, token_endpoint_auth_method, scopes, custom_scopes, grant_types, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, redirect_uris, response_types, id_token_ttl, token_ttl, refresh_token_ttl, created_at, updated_at
 `
 
@@ -183,6 +185,7 @@ type CreateAppParams struct {
 	RedirectUris            []string
 	ResponseTypes           []ResponseType
 	AllowUserRegistration   bool
+	AuthProviders           []AuthProvider
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -217,6 +220,7 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		arg.RedirectUris,
 		arg.ResponseTypes,
 		arg.AllowUserRegistration,
+		arg.AuthProviders,
 	)
 	var i App
 	err := row.Scan(
@@ -1133,6 +1137,7 @@ SET "name" = $2,
     "redirect_uris" = $13,
     "allow_user_registration" = $14,
     "response_types" = $15,
+    "auth_providers" = $16,
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
@@ -1155,6 +1160,7 @@ type UpdateAppParams struct {
 	RedirectUris          []string
 	AllowUserRegistration bool
 	ResponseTypes         []ResponseType
+	AuthProviders         []AuthProvider
 }
 
 func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, error) {
@@ -1174,6 +1180,7 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		arg.RedirectUris,
 		arg.AllowUserRegistration,
 		arg.ResponseTypes,
+		arg.AuthProviders,
 	)
 	var i App
 	err := row.Scan(

@@ -11,8 +11,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/encryptcookie"
@@ -21,6 +19,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	fiberRedis "github.com/gofiber/storage/redis/v3"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	obAuth "github.com/openbao/openbao/api/auth/approle/v2"
 	openbao "github.com/openbao/openbao/api/v2"
@@ -44,27 +43,37 @@ type FiberServer struct {
 	routes *routes.Routes
 }
 
+type PgType = string
+
 const (
-	PgTypeKekUsage                = "kek_usage"
-	PgTypeDekUsage                = "dek_usage"
-	PgTypeTokenCryptoSuite        = "token_crypto_suite"
-	PgTypeTokenKeyUsage           = "token_key_usage"
-	PgTypeTokenKeyType            = "token_key_type"
-	PgTypeTwoFactorType           = "two_factor_type"
-	PgTypeTOTPUsage               = "totp_usage"
-	PgTypeCredentialsUsage        = "credentials_usage"
-	PgTypeAuthMethod              = "auth_method"
-	PgTypeAccountCredentialsScope = "account_credentials_scope"
-	PgTypeAuthProvider            = "auth_provider"
-	PgTypeClaims                  = "claims"
-	PgTypeScopes                  = "scopes"
-	PgTypeAppType                 = "app_type"
-	PgTypeAppUsernameColumn       = "app_username_column"
-	PgTypeGrantType               = "grant_type"
-	PgTypeResponseType            = "response_type"
+	PgTypeKekUsage                            PgType = "kek_usage"
+	PgTypeDekUsage                            PgType = "dek_usage"
+	PgTypeTokenCryptoSuite                    PgType = "token_crypto_suite"
+	PgTypeTokenKeyUsage                       PgType = "token_key_usage"
+	PgTypeTokenKeyType                        PgType = "token_key_type"
+	PgTypeTwoFactorType                       PgType = "two_factor_type"
+	PgTypeTOTPUsage                           PgType = "totp_usage"
+	PgTypeCredentialsUsage                    PgType = "credentials_usage"
+	PgTypeSecretStorageMode                   PgType = "secret_storage_mode"
+	PgTypeAuthMethod                          PgType = "auth_method"
+	PgTypeResponseType                        PgType = "response_type"
+	PgTypeAccountCredentialsScope             PgType = "account_credentials_scope"
+	PgTypeAccountCredentialsType              PgType = "account_credentials_type"
+	PgTypeTransport                           PgType = "transport"
+	PgTypeCreationSource                      PgType = "creation_source"
+	PgTypeAuthProvider                        PgType = "auth_provider"
+	PgTypeClaims                              PgType = "claims"
+	PgTypeScopes                              PgType = "scopes"
+	PgTypeAppType                             PgType = "app_type"
+	PgTypeAppUsernameColumn                   PgType = "app_username_column"
+	PgTypeGrantType                           PgType = "grant_type"
+	PgTypeInitialAccessTokenGenerationMethod  PgType = "initial_access_token_generation_method"
+	PgTypeSoftwareStatementVerificationMethod PgType = "software_statement_verification_method"
+	PgTypeAppProfileType                      PgType = "app_profile_type"
+	PgTypeTokenOwner                          PgType = "token_owner"
 )
 
-var PgTypes = [17]string{
+var PgTypes = [25]PgType{
 	PgTypeKekUsage,
 	PgTypeDekUsage,
 	PgTypeTokenCryptoSuite,
@@ -73,8 +82,12 @@ var PgTypes = [17]string{
 	PgTypeTwoFactorType,
 	PgTypeTOTPUsage,
 	PgTypeCredentialsUsage,
+	PgTypeSecretStorageMode,
 	PgTypeAuthMethod,
 	PgTypeAccountCredentialsScope,
+	PgTypeAccountCredentialsType,
+	PgTypeTransport,
+	PgTypeCreationSource,
 	PgTypeAuthProvider,
 	PgTypeClaims,
 	PgTypeScopes,
@@ -82,6 +95,10 @@ var PgTypes = [17]string{
 	PgTypeAppUsernameColumn,
 	PgTypeGrantType,
 	PgTypeResponseType,
+	PgTypeInitialAccessTokenGenerationMethod,
+	PgTypeSoftwareStatementVerificationMethod,
+	PgTypeAppProfileType,
+	PgTypeTokenOwner,
 }
 
 func New(

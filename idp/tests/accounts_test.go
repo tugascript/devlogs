@@ -25,7 +25,7 @@ import (
 )
 
 func TestGetCurrentAccount(t *testing.T) {
-	const getCurrentAccountPath = v1Path + paths.AccountsBase + paths.AccountMe
+	const getCurrentAccountPath = v1Path + paths.AccountsBase + paths.AccountUserInfo
 
 	testCases := []TestRequestCase[any]{
 		{
@@ -64,7 +64,7 @@ func TestGetCurrentAccount(t *testing.T) {
 }
 
 func TestUpdateAccount(t *testing.T) {
-	const updateAccountPath = v1Path + paths.AccountsBase + paths.AccountMe
+	const updateAccountPath = v1Path + paths.AccountsBase + paths.AccountUserInfo
 
 	testCases := []TestRequestCase[bodies.UpdateAccountBody]{
 		{

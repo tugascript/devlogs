@@ -85,13 +85,13 @@ func (s *Services) CreateAccountCredentials(
 
 	authMethod, serviceErr := mapAuthMethod(opts.AuthMethod)
 	if serviceErr != nil {
-		logger.WarnContext(ctx, "Failed to map auth method", "error", serviceErr, "authMethod", opts.AuthMethod)
+		logger.WarnContext(ctx, "Failed to map auth method", "serviceError", serviceErr)
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
 	scopes, serviceErr := mapAccountCredentialsScopes(opts.Scopes)
 	if serviceErr != nil {
-		logger.WarnContext(ctx, "Failed to map scopes", "error", serviceErr, "scopes", opts.Scopes)
+		logger.WarnContext(ctx, "Failed to map scopes", "serviceError", serviceErr)
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
@@ -101,7 +101,7 @@ func (s *Services) CreateAccountCredentials(
 		Version:   opts.AccountVersion,
 	})
 	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get account id", "error", serviceErr)
+		logger.ErrorContext(ctx, "Failed to get account id", "serviceError", serviceErr)
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
@@ -188,7 +188,7 @@ func (s *Services) CreateAccountCredentials(
 		}
 
 		return dtos.MapAccountCredentialsToDTOWithJWK(&accountCredentials, jwk, dbPrms.ExpiresAt), nil
-	case AuthMethodClientSecretBasic, AuthMethodClientSecretPost:
+	case AuthMethodClientSecretBasic, AuthMethodClientSecretPost, AuthMethodClientSecretJWT:
 		var ccID int32
 		var secretID, secret string
 		var exp time.Time
@@ -1108,7 +1108,8 @@ func (s *Services) RevokeAccountCredentialsSecretOrKey(
 		})
 	}
 	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretBasic ||
-		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost {
+		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost ||
+		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretJwt {
 		return s.revokeAccountCredentialsSecret(ctx, revokeAccountCredentialsSecretOptions{
 			requestID:            opts.RequestID,
 			accountCredentialsID: accountCredentialsDTO.ID(),

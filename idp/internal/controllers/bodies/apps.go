@@ -34,12 +34,13 @@ type UpdateAppBodyBase struct {
 	Contacts              []string `json:"contacts,omitempty" validate:"omitempty,unique,dive,email"`
 	SoftwareID            string   `json:"software_id,omitempty" validate:"omitempty,max=250"`
 	SoftwareVersion       string   `json:"software_version,omitempty" validate:"omitempty,max=250"`
+	AuthProviders         []string `json:"auth_providers,omitempty" validate:"omitempty,unique,dive,oneof=local apple facebook github google microsoft"`
 	UsernameColumn        string   `json:"username_column,omitempty" validate:"omitempty,oneof=email username both"`
 	AllowUserRegistration bool     `json:"allow_user_registration,omitempty"`
 }
 
 type CreateAppBodyWeb struct {
-	Transport               string   `json:"transport" validate:"required,oneof=http https"`
+	Transport               string   `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	Algorithm               string   `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
 	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method" validate:"required,oneof=client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
 	ResponseTypes           []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
@@ -47,13 +48,13 @@ type CreateAppBodyWeb struct {
 }
 
 type UpdateAppBodyWeb struct {
-	Transport     string   `json:"transport" validate:"required,oneof=http https"`
+	Transport     string   `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	ResponseTypes []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
 	CallbackURLs  []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
 }
 
 type CreateAppBodySPA struct {
-	Transport      string   `json:"transport" validate:"required,oneof=http https"`
+	Transport      string   `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	ResponseTypes  []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
 	CallbackURLs   []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
 	LogoutURLs     []string `json:"logout_urls" validate:"required,unique,min=1,dive,url"`
@@ -61,7 +62,7 @@ type CreateAppBodySPA struct {
 }
 
 type UpdateAppBodySPA struct {
-	Transport      string   `json:"transport" validate:"required,oneof=http https"`
+	Transport      string   `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	ResponseTypes  []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
 	CallbackURLs   []string `json:"callback_urls" validate:"required,unique,min=1,dive,url"`
 	LogoutURLs     []string `json:"logout_urls" validate:"required,unique,min=1,dive,url"`
@@ -69,41 +70,41 @@ type UpdateAppBodySPA struct {
 }
 
 type CreateAppBodyNative struct {
-	Transport     string   `json:"transport" validate:"required,oneof=http https"`
+	Transport     string   `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	ResponseTypes []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
 	CallbackURIs  []string `json:"callback_uris" validate:"required,unique,min=1,dive,uri"`
 }
 
 type UpdateAppBodyNative struct {
-	Transport     string   `json:"transport" validate:"required,oneof=http https"`
+	Transport     string   `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	ResponseTypes []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
 	CallbackURIs  []string `json:"callback_uris" validate:"required,unique,min=1,dive,uri"`
 }
 
 type CreateAppBodyBackend struct {
-	Transport   string `json:"transport" validate:"required,oneof=http https"`
+	Transport   string `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	AuthMethods string `json:"auth_methods" validate:"required,oneof=client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
 	Algorithm   string `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
 	Domain      string `json:"domain" validate:"required,fqdn"`
 }
 
 type UpdateAppBodyBackend struct {
-	Transport string `json:"transport" validate:"required,oneof=http https"`
+	Transport string `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	Domain    string `json:"domain" validate:"required,fqdn"`
 }
 
 type CreateAppBodyDevice struct {
-	Transport      string   `json:"transport" validate:"required,oneof=http https"`
+	Transport      string   `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	AssociatedApps []string `json:"associated_apps,omitempty" validate:"omitempty,dive,min=22,max=22,alphanum"`
 }
 
 type UpdateAppBodyDevice struct {
-	Transport      string   `json:"transport" validate:"required,oneof=http https"`
+	Transport      string   `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	AssociatedApps []string `json:"associated_apps,omitempty" validate:"omitempty,dive,min=22,max=22,alphanum"`
 }
 
 type CreateAppBodyService struct {
-	Transport       string   `json:"transport" validate:"required,oneof=http https"`
+	Transport       string   `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	AuthMethods     string   `json:"auth_methods" validate:"required,oneof=client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
 	Algorithm       string   `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
 	UsersAuthMethod string   `json:"users_auth_method" validate:"required,oneof=client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
@@ -111,7 +112,7 @@ type CreateAppBodyService struct {
 }
 
 type UpdateAppBodyService struct {
-	Transport      string   `json:"transport" validate:"required,oneof=http https"`
+	Transport      string   `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	AllowedDomains []string `json:"allowed_domains,omitempty" validate:"omitempty,unique,dive,fqdn,max=250"`
 }
 
