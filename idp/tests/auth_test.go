@@ -19,7 +19,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/encryptcookie"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pquerna/otp/totp"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
@@ -696,13 +695,13 @@ func TestRefreshToken(t *testing.T) {
 		if err != nil {
 			t.Fatal("Failed to verify refresh token", err)
 		}
-		var expiresAt pgtype.Timestamp
-		if err := expiresAt.Scan(data.ExpiresAt); err != nil {
-			t.Fatal("Failed to scan expiresAt", err)
-		}
 		if err := testDb.RevokeToken(context.Background(), database.RevokeTokenParams{
-			TokenID:   data.TokenID,
-			ExpiresAt: expiresAt.Time,
+			TokenID:       data.TokenID,
+			AccountID:     account.ID(),
+			Owner:         database.TokenOwnerAccount,
+			OwnerPublicID: account.PublicID,
+			IssuedAt:      data.IssuedAt,
+			ExpiresAt:     data.ExpiresAt,
 		}); err != nil {
 			t.Fatal("Failed to blacklist token", err)
 		}

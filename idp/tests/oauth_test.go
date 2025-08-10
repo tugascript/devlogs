@@ -1215,7 +1215,7 @@ func TestOAuthToken(t *testing.T) {
 		{
 			Name: "POST should return 200 OK with client_credentials grant type with valid client_id and client_secret, with both auth methods using basic auth and a valid audience",
 			ReqFn: func(t *testing.T) (string, string) {
-				clientID, clientSecret := beforeEachClientCredentials(t, "both_client_secrets")
+				clientID, clientSecret := beforeEachClientCredentials(t, "client_secret_basic")
 				body, authHeader := createClientCredentialsBodyAndAH(
 					"client_secret_basic",
 					clientID,
@@ -1232,7 +1232,7 @@ func TestOAuthToken(t *testing.T) {
 		{
 			Name: "POST should return 200 OK with client_credentials grant type with valid client_id and client_secret, with both auth methods using post auth and a valid scope",
 			ReqFn: func(t *testing.T) (string, string) {
-				clientID, clientSecret := beforeEachClientCredentials(t, "both_client_secrets")
+				clientID, clientSecret := beforeEachClientCredentials(t, "client_secret_post")
 				body, _ := createClientCredentialsBodyAndAH(
 					"client_secret_post",
 					clientID,

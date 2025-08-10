@@ -58,13 +58,9 @@ type createAppBody struct {
 	UsernameColumn string `json:"username_column,omitempty"`
 	Algorithm      string `json:"algorithm,omitempty"`
 
-	// Web/SPA specific fields
+	// Web/SPA/Native specific fields
 	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method,omitempty"`
-	AuthMethods             string   `json:"auth_methods,omitempty"`
-	CallbackURLs            []string `json:"callback_urls,omitempty"`
-
-	// Native-specific fields
-	CallbackURIs []string `json:"callback_uris,omitempty"`
+	RedirectURIs            []string `json:"redirect_uris,omitempty"`
 
 	// Device-specific fields
 	AssociatedApps []string `json:"associated_apps,omitempty"`
@@ -72,9 +68,6 @@ type createAppBody struct {
 	// Service-specific fields
 	UsersAuthMethod string   `json:"users_auth_method,omitempty"`
 	AllowedDomains  []string `json:"allowed_domains,omitempty"`
-
-	// MCP specific
-	AuthMethod string `json:"auth_method,omitempty"`
 }
 
 func TestCreateApp(t *testing.T) {
@@ -89,12 +82,11 @@ func TestCreateApp(t *testing.T) {
 					Type:                    "web",
 					Name:                    "Test Web App",
 					ClientURI:               "https://test-web-app.example.com",
-					Domain:                  "test-web-app.example.com",
+					Domain:                  "other.example.com",
 					UsernameColumn:          "email",
 					Algorithm:               "ES256",
-					AuthMethods:             "client_secret_basic",
-					CallbackURLs:            []string{"https://test-web-app.example.com/callback"},
 					TokenEndpointAuthMethod: "client_secret_basic",
+					RedirectURIs:            []string{"https://test-web-app.example.com/callback"},
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -105,6 +97,7 @@ func TestCreateApp(t *testing.T) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
+				AssertEqual(t, req.Domain, resBody.Domain)
 				AssertEqual(t, database.AppTypeWeb, resBody.AppType)
 				AssertNotEmpty(t, resBody.ClientID)
 				AssertNotEmpty(t, resBody.ClientSecretID)
@@ -123,7 +116,7 @@ func TestCreateApp(t *testing.T) {
 					ClientURI:      "https://test-spa-app.example.com",
 					Domain:         "test-spa-app.example.com",
 					UsernameColumn: "email",
-					CallbackURLs:   []string{"https://test-spa-app.example.com/callback"},
+					RedirectURIs:   []string{"https://test-spa-app.example.com/callback"},
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -151,7 +144,7 @@ func TestCreateApp(t *testing.T) {
 					Name:           "Test Native App",
 					ClientURI:      "https://test-native-app.example.com",
 					UsernameColumn: "email",
-					CallbackURIs:   []string{"com.testnativeapp://callback"},
+					RedirectURIs:   []string{"com.testnativeapp://callback"},
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -175,12 +168,12 @@ func TestCreateApp(t *testing.T) {
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return createAppBody{
-					Type:           "backend",
-					Name:           "Test Backend App",
-					ClientURI:      "https://test-backend-app.example.com",
-					UsernameColumn: "email",
-					AuthMethod:     "private_key_jwt",
-					Algorithm:      "EdDSA",
+					Type:                    "backend",
+					Name:                    "Test Backend App",
+					ClientURI:               "https://test-backend-app.example.com",
+					UsernameColumn:          "email",
+					TokenEndpointAuthMethod: "private_key_jwt",
+					Algorithm:               "EdDSA",
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -232,15 +225,15 @@ func TestCreateApp(t *testing.T) {
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return createAppBody{
-					Type:            "service",
-					Name:            "Test Service App",
-					ClientURI:       "https://test-service-app.example.com",
-					Domain:          "test-service-app.example.com",
-					Transport:       "https",
-					AuthMethods:     "private_key_jwt",
-					Algorithm:       "ES256",
-					UsersAuthMethod: "client_secret_basic",
-					AllowedDomains:  []string{},
+					Type:                    "service",
+					Name:                    "Test Service App",
+					ClientURI:               "https://test-service-app.example.com",
+					Domain:                  "test-service-app.example.com",
+					Transport:               "https",
+					TokenEndpointAuthMethod: "private_key_jwt",
+					Algorithm:               "ES256",
+					UsersAuthMethod:         "client_secret_basic",
+					AllowedDomains:          []string{},
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -258,19 +251,47 @@ func TestCreateApp(t *testing.T) {
 			},
 		},
 		{
-			Name: "Should return 201 CREATED with a MCP app data",
+			Name: "Should return 201 CREATED with a stdio MCP app data",
 			ReqFn: func(t *testing.T) (createAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
 				return createAppBody{
-					Type:         "mcp",
-					Name:         "Test Service App",
-					ClientURI:    "https://test-service-app.example.com",
-					Domain:       "test-service-app.example.com",
-					Transport:    "stdio",
-					AuthMethod:   "client_secret_basic",
-					CallbackURIs: []string{"https://test-service-app.example.com/callback"},
+					Type:                    "mcp",
+					Name:                    "Test MCP App",
+					ClientURI:               "https://test-mcp-app.example.com",
+					Domain:                  "test-custom-app.example.com",
+					Transport:               "stdio",
+					TokenEndpointAuthMethod: "client_secret_basic",
+					RedirectURIs:            []string{"https://test-mcp-app.example.com/callback"},
+				}, accessToken
+			},
+			PathFn: func() string {
+				return v1Path + paths.AppsBase
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
+				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.ClientURI, resBody.ClientURI)
+				AssertEqual(t, database.AppTypeMcp, resBody.AppType)
+				AssertNotEmpty(t, resBody.ClientID)
+				AssertNotEmpty(t, resBody.ClientSecretID)
+			},
+		},
+		{
+			Name: "Should return 201 CREATED with a streamable_http MCP app data",
+			ReqFn: func(t *testing.T) (createAppBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
+				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
+
+				return createAppBody{
+					Type:                    "mcp",
+					Name:                    "Test MCP App",
+					ClientURI:               "https://test-mcp-app.example.com",
+					Transport:               "streamable_http",
+					TokenEndpointAuthMethod: "client_secret_basic",
+					RedirectURIs:            []string{"https://test-mcp-app.example.com/callback"},
 				}, accessToken
 			},
 			PathFn: func() string {
@@ -365,6 +386,7 @@ func TestListApps(t *testing.T) {
 					RequestID:       uuid.New().String(),
 					AccountPublicID: account.PublicID,
 					AccountVersion:  account.Version(),
+					CreationMethod:  database.CreationMethodDynamicRegistration,
 					Name:            "Test Web App",
 					UsernameColumn:  "email",
 					AuthMethod:      "client_secret_post",
@@ -372,7 +394,7 @@ func TestListApps(t *testing.T) {
 					ClientURI:       "https://test-web-app.example.com",
 					Domain:          "test-web-app.example.com",
 					Transport:       "https",
-					CallbackURLs:    []string{"https://test-web-app.example.com/callback"},
+					RedirectURIs:    []string{"https://test-web-app.example.com/callback"},
 				})
 				if err != nil {
 					t.Fatal("Failed to create test web app", err)
@@ -383,12 +405,13 @@ func TestListApps(t *testing.T) {
 					AccountPublicID: account.PublicID,
 					AccountVersion:  account.Version(),
 					AppType:         database.AppTypeSpa,
+					CreationMethod:  database.CreationMethodManual,
 					Name:            "Test SPA App",
 					UsernameColumn:  "email",
 					ClientURI:       "https://test-spa-app.example.com",
 					Domain:          "test-spa-app.example.com",
 					Transport:       "https",
-					CallbackURIs:    []string{"https://test-spa-app.example.com/callback"},
+					RedirectURIs:    []string{"https://test-spa-app.example.com/callback"},
 				})
 				if err != nil {
 					t.Fatal("Failed to create test SPA app", err)
@@ -418,6 +441,7 @@ func TestListApps(t *testing.T) {
 					RequestID:       uuid.New().String(),
 					AccountPublicID: account.PublicID,
 					AccountVersion:  account.Version(),
+					CreationMethod:  database.CreationMethodDynamicRegistration,
 					Name:            "Filtered Web App",
 					UsernameColumn:  "email",
 					AuthMethod:      "client_secret_post",
@@ -425,7 +449,7 @@ func TestListApps(t *testing.T) {
 					ClientURI:       "https://filtered-web-app.example.com",
 					Domain:          "filtered-web-app.example.com",
 					Transport:       "https",
-					CallbackURLs:    []string{"https://filtered-web-app.example.com/callback"},
+					RedirectURIs:    []string{"https://filtered-web-app.example.com/callback"},
 				})
 				if err != nil {
 					t.Fatal("Failed to create test web app", err)
@@ -456,6 +480,7 @@ func TestListApps(t *testing.T) {
 					RequestID:       uuid.New().String(),
 					AccountPublicID: account.PublicID,
 					AccountVersion:  account.Version(),
+					CreationMethod:  database.CreationMethodManual,
 					Name:            "Test Web App",
 					UsernameColumn:  "email",
 					AuthMethod:      "client_secret_post",
@@ -463,7 +488,7 @@ func TestListApps(t *testing.T) {
 					ClientURI:       "https://test-web-app.example.com",
 					Domain:          "test-web-app.example.com",
 					Transport:       "https",
-					CallbackURLs:    []string{"https://test-web-app.example.com/callback"},
+					RedirectURIs:    []string{"https://test-web-app.example.com/callback"},
 				})
 				if err != nil {
 					t.Fatal("Failed to create test web app", err)
@@ -604,7 +629,7 @@ func CreateTestWebApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
 	appDTO, err := tServs.CreateWebApp(ctx, services.CreateWebAppOptions{
 		RequestID:             uuid.New().String(),
 		AccountPublicID:       account.PublicID,
-		CreationSource:        database.CreationSourceAccount,
+		CreationMethod:        database.CreationMethodManual,
 		AccountVersion:        account.Version(),
 		Name:                  "Test App",
 		UsernameColumn:        "email",
@@ -613,7 +638,7 @@ func CreateTestWebApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
 		ClientURI:             "https://test-app.example.com",
 		Domain:                "test-app.example.com",
 		Transport:             "https",
-		CallbackURLs:          []string{"https://test-app.example.com/callback"},
+		RedirectURIs:          []string{"https://test-app.example.com/callback"},
 		AllowUserRegistration: true,
 	})
 	if err != nil {
@@ -632,12 +657,13 @@ func CreateTestSPAApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
 		AccountPublicID: account.PublicID,
 		AccountVersion:  account.Version(),
 		AppType:         database.AppTypeSpa,
+		CreationMethod:  database.CreationMethodManual,
 		Name:            "Test SPA App",
 		UsernameColumn:  "email",
 		ClientURI:       "https://test-spa-app.example.com",
 		Domain:          "test-spa-app.example.com",
 		Transport:       "https",
-		CallbackURIs:    []string{"https://test-spa-app.example.com/callback"},
+		RedirectURIs:    []string{"https://test-spa-app.example.com/callback"},
 	})
 	if err != nil {
 		t.Fatal("Failed to create test SPA app", err)
@@ -655,11 +681,12 @@ func CreateTestNativeApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
 		AccountPublicID: account.PublicID,
 		AccountVersion:  account.Version(),
 		AppType:         database.AppTypeNative,
+		CreationMethod:  database.CreationMethodManual,
 		Name:            "Test Native App",
 		ClientURI:       "https://test-native-app.example.com",
 		Domain:          "test-native-app.example.com",
 		Transport:       "https",
-		CallbackURIs:    []string{"com.testnativeapp://callback"},
+		RedirectURIs:    []string{"com.testnativeapp://callback"},
 	})
 	if err != nil {
 		t.Fatal("Failed to create test native app", err)
@@ -676,6 +703,7 @@ func CreateTestBackendApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
 		RequestID:       uuid.New().String(),
 		AccountPublicID: account.PublicID,
 		AccountVersion:  account.Version(),
+		CreationMethod:  database.CreationMethodManual,
 		Name:            "Test Backend App",
 		UsernameColumn:  "email",
 		AuthMethod:      "private_key_jwt",
@@ -698,6 +726,7 @@ func CreateTestDeviceApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
 		RequestID:       uuid.New().String(),
 		AccountPublicID: account.PublicID,
 		AccountVersion:  account.Version(),
+		CreationMethod:  database.CreationMethodManual,
 		Name:            "Test Device App",
 		ClientURI:       "https://test-device-app.example.com",
 		UsernameColumn:  "email",
@@ -718,6 +747,7 @@ func CreateTestServiceApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
 		RequestID:       uuid.New().String(),
 		AccountPublicID: account.PublicID,
 		AccountVersion:  account.Version(),
+		CreationMethod:  database.CreationMethodManual,
 		Name:            "Test Service App",
 		AuthMethod:      "private_key_jwt",
 		Algorithm:       "ES256",
@@ -733,7 +763,7 @@ func CreateTestServiceApp(t *testing.T, account *dtos.AccountDTO) dtos.AppDTO {
 	return appDTO
 }
 
-type UpdateAppBody struct {
+type updateAppBody struct {
 	Name            string `json:"name"`
 	ClientURI       string `json:"client_uri"`
 	LogoURI         string `json:"logo_uri,omitempty"`
@@ -745,27 +775,15 @@ type UpdateAppBody struct {
 	// Common optional fields
 	UsernameColumn string `json:"username_column,omitempty"`
 
-	// Web/SPA specific fields
-	CallbackURLs        []string `json:"callback_urls,omitempty"`
-	LogoutURLs          []string `json:"logout_urls,omitempty"`
-	AllowedOrigins      []string `json:"allowed_origins,omitempty"`
-	CodeChallengeMethod string   `json:"code_challenge_method,omitempty"`
-
 	// Native specific fields
-	CallbackURIs []string `json:"callback_uris,omitempty"`
-	LogoutURIs   []string `json:"logout_uris,omitempty"`
-
-	// Backend specific fields
-	Issuers          []string `json:"issuers,omitempty"`
-	ConfirmationURL  string   `json:"confirmation_url,omitempty"`
-	ResetPasswordURL string   `json:"reset_password_url,omitempty"`
+	RedirectURIs []string `json:"redirect_uris,omitempty"`
 
 	// Device specific fields
 	AssociatedApps []string `json:"associated_apps,omitempty"`
 
 	// Service specific fields
-	UsersAuthMethods string   `json:"users_auth_methods,omitempty"`
-	AllowedDomains   []string `json:"allowed_domains,omitempty"`
+	UsersAuthMethod string   `json:"users_auth_method,omitempty"`
+	AllowedDomains  []string `json:"allowed_domains,omitempty"`
 }
 
 func TestUpdateApp(t *testing.T) {
@@ -774,35 +792,32 @@ func TestUpdateApp(t *testing.T) {
 		appClientID = app.ClientID
 	}
 
-	testCases := []TestRequestCase[UpdateAppBody]{
+	testCases := []TestRequestCase[updateAppBody]{
 		{
 			Name: "Should return 200 OK updating web app data",
-			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+			ReqFn: func(t *testing.T) (updateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return UpdateAppBody{
-					Name:                "Updated Test App",
-					ClientURI:           "https://updated-test-app.example.com",
-					LogoURI:             "https://example.com/logo.png",
-					TOSURI:              "https://example.com/tos",
-					PolicyURI:           "https://example.com/policy",
-					SoftwareID:          "test-app-v1",
-					SoftwareVersion:     "1.0.0",
-					UsernameColumn:      "email",
-					CallbackURLs:        []string{"https://updated-test-app.example.com/callback"},
-					LogoutURLs:          []string{"https://updated-test-app.example.com/logout"},
-					AllowedOrigins:      []string{"https://updated-test-app.example.com"},
-					CodeChallengeMethod: "S256",
+				return updateAppBody{
+					Name:            "Updated Test App",
+					ClientURI:       "https://updated-test-app.example.com",
+					LogoURI:         "https://example.com/logo.png",
+					TOSURI:          "https://example.com/tos",
+					PolicyURI:       "https://example.com/policy",
+					SoftwareID:      "test-app-v1",
+					SoftwareVersion: "1.0.0",
+					UsernameColumn:  "email",
+					RedirectURIs:    []string{"https://updated-test-app.example.com/callback"},
 				}, accessToken
 			},
 			PathFn: func() string {
 				return v1Path + paths.AppsBase + "/" + appClientID
 			},
 			ExpStatus: http.StatusOK,
-			AssertFn: func(t *testing.T, req UpdateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, req updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -815,27 +830,24 @@ func TestUpdateApp(t *testing.T) {
 		},
 		{
 			Name: "Should return 200 OK updating SPA app data",
-			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+			ReqFn: func(t *testing.T) (updateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestSPAApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return UpdateAppBody{
-					Name:                "Updated SPA App",
-					ClientURI:           "https://updated-spa-app.example.com",
-					UsernameColumn:      "email",
-					CallbackURLs:        []string{"https://updated-spa-app.example.com/callback"},
-					LogoutURLs:          []string{"https://updated-spa-app.example.com/logout"},
-					AllowedOrigins:      []string{"https://updated-spa-app.example.com"},
-					CodeChallengeMethod: "S256",
+				return updateAppBody{
+					Name:           "Updated SPA App",
+					ClientURI:      "https://updated-spa-app.example.com",
+					UsernameColumn: "email",
+					RedirectURIs:   []string{"https://updated-spa-app.example.com/callback"},
 				}, accessToken
 			},
 			PathFn: func() string {
 				return v1Path + paths.AppsBase + "/" + appClientID
 			},
 			ExpStatus: http.StatusOK,
-			AssertFn: func(t *testing.T, req UpdateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, req updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -843,25 +855,23 @@ func TestUpdateApp(t *testing.T) {
 		},
 		{
 			Name: "Should return 200 OK updating native app data",
-			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+			ReqFn: func(t *testing.T) (updateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestNativeApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return UpdateAppBody{
-					Name:                "Updated Native App",
-					ClientURI:           "https://updated-native-app.example.com",
-					CallbackURIs:        []string{"com.updatednativeapp://callback"},
-					LogoutURIs:          []string{"com.updatednativeapp://logout"},
-					CodeChallengeMethod: "plain",
+				return updateAppBody{
+					Name:         "Updated Native App",
+					ClientURI:    "https://updated-native-app.example.com",
+					RedirectURIs: []string{"com.updatednativeapp://callback"},
 				}, accessToken
 			},
 			PathFn: func() string {
 				return v1Path + paths.AppsBase + "/" + appClientID
 			},
 			ExpStatus: http.StatusOK,
-			AssertFn: func(t *testing.T, req UpdateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, req updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -869,26 +879,23 @@ func TestUpdateApp(t *testing.T) {
 		},
 		{
 			Name: "Should return 200 OK updating backend app data",
-			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+			ReqFn: func(t *testing.T) (updateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestBackendApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return UpdateAppBody{
-					Name:             "Updated Backend App",
-					ClientURI:        "https://updated-backend-app.example.com",
-					UsernameColumn:   "email",
-					Issuers:          []string{"https://updated-backend-app.example.com"},
-					ConfirmationURL:  "https://updated-backend-app.example.com/confirm",
-					ResetPasswordURL: "https://updated-backend-app.example.com/reset",
+				return updateAppBody{
+					Name:           "Updated Backend App",
+					ClientURI:      "https://updated-backend-app.example.com",
+					UsernameColumn: "email",
 				}, accessToken
 			},
 			PathFn: func() string {
 				return v1Path + paths.AppsBase + "/" + appClientID
 			},
 			ExpStatus: http.StatusOK,
-			AssertFn: func(t *testing.T, req UpdateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, req updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -896,13 +903,13 @@ func TestUpdateApp(t *testing.T) {
 		},
 		{
 			Name: "Should return 200 OK updating device app data",
-			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+			ReqFn: func(t *testing.T) (updateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestDeviceApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return UpdateAppBody{
+				return updateAppBody{
 					Name:           "Updated Device App",
 					ClientURI:      "https://updated-device-app.example.com",
 					UsernameColumn: "email",
@@ -913,7 +920,7 @@ func TestUpdateApp(t *testing.T) {
 				return v1Path + paths.AppsBase + "/" + appClientID
 			},
 			ExpStatus: http.StatusOK,
-			AssertFn: func(t *testing.T, req UpdateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, req updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -921,25 +928,23 @@ func TestUpdateApp(t *testing.T) {
 		},
 		{
 			Name: "Should return 200 OK updating service app data",
-			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+			ReqFn: func(t *testing.T) (updateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestServiceApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return UpdateAppBody{
-					Name:             "Updated Service App",
-					ClientURI:        "https://updated-service-app.example.com",
-					Issuers:          []string{"https://updated-service-app.example.com"},
-					UsersAuthMethods: "client_secret_basic",
-					AllowedDomains:   []string{"example.com"},
+				return updateAppBody{
+					Name:           "Updated Service App",
+					ClientURI:      "https://updated-service-app.example.com",
+					AllowedDomains: []string{"example.com"},
 				}, accessToken
 			},
 			PathFn: func() string {
 				return v1Path + paths.AppsBase + "/" + appClientID
 			},
 			ExpStatus: http.StatusOK,
-			AssertFn: func(t *testing.T, req UpdateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, req updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
 				AssertEqual(t, req.Name, resBody.Name)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
@@ -947,11 +952,11 @@ func TestUpdateApp(t *testing.T) {
 		},
 		{
 			Name: "Should return 404 NOT FOUND if app does not exist",
-			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+			ReqFn: func(t *testing.T) (updateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return UpdateAppBody{
+				return updateAppBody{
 					Name:      "Updated Test App",
 					ClientURI: "https://updated-test-app.example.com",
 				}, accessToken
@@ -960,17 +965,17 @@ func TestUpdateApp(t *testing.T) {
 				return v1Path + paths.AppsBase + "/" + utils.Base62UUID()
 			},
 			ExpStatus: http.StatusNotFound,
-			AssertFn:  AssertNotFoundError[UpdateAppBody],
+			AssertFn:  AssertNotFoundError[updateAppBody],
 		},
 		{
 			Name: "Should return 400 BAD REQUEST if validation fails",
-			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+			ReqFn: func(t *testing.T) (updateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				app := CreateTestWebApp(t, &account)
 				setAppClientID(app)
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsWrite})
 
-				return UpdateAppBody{
+				return updateAppBody{
 					Name:      "",
 					ClientURI: "invalid-url",
 				}, accessToken
@@ -979,15 +984,15 @@ func TestUpdateApp(t *testing.T) {
 				return v1Path + paths.AppsBase + "/" + appClientID
 			},
 			ExpStatus: http.StatusBadRequest,
-			AssertFn: func(t *testing.T, _ UpdateAppBody, res *http.Response) {
+			AssertFn: func(t *testing.T, _ updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
 				AssertNotEmpty(t, len(resBody.Fields))
 			},
 		},
 		{
 			Name: "Should return 401 UNAUTHORIZED if no access token",
-			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
-				return UpdateAppBody{
+			ReqFn: func(t *testing.T) (updateAppBody, string) {
+				return updateAppBody{
 					Name:      "Updated Test App",
 					ClientURI: "https://updated-test-app.example.com",
 				}, ""
@@ -996,15 +1001,15 @@ func TestUpdateApp(t *testing.T) {
 				return v1Path + paths.AppsBase + "/" + utils.Base62UUID()
 			},
 			ExpStatus: http.StatusUnauthorized,
-			AssertFn:  AssertUnauthorizedError[UpdateAppBody],
+			AssertFn:  AssertUnauthorizedError[updateAppBody],
 		},
 		{
 			Name: "Should return 403 FORBIDDEN if no apps write scope",
-			ReqFn: func(t *testing.T) (UpdateAppBody, string) {
+			ReqFn: func(t *testing.T) (updateAppBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []tokens.AccountScope{tokens.AccountScopeAppsRead})
 
-				return UpdateAppBody{
+				return updateAppBody{
 					Name:      "Updated Test App",
 					ClientURI: "https://updated-test-app.example.com",
 				}, accessToken
@@ -1013,7 +1018,7 @@ func TestUpdateApp(t *testing.T) {
 				return v1Path + paths.AppsBase + "/" + utils.Base62UUID()
 			},
 			ExpStatus: http.StatusForbidden,
-			AssertFn:  AssertForbiddenError[UpdateAppBody],
+			AssertFn:  AssertForbiddenError[updateAppBody],
 		},
 	}
 

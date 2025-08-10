@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-09T22:27:25.181Z
+-- Generated at: 2025-08-10T03:55:42.584Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -94,8 +94,8 @@ CREATE TYPE "transport" AS ENUM (
   'streamable_http'
 );
 
-CREATE TYPE "creation_source" AS ENUM (
-  'account',
+CREATE TYPE "creation_method" AS ENUM (
+  'manual',
   'dynamic_registration'
 );
 
@@ -320,7 +320,7 @@ CREATE TABLE "account_credentials_mcps" (
   "account_public_id" uuid NOT NULL,
   "account_credentials_id" integer NOT NULL,
   "account_credentials_client_id" varchar(22) NOT NULL,
-  "creation_source" creation_source NOT NULL,
+  "creation_method" creation_method NOT NULL,
   "transport" transport NOT NULL,
   "response_types" response_type[] NOT NULL,
   "callback_uris" varchar(2048)[] NOT NULL,
@@ -462,7 +462,7 @@ CREATE TABLE "apps" (
   "name" varchar(100) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "version" integer NOT NULL DEFAULT 1,
-  "creation_source" creation_source NOT NULL,
+  "creation_method" creation_method NOT NULL,
   "client_uri" varchar(512) NOT NULL,
   "logo_uri" varchar(512),
   "tos_uri" varchar(512),

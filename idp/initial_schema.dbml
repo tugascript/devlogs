@@ -345,8 +345,8 @@ Enum transport {
     "streamable_http"
 }
 
-Enum creation_source {
-    "account"
+Enum creation_method {
+    "manual"
     "dynamic_registration"
 }
 
@@ -358,7 +358,7 @@ Table account_credentials_mcps as ACM {
     account_credentials_id integer [not null]
     account_credentials_client_id varchar(22) [not null]
 
-    creation_source creation_source [not null]
+    creation_method creation_method [not null]
     transport transport [not null]
 
     response_types "response_type[]" [not null]
@@ -723,7 +723,7 @@ Table apps as APP {
     name varchar(100) [not null]
     client_id varchar(22) [not null]
     version integer [not null, default: 1]
-    creation_source creation_source [not null]
+    creation_method creation_method [not null]
 
     // Common dynamic registration fields
     client_uri varchar(512) [not null]
