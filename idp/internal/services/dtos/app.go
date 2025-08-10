@@ -41,11 +41,12 @@ type AppDTO struct {
 	accountID int32
 	version   int32
 
-	AppType   database.AppType   `json:"app_type"`
-	Name      string             `json:"name"`
-	ClientID  string             `json:"client_id"`
-	Domain    string             `json:"domain"`
-	Transport database.Transport `json:"transport"`
+	AppType        database.AppType        `json:"app_type"`
+	Name           string                  `json:"name"`
+	ClientID       string                  `json:"client_id"`
+	Domain         string                  `json:"domain"`
+	Transport      database.Transport      `json:"transport"`
+	CreationMethod database.CreationMethod `json:"creation_method"`
 
 	ClientURI       string `json:"client_uri,omitempty"`
 	LogoURI         string `json:"logo_uri,omitempty"`
@@ -133,6 +134,7 @@ func MapAppToDTO(app *database.App) AppDTO {
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
@@ -163,6 +165,7 @@ func MapWebNativeSPAMCPAppToDTO(app *database.App) AppDTO {
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
@@ -198,6 +201,7 @@ func MapWebAppWithSecretToDTO(
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
@@ -231,6 +235,7 @@ func MapWebAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) AppD
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
@@ -264,6 +269,7 @@ func MapBackendAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) 
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
@@ -295,6 +301,7 @@ func MapBackendAppWithSecretToDTO(app *database.App, secretID string, secret str
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
@@ -325,6 +332,7 @@ func MapDeviceAppToDTO(app *database.App, relatedApps []database.App, backendDom
 		Name:                    app.Name,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientID:                app.ClientID,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
@@ -362,6 +370,7 @@ func MapServiceAppWithJWKToDTO(
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
@@ -378,6 +387,7 @@ func MapServiceAppWithJWKToDTO(
 		TokenTTL:                app.TokenTtl,
 		RefreshTokenTTL:         app.RefreshTokenTtl,
 		ClientSecretID:          jwk.GetKeyID(),
+		ClientSecretJWK:         jwk,
 		ClientSecretExp:         exp.Unix(),
 		UsersAuthMethod:         serviceCfg.UserAuthMethod,
 		UsersGrantTypes:         serviceCfg.UserGrantTypes,
@@ -401,6 +411,7 @@ func MapServiceAppWithSecretToDTO(
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
@@ -435,6 +446,7 @@ func MapBackendAppToDTO(app *database.App) AppDTO {
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
@@ -466,6 +478,7 @@ func MapServiceAppToDTO(
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
@@ -497,6 +510,7 @@ func MapMCPAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) AppD
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
@@ -532,6 +546,7 @@ func MapMCPAppWithSecretToDTO(
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
+		CreationMethod:          app.CreationMethod,
 		ClientURI:               app.ClientUri,
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,

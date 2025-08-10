@@ -646,7 +646,7 @@ type createAppOptions struct {
 	requestID             string
 	accountID             int32
 	accountPublicID       uuid.UUID
-	creationSource        database.CreationSource
+	creationMethod        database.CreationMethod
 	appType               database.AppType
 	name                  string
 	allowUserRegistration bool
@@ -712,10 +712,10 @@ func (s *Services) createApp(
 	app, err := qrs.CreateApp(ctx, database.CreateAppParams{
 		AccountID:               opts.accountID,
 		AccountPublicID:         opts.accountPublicID,
+		CreationMethod:          opts.creationMethod,
 		AppType:                 opts.appType,
 		Name:                    opts.name,
 		ClientID:                clientID,
-		CreationSource:          opts.creationSource,
 		ClientUri:               utils.ProcessURL(opts.clientURI),
 		AllowUserRegistration:   opts.allowUserRegistration,
 		UsernameColumn:          usernameColumn,
@@ -792,7 +792,7 @@ func (s *Services) createSingleApp(
 	app, err := s.database.CreateApp(ctx, database.CreateAppParams{
 		AccountID:               opts.accountID,
 		AccountPublicID:         opts.accountPublicID,
-		CreationSource:          opts.creationSource,
+		CreationMethod:          opts.creationMethod,
 		AppType:                 opts.appType,
 		Name:                    opts.name,
 		ClientID:                clientID,
@@ -842,7 +842,7 @@ type CreateWebAppOptions struct {
 	RequestID             string
 	AccountPublicID       uuid.UUID
 	AccountVersion        int32
-	CreationSource        database.CreationSource
+	CreationMethod        database.CreationMethod
 	Name                  string
 	AllowUserRegistration bool
 	UsernameColumn        string
@@ -857,7 +857,7 @@ type CreateWebAppOptions struct {
 	SoftwareID            string
 	SoftwareVersion       string
 	Transport             string
-	CallbackURLs          []string
+	RedirectURIs          []string
 	ResponseTypes         []string
 	Scopes                []string
 	DefaultScopes         []string
@@ -921,7 +921,7 @@ func (s *Services) CreateWebApp(
 		requestID:             opts.RequestID,
 		accountID:             accountID,
 		accountPublicID:       opts.AccountPublicID,
-		creationSource:        opts.CreationSource,
+		creationMethod:        opts.CreationMethod,
 		appType:               database.AppTypeWeb,
 		name:                  name,
 		allowUserRegistration: opts.AllowUserRegistration,
@@ -939,7 +939,7 @@ func (s *Services) CreateWebApp(
 		softwareVersion:       opts.SoftwareVersion,
 		scopes:                opts.Scopes,
 		defaultScopes:         opts.DefaultScopes,
-		redirectURIs:          opts.CallbackURLs,
+		redirectURIs:          opts.RedirectURIs,
 		responseTypes:         responseTypes,
 		authProviders:         opts.AuthProviders,
 	})
@@ -1030,7 +1030,7 @@ type CreateSPANativeAppOptions struct {
 	AccountPublicID       uuid.UUID
 	AccountVersion        int32
 	AppType               database.AppType
-	CreationSource        database.CreationSource
+	CreationMethod        database.CreationMethod
 	Name                  string
 	AllowUserRegistration bool
 	Domain                string
@@ -1044,7 +1044,7 @@ type CreateSPANativeAppOptions struct {
 	Contacts              []string
 	SoftwareID            string
 	SoftwareVersion       string
-	CallbackURIs          []string
+	RedirectURIs          []string
 	Scopes                []string
 	DefaultScopes         []string
 	AuthProviders         []string
@@ -1091,7 +1091,7 @@ func (s *Services) CreateSPANativeApp(
 		requestID:             opts.RequestID,
 		accountID:             accountID,
 		accountPublicID:       opts.AccountPublicID,
-		creationSource:        opts.CreationSource,
+		creationMethod:        opts.CreationMethod,
 		appType:               opts.AppType,
 		name:                  name,
 		allowUserRegistration: opts.AllowUserRegistration,
@@ -1109,7 +1109,7 @@ func (s *Services) CreateSPANativeApp(
 		softwareVersion:       opts.SoftwareVersion,
 		scopes:                opts.Scopes,
 		defaultScopes:         opts.DefaultScopes,
-		redirectURIs:          opts.CallbackURIs,
+		redirectURIs:          opts.RedirectURIs,
 		responseTypes:         responseTypes,
 		authProviders:         opts.AuthProviders,
 	})
@@ -1126,7 +1126,7 @@ type CreateBackendAppOptions struct {
 	RequestID             string
 	AccountPublicID       uuid.UUID
 	AccountVersion        int32
-	CreationSource        database.CreationSource
+	CreationMethod        database.CreationMethod
 	Name                  string
 	AllowUserRegistration bool
 	UsernameColumn        string
@@ -1203,7 +1203,7 @@ func (s *Services) CreateBackendApp(
 		requestID:             opts.RequestID,
 		accountID:             accountID,
 		accountPublicID:       opts.AccountPublicID,
-		creationSource:        opts.CreationSource,
+		creationMethod:        opts.CreationMethod,
 		appType:               database.AppTypeBackend,
 		name:                  name,
 		allowUserRegistration: opts.AllowUserRegistration,
@@ -1311,7 +1311,7 @@ type CreateDeviceAppOptions struct {
 	RequestID             string
 	AccountPublicID       uuid.UUID
 	AccountVersion        int32
-	CreationSource        database.CreationSource
+	CreationMethod        database.CreationMethod
 	Name                  string
 	AllowUserRegistration bool
 	Domain                string
@@ -1366,7 +1366,7 @@ func (s *Services) CreateDeviceApp(
 		app, err := s.createSingleApp(ctx, createAppOptions{
 			accountID:             accountID,
 			accountPublicID:       opts.AccountPublicID,
-			creationSource:        opts.CreationSource,
+			creationMethod:        opts.CreationMethod,
 			appType:               database.AppTypeDevice,
 			name:                  name,
 			clientURI:             opts.ClientURI,
@@ -1436,7 +1436,7 @@ func (s *Services) CreateDeviceApp(
 	app, err := s.createApp(ctx, qrs, createAppOptions{
 		accountID:             accountID,
 		accountPublicID:       opts.AccountPublicID,
-		creationSource:        opts.CreationSource,
+		creationMethod:        opts.CreationMethod,
 		appType:               database.AppTypeDevice,
 		name:                  name,
 		clientURI:             opts.ClientURI,
@@ -1499,7 +1499,7 @@ func mapServerGrantTypesFromAuthMethod(authMethod string) ([]database.GrantType,
 type CreateServiceAppOptions struct {
 	RequestID             string
 	AccountPublicID       uuid.UUID
-	CreationSource        database.CreationSource
+	CreationMethod        database.CreationMethod
 	Name                  string
 	AuthMethod            string
 	UsernameColumn        string
@@ -1596,7 +1596,7 @@ func (s *Services) CreateServiceApp(
 		requestID:             opts.RequestID,
 		accountID:             accountID,
 		accountPublicID:       opts.AccountPublicID,
-		creationSource:        opts.CreationSource,
+		creationMethod:        opts.CreationMethod,
 		appType:               database.AppTypeService,
 		name:                  name,
 		allowUserRegistration: opts.AllowUserRegistration,
@@ -1769,7 +1769,7 @@ type CreateMCPAppOptions struct {
 	RequestID             string
 	AccountPublicID       uuid.UUID
 	AccountVersion        int32
-	CreationSource        database.CreationSource
+	CreationMethod        database.CreationMethod
 	Name                  string
 	AllowUserRegistration bool
 	UsernameColumn        string
@@ -1785,7 +1785,7 @@ type CreateMCPAppOptions struct {
 	Transport             string
 	AuthMethod            string
 	Algorithm             string
-	CallbackURIs          []string
+	RedirectURIs          []string
 	ResponseTypes         []string
 	Domain                string
 	AuthProviders         []string
@@ -1840,7 +1840,7 @@ func (s *Services) CreateMCPApp(
 	}
 
 	if transport == database.TransportStreamableHttp {
-		if len(opts.CallbackURIs) == 0 {
+		if len(opts.RedirectURIs) == 0 {
 			logger.ErrorContext(ctx, "Callback URIs must be provided for streamable HTTP transport")
 			return dtos.AppDTO{}, exceptions.NewValidationError("Callback URIs must be provided for streamable HTTP transport")
 		}
@@ -1849,7 +1849,7 @@ func (s *Services) CreateMCPApp(
 			requestID:             opts.RequestID,
 			accountID:             accountID,
 			accountPublicID:       opts.AccountPublicID,
-			creationSource:        opts.CreationSource,
+			creationMethod:        opts.CreationMethod,
 			appType:               database.AppTypeMcp,
 			name:                  name,
 			allowUserRegistration: opts.AllowUserRegistration,
@@ -1867,7 +1867,7 @@ func (s *Services) CreateMCPApp(
 			softwareVersion:       opts.SoftwareVersion,
 			scopes:                opts.Scopes,
 			defaultScopes:         opts.DefaultScopes,
-			redirectURIs:          opts.CallbackURIs,
+			redirectURIs:          opts.RedirectURIs,
 			responseTypes:         responseTypes,
 			authProviders:         opts.AuthProviders,
 		})
@@ -1894,6 +1894,7 @@ func (s *Services) CreateMCPApp(
 		requestID:             opts.RequestID,
 		accountID:             accountID,
 		accountPublicID:       opts.AccountPublicID,
+		creationMethod:        opts.CreationMethod,
 		appType:               database.AppTypeMcp,
 		name:                  name,
 		allowUserRegistration: opts.AllowUserRegistration,
@@ -2227,7 +2228,7 @@ type UpdateWebSPANativeAppOptions struct {
 	SoftwareID            string
 	SoftwareVersion       string
 	Contacts              []string
-	CallbackURIs          []string
+	RedirectURIs          []string
 	ResponseTypes         []string
 	AuthProviders         []string
 }
@@ -2282,7 +2283,7 @@ func (s *Services) UpdateWebSPANativeApp(
 		softwareID:            opts.SoftwareID,
 		softwareVersion:       opts.SoftwareVersion,
 		contacts:              opts.Contacts,
-		redirectURIs:          opts.CallbackURIs,
+		redirectURIs:          opts.RedirectURIs,
 		responseTypes:         responseTypes,
 		authProviders:         opts.AuthProviders,
 	})
@@ -2651,7 +2652,7 @@ type UpdateMCPAppOptions struct {
 	SoftwareID            string
 	SoftwareVersion       string
 	Contacts              []string
-	CallbackURIs          []string
+	RedirectURIs          []string
 	ResponseTypes         []string
 	AuthProviders         []string
 }
@@ -2685,7 +2686,7 @@ func (s *Services) UpdateMCPApp(
 	}
 
 	if appDTO.Transport == database.TransportStreamableHttp {
-		if len(opts.CallbackURIs) == 0 {
+		if len(opts.RedirectURIs) == 0 {
 			logger.ErrorContext(ctx, "Callback URIs must be provided for streamable HTTP transport")
 			return dtos.AppDTO{}, exceptions.NewValidationError("Callback URIs must be provided for streamable HTTP transport")
 		}
@@ -2712,7 +2713,7 @@ func (s *Services) UpdateMCPApp(
 		softwareID:            opts.SoftwareID,
 		softwareVersion:       opts.SoftwareVersion,
 		contacts:              opts.Contacts,
-		redirectURIs:          utils.ToEmptySlice(opts.CallbackURIs),
+		redirectURIs:          utils.ToEmptySlice(opts.RedirectURIs),
 		responseTypes:         responseTypes,
 		authProviders:         opts.AuthProviders,
 	})

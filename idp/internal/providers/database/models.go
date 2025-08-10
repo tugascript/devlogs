@@ -389,46 +389,46 @@ func (ns NullClaims) Value() (driver.Value, error) {
 	return string(ns.Claims), nil
 }
 
-type CreationSource string
+type CreationMethod string
 
 const (
-	CreationSourceAccount             CreationSource = "account"
-	CreationSourceDynamicRegistration CreationSource = "dynamic_registration"
+	CreationMethodManual              CreationMethod = "manual"
+	CreationMethodDynamicRegistration CreationMethod = "dynamic_registration"
 )
 
-func (e *CreationSource) Scan(src interface{}) error {
+func (e *CreationMethod) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = CreationSource(s)
+		*e = CreationMethod(s)
 	case string:
-		*e = CreationSource(s)
+		*e = CreationMethod(s)
 	default:
-		return fmt.Errorf("unsupported scan type for CreationSource: %T", src)
+		return fmt.Errorf("unsupported scan type for CreationMethod: %T", src)
 	}
 	return nil
 }
 
-type NullCreationSource struct {
-	CreationSource CreationSource
-	Valid          bool // Valid is true if CreationSource is not NULL
+type NullCreationMethod struct {
+	CreationMethod CreationMethod
+	Valid          bool // Valid is true if CreationMethod is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullCreationSource) Scan(value interface{}) error {
+func (ns *NullCreationMethod) Scan(value interface{}) error {
 	if value == nil {
-		ns.CreationSource, ns.Valid = "", false
+		ns.CreationMethod, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.CreationSource.Scan(value)
+	return ns.CreationMethod.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullCreationSource) Value() (driver.Value, error) {
+func (ns NullCreationMethod) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.CreationSource), nil
+	return string(ns.CreationMethod), nil
 }
 
 type CredentialsUsage string
@@ -1175,7 +1175,7 @@ type AccountCredentialsMcp struct {
 	AccountPublicID            uuid.UUID
 	AccountCredentialsID       int32
 	AccountCredentialsClientID string
-	CreationSource             CreationSource
+	CreationMethod             CreationMethod
 	Transport                  Transport
 	ResponseTypes              []ResponseType
 	CallbackUris               []string
@@ -1230,7 +1230,7 @@ type App struct {
 	Name                    string
 	ClientID                string
 	Version                 int32
-	CreationSource          CreationSource
+	CreationMethod          CreationMethod
 	ClientUri               string
 	LogoUri                 pgtype.Text
 	TosUri                  pgtype.Text

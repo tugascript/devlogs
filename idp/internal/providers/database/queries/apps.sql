@@ -14,7 +14,7 @@ INSERT INTO "apps" (
   "client_uri",
   "username_column",
   "token_endpoint_auth_method",
-  "creation_source",
+  "creation_method",
   "grant_types",
   "logo_uri",
   "tos_uri",
