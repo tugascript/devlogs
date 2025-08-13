@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countAccountCredentialsByAccountPublicID = `-- name: CountAccountCredentialsByAccountPublicID :one
@@ -24,18 +25,18 @@ func (q *Queries) CountAccountCredentialsByAccountPublicID(ctx context.Context, 
 	return count, err
 }
 
-const countAccountCredentialsByAliasAndAccountID = `-- name: CountAccountCredentialsByAliasAndAccountID :one
+const countAccountCredentialsByNameAndAccountID = `-- name: CountAccountCredentialsByNameAndAccountID :one
 SELECT COUNT(*) FROM "account_credentials"
-WHERE "account_id" = $1 AND "alias" = $2
+WHERE "account_id" = $1 AND "name" = $2
 `
 
-type CountAccountCredentialsByAliasAndAccountIDParams struct {
+type CountAccountCredentialsByNameAndAccountIDParams struct {
 	AccountID int32
-	Alias     string
+	Name      string
 }
 
-func (q *Queries) CountAccountCredentialsByAliasAndAccountID(ctx context.Context, arg CountAccountCredentialsByAliasAndAccountIDParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countAccountCredentialsByAliasAndAccountID, arg.AccountID, arg.Alias)
+func (q *Queries) CountAccountCredentialsByNameAndAccountID(ctx context.Context, arg CountAccountCredentialsByNameAndAccountIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccountCredentialsByNameAndAccountID, arg.AccountID, arg.Name)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -47,10 +48,20 @@ INSERT INTO "account_credentials" (
     "account_id",
     "account_public_id",
     "credentials_type",
-    "alias",
+    "name",
     "scopes",
     "token_endpoint_auth_method",
-    "issuers"
+    "domain",
+    "client_uri",
+    "redirect_uris",
+    "logo_uri",
+    "policy_uri",
+    "tos_uri",
+    "software_id",
+    "software_version",
+    "contacts",
+    "creation_method",
+    "transport"
 ) VALUES (
     $1,
     $2,
@@ -59,8 +70,18 @@ INSERT INTO "account_credentials" (
     $5,
     $6,
     $7,
-    $8
-) RETURNING id, account_id, account_public_id, credentials_type, scopes, token_endpoint_auth_method, issuers, alias, client_id, created_at, updated_at
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15,
+    $16,
+    $17,
+    $18
+) RETURNING id, account_id, account_public_id, client_id, name, domain, credentials_type, scopes, token_endpoint_auth_method, grant_types, version, transport, creation_method, client_uri, redirect_uris, logo_uri, policy_uri, tos_uri, software_id, software_version, contacts, created_at, updated_at
 `
 
 type CreateAccountCredentialsParams struct {
@@ -68,10 +89,20 @@ type CreateAccountCredentialsParams struct {
 	AccountID               int32
 	AccountPublicID         uuid.UUID
 	CredentialsType         AccountCredentialsType
-	Alias                   string
+	Name                    string
 	Scopes                  []AccountCredentialsScope
 	TokenEndpointAuthMethod AuthMethod
-	Issuers                 []string
+	Domain                  string
+	ClientUri               string
+	RedirectUris            []string
+	LogoUri                 pgtype.Text
+	PolicyUri               pgtype.Text
+	TosUri                  pgtype.Text
+	SoftwareID              string
+	SoftwareVersion         pgtype.Text
+	Contacts                []string
+	CreationMethod          CreationMethod
+	Transport               Transport
 }
 
 func (q *Queries) CreateAccountCredentials(ctx context.Context, arg CreateAccountCredentialsParams) (AccountCredential, error) {
@@ -80,22 +111,44 @@ func (q *Queries) CreateAccountCredentials(ctx context.Context, arg CreateAccoun
 		arg.AccountID,
 		arg.AccountPublicID,
 		arg.CredentialsType,
-		arg.Alias,
+		arg.Name,
 		arg.Scopes,
 		arg.TokenEndpointAuthMethod,
-		arg.Issuers,
+		arg.Domain,
+		arg.ClientUri,
+		arg.RedirectUris,
+		arg.LogoUri,
+		arg.PolicyUri,
+		arg.TosUri,
+		arg.SoftwareID,
+		arg.SoftwareVersion,
+		arg.Contacts,
+		arg.CreationMethod,
+		arg.Transport,
 	)
 	var i AccountCredential
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,
+		&i.ClientID,
+		&i.Name,
+		&i.Domain,
 		&i.CredentialsType,
 		&i.Scopes,
 		&i.TokenEndpointAuthMethod,
-		&i.Issuers,
-		&i.Alias,
-		&i.ClientID,
+		&i.GrantTypes,
+		&i.Version,
+		&i.Transport,
+		&i.CreationMethod,
+		&i.ClientUri,
+		&i.RedirectUris,
+		&i.LogoUri,
+		&i.PolicyUri,
+		&i.TosUri,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.Contacts,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -122,7 +175,7 @@ func (q *Queries) DeleteAllAccountCredentials(ctx context.Context) error {
 }
 
 const findAccountCredentialsByAccountPublicIDAndClientID = `-- name: FindAccountCredentialsByAccountPublicIDAndClientID :one
-SELECT id, account_id, account_public_id, credentials_type, scopes, token_endpoint_auth_method, issuers, alias, client_id, created_at, updated_at FROM "account_credentials"
+SELECT id, account_id, account_public_id, client_id, name, domain, credentials_type, scopes, token_endpoint_auth_method, grant_types, version, transport, creation_method, client_uri, redirect_uris, logo_uri, policy_uri, tos_uri, software_id, software_version, contacts, created_at, updated_at FROM "account_credentials"
 WHERE "account_public_id" = $1 AND "client_id" = $2
 LIMIT 1
 `
@@ -139,12 +192,24 @@ func (q *Queries) FindAccountCredentialsByAccountPublicIDAndClientID(ctx context
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,
+		&i.ClientID,
+		&i.Name,
+		&i.Domain,
 		&i.CredentialsType,
 		&i.Scopes,
 		&i.TokenEndpointAuthMethod,
-		&i.Issuers,
-		&i.Alias,
-		&i.ClientID,
+		&i.GrantTypes,
+		&i.Version,
+		&i.Transport,
+		&i.CreationMethod,
+		&i.ClientUri,
+		&i.RedirectUris,
+		&i.LogoUri,
+		&i.PolicyUri,
+		&i.TosUri,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.Contacts,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -153,7 +218,7 @@ func (q *Queries) FindAccountCredentialsByAccountPublicIDAndClientID(ctx context
 
 const findAccountCredentialsByClientID = `-- name: FindAccountCredentialsByClientID :one
 
-SELECT id, account_id, account_public_id, credentials_type, scopes, token_endpoint_auth_method, issuers, alias, client_id, created_at, updated_at FROM "account_credentials"
+SELECT id, account_id, account_public_id, client_id, name, domain, credentials_type, scopes, token_endpoint_auth_method, grant_types, version, transport, creation_method, client_uri, redirect_uris, logo_uri, policy_uri, tos_uri, software_id, software_version, contacts, created_at, updated_at FROM "account_credentials"
 WHERE "client_id" = $1
 LIMIT 1
 `
@@ -170,12 +235,24 @@ func (q *Queries) FindAccountCredentialsByClientID(ctx context.Context, clientID
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,
+		&i.ClientID,
+		&i.Name,
+		&i.Domain,
 		&i.CredentialsType,
 		&i.Scopes,
 		&i.TokenEndpointAuthMethod,
-		&i.Issuers,
-		&i.Alias,
-		&i.ClientID,
+		&i.GrantTypes,
+		&i.Version,
+		&i.Transport,
+		&i.CreationMethod,
+		&i.ClientUri,
+		&i.RedirectUris,
+		&i.LogoUri,
+		&i.PolicyUri,
+		&i.TosUri,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.Contacts,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -183,7 +260,7 @@ func (q *Queries) FindAccountCredentialsByClientID(ctx context.Context, clientID
 }
 
 const findPaginatedAccountCredentialsByAccountPublicID = `-- name: FindPaginatedAccountCredentialsByAccountPublicID :many
-SELECT id, account_id, account_public_id, credentials_type, scopes, token_endpoint_auth_method, issuers, alias, client_id, created_at, updated_at FROM "account_credentials"
+SELECT id, account_id, account_public_id, client_id, name, domain, credentials_type, scopes, token_endpoint_auth_method, grant_types, version, transport, creation_method, client_uri, redirect_uris, logo_uri, policy_uri, tos_uri, software_id, software_version, contacts, created_at, updated_at FROM "account_credentials"
 WHERE "account_public_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3
@@ -208,12 +285,24 @@ func (q *Queries) FindPaginatedAccountCredentialsByAccountPublicID(ctx context.C
 			&i.ID,
 			&i.AccountID,
 			&i.AccountPublicID,
+			&i.ClientID,
+			&i.Name,
+			&i.Domain,
 			&i.CredentialsType,
 			&i.Scopes,
 			&i.TokenEndpointAuthMethod,
-			&i.Issuers,
-			&i.Alias,
-			&i.ClientID,
+			&i.GrantTypes,
+			&i.Version,
+			&i.Transport,
+			&i.CreationMethod,
+			&i.ClientUri,
+			&i.RedirectUris,
+			&i.LogoUri,
+			&i.PolicyUri,
+			&i.TosUri,
+			&i.SoftwareID,
+			&i.SoftwareVersion,
+			&i.Contacts,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -230,38 +319,75 @@ func (q *Queries) FindPaginatedAccountCredentialsByAccountPublicID(ctx context.C
 const updateAccountCredentials = `-- name: UpdateAccountCredentials :one
 UPDATE "account_credentials" SET
     "scopes" = $2,
-    "alias" = $3,
-    "issuers" = $4,
+    "name" = $3,
+    "domain" = $4,
+    "client_uri" = $5,
+    "redirect_uris" = $6,
+    "logo_uri" = $7,
+    "policy_uri" = $8,
+    "tos_uri" = $9,
+    "software_version" = $10,
+    "contacts" = $11,
+    "transport" = $12,
+    "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, account_public_id, credentials_type, scopes, token_endpoint_auth_method, issuers, alias, client_id, created_at, updated_at
+RETURNING id, account_id, account_public_id, client_id, name, domain, credentials_type, scopes, token_endpoint_auth_method, grant_types, version, transport, creation_method, client_uri, redirect_uris, logo_uri, policy_uri, tos_uri, software_id, software_version, contacts, created_at, updated_at
 `
 
 type UpdateAccountCredentialsParams struct {
-	ID      int32
-	Scopes  []AccountCredentialsScope
-	Alias   string
-	Issuers []string
+	ID              int32
+	Scopes          []AccountCredentialsScope
+	Name            string
+	Domain          string
+	ClientUri       string
+	RedirectUris    []string
+	LogoUri         pgtype.Text
+	PolicyUri       pgtype.Text
+	TosUri          pgtype.Text
+	SoftwareVersion pgtype.Text
+	Contacts        []string
+	Transport       Transport
 }
 
 func (q *Queries) UpdateAccountCredentials(ctx context.Context, arg UpdateAccountCredentialsParams) (AccountCredential, error) {
 	row := q.db.QueryRow(ctx, updateAccountCredentials,
 		arg.ID,
 		arg.Scopes,
-		arg.Alias,
-		arg.Issuers,
+		arg.Name,
+		arg.Domain,
+		arg.ClientUri,
+		arg.RedirectUris,
+		arg.LogoUri,
+		arg.PolicyUri,
+		arg.TosUri,
+		arg.SoftwareVersion,
+		arg.Contacts,
+		arg.Transport,
 	)
 	var i AccountCredential
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,
+		&i.ClientID,
+		&i.Name,
+		&i.Domain,
 		&i.CredentialsType,
 		&i.Scopes,
 		&i.TokenEndpointAuthMethod,
-		&i.Issuers,
-		&i.Alias,
-		&i.ClientID,
+		&i.GrantTypes,
+		&i.Version,
+		&i.Transport,
+		&i.CreationMethod,
+		&i.ClientUri,
+		&i.RedirectUris,
+		&i.LogoUri,
+		&i.PolicyUri,
+		&i.TosUri,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.Contacts,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

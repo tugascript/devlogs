@@ -8,7 +8,7 @@ package bodies
 
 type CreateAppBodyBase struct {
 	Type                  string   `json:"type" validate:"required,oneof=web spa native backend device service mcp"`
-	Name                  string   `json:"name" validate:"required,min=3,max=50"`
+	Name                  string   `json:"name" validate:"required,min=1,max=255"`
 	Domain                string   `json:"domain" validate:"omitempty,fqdn,max=250"`
 	ClientURI             string   `json:"client_uri" validate:"required,url"`
 	LogoURI               string   `json:"logo_uri,omitempty" validate:"omitempty,url"`
@@ -25,7 +25,7 @@ type CreateAppBodyBase struct {
 }
 
 type UpdateAppBodyBase struct {
-	Name                  string   `json:"name" validate:"required,max=50,min=3"`
+	Name                  string   `json:"name" validate:"required,max=255,min=1"`
 	Domain                string   `json:"domain" validate:"omitempty,fqdn,max=250"`
 	ClientURI             string   `json:"client_uri" validate:"required,url"`
 	LogoURI               string   `json:"logo_uri,omitempty" validate:"omitempty,url"`

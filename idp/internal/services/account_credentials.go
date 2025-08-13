@@ -9,6 +9,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,7 +17,6 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -28,10 +28,89 @@ const (
 	accountCredentialsKeysCacheKeyPrefix string = "account_credentials_keys"
 )
 
+func mapAccountCredentialsTransport(
+	transport string,
+	credentialType database.AccountCredentialsType,
+) (database.Transport, *exceptions.ServiceError) {
+	if credentialType == database.AccountCredentialsTypeMcp {
+		switch transport {
+		case transportSTDIO:
+			return database.TransportStdio, nil
+		case transportStreamableHTTP:
+			return database.TransportStreamableHttp, nil
+		default:
+			return "", exceptions.NewValidationError("invalid transport: " + transport)
+		}
+	}
+	if credentialType == database.AccountCredentialsTypeService || credentialType == database.AccountCredentialsTypeNative {
+		switch transport {
+		case transportHTTP:
+			return database.TransportHttp, nil
+		case transportHTTPS:
+			return database.TransportHttps, nil
+		default:
+			return "", exceptions.NewValidationError("invalid transport: " + transport)
+		}
+	}
+
+	return "", exceptions.NewValidationError("invalid credentials type: " + string(credentialType))
+}
+
+func mapAccountCredentialsType(credentialsType string) (database.AccountCredentialsType, *exceptions.ServiceError) {
+	acType := database.AccountCredentialsType(credentialsType)
+	switch acType {
+	case database.AccountCredentialsTypeService:
+		return acType, nil
+	case database.AccountCredentialsTypeMcp:
+		return acType, nil
+	case database.AccountCredentialsTypeNative:
+		return "", exceptions.NewValidationError("Native credentials are not supported")
+	default:
+		return "", exceptions.NewValidationError("invalid credentials type: " + credentialsType)
+	}
+}
+
+func mapAccountCredentialsTokenEndpointAuthMethod(
+	authMethod string,
+	credentialType database.AccountCredentialsType,
+	transport database.Transport,
+) (database.AuthMethod, *exceptions.ServiceError) {
+	switch credentialType {
+	case database.AccountCredentialsTypeNative:
+		if authMethod != "" && authMethod != AuthMethodNone {
+			return "", exceptions.NewValidationError("auth method is not supported for native credentials")
+		}
+
+		return database.AuthMethodNone, nil
+	case database.AccountCredentialsTypeService:
+		if authMethod == "" || authMethod == AuthMethodNone {
+			return "", exceptions.NewValidationError("auth method is required for service credentials")
+		}
+
+		return mapAuthMethod(authMethod)
+	case database.AccountCredentialsTypeMcp:
+		if transport == database.TransportStdio {
+			if authMethod != "" && authMethod != AuthMethodNone {
+				return "", exceptions.NewValidationError("auth method is not supported for stdio mcp credentials")
+			}
+
+			return database.AuthMethodNone, nil
+		}
+		if transport == database.TransportStreamableHttp {
+			return mapAuthMethod(authMethod)
+		}
+
+		return "", exceptions.NewValidationError("invalid transport: " + string(transport))
+	default:
+		return "", exceptions.NewValidationError("invalid credentials type: " + string(credentialType))
+	}
+}
+
 func mapAccountCredentialsScope(scope string) (database.AccountCredentialsScope, *exceptions.ServiceError) {
 	acScope := database.AccountCredentialsScope(scope)
 	switch acScope {
-	case database.AccountCredentialsScopeAccountAdmin, database.AccountCredentialsScopeAccountAuthProvidersRead,
+	case database.AccountCredentialsScopeEmail, database.AccountCredentialsScopeProfile,
+		database.AccountCredentialsScopeAccountAdmin, database.AccountCredentialsScopeAccountAuthProvidersRead,
 		database.AccountCredentialsScopeAccountUsersRead, database.AccountCredentialsScopeAccountUsersWrite,
 		database.AccountCredentialsScopeAccountAppsRead, database.AccountCredentialsScopeAccountAppsWrite,
 		database.AccountCredentialsScopeAccountCredentialsRead, database.AccountCredentialsScopeAccountCredentialsWrite:
@@ -41,14 +120,12 @@ func mapAccountCredentialsScope(scope string) (database.AccountCredentialsScope,
 	return "", exceptions.NewValidationError("invalid scope: " + scope)
 }
 
-// NOTE: using a map will lead to a null pointer dereference even if the slice is not empty
 func mapAccountCredentialsScopes(scopes []string) ([]database.AccountCredentialsScope, *exceptions.ServiceError) {
 	scopesSet := utils.SliceToHashSet(scopes)
 	if scopesSet.IsEmpty() {
 		return nil, exceptions.NewValidationError("scopes cannot be empty")
 	}
 
-	// return utils.MapSliceWithErr(scopesSet.Items(), mapAccountCredentialsScope)
 	mappedScopes := make([]database.AccountCredentialsScope, 0, scopesSet.Size())
 	for _, scope := range scopesSet.Items() {
 		mappedScope, serviceErr := mapAccountCredentialsScope(scope)
@@ -64,10 +141,21 @@ type CreateAccountCredentialsOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
 	AccountVersion  int32
-	Alias           string
+	CredentialsType string
+	Name            string
+	Domain          string
+	ClientURI       string
+	RedirectURIs    []string
+	LogoURI         string
+	TOSURI          string
+	PolicyURI       string
+	SoftwareID      string
+	SoftwareVersion string
+	Contacts        []string
+	CreationMethod  database.CreationMethod
+	Transport       string
 	Scopes          []string
 	AuthMethod      string
-	Issuers         []string
 	Algorithm       string
 }
 
@@ -78,12 +166,28 @@ func (s *Services) CreateAccountCredentials(
 	logger := s.buildLogger(opts.RequestID, accountCredentialsLocation, "CreateAccountCredentials").With(
 		"accountPublicID", opts.AccountPublicID,
 		"scopes", opts.Scopes,
-		"alias", opts.Alias,
+		"name", opts.Name,
 		"authMethod", opts.AuthMethod,
 	)
 	logger.InfoContext(ctx, "Creating account keys...")
 
-	authMethod, serviceErr := mapAuthMethod(opts.AuthMethod)
+	credentialsType, serviceErr := mapAccountCredentialsType(opts.CredentialsType)
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to map credentials type", "serviceError", serviceErr)
+		return dtos.AccountCredentialsDTO{}, serviceErr
+	}
+
+	transport, serviceErr := mapAccountCredentialsTransport(opts.Transport, credentialsType)
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to map transport", "serviceError", serviceErr)
+		return dtos.AccountCredentialsDTO{}, serviceErr
+	}
+
+	authMethod, serviceErr := mapAccountCredentialsTokenEndpointAuthMethod(
+		opts.AuthMethod,
+		credentialsType,
+		transport,
+	)
 	if serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to map auth method", "serviceError", serviceErr)
 		return dtos.AccountCredentialsDTO{}, serviceErr
@@ -92,6 +196,12 @@ func (s *Services) CreateAccountCredentials(
 	scopes, serviceErr := mapAccountCredentialsScopes(opts.Scopes)
 	if serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to map scopes", "serviceError", serviceErr)
+		return dtos.AccountCredentialsDTO{}, serviceErr
+	}
+
+	domain, serviceErr := mapDomain(opts.ClientURI, opts.Domain)
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to map domain", "serviceError", serviceErr)
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
@@ -105,21 +215,55 @@ func (s *Services) CreateAccountCredentials(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	alias := utils.Lowered(opts.Alias)
-	count, err := s.database.CountAccountCredentialsByAliasAndAccountID(
+	name := strings.TrimSpace(opts.Name)
+	count, err := s.database.CountAccountCredentialsByNameAndAccountID(
 		ctx,
-		database.CountAccountCredentialsByAliasAndAccountIDParams{
+		database.CountAccountCredentialsByNameAndAccountIDParams{
 			AccountID: accountID,
-			Alias:     alias,
+			Name:      name,
 		},
 	)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to count account credentials by alias", "error", err)
+		logger.ErrorContext(ctx, "Failed to count account credentials by name", "error", err)
 		return dtos.AccountCredentialsDTO{}, exceptions.NewInternalServerError()
 	}
 	if count > 0 {
-		logger.WarnContext(ctx, "Account credentials alias already exists", "alias", alias)
-		return dtos.AccountCredentialsDTO{}, exceptions.NewConflictError("Account credentials alias already exists")
+		logger.WarnContext(ctx, "Account credentials name already exists", "name", name)
+		return dtos.AccountCredentialsDTO{}, exceptions.NewConflictError("Account credentials name already exists")
+	}
+
+	if authMethod == database.AuthMethodNone {
+		accountCredentials, err := s.database.CreateAccountCredentials(
+			ctx,
+			database.CreateAccountCredentialsParams{
+				ClientID:                utils.Base62UUID(),
+				AccountID:               accountID,
+				AccountPublicID:         opts.AccountPublicID,
+				CredentialsType:         credentialsType,
+				Name:                    name,
+				Scopes:                  scopes,
+				TokenEndpointAuthMethod: authMethod,
+				Domain:                  domain,
+				ClientUri:               utils.ProcessURL(opts.ClientURI),
+				RedirectUris: utils.MapSlice(opts.RedirectURIs, func(uri *string) string {
+					return utils.ProcessURL(*uri)
+				}),
+				LogoUri:         mapEmptyURL(opts.LogoURI),
+				PolicyUri:       mapEmptyURL(opts.PolicyURI),
+				TosUri:          mapEmptyURL(opts.TOSURI),
+				SoftwareID:      opts.SoftwareID,
+				SoftwareVersion: mapEmptyString(opts.SoftwareVersion),
+				Contacts:        opts.Contacts,
+				CreationMethod:  opts.CreationMethod,
+				Transport:       transport,
+			},
+		)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create account credentials", "error", err)
+			return dtos.AccountCredentialsDTO{}, exceptions.FromDBError(err)
+		}
+
+		return dtos.MapAccountCredentialsToDTO(&accountCredentials), nil
 	}
 
 	qrs, txn, err := s.database.BeginTx(ctx)
@@ -132,18 +276,31 @@ func (s *Services) CreateAccountCredentials(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	accountCredentials, err := qrs.CreateAccountCredentials(ctx, database.CreateAccountCredentialsParams{
-		ClientID:                utils.Base62UUID(),
-		AccountID:               accountID,
-		AccountPublicID:         opts.AccountPublicID,
-		CredentialsType:         database.AccountCredentialsTypeClient,
-		Scopes:                  scopes,
-		TokenEndpointAuthMethod: authMethod,
-		Alias:                   alias,
-		Issuers: utils.MapSlice(opts.Issuers, func(url *string) string {
-			return utils.ProcessURL(*url)
-		}),
-	})
+	accountCredentials, err := qrs.CreateAccountCredentials(
+		ctx,
+		database.CreateAccountCredentialsParams{
+			ClientID:                utils.Base62UUID(),
+			AccountID:               accountID,
+			AccountPublicID:         opts.AccountPublicID,
+			CredentialsType:         credentialsType,
+			Name:                    name,
+			Scopes:                  scopes,
+			TokenEndpointAuthMethod: authMethod,
+			Domain:                  domain,
+			ClientUri:               utils.ProcessURL(opts.ClientURI),
+			RedirectUris: utils.MapSlice(opts.RedirectURIs, func(uri *string) string {
+				return utils.ProcessURL(*uri)
+			}),
+			LogoUri:         mapEmptyURL(opts.LogoURI),
+			PolicyUri:       mapEmptyURL(opts.PolicyURI),
+			TosUri:          mapEmptyURL(opts.TOSURI),
+			SoftwareID:      opts.SoftwareID,
+			SoftwareVersion: mapEmptyString(opts.SoftwareVersion),
+			Contacts:        opts.Contacts,
+			CreationMethod:  opts.CreationMethod,
+			Transport:       transport,
+		},
+	)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create account credentials", "error", err)
 		serviceErr = exceptions.FromDBError(err)
@@ -367,14 +524,38 @@ func (s *Services) ListAccountCredentialsByAccountPublicID(
 	return utils.MapSlice(accountCredentials, dtos.MapAccountCredentialsToDTO), count, nil
 }
 
+func mapAccountCredentialsUpdateTransport(
+	transport string,
+	currentTransport database.Transport,
+	credentialsType database.AccountCredentialsType,
+) (database.Transport, *exceptions.ServiceError) {
+	if credentialsType == database.AccountCredentialsTypeMcp {
+		if transport != "" {
+			return "", exceptions.NewValidationError("Transport update is not allowed for MCP credentials")
+		}
+
+		return currentTransport, nil
+	}
+
+	return mapAccountCredentialsTransport(transport, credentialsType)
+}
+
 type UpdateAccountCredentialsScopesOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
 	AccountVersion  int32
 	ClientID        string
-	Alias           string
-	Scopes          []tokens.AccountScope
-	Issuers         []string
+	Name            string
+	Domain          string
+	Scopes          []string
+	ClientURI       string
+	RedirectURIs    []string
+	LogoURI         string
+	TOSURI          string
+	PolicyURI       string
+	SoftwareVersion string
+	Contacts        []string
+	Transport       string
 }
 
 func (s *Services) UpdateAccountCredentials(
@@ -406,13 +587,13 @@ func (s *Services) UpdateAccountCredentials(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	alias := utils.Lowered(opts.Alias)
-	if alias != accountCredentialsDTO.Alias {
-		count, err := s.database.CountAccountCredentialsByAliasAndAccountID(
+	name := strings.TrimSpace(opts.Name)
+	if name != accountCredentialsDTO.Name {
+		count, err := s.database.CountAccountCredentialsByNameAndAccountID(
 			ctx,
-			database.CountAccountCredentialsByAliasAndAccountIDParams{
+			database.CountAccountCredentialsByNameAndAccountIDParams{
 				AccountID: accountCredentialsDTO.AccountID(),
-				Alias:     alias,
+				Name:      name,
 			},
 		)
 		if err != nil {
@@ -420,18 +601,39 @@ func (s *Services) UpdateAccountCredentials(
 			return dtos.AccountCredentialsDTO{}, exceptions.NewInternalServerError()
 		}
 		if count > 0 {
-			logger.WarnContext(ctx, "Account credentials alias already exists", "alias", alias)
+			logger.WarnContext(ctx, "Account credentials alias already exists", "name", name)
 			return dtos.AccountCredentialsDTO{}, exceptions.NewConflictError("Account credentials alias already exists")
 		}
 	}
 
+	transport, serviceErr := mapAccountCredentialsUpdateTransport(
+		opts.Transport,
+		accountCredentialsDTO.Transport,
+		accountCredentialsDTO.Type,
+	)
+	if serviceErr != nil {
+		return dtos.AccountCredentialsDTO{}, serviceErr
+	}
+
+	domain, serviceErr := mapDomain(opts.ClientURI, opts.Domain)
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to map domain", "serviceError", serviceErr)
+		return dtos.AccountCredentialsDTO{}, serviceErr
+	}
+
 	accountCredentials, err := s.database.UpdateAccountCredentials(ctx, database.UpdateAccountCredentialsParams{
-		ID:     accountCredentialsDTO.ID(),
-		Scopes: scopes,
-		Alias:  alias,
-		Issuers: utils.MapSlice(opts.Issuers, func(url *string) string {
-			return utils.ProcessURL(*url)
-		}),
+		ID:              accountCredentialsDTO.ID(),
+		Scopes:          scopes,
+		Name:            name,
+		Domain:          domain,
+		ClientUri:       opts.ClientURI,
+		RedirectUris:    opts.RedirectURIs,
+		LogoUri:         mapEmptyURL(opts.LogoURI),
+		TosUri:          mapEmptyURL(opts.TOSURI),
+		PolicyUri:       mapEmptyURL(opts.PolicyURI),
+		SoftwareVersion: mapEmptyString(opts.SoftwareVersion),
+		Contacts:        opts.Contacts,
+		Transport:       transport,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account keys scopes", "error", err)

@@ -1129,7 +1129,7 @@ SET "name" = $2,
     "logo_uri" = $5,
     "tos_uri" = $6,
     "policy_uri" = $7,
-    "software_id" = $8,
+    "auth_providers" = $8,
     "software_version" = $9,
     "contacts" = $10,
     "domain" = $11,
@@ -1137,7 +1137,6 @@ SET "name" = $2,
     "redirect_uris" = $13,
     "allow_user_registration" = $14,
     "response_types" = $15,
-    "auth_providers" = $16,
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
@@ -1152,7 +1151,7 @@ type UpdateAppParams struct {
 	LogoUri               pgtype.Text
 	TosUri                pgtype.Text
 	PolicyUri             pgtype.Text
-	SoftwareID            string
+	AuthProviders         []AuthProvider
 	SoftwareVersion       pgtype.Text
 	Contacts              []string
 	Domain                string
@@ -1160,7 +1159,6 @@ type UpdateAppParams struct {
 	RedirectUris          []string
 	AllowUserRegistration bool
 	ResponseTypes         []ResponseType
-	AuthProviders         []AuthProvider
 }
 
 func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, error) {
@@ -1172,7 +1170,7 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		arg.LogoUri,
 		arg.TosUri,
 		arg.PolicyUri,
-		arg.SoftwareID,
+		arg.AuthProviders,
 		arg.SoftwareVersion,
 		arg.Contacts,
 		arg.Domain,
@@ -1180,7 +1178,6 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		arg.RedirectUris,
 		arg.AllowUserRegistration,
 		arg.ResponseTypes,
-		arg.AuthProviders,
 	)
 	var i App
 	err := row.Scan(

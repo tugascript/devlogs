@@ -8,6 +8,7 @@ package services
 
 import (
 	"log/slog"
+	"net/url"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -81,7 +82,7 @@ func mapAuthMethod(authMethod string) (database.AuthMethod, *exceptions.ServiceE
 		return database.AuthMethodClientSecretPost, nil
 	case AuthMethodClientSecretJWT:
 		return database.AuthMethodClientSecretJwt, nil
-	case AuthMethodNone:
+	case AuthMethodNone, "":
 		return database.AuthMethodNone, nil
 	default:
 		return "", exceptions.NewValidationError("invalid auth method")
@@ -162,6 +163,27 @@ func mapScope(scope string) (database.Scopes, *exceptions.ServiceError) {
 	default:
 		return "", exceptions.NewValidationError("invalid scope")
 	}
+}
+
+func mapDomain(baseURI string, domain string) (string, *exceptions.ServiceError) {
+	trimmed := strings.TrimSpace(domain)
+	if trimmed != "" {
+		return trimmed, nil
+	}
+
+	parsed, err := url.Parse(strings.TrimSpace(baseURI))
+	if err != nil || parsed == nil {
+		return "", exceptions.NewValidationError("Invalid client URI")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", exceptions.NewValidationError("Invalid client URI")
+	}
+
+	host := parsed.Hostname()
+	if strings.TrimSpace(host) == "" {
+		return "", exceptions.NewValidationError("Invalid client URI")
+	}
+	return host, nil
 }
 
 func mapTwoFactorType(twoFactorType string) (database.TwoFactorType, *exceptions.ServiceError) {

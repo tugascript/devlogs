@@ -118,9 +118,9 @@ Table accounts as A {
     id serial [pk]
     public_id uuid [not null]
     
-    given_name varchar(50) [not null]
-    family_name varchar(50) [not null]
-    username varchar(63) [not null]
+    given_name varchar(100) [not null]
+    family_name varchar(100) [not null]
+    username varchar(63) [not null] // maximum length of a DNS label
     email varchar(250) [not null]
     organization varchar(50)
     password text
@@ -307,36 +307,10 @@ Enum account_credentials_scope {
 }
 
 Enum account_credentials_type {
-    "client"
+    "native"
+    "service"
     "mcp"
 }
-
-Table account_credentials as AC {
-    id serial [pk]
-
-    account_id integer [not null]
-    account_public_id uuid [not null]
-
-    credentials_type account_credentials_type [not null]
-    scopes "account_credentials_scope[]" [not null]
-    token_endpoint_auth_method "auth_method" [not null]
-    issuers "varchar(255)[]" [not null]
-
-    alias varchar(100) [not null]
-    client_id varchar(22) [not null]
-
-    created_at timestamptz [not null, default: `now()`]
-    updated_at timestamptz [not null, default: `now()`]
-
-    Indexes {
-        (client_id) [unique, name: 'account_credentials_client_id_uidx']
-        (account_id) [name: 'account_credentials_account_id_idx']
-        (account_public_id) [name: 'account_credentials_account_public_id_idx']
-        (account_public_id, client_id) [name: 'account_credentials_account_public_id_client_id_idx']
-        (alias, account_id) [unique, name: 'account_credentials_alias_account_id_uidx']
-    }
-}
-Ref: AC.account_id > A.id [delete: cascade]
 
 Enum transport {
     "http"
@@ -350,40 +324,45 @@ Enum creation_method {
     "dynamic_registration"
 }
 
-Table account_credentials_mcps as ACM {
+Table account_credentials as AC {
     id serial [pk]
 
     account_id integer [not null]
     account_public_id uuid [not null]
-    account_credentials_id integer [not null]
-    account_credentials_client_id varchar(22) [not null]
 
-    creation_method creation_method [not null]
+    client_id varchar(22) [not null]
+    name varchar(255) [not null]
+    domain "varchar(250)" [not null]
+    credentials_type account_credentials_type [not null]
+    scopes "account_credentials_scope[]" [not null]
+    token_endpoint_auth_method "auth_method" [not null]
+    grant_types "grant_type[]" [not null]
+    version integer [not null, default: 1]
+
     transport transport [not null]
+    creation_method creation_method [not null]
 
-    response_types "response_type[]" [not null]
-    callback_uris "varchar(2048)[]" [not null]
     client_uri varchar(512) [not null]
+    redirect_uris "varchar(2048)[]" [not null]
     logo_uri varchar(512) [null]
     policy_uri varchar(512) [null]
     tos_uri varchar(512) [null]
     software_id varchar(512) [not null]
     software_version varchar(512) [null]
-    contacts "varchar(512)[]" [not null, default: '{}']
+    contacts "varchar(250)[]" [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
 
     Indexes {
-        (account_id) [name: 'account_credentials_mcp_account_id_idx']
-        (account_public_id) [name: 'account_credentials_mcp_account_public_id_idx']
-        (account_credentials_id) [unique, name: 'account_credentials_mcp_account_credentials_id_uidx']
-        (account_credentials_client_id) [name: 'account_credentials_mcp_account_credentials_client_id_idx']
-        (account_credentials_id, software_id) [unique, name: 'account_credentials_mcp_account_credentials_id_software_id_uidx']
+        (client_id) [unique, name: 'account_credentials_client_id_uidx']
+        (account_id) [name: 'account_credentials_account_id_idx']
+        (account_public_id) [name: 'account_credentials_account_public_id_idx']
+        (account_public_id, client_id) [name: 'account_credentials_account_public_id_client_id_idx']
+        (name, account_id) [unique, name: 'account_credentials_name_account_id_uidx']
     }
 }
-Ref: ACM.account_id > A.id [delete: cascade]
-Ref: ACM.account_credentials_id > AC.id [delete: cascade]
+Ref: AC.account_id > A.id [delete: cascade]
 
 Table account_credentials_secrets as ACS {
     account_id integer [not null]
@@ -532,7 +511,7 @@ Table users as U {
     account_id integer [not null]
 
     email varchar(250) [not null]
-    username varchar(250) [not null]
+    username varchar(63) [not null] // maximum length of a DNS label
     password text
     version integer [not null, default: 1]
     email_verified boolean [not null, default: false]
@@ -721,7 +700,7 @@ Table apps as APP {
     account_public_id uuid [not null]
 
     app_type app_type [not null]
-    name varchar(100) [not null]
+    name varchar(255) [not null]
     client_id varchar(22) [not null]
     version integer [not null, default: 1]
     creation_method creation_method [not null]
@@ -888,7 +867,28 @@ Enum software_statement_verification_method {
     "jwks_uri"
 }
 
-Table dynamic_registration_configs as DRC {
+Table account_dynamic_registration_configs as ADRC {
+    id serial [pk]
+
+    account_id integer [not null]
+
+    whitelisted_domains "varchar(250)[]" [not null]
+    require_software_statement boolean [not null]
+    software_statement_verification_methods "software_statement_verification_method[]" [not null]
+
+    require_initial_access_token boolean [not null]
+    initial_access_token_generation_methods "initial_access_token_generation_method[]" [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'account_dynamic_registration_configs_account_id_idx']
+    }
+}
+Ref: ADRC.account_id > A.id [delete: cascade]
+
+Table app_dynamic_registration_configs as APDRC {
     id serial [pk]
 
     account_id integer [not null]
@@ -918,10 +918,10 @@ Table dynamic_registration_configs as DRC {
     updated_at timestamptz [not null, default: `now()`]
 
     Indexes {
-        (account_id) [name: 'dynamic_registrations_configs_account_id_idx']
+        (account_id) [name: 'app_dynamic_registration_configs_account_id_idx']
     }
 }
-Ref: DRC.account_id > A.id [delete: cascade]
+Ref: APDRC.account_id > A.id [delete: cascade]
 
 Enum app_profile_type {
     "human"

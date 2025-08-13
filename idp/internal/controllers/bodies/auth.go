@@ -7,9 +7,9 @@
 package bodies
 
 type RegisterAccountBody struct {
-	Email      string `json:"email" validate:"required,email"`
-	GivenName  string `json:"given_name" validate:"required,min=2,max=50"`
-	FamilyName string `json:"family_name" validate:"required,min=2,max=50"`
+	Email      string `json:"email" validate:"required,email,max=250"`
+	GivenName  string `json:"given_name" validate:"required,min=2,max=100"`
+	FamilyName string `json:"family_name" validate:"required,min=2,max=100"`
 	Username   string `json:"username,omitempty" validate:"omitempty,min=3,max=63,slug"`
 	Password   string `json:"password" validate:"required,min=8,max=100,password"`
 	Password2  string `json:"password2" validate:"required,eqfield=Password"`
