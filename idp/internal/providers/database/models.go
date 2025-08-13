@@ -66,8 +66,9 @@ func (ns NullAccountCredentialsScope) Value() (driver.Value, error) {
 type AccountCredentialsType string
 
 const (
-	AccountCredentialsTypeClient AccountCredentialsType = "client"
-	AccountCredentialsTypeMcp    AccountCredentialsType = "mcp"
+	AccountCredentialsTypeNative  AccountCredentialsType = "native"
+	AccountCredentialsTypeService AccountCredentialsType = "service"
+	AccountCredentialsTypeMcp     AccountCredentialsType = "mcp"
 )
 
 func (e *AccountCredentialsType) Scan(src interface{}) error {
@@ -1150,12 +1151,24 @@ type AccountCredential struct {
 	ID                      int32
 	AccountID               int32
 	AccountPublicID         uuid.UUID
+	ClientID                string
+	Name                    string
+	Domain                  string
 	CredentialsType         AccountCredentialsType
 	Scopes                  []AccountCredentialsScope
 	TokenEndpointAuthMethod AuthMethod
-	Issuers                 []string
-	Alias                   string
-	ClientID                string
+	GrantTypes              []GrantType
+	Version                 int32
+	Transport               Transport
+	CreationMethod          CreationMethod
+	ClientUri               string
+	RedirectUris            []string
+	LogoUri                 pgtype.Text
+	PolicyUri               pgtype.Text
+	TosUri                  pgtype.Text
+	SoftwareID              string
+	SoftwareVersion         pgtype.Text
+	Contacts                []string
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
 }
@@ -1167,27 +1180,6 @@ type AccountCredentialsKey struct {
 	AccountPublicID      uuid.UUID
 	JwkKid               string
 	CreatedAt            time.Time
-}
-
-type AccountCredentialsMcp struct {
-	ID                         int32
-	AccountID                  int32
-	AccountPublicID            uuid.UUID
-	AccountCredentialsID       int32
-	AccountCredentialsClientID string
-	CreationMethod             CreationMethod
-	Transport                  Transport
-	ResponseTypes              []ResponseType
-	CallbackUris               []string
-	ClientUri                  string
-	LogoUri                    pgtype.Text
-	PolicyUri                  pgtype.Text
-	TosUri                     pgtype.Text
-	SoftwareID                 string
-	SoftwareVersion            pgtype.Text
-	Contacts                   []string
-	CreatedAt                  time.Time
-	UpdatedAt                  time.Time
 }
 
 type AccountCredentialsSecret struct {
@@ -1203,6 +1195,18 @@ type AccountDataEncryptionKey struct {
 	AccountID           int32
 	DataEncryptionKeyID int32
 	CreatedAt           time.Time
+}
+
+type AccountDynamicRegistrationConfig struct {
+	ID                                   int32
+	AccountID                            int32
+	WhitelistedDomains                   []string
+	RequireSoftwareStatement             bool
+	SoftwareStatementVerificationMethods []SoftwareStatementVerificationMethod
+	RequireInitialAccessToken            bool
+	InitialAccessTokenGenerationMethods  []InitialAccessTokenGenerationMethod
+	CreatedAt                            time.Time
+	UpdatedAt                            time.Time
 }
 
 type AccountKeyEncryptionKey struct {
@@ -1269,6 +1273,30 @@ type AppDesign struct {
 	FaviconUrl  pgtype.Text
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type AppDynamicRegistrationConfig struct {
+	ID                                   int32
+	AccountID                            int32
+	AllowedAppTypes                      []AppType
+	WhitelistedDomains                   []string
+	DefaultAllowUserRegistration         bool
+	DefaultAuthProviders                 []AuthProvider
+	DefaultUsernameColumn                AppUsernameColumn
+	DefaultAllowedScopes                 []Scopes
+	DefaultScopes                        []Scopes
+	RequireSoftwareStatementAppTypes     []AppType
+	SoftwareStatementVerificationMethods []SoftwareStatementVerificationMethod
+	RequireInitialAccessTokenAppTypes    []AppType
+	InitialAccessTokenGenerationMethods  []InitialAccessTokenGenerationMethod
+	InitialAccessTokenTtl                int32
+	InitialAccessTokenMaxUses            int32
+	AllowedGrantTypes                    []GrantType
+	AllowedResponseTypes                 []ResponseType
+	AllowedTokenEndpointAuthMethods      []AuthMethod
+	MaxRedirectUris                      int32
+	CreatedAt                            time.Time
+	UpdatedAt                            time.Time
 }
 
 type AppKey struct {
@@ -1349,30 +1377,6 @@ type DataEncryptionKey struct {
 	ExpiresAt time.Time
 	CreatedAt time.Time
 	UpdatedAt time.Time
-}
-
-type DynamicRegistrationConfig struct {
-	ID                                   int32
-	AccountID                            int32
-	AllowedAppTypes                      []AppType
-	WhitelistedDomains                   []string
-	DefaultAllowUserRegistration         bool
-	DefaultAuthProviders                 []AuthProvider
-	DefaultUsernameColumn                AppUsernameColumn
-	DefaultAllowedScopes                 []Scopes
-	DefaultScopes                        []Scopes
-	RequireSoftwareStatementAppTypes     []AppType
-	SoftwareStatementVerificationMethods []SoftwareStatementVerificationMethod
-	RequireInitialAccessTokenAppTypes    []AppType
-	InitialAccessTokenGenerationMethods  []InitialAccessTokenGenerationMethod
-	InitialAccessTokenTtl                int32
-	InitialAccessTokenMaxUses            int32
-	AllowedGrantTypes                    []GrantType
-	AllowedResponseTypes                 []ResponseType
-	AllowedTokenEndpointAuthMethods      []AuthMethod
-	MaxRedirectUris                      int32
-	CreatedAt                            time.Time
-	UpdatedAt                            time.Time
 }
 
 type KeyEncryptionKey struct {

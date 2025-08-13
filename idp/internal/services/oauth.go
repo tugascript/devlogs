@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 
@@ -624,7 +623,7 @@ func (s *Services) validateAccountJWTClaims(
 	}
 	if opts.claims.Issuer == "" ||
 		!utils.IsValidURL(opts.claims.Issuer) ||
-		!slices.Contains(accountClientsDTO.Issuers, utils.ProcessURL(opts.claims.Issuer)) {
+		fmt.Sprintf("https://%s", accountClientsDTO.Domain) != opts.claims.Issuer {
 		logger.WarnContext(ctx, "JWT Bearer token issuer is not allowed", "issuer", opts.claims.Issuer)
 		return dtos.AccountCredentialsDTO{}, exceptions.NewForbiddenError()
 	}

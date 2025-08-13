@@ -7,15 +7,30 @@
 package bodies
 
 type CreateAccountCredentialsBody struct {
-	Scopes     []string `json:"scopes" validate:"required,unique,dive,oneof=account:admin account:users:read account:users:write account:apps:read account:apps:write account:credentials:read account:credentials:write account:auth_providers:read"`
-	Alias      string   `json:"alias" validate:"required,min=1,max=50,slug"`
-	AuthMethod string   `json:"auth_method" validate:"required,oneof=client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
-	Issuers    []string `json:"issuers,omitempty" validate:"required_if=AuthMethod private_key_jwt,unique,dive,url"`
-	Algorithm  string   `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
+	Type                    string   `json:"type" validate:"required,oneof=native service mcp"`
+	Name                    string   `json:"name" validate:"required,min=1,max=255"`
+	Scopes                  []string `json:"scopes" validate:"required,unique,dive,oneof=email profile account:admin account:users:read account:users:write account:apps:read account:apps:write account:credentials:read account:credentials:write account:auth_providers:read"`
+	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method" validate:"required,oneof=client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
+	Domain                  string   `json:"domain,omitempty" validate:"omitempty,fqdn,max=250"`
+	ClientURI               string   `json:"client_uri" validate:"required,uri"`
+	RedirectURIs            []string `json:"redirect_uris,omitempty" validate:"omitempty,unique,dive,uri"`
+	LogoURI                 string   `json:"logo_uri,omitempty" validate:"omitempty,uri"`
+	TOSURI                  string   `json:"tos_uri,omitempty" validate:"omitempty,uri"`
+	PolicyURI               string   `json:"policy_uri,omitempty" validate:"omitempty,uri"`
+	SoftwareID              string   `json:"software_id" validate:"required,min=1,max=100"`
+	SoftwareVersion         string   `json:"software_version" validate:"required,min=1,max=100"`
+	Algorithm               string   `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
 }
 
 type UpdateAccountCredentialsBody struct {
-	Scopes  []string `json:"scopes" validate:"required,unique,dive,oneof=account:admin account:users:read account:users:write account:apps:read account:apps:write account:credentials:read account:credentials:write account:auth_providers:read"`
-	Alias   string   `json:"alias" validate:"required,min=1,max=50,slug"`
-	Issuers []string `json:"issuers" validate:"required,unique,dive,url"`
+	Name            string   `json:"name" validate:"required,min=1,max=255"`
+	Scopes          []string `json:"scopes" validate:"required,unique,dive,oneof=account:admin account:users:read account:users:write account:apps:read account:apps:write account:credentials:read account:credentials:write account:auth_providers:read"`
+	Transport       string   `json:"transport" validate:"required,oneof=http https stdio streamable_http"`
+	Domain          string   `json:"domain,omitempty" validate:"omitempty,fqdn,max=250"`
+	ClientURI       string   `json:"client_uri" validate:"required,uri"`
+	RedirectURIs    []string `json:"redirect_uris,omitempty" validate:"omitempty,unique,dive,uri"`
+	LogoURI         string   `json:"logo_uri,omitempty" validate:"omitempty,uri"`
+	TOSURI          string   `json:"tos_uri,omitempty" validate:"omitempty,uri"`
+	PolicyURI       string   `json:"policy_uri,omitempty" validate:"omitempty,uri"`
+	SoftwareVersion string   `json:"software_version,omitempty" validate:"omitempty,min=1,max=100"`
 }
