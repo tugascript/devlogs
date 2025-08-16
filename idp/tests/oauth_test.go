@@ -750,10 +750,17 @@ func TestOAuthToken(t *testing.T) {
 			RequestID:       uuid.NewString(),
 			AccountPublicID: account.PublicID,
 			AccountVersion:  account.Version(),
+			CredentialsType: string(database.AccountCredentialsTypeService),
 			Name:            "update-cred",
 			Scopes:          []string{"account:admin"},
 			AuthMethod:      "private_key_jwt",
-			Issuers:         []string{"https://issuer.example.com"},
+			Domain:          "issuer.example.com",
+			ClientURI:       "https://issuer.example.com",
+			Transport:       "https",
+			SoftwareID:      "test-software",
+			SoftwareVersion: "1.0.0",
+			Contacts:        []string{"test@example.com"},
+			CreationMethod:  database.CreationMethodManual,
 			Algorithm:       string(algorithm),
 		})
 		if serviceErr != nil {
@@ -826,10 +833,17 @@ func TestOAuthToken(t *testing.T) {
 			RequestID:       uuid.NewString(),
 			AccountPublicID: account.PublicID,
 			AccountVersion:  account.Version(),
+			CredentialsType: string(database.AccountCredentialsTypeService),
 			Name:            "update-cred",
 			Scopes:          []string{"account:admin"},
 			AuthMethod:      am,
-			Issuers:         []string{"https://issuer.example.com"},
+			Domain:          "issuer.example.com",
+			ClientURI:       "https://issuer.example.com",
+			Transport:       "https",
+			SoftwareID:      "test-software",
+			SoftwareVersion: "1.0.0",
+			Contacts:        []string{"test@example.com"},
+			CreationMethod:  database.CreationMethodManual,
 		})
 		if serviceErr != nil {
 			t.Fatalf("Failed to create account credentials: %v", serviceErr)

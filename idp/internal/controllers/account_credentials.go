@@ -49,6 +49,7 @@ func (c *Controllers) CreateAccountCredentials(ctx *fiber.Ctx) error {
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
 			AccountVersion:  accountClaims.AccountVersion,
+			CredentialsType: body.Type,
 			Name:            body.Name,
 			Scopes:          body.Scopes,
 			AuthMethod:      body.TokenEndpointAuthMethod,
@@ -58,6 +59,10 @@ func (c *Controllers) CreateAccountCredentials(ctx *fiber.Ctx) error {
 			LogoURI:         body.LogoURI,
 			TOSURI:          body.TOSURI,
 			PolicyURI:       body.PolicyURI,
+			SoftwareID:      body.SoftwareID,
+			SoftwareVersion: body.SoftwareVersion,
+			Algorithm:       body.Algorithm,
+			Transport:       body.Transport,
 		},
 	)
 	if serviceErr != nil {
@@ -174,6 +179,7 @@ func (c *Controllers) UpdateAccountCredentials(ctx *fiber.Ctx) error {
 			AccountPublicID: accountClaims.AccountID,
 			AccountVersion:  accountClaims.AccountVersion,
 			ClientID:        urlParams.ClientID,
+			Name:            body.Name,
 			Scopes:          body.Scopes,
 			Transport:       body.Transport,
 			Domain:          body.Domain,
@@ -182,6 +188,7 @@ func (c *Controllers) UpdateAccountCredentials(ctx *fiber.Ctx) error {
 			LogoURI:         body.LogoURI,
 			TOSURI:          body.TOSURI,
 			PolicyURI:       body.PolicyURI,
+			SoftwareVersion: body.SoftwareVersion,
 		},
 	)
 	if serviceErr != nil {

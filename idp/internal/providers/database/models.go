@@ -1198,15 +1198,17 @@ type AccountDataEncryptionKey struct {
 }
 
 type AccountDynamicRegistrationConfig struct {
-	ID                                   int32
-	AccountID                            int32
-	WhitelistedDomains                   []string
-	RequireSoftwareStatement             bool
-	SoftwareStatementVerificationMethods []SoftwareStatementVerificationMethod
-	RequireInitialAccessToken            bool
-	InitialAccessTokenGenerationMethods  []InitialAccessTokenGenerationMethod
-	CreatedAt                            time.Time
-	UpdatedAt                            time.Time
+	ID                                       int32
+	AccountID                                int32
+	AccountPublicID                          uuid.UUID
+	AccountCredentialsTypes                  []AccountCredentialsType
+	WhitelistedDomains                       []string
+	RequireSoftwareStatementCredentialTypes  []AccountCredentialsType
+	SoftwareStatementVerificationMethods     []SoftwareStatementVerificationMethod
+	RequireInitialAccessTokenCredentialTypes []AccountCredentialsType
+	InitialAccessTokenGenerationMethods      []InitialAccessTokenGenerationMethod
+	CreatedAt                                time.Time
+	UpdatedAt                                time.Time
 }
 
 type AccountKeyEncryptionKey struct {
