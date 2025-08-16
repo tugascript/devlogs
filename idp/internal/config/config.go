@@ -17,32 +17,36 @@ import (
 )
 
 type Config struct {
-	port                 int64
-	env                  string
-	maxProcs             int64
-	databaseURL          string
-	valkeyURL            string
-	frontendDomain       string
-	backendDomain        string
-	cookieSecret         string
-	cookieName           string
-	emailPubChannel      string
-	encryptionSecret     string
-	serviceID            uuid.UUID
-	serviceName          string
-	loggerConfig         LoggerConfig
-	tokensConfig         TokensConfig
-	oAuthProvidersConfig OAuthProvidersConfig
-	rateLimiterConfig    RateLimiterConfig
-	openBaoConfig        OpenBaoConfig
-	cryptoConfig         CryptoConfig
-	distributedCache     DistributedCache
-	kekExpirationDays    int64
-	dekExpirationDays    int64
-	jwkExpirationDays    int64
-	accountCCExpDays     int64
-	userCCExpDays        int64
-	appCCExpDays         int64
+	port                          int64
+	env                           string
+	maxProcs                      int64
+	databaseURL                   string
+	valkeyURL                     string
+	frontendDomain                string
+	backendDomain                 string
+	cookieSecret                  string
+	cookieName                    string
+	emailPubChannel               string
+	encryptionSecret              string
+	serviceID                     uuid.UUID
+	serviceName                   string
+	loggerConfig                  LoggerConfig
+	tokensConfig                  TokensConfig
+	oAuthProvidersConfig          OAuthProvidersConfig
+	rateLimiterConfig             RateLimiterConfig
+	openBaoConfig                 OpenBaoConfig
+	cryptoConfig                  CryptoConfig
+	distributedCache              DistributedCache
+	kekExpirationDays             int64
+	dekExpirationDays             int64
+	jwkExpirationDays             int64
+	accountCCExpDays              int64
+	userCCExpDays                 int64
+	appCCExpDays                  int64
+	accountDomainVerificationHost string
+	appsDomainVerificationHost    string
+	accountDomainVerificationTTL  int64
+	appsDomainVerificationTTL     int64
 }
 
 func (c *Config) Port() int64 {
@@ -149,7 +153,23 @@ func (c *Config) AppCCExpDays() int64 {
 	return c.appCCExpDays
 }
 
-var variables = [45]string{
+func (c *Config) AccountDomainVerificationHost() string {
+	return c.accountDomainVerificationHost
+}
+
+func (c *Config) AppsDomainVerificationHost() string {
+	return c.appsDomainVerificationHost
+}
+
+func (c *Config) AccountDomainVerificationTTL() int64 {
+	return c.accountDomainVerificationTTL
+}
+
+func (c *Config) AppsDomainVerificationTTL() int64 {
+	return c.appsDomainVerificationTTL
+}
+
+var variables = [49]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -195,6 +215,10 @@ var variables = [45]string{
 	"APP_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
 	"OAUTH_STATE_TTL_SEC",
 	"OAUTH_CODE_TTL_SEC",
+	"ACCOUNT_CREDENTIALS_DOMAIN_VERIFICATION_HOST",
+	"ACCOUNT_CREDENTIALS_DOMAIN_VERIFICATION_TTL_SEC",
+	"APPS_DOMAIN_VERIFICATION_HOST",
+	"APPS_DOMAIN_VERIFICATION_TTL_SEC",
 }
 
 var optionalVariables = [10]string{
@@ -210,7 +234,7 @@ var optionalVariables = [10]string{
 	"MICROSOFT_CLIENT_SECRET",
 }
 
-var numerics = [29]string{
+var numerics = [31]string{
 	"PORT",
 	"MAX_PROCS",
 	"JWT_ACCESS_TTL_SEC",
@@ -240,6 +264,8 @@ var numerics = [29]string{
 	"APP_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
 	"OAUTH_STATE_TTL_SEC",
 	"OAUTH_CODE_TTL_SEC",
+	"ACCOUNT_CREDENTIALS_DOMAIN_VERIFICATION_TTL_SEC",
+	"APPS_DOMAIN_VERIFICATION_TTL_SEC",
 }
 
 func NewConfig(logger *slog.Logger, envPath string) Config {
@@ -337,8 +363,12 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 			intMap["OAUTH_STATE_TTL_SEC"],
 			intMap["OAUTH_CODE_TTL_SEC"],
 		),
-		accountCCExpDays: intMap["ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
-		userCCExpDays:    intMap["USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
-		appCCExpDays:     intMap["APP_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
+		accountCCExpDays:              intMap["ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
+		userCCExpDays:                 intMap["USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
+		appCCExpDays:                  intMap["APP_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
+		accountDomainVerificationHost: variablesMap["ACCOUNT_CREDENTIALS_DOMAIN_VERIFICATION_HOST"],
+		appsDomainVerificationHost:    variablesMap["APPS_DOMAIN_VERIFICATION_HOST"],
+		accountDomainVerificationTTL:  intMap["ACCOUNT_CREDENTIALS_DOMAIN_VERIFICATION_TTL_SEC"],
+		appsDomainVerificationTTL:     intMap["APPS_DOMAIN_VERIFICATION_TTL_SEC"],
 	}
 }
