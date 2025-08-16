@@ -67,6 +67,10 @@ func NewValidationError(message string) *ServiceError {
 	return NewError(CodeValidation, message)
 }
 
+func NewNotFoundValidationError(message string) *ServiceError {
+	return NewError(CodeNotFound, message)
+}
+
 func NewInternalServerError() *ServiceError {
 	return NewError(CodeInternalServerError, MessageUnknown)
 }
@@ -85,6 +89,10 @@ func NewUnauthorizedError() *ServiceError {
 
 func NewForbiddenError() *ServiceError {
 	return NewError(CodeForbidden, MessageForbidden)
+}
+
+func NewForbiddenValidationError(message string) *ServiceError {
+	return NewError(CodeForbidden, message)
 }
 
 func (e *ServiceError) Error() string {

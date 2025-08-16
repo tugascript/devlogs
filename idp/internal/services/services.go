@@ -20,19 +20,22 @@ import (
 )
 
 type Services struct {
-	logger           *slog.Logger
-	database         *database.Database
-	cache            *cache.Cache
-	mail             *mailer.EmailPublisher
-	jwt              *tokens.Tokens
-	crypto           *crypto.Crypto
-	oauthProviders   *oauth.Providers
-	kekExpDays       time.Duration
-	dekExpDays       time.Duration
-	jwkExpDays       time.Duration
-	accountCCExpDays time.Duration
-	appCCExpDays     time.Duration
-	userCCExpDays    time.Duration
+	logger                        *slog.Logger
+	database                      *database.Database
+	cache                         *cache.Cache
+	mail                          *mailer.EmailPublisher
+	jwt                           *tokens.Tokens
+	crypto                        *crypto.Crypto
+	oauthProviders                *oauth.Providers
+	kekExpDays                    time.Duration
+	dekExpDays                    time.Duration
+	jwkExpDays                    time.Duration
+	accountCCExpDays              time.Duration
+	appCCExpDays                  time.Duration
+	userCCExpDays                 time.Duration
+	hmacSecretExpDays             time.Duration
+	accountDomainVerificationHost string
+	accountDomainVerificationTTL  time.Duration
 }
 
 func NewServices(
@@ -49,20 +52,26 @@ func NewServices(
 	accountCCExpDays int64,
 	appCCExpDays int64,
 	userCCExpDays int64,
+	hmacSecretExpDays int64,
+	accountDomainVerificationHost string,
+	accountDomainVerificationTTL int64,
 ) *Services {
 	return &Services{
-		logger:           logger.With(utils.BaseLayer, utils.ServicesLogLayer),
-		database:         database,
-		cache:            cache,
-		mail:             mail,
-		jwt:              jwt,
-		crypto:           encrypt,
-		oauthProviders:   oauthProv,
-		kekExpDays:       utils.ToDaysDuration(kekExpDays),
-		dekExpDays:       utils.ToDaysDuration(dekExpDays),
-		jwkExpDays:       utils.ToDaysDuration(jwkExpDays),
-		accountCCExpDays: utils.ToDaysDuration(accountCCExpDays),
-		appCCExpDays:     utils.ToDaysDuration(appCCExpDays),
-		userCCExpDays:    utils.ToDaysDuration(userCCExpDays),
+		logger:                        logger.With(utils.BaseLayer, utils.ServicesLogLayer),
+		database:                      database,
+		cache:                         cache,
+		mail:                          mail,
+		jwt:                           jwt,
+		crypto:                        encrypt,
+		oauthProviders:                oauthProv,
+		kekExpDays:                    utils.ToDaysDuration(kekExpDays),
+		dekExpDays:                    utils.ToDaysDuration(dekExpDays),
+		jwkExpDays:                    utils.ToDaysDuration(jwkExpDays),
+		accountCCExpDays:              utils.ToDaysDuration(accountCCExpDays),
+		appCCExpDays:                  utils.ToDaysDuration(appCCExpDays),
+		userCCExpDays:                 utils.ToDaysDuration(userCCExpDays),
+		hmacSecretExpDays:             utils.ToDaysDuration(hmacSecretExpDays),
+		accountDomainVerificationHost: accountDomainVerificationHost,
+		accountDomainVerificationTTL:  utils.ToSecondsDuration(accountDomainVerificationTTL),
 	}
 }

@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-16T01:54:22.889Z
+-- Generated at: 2025-08-16T10:00:02.079Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -174,6 +174,12 @@ CREATE TYPE "software_statement_verification_method" AS ENUM (
   'jwks_uri'
 );
 
+CREATE TYPE "domain_verification_method" AS ENUM (
+  'authorization_code',
+  'software_statement',
+  'dns_txt_record'
+);
+
 CREATE TYPE "app_profile_type" AS ENUM (
   'human',
   'machine',
@@ -292,6 +298,17 @@ CREATE TABLE "account_data_encryption_keys" (
   "data_encryption_key_id" integer NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("account_id", "data_encryption_key_id")
+);
+
+CREATE TABLE "account_hmac_secrets" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "secret_id" varchar(22) NOT NULL,
+  "secret" text NOT NULL,
+  "dek_kid" varchar(22) NOT NULL,
+  "is_revoked" boolean NOT NULL DEFAULT false,
+  "expires_at" timestamptz NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "account_totps" (
@@ -548,10 +565,23 @@ CREATE TABLE "account_dynamic_registration_configs" (
 CREATE TABLE "account_dynamic_registration_domains" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
+  "account_public_id" uuid NOT NULL,
   "domain" varchar(250) NOT NULL,
+  "verified_at" timestamptz,
+  "verification_method" domain_verification_method NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "account_dynamic_registration_domain_codes" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "account_dynamic_registration_domain_id" integer NOT NULL,
   "verification_host" varchar(50) NOT NULL,
   "verification_code" text NOT NULL,
-  "dek_kid" varchar(22) NOT NULL,
+  "hmac_secret_id" varchar(22) NOT NULL,
+  "verification_prefix" varchar(70) NOT NULL,
+  "expires_at" timestamptz NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -673,6 +703,16 @@ CREATE INDEX "account_data_encryption_keys_account_id_idx" ON "account_data_encr
 CREATE UNIQUE INDEX "account_data_encryption_keys_data_encryption_key_id_uidx" ON "account_data_encryption_keys" ("data_encryption_key_id");
 
 CREATE UNIQUE INDEX "account_data_encryption_keys_account_id_data_encryption_key_id_uidx" ON "account_data_encryption_keys" ("account_id", "data_encryption_key_id");
+
+CREATE INDEX "account_hmac_secrets_account_id_idx" ON "account_hmac_secrets" ("account_id");
+
+CREATE UNIQUE INDEX "account_hmac_secrets_secret_id_uidx" ON "account_hmac_secrets" ("secret_id");
+
+CREATE INDEX "account_hmac_secrets_dek_kid_idx" ON "account_hmac_secrets" ("dek_kid");
+
+CREATE INDEX "account_hmac_secrets_account_id_secret_id_idx" ON "account_hmac_secrets" ("account_id", "secret_id");
+
+CREATE INDEX "account_hmac_secrets_account_id_is_revoked_expires_at_idx" ON "account_hmac_secrets" ("account_id", "is_revoked", "expires_at");
 
 CREATE UNIQUE INDEX "accounts_totps_account_id_uidx" ON "account_totps" ("account_id");
 
@@ -844,13 +884,17 @@ CREATE UNIQUE INDEX "account_dynamic_registration_configs_account_id_uidx" ON "a
 
 CREATE INDEX "account_dynamic_registration_configs_account_public_id_idx" ON "account_dynamic_registration_configs" ("account_public_id");
 
-CREATE INDEX "accounts_totps_dek_kid_idx" ON "account_dynamic_registration_domains" ("dek_kid");
-
 CREATE INDEX "accounts_totps_account_id_idx" ON "account_dynamic_registration_domains" ("account_id");
+
+CREATE INDEX "account_dynamic_registration_domains_account_public_id_idx" ON "account_dynamic_registration_domains" ("account_public_id");
 
 CREATE INDEX "account_dynamic_registration_domains_domain_idx" ON "account_dynamic_registration_domains" ("domain");
 
-CREATE UNIQUE INDEX "account_dynamic_registration_domains_account_id_domain_uidx" ON "account_dynamic_registration_domains" ("account_id", "domain");
+CREATE UNIQUE INDEX "account_dynamic_registration_domains_account_public_id_domain_uidx" ON "account_dynamic_registration_domains" ("account_public_id", "domain");
+
+CREATE INDEX "account_dynamic_registration_domain_codes_account_id_idx" ON "account_dynamic_registration_domain_codes" ("account_id");
+
+CREATE INDEX "account_dynamic_registration_domain_codes_account_dynamic_registration_domain_id_idx" ON "account_dynamic_registration_domain_codes" ("account_dynamic_registration_domain_id");
 
 CREATE INDEX "app_dynamic_registration_configs_account_id_idx" ON "app_dynamic_registration_configs" ("account_id");
 
@@ -889,6 +933,10 @@ ALTER TABLE "account_key_encryption_keys" ADD FOREIGN KEY ("key_encryption_key_i
 ALTER TABLE "account_data_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_data_encryption_keys" ADD FOREIGN KEY ("data_encryption_key_id") REFERENCES "data_encryption_keys" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_hmac_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_hmac_secrets" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "account_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
@@ -986,7 +1034,11 @@ ALTER TABLE "account_dynamic_registration_configs" ADD FOREIGN KEY ("account_id"
 
 ALTER TABLE "account_dynamic_registration_domains" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "account_dynamic_registration_domains" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("account_dynamic_registration_domain_id") REFERENCES "account_dynamic_registration_domains" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("hmac_secret_id") REFERENCES "account_hmac_secrets" ("secret_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "app_dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

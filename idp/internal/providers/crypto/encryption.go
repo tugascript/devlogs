@@ -8,7 +8,6 @@ package crypto
 
 import (
 	"log/slog"
-	"time"
 
 	openbao "github.com/openbao/openbao/api/v2"
 
@@ -23,8 +22,6 @@ type Crypto struct {
 	opLogical   *openbao.Logical
 	serviceName string
 	kekPath     string
-	dekTTL      time.Duration
-	jwkTTL      time.Duration
 }
 
 func NewCrypto(
@@ -38,7 +35,5 @@ func NewCrypto(
 		opLogical:   op.Logical(),
 		kekPath:     encCfg.KEKPath(),
 		serviceName: utils.Capitalized(serviceName),
-		dekTTL:      time.Duration(encCfg.DEKTTL()) * time.Second,
-		jwkTTL:      time.Duration(encCfg.JWKTTL()) * time.Second,
 	}
 }

@@ -56,6 +56,13 @@ func (s *Services) buildLogger(requestID, location, function string) *slog.Logge
 	})
 }
 
+func (s *Services) mapQueries(qrs *database.Queries) *database.Queries {
+	if qrs != nil {
+		return qrs
+	}
+	return s.database.Queries
+}
+
 func extractAuthHeaderToken(ah string) (string, *exceptions.ServiceError) {
 	if ah == "" {
 		return "", exceptions.NewUnauthorizedError()

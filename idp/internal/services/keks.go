@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
@@ -152,6 +153,7 @@ func (s *Services) GetOrCreateGlobalKEK(
 type createAndCacheAccountKEKOptions struct {
 	requestID string
 	accountID int32
+	queries   *database.Queries
 }
 
 func (s *Services) createAndCacheAccountKEK(
@@ -161,16 +163,23 @@ func (s *Services) createAndCacheAccountKEK(
 	logger := s.buildLogger(opts.requestID, keksLocation, "createAndCacheAccountKEK")
 	logger.InfoContext(ctx, "Creating and caching account KEK...")
 
+	var qrs *database.Queries
+	var txn pgx.Tx
+	var err error
 	var serviceErr *exceptions.ServiceError
-	qrs, txn, err := s.database.BeginTx(ctx)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-		return uuid.Nil, exceptions.FromDBError(err)
+	if opts.queries != nil {
+		qrs = opts.queries
+	} else {
+		qrs, txn, err = s.database.BeginTx(ctx)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+			return uuid.Nil, exceptions.FromDBError(err)
+		}
+		defer func() {
+			logger.DebugContext(ctx, "Finalizing transaction")
+			s.database.FinalizeTx(ctx, txn, err, serviceErr)
+		}()
 	}
-	defer func() {
-		logger.DebugContext(ctx, "Finalizing transaction")
-		s.database.FinalizeTx(ctx, txn, err, serviceErr)
-	}()
 
 	dbID, keyID, err := s.crypto.GenerateKEK(ctx, crypto.GenerateKEKOptions{
 		RequestID: opts.requestID,
@@ -213,6 +222,7 @@ func (s *Services) createAndCacheAccountKEK(
 type getAndCacheAccountKEKOptions struct {
 	requestID string
 	accountID int32
+	queries   *database.Queries
 }
 
 func (s *Services) getAndCacheAccountKEK(
@@ -236,7 +246,8 @@ func (s *Services) getAndCacheAccountKEK(
 		return kek, nil
 	}
 
-	kekEntity, err := s.database.FindAccountKeyEncryptionKeyByAccountID(ctx, opts.accountID)
+	qrs := s.mapQueries(opts.queries)
+	kekEntity, err := qrs.FindAccountKeyEncryptionKeyByAccountID(ctx, opts.accountID)
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -267,7 +278,7 @@ func (s *Services) getAndCacheAccountKEK(
 		RequestID: opts.requestID,
 		KEKid:     kekEntity.Kid,
 		StoreFN: func(_ uuid.UUID) (int32, error) {
-			return s.database.RotateKeyEncryptionKey(ctx, database.RotateKeyEncryptionKeyParams{
+			return qrs.RotateKeyEncryptionKey(ctx, database.RotateKeyEncryptionKeyParams{
 				ID:             kekEntity.ID,
 				NextRotationAt: time.Now().Add(s.kekExpDays),
 			})
@@ -292,6 +303,7 @@ func (s *Services) getAndCacheAccountKEK(
 type GetOrCreateAccountKEKOptions struct {
 	RequestID string
 	AccountID int32
+	Queries   *database.Queries
 }
 
 func (s *Services) GetOrCreateAccountKEK(
@@ -304,6 +316,7 @@ func (s *Services) GetOrCreateAccountKEK(
 	kek, serviceErr := s.getAndCacheAccountKEK(ctx, getAndCacheAccountKEKOptions{
 		requestID: opts.RequestID,
 		accountID: opts.AccountID,
+		queries:   opts.Queries,
 	})
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeNotFound {
@@ -311,6 +324,7 @@ func (s *Services) GetOrCreateAccountKEK(
 			return s.createAndCacheAccountKEK(ctx, createAndCacheAccountKEKOptions{
 				requestID: opts.RequestID,
 				accountID: opts.AccountID,
+				queries:   opts.Queries,
 			})
 		}
 

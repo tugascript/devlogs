@@ -205,6 +205,9 @@ func initTestServicesAndApp(t *testing.T) {
 		cfg.AccountCCExpDays(),
 		cfg.AppCCExpDays(),
 		cfg.UserCCExpDays(),
+		cfg.HMACSecretExpDays(),
+		cfg.AccountDomainVerificationHost(),
+		cfg.AccountDomainVerificationTTL(),
 	)
 
 	_testServer = server.New(ctx, logger, *_testConfig)
