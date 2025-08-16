@@ -195,7 +195,11 @@ func (c *Controllers) AdminScopeMiddleware(ctx *fiber.Ctx) error {
 	return ctx.Next()
 }
 
-func processHost(host string) (string, error) {
+func processHost(backendDomain string, host string) (string, error) {
+	if !strings.HasSuffix(host, "."+backendDomain) {
+		return "", errors.New("invalid host")
+	}
+
 	hostArr := strings.Split(host, ".")
 	if len(hostArr) < 2 {
 		return "", errors.New("host must contain at least two parts")
@@ -212,12 +216,13 @@ func processHost(host string) (string, error) {
 func (c *Controllers) AccountHostMiddleware(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, middlewareLocation, "AccountHostMiddleware")
-	host := ctx.Get("Host")
+	host := ctx.Hostname()
 	if host == "" {
+		logger.DebugContext(ctx.UserContext(), "no host found")
 		return serviceErrorResponse(logger, ctx, exceptions.NewNotFoundError())
 	}
 
-	username, err := processHost(host)
+	username, err := processHost(c.backendDomain, host)
 	if err != nil {
 		logger.DebugContext(ctx.UserContext(), "invalid host", "error", err)
 		return serviceErrorResponse(logger, ctx, exceptions.NewNotFoundError())

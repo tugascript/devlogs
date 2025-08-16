@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-12T22:36:20.011Z
+-- Generated at: 2025-08-13T20:40:02.036Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -534,10 +534,12 @@ CREATE TABLE "app_designs" (
 CREATE TABLE "account_dynamic_registration_configs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
+  "account_public_id" uuid NOT NULL,
+  "account_credentials_types" account_credentials_type[] NOT NULL,
   "whitelisted_domains" varchar(250)[] NOT NULL,
-  "require_software_statement" boolean NOT NULL,
+  "require_software_statement_credential_types" account_credentials_type[] NOT NULL,
   "software_statement_verification_methods" software_statement_verification_method[] NOT NULL,
-  "require_initial_access_token" boolean NOT NULL,
+  "require_initial_access_token_credential_types" account_credentials_type[] NOT NULL,
   "initial_access_token_generation_methods" initial_access_token_generation_method[] NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
@@ -827,7 +829,9 @@ CREATE INDEX "app_designs_account_id_idx" ON "app_designs" ("account_id");
 
 CREATE UNIQUE INDEX "app_designs_app_id_uidx" ON "app_designs" ("app_id");
 
-CREATE INDEX "account_dynamic_registration_configs_account_id_idx" ON "account_dynamic_registration_configs" ("account_id");
+CREATE UNIQUE INDEX "account_dynamic_registration_configs_account_id_uidx" ON "account_dynamic_registration_configs" ("account_id");
+
+CREATE INDEX "account_dynamic_registration_configs_account_public_id_idx" ON "account_dynamic_registration_configs" ("account_public_id");
 
 CREATE INDEX "app_dynamic_registration_configs_account_id_idx" ON "app_dynamic_registration_configs" ("account_id");
 

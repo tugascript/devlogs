@@ -41,6 +41,7 @@ func (c *Controllers) createWebApp(
 	baseBody *bodies.CreateAppBodyBase,
 ) error {
 	logger := c.buildLogger(requestID, appsLocation, "createWebApp")
+	logRequest(logger, ctx)
 
 	body := new(bodies.CreateAppBodyWeb)
 	if err := ctx.BodyParser(body); err != nil {

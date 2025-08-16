@@ -7,9 +7,7 @@
 package paths
 
 const (
-	Base    string = "/"
-	Keys    string = "/keys"
-	Confirm string = "/confirm"
-	Recover string = "/recover"
-	Config  string = "/config"
+	DynamicRegistrationBase string = "/dynamic-registration"
+
+	Domains string = "/domains"
 )

@@ -10,6 +10,7 @@ type CreateAccountCredentialsBody struct {
 	Type                    string   `json:"type" validate:"required,oneof=native service mcp"`
 	Name                    string   `json:"name" validate:"required,min=1,max=255"`
 	Scopes                  []string `json:"scopes" validate:"required,unique,dive,oneof=email profile account:admin account:users:read account:users:write account:apps:read account:apps:write account:credentials:read account:credentials:write account:auth_providers:read"`
+	Transport               string   `json:"transport,omitempty" validate:"required_if=Type mcp,oneof=http https stdio streamable_http"`
 	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method" validate:"required,oneof=client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
 	Domain                  string   `json:"domain,omitempty" validate:"omitempty,fqdn,max=250"`
 	ClientURI               string   `json:"client_uri" validate:"required,uri"`
@@ -25,7 +26,7 @@ type CreateAccountCredentialsBody struct {
 type UpdateAccountCredentialsBody struct {
 	Name            string   `json:"name" validate:"required,min=1,max=255"`
 	Scopes          []string `json:"scopes" validate:"required,unique,dive,oneof=account:admin account:users:read account:users:write account:apps:read account:apps:write account:credentials:read account:credentials:write account:auth_providers:read"`
-	Transport       string   `json:"transport" validate:"required,oneof=http https stdio streamable_http"`
+	Transport       string   `json:"transport,omitempty" validate:"omitempty,oneof=http https"`
 	Domain          string   `json:"domain,omitempty" validate:"omitempty,fqdn,max=250"`
 	ClientURI       string   `json:"client_uri" validate:"required,uri"`
 	RedirectURIs    []string `json:"redirect_uris,omitempty" validate:"omitempty,unique,dive,uri"`
