@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-13T20:40:02.036Z
+-- Generated at: 2025-08-16T01:54:22.889Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -545,6 +545,17 @@ CREATE TABLE "account_dynamic_registration_configs" (
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
+CREATE TABLE "account_dynamic_registration_domains" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "domain" varchar(250) NOT NULL,
+  "verification_host" varchar(50) NOT NULL,
+  "verification_code" text NOT NULL,
+  "dek_kid" varchar(22) NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
 CREATE TABLE "app_dynamic_registration_configs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
@@ -833,6 +844,14 @@ CREATE UNIQUE INDEX "account_dynamic_registration_configs_account_id_uidx" ON "a
 
 CREATE INDEX "account_dynamic_registration_configs_account_public_id_idx" ON "account_dynamic_registration_configs" ("account_public_id");
 
+CREATE INDEX "accounts_totps_dek_kid_idx" ON "account_dynamic_registration_domains" ("dek_kid");
+
+CREATE INDEX "accounts_totps_account_id_idx" ON "account_dynamic_registration_domains" ("account_id");
+
+CREATE INDEX "account_dynamic_registration_domains_domain_idx" ON "account_dynamic_registration_domains" ("domain");
+
+CREATE UNIQUE INDEX "account_dynamic_registration_domains_account_id_domain_uidx" ON "account_dynamic_registration_domains" ("account_id", "domain");
+
 CREATE INDEX "app_dynamic_registration_configs_account_id_idx" ON "app_dynamic_registration_configs" ("account_id");
 
 CREATE INDEX "user_profiles_app_id_idx" ON "app_profiles" ("app_id");
@@ -964,6 +983,10 @@ ALTER TABLE "app_designs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" (
 ALTER TABLE "app_designs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_dynamic_registration_domains" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_dynamic_registration_domains" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "app_dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
