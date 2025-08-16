@@ -263,6 +263,30 @@ Table account_data_encryption_keys as ADEK {
 Ref: ADEK.account_id > A.id [delete: cascade]
 Ref: ADEK.data_encryption_key_id > DEK.id [delete: cascade]
 
+Table account_hmac_secrets as AHS {
+    id serial [pk]
+
+    account_id integer [not null]
+
+    secret_id varchar(22) [not null]
+    secret text [not null]
+    dek_kid varchar(22) [not null]
+    is_revoked boolean [not null, default: false]
+    expires_at timestamptz [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'account_hmac_secrets_account_id_idx']
+        (secret_id) [unique, name: 'account_hmac_secrets_secret_id_uidx']
+        (dek_kid) [name: 'account_hmac_secrets_dek_kid_idx']
+        (account_id, secret_id) [name: 'account_hmac_secrets_account_id_secret_id_idx']
+        (account_id, is_revoked, expires_at) [name: 'account_hmac_secrets_account_id_is_revoked_expires_at_idx']
+    }
+}
+Ref: AHS.account_id > A.id [delete: cascade]
+Ref: AHS.dek_kid > DEK.kid [delete: cascade, update: cascade]
+
 Table account_totps as AT {
     account_id integer [not null]
     totp_id integer [not null]
@@ -891,26 +915,57 @@ Table account_dynamic_registration_configs as ADRC {
 }
 Ref: ADRC.account_id > A.id [delete: cascade]
 
+Enum domain_verification_method {
+    "authorization_code"
+    "software_statement"
+    "dns_txt_record"
+}
+
 Table account_dynamic_registration_domains as ADRD {
     id serial [pk]
 
     account_id integer [not null]
+    account_public_id uuid [not null]
 
     domain varchar(250) [not null]
-    verification_host varchar(50) [not null]
-    verification_code text [not null]
-    expires_at timestamptz [not null]
+    verified_at timestamptz [null]
+    verification_method domain_verification_method [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
 
     Indexes {
         (account_id) [name: 'accounts_totps_account_id_idx']
+        (account_public_id) [name: 'account_dynamic_registration_domains_account_public_id_idx']
         (domain) [name: 'account_dynamic_registration_domains_domain_idx']
-        (account_id, domain) [unique, name: 'account_dynamic_registration_domains_account_id_domain_uidx']
+        (account_public_id, domain) [unique, name: 'account_dynamic_registration_domains_account_public_id_domain_uidx']
     }
 }
 Ref: ADRD.account_id > A.id [delete: cascade]
+
+Table account_dynamic_registration_domain_codes as ADRDC {
+    id serial [pk]
+
+    account_id integer [not null]
+    account_dynamic_registration_domain_id integer [not null]
+
+    verification_host varchar(50) [not null]
+    verification_code text [not null]
+    hmac_secret_id varchar(22) [not null]
+    verification_prefix varchar(70) [not null]
+    expires_at timestamptz [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'account_dynamic_registration_domain_codes_account_id_idx']
+        (account_dynamic_registration_domain_id) [name: 'account_dynamic_registration_domain_codes_account_dynamic_registration_domain_id_idx']
+    }
+}
+Ref: ADRDC.account_id > A.id [delete: cascade]
+Ref: ADRDC.account_dynamic_registration_domain_id > ADRD.id [delete: cascade]
+Ref: ADRDC.hmac_secret_id > AHS.secret_id [delete: cascade, update: cascade]
 
 Table app_dynamic_registration_configs as APDRC {
     id serial [pk]

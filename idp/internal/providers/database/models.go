@@ -518,6 +518,49 @@ func (ns NullDekUsage) Value() (driver.Value, error) {
 	return string(ns.DekUsage), nil
 }
 
+type DomainVerificationMethod string
+
+const (
+	DomainVerificationMethodAuthorizationCode DomainVerificationMethod = "authorization_code"
+	DomainVerificationMethodSoftwareStatement DomainVerificationMethod = "software_statement"
+	DomainVerificationMethodDnsTxtRecord      DomainVerificationMethod = "dns_txt_record"
+)
+
+func (e *DomainVerificationMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DomainVerificationMethod(s)
+	case string:
+		*e = DomainVerificationMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DomainVerificationMethod: %T", src)
+	}
+	return nil
+}
+
+type NullDomainVerificationMethod struct {
+	DomainVerificationMethod DomainVerificationMethod
+	Valid                    bool // Valid is true if DomainVerificationMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDomainVerificationMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.DomainVerificationMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DomainVerificationMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDomainVerificationMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DomainVerificationMethod), nil
+}
+
 type GrantType string
 
 const (
@@ -1209,6 +1252,41 @@ type AccountDynamicRegistrationConfig struct {
 	InitialAccessTokenGenerationMethods      []InitialAccessTokenGenerationMethod
 	CreatedAt                                time.Time
 	UpdatedAt                                time.Time
+}
+
+type AccountDynamicRegistrationDomain struct {
+	ID                 int32
+	AccountID          int32
+	AccountPublicID    uuid.UUID
+	Domain             string
+	VerifiedAt         pgtype.Timestamptz
+	VerificationMethod DomainVerificationMethod
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type AccountDynamicRegistrationDomainCode struct {
+	ID                                 int32
+	AccountID                          int32
+	AccountDynamicRegistrationDomainID int32
+	VerificationHost                   string
+	VerificationCode                   string
+	HmacSecretID                       string
+	VerificationPrefix                 string
+	ExpiresAt                          time.Time
+	CreatedAt                          time.Time
+	UpdatedAt                          time.Time
+}
+
+type AccountHmacSecret struct {
+	ID        int32
+	AccountID int32
+	SecretID  string
+	Secret    string
+	DekKid    string
+	IsRevoked bool
+	ExpiresAt time.Time
+	CreatedAt time.Time
 }
 
 type AccountKeyEncryptionKey struct {

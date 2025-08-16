@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
@@ -201,6 +202,7 @@ type buildStoreAccountDEKOptions struct {
 	requestID string
 	accountID int32
 	data      map[string]string
+	queries   *database.Queries
 }
 
 func (s *Services) buildStoreAccountDEKfn(
@@ -211,16 +213,23 @@ func (s *Services) buildStoreAccountDEKfn(
 	logger.InfoContext(ctx, "Building store function for account DEK...")
 
 	return func(dekID string, encryptedDEK string, kekID uuid.UUID) (int32, *exceptions.ServiceError) {
+		var qrs *database.Queries
+		var txn pgx.Tx
+		var err error
 		var serviceErr *exceptions.ServiceError
-		qrs, txn, err := s.database.BeginTx(ctx)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-			return 0, exceptions.FromDBError(err)
+		if opts.queries != nil {
+			qrs = opts.queries
+		} else {
+			qrs, txn, err = s.database.BeginTx(ctx)
+			if err != nil {
+				logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+				return 0, exceptions.FromDBError(err)
+			}
+			defer func() {
+				logger.DebugContext(ctx, "Finalizing transaction")
+				s.database.FinalizeTx(ctx, txn, err, serviceErr)
+			}()
 		}
-		defer func() {
-			logger.DebugContext(ctx, "Finalizing transaction")
-			s.database.FinalizeTx(ctx, txn, err, serviceErr)
-		}()
 
 		dekEnt, err := qrs.CreateDataEncryptionKey(ctx, database.CreateDataEncryptionKeyParams{
 			Kid:       dekID,
@@ -266,6 +275,7 @@ func (s *Services) buildStoreAccountDEKfn(
 type BuildGetEncAccountDEKOptions struct {
 	RequestID string
 	AccountID int32
+	Queries   *database.Queries
 }
 
 func (s *Services) BuildGetEncAccountDEKfn(
@@ -294,7 +304,8 @@ func (s *Services) BuildGetEncAccountDEKfn(
 		}
 
 		logger.InfoContext(ctx, "DEK not found in cache, checking database...")
-		dekEnt, err := s.database.FindAccountDataEncryptionKeyByAccountID(
+		qrs := s.mapQueries(opts.Queries)
+		dekEnt, err := qrs.FindAccountDataEncryptionKeyByAccountID(
 			ctx,
 			database.FindAccountDataEncryptionKeyByAccountIDParams{
 				AccountID: opts.AccountID,
@@ -366,6 +377,7 @@ func (s *Services) BuildGetEncAccountDEKfn(
 type BuildGetDecAccountDEKFnOptions struct {
 	RequestID string
 	AccountID int32
+	Queries   *database.Queries
 }
 
 func (s *Services) BuildGetDecAccountDEKFn(
@@ -397,7 +409,7 @@ func (s *Services) BuildGetDecAccountDEKFn(
 		}
 
 		logger.InfoContext(ctx, "DEK not found in cache, checking database...")
-		dekEnt, err := s.database.FindAccountDataEncryptionKeyByAccountIDAndKID(
+		dekEnt, err := s.mapQueries(opts.Queries).FindAccountDataEncryptionKeyByAccountIDAndKID(
 			ctx,
 			database.FindAccountDataEncryptionKeyByAccountIDAndKIDParams{
 				AccountID: opts.AccountID,

@@ -40,6 +40,7 @@ type Config struct {
 	kekExpirationDays             int64
 	dekExpirationDays             int64
 	jwkExpirationDays             int64
+	hmacSecretExpDays             int64
 	accountCCExpDays              int64
 	userCCExpDays                 int64
 	appCCExpDays                  int64
@@ -141,6 +142,10 @@ func (c *Config) JWKExpirationDays() int64 {
 	return c.jwkExpirationDays
 }
 
+func (c *Config) HMACSecretExpDays() int64 {
+	return c.hmacSecretExpDays
+}
+
 func (c *Config) AccountCCExpDays() int64 {
 	return c.accountCCExpDays
 }
@@ -169,7 +174,7 @@ func (c *Config) AppsDomainVerificationTTL() int64 {
 	return c.appsDomainVerificationTTL
 }
 
-var variables = [49]string{
+var variables = [45]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -197,14 +202,10 @@ var variables = [49]string{
 	"OPENBAO_ROLE_ID",
 	"OPENBAO_SECRET_ID",
 	"KEK_PATH",
-	"DEK_TTL_SEC",
-	"JWK_TTL_SEC",
 	"KEK_EXPIRATION_DAYS",
 	"DEK_EXPIRATION_DAYS",
 	"JWK_EXPIRATION_DAYS",
-	"KEK_CACHE_TTL_SEC",
-	"DECRYPT_DEK_CACHE_TTL_SEC",
-	"ENCRYPT_DEK_CACHE_TTL_SEC",
+	"HMAC_SECRET_EXPIRATION_DAYS",
 	"PUBLIC_JWK_CACHE_TTL_SEC",
 	"PRIVATE_JWK_CACHE_TTL_SEC",
 	"PUBLIC_JWKS_CACHE_TTL_SEC",
@@ -234,7 +235,7 @@ var optionalVariables = [10]string{
 	"MICROSOFT_CLIENT_SECRET",
 }
 
-var numerics = [31]string{
+var numerics = [27]string{
 	"PORT",
 	"MAX_PROCS",
 	"JWT_ACCESS_TTL_SEC",
@@ -246,14 +247,10 @@ var numerics = [31]string{
 	"JWT_APPS_TTL_SEC",
 	"RATE_LIMITER_MAX",
 	"RATE_LIMITER_EXP_SEC",
-	"DEK_TTL_SEC",
-	"JWK_TTL_SEC",
 	"KEK_EXPIRATION_DAYS",
 	"DEK_EXPIRATION_DAYS",
 	"JWK_EXPIRATION_DAYS",
-	"KEK_CACHE_TTL_SEC",
-	"DECRYPT_DEK_CACHE_TTL_SEC",
-	"ENCRYPT_DEK_CACHE_TTL_SEC",
+	"HMAC_SECRET_EXPIRATION_DAYS",
 	"PUBLIC_JWK_CACHE_TTL_SEC",
 	"PRIVATE_JWK_CACHE_TTL_SEC",
 	"PUBLIC_JWKS_CACHE_TTL_SEC",
@@ -345,12 +342,11 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 		),
 		cryptoConfig: NewEncryptionConfig(
 			variablesMap["KEK_PATH"],
-			intMap["DEK_TTL_SEC"],
-			intMap["JWK_TTL_SEC"],
 		),
 		kekExpirationDays: intMap["KEK_EXPIRATION_DAYS"],
 		dekExpirationDays: intMap["DEK_EXPIRATION_DAYS"],
 		jwkExpirationDays: intMap["JWK_EXPIRATION_DAYS"],
+		hmacSecretExpDays: intMap["HMAC_SECRET_EXPIRATION_DAYS"],
 		distributedCache: NewDistributedCache(
 			intMap["KEK_CACHE_TTL_SEC"],
 			intMap["DECRYPT_DEK_CACHE_TTL_SEC"],

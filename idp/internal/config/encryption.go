@@ -8,26 +8,14 @@ package config
 
 type CryptoConfig struct {
 	kekPath string
-	dekTTL  int64
-	jwkTTL  int64
 }
 
 func (cc *CryptoConfig) KEKPath() string {
 	return cc.kekPath
 }
 
-func (cc *CryptoConfig) DEKTTL() int64 {
-	return cc.dekTTL
-}
-
-func (cc *CryptoConfig) JWKTTL() int64 {
-	return cc.jwkTTL
-}
-
-func NewEncryptionConfig(kekPath string, dekTTL, jwkTTL int64) CryptoConfig {
+func NewEncryptionConfig(kekPath string) CryptoConfig {
 	return CryptoConfig{
 		kekPath: kekPath,
-		dekTTL:  dekTTL,
-		jwkTTL:  jwkTTL,
 	}
 }
