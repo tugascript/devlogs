@@ -16,16 +16,20 @@ import (
 type AccountCredentialsScope string
 
 const (
-	AccountCredentialsScopeEmail                    AccountCredentialsScope = "email"
-	AccountCredentialsScopeProfile                  AccountCredentialsScope = "profile"
-	AccountCredentialsScopeAccountAdmin             AccountCredentialsScope = "account:admin"
-	AccountCredentialsScopeAccountUsersRead         AccountCredentialsScope = "account:users:read"
-	AccountCredentialsScopeAccountUsersWrite        AccountCredentialsScope = "account:users:write"
-	AccountCredentialsScopeAccountAppsRead          AccountCredentialsScope = "account:apps:read"
-	AccountCredentialsScopeAccountAppsWrite         AccountCredentialsScope = "account:apps:write"
-	AccountCredentialsScopeAccountCredentialsRead   AccountCredentialsScope = "account:credentials:read"
-	AccountCredentialsScopeAccountCredentialsWrite  AccountCredentialsScope = "account:credentials:write"
-	AccountCredentialsScopeAccountAuthProvidersRead AccountCredentialsScope = "account:auth_providers:read"
+	AccountCredentialsScopeEmail                          AccountCredentialsScope = "email"
+	AccountCredentialsScopeProfile                        AccountCredentialsScope = "profile"
+	AccountCredentialsScopeAccountAdmin                   AccountCredentialsScope = "account:admin"
+	AccountCredentialsScopeAccountUsersRead               AccountCredentialsScope = "account:users:read"
+	AccountCredentialsScopeAccountUsersWrite              AccountCredentialsScope = "account:users:write"
+	AccountCredentialsScopeAccountAppsRead                AccountCredentialsScope = "account:apps:read"
+	AccountCredentialsScopeAccountAppsWrite               AccountCredentialsScope = "account:apps:write"
+	AccountCredentialsScopeAccountAppsConfigsRead         AccountCredentialsScope = "account:apps:configs:read"
+	AccountCredentialsScopeAccountAppsConfigsWrite        AccountCredentialsScope = "account:apps:configs:write"
+	AccountCredentialsScopeAccountCredentialsRead         AccountCredentialsScope = "account:credentials:read"
+	AccountCredentialsScopeAccountCredentialsWrite        AccountCredentialsScope = "account:credentials:write"
+	AccountCredentialsScopeAccountCredentialsConfigsRead  AccountCredentialsScope = "account:credentials:configs:read"
+	AccountCredentialsScopeAccountCredentialsConfigsWrite AccountCredentialsScope = "account:credentials:configs:write"
+	AccountCredentialsScopeAccountAuthProvidersRead       AccountCredentialsScope = "account:auth_providers:read"
 )
 
 func (e *AccountCredentialsScope) Scan(src interface{}) error {
@@ -907,13 +911,14 @@ func (ns NullTokenCryptoSuite) Value() (driver.Value, error) {
 type TokenKeyType string
 
 const (
-	TokenKeyTypeAccess            TokenKeyType = "access"
-	TokenKeyTypeRefresh           TokenKeyType = "refresh"
-	TokenKeyTypeIDToken           TokenKeyType = "id_token"
-	TokenKeyTypeClientCredentials TokenKeyType = "client_credentials"
-	TokenKeyTypeEmailVerification TokenKeyType = "email_verification"
-	TokenKeyTypePasswordReset     TokenKeyType = "password_reset"
-	TokenKeyType2faAuthentication TokenKeyType = "2fa_authentication"
+	TokenKeyTypeAccess              TokenKeyType = "access"
+	TokenKeyTypeRefresh             TokenKeyType = "refresh"
+	TokenKeyTypeIDToken             TokenKeyType = "id_token"
+	TokenKeyTypeClientCredentials   TokenKeyType = "client_credentials"
+	TokenKeyTypeEmailVerification   TokenKeyType = "email_verification"
+	TokenKeyTypePasswordReset       TokenKeyType = "password_reset"
+	TokenKeyType2faAuthentication   TokenKeyType = "2fa_authentication"
+	TokenKeyTypeDynamicRegistration TokenKeyType = "dynamic_registration"
 )
 
 func (e *TokenKeyType) Scan(src interface{}) error {
@@ -1266,16 +1271,10 @@ type AccountDynamicRegistrationDomain struct {
 }
 
 type AccountDynamicRegistrationDomainCode struct {
-	ID                                 int32
-	AccountID                          int32
 	AccountDynamicRegistrationDomainID int32
-	VerificationHost                   string
-	VerificationCode                   string
-	HmacSecretID                       string
-	VerificationPrefix                 string
-	ExpiresAt                          time.Time
+	DynamicRegistrationDomainCodeID    int32
+	AccountID                          int32
 	CreatedAt                          time.Time
-	UpdatedAt                          time.Time
 }
 
 type AccountHmacSecret struct {
@@ -1457,6 +1456,18 @@ type DataEncryptionKey struct {
 	ExpiresAt time.Time
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type DynamicRegistrationDomainCode struct {
+	ID                 int32
+	AccountID          int32
+	VerificationHost   string
+	VerificationCode   string
+	HmacSecretID       string
+	VerificationPrefix string
+	ExpiresAt          time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type KeyEncryptionKey struct {

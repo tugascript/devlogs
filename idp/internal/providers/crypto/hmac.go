@@ -31,7 +31,9 @@ func decodeHMACSecret(secret string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(secret)
 }
 
-type StoreHMACSecret = func(dekID string, secretID string, encryptedSecret string) (int32, *exceptions.ServiceError)
+type SecretID = string
+
+type StoreHMACSecret = func(dekID string, secretID SecretID, encryptedSecret string) (int32, *exceptions.ServiceError)
 
 type GenerateHMACSecretOptions struct {
 	RequestID string
@@ -78,9 +80,9 @@ func encodeHMACData(data []byte) string {
 	return hex.EncodeToString(data)
 }
 
-// func decodeHMACData(data string) ([]byte, error) {
-// 	return hex.DecodeString(data)
-// }
+func decodeHMACData(data string) ([]byte, error) {
+	return hex.DecodeString(data)
+}
 
 type GetHMACSecretFN = func() (string, DEKCiphertext, *exceptions.ServiceError)
 
@@ -107,7 +109,7 @@ func (e *Crypto) HMACSha256Hash(ctx context.Context, opts HMACSha256HashOptions)
 	secretID, dekCiphertext, serviceErr := opts.GetHMACSecretFN()
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get HMAC secret", "serviceError", serviceErr)
-		return exceptions.NewInternalServerError()
+		return serviceErr
 	}
 
 	encodedSecret, serviceErr := e.DecryptWithDEK(ctx, DecryptWithDEKOptions{
@@ -120,7 +122,7 @@ func (e *Crypto) HMACSha256Hash(ctx context.Context, opts HMACSha256HashOptions)
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to decrypt HMAC secret", "serviceError", serviceErr)
-		return exceptions.NewInternalServerError()
+		return serviceErr
 	}
 
 	secret, err := decodeHMACSecret(encodedSecret)
@@ -139,20 +141,71 @@ func (e *Crypto) HMACSha256Hash(ctx context.Context, opts HMACSha256HashOptions)
 	return nil
 }
 
-// type HMACSha256CompareHashOptions struct {
-// 	RequestID                    string
-// 	PlainText                    string
-// 	GetHMACSecretFN              GetHMACSecretFN
-// 	GetDecryptDEKfn              GetDEKtoDecrypt
-// 	GetEncryptDEKfn              GetDEKtoEncrypt
-// 	StoreReEncryptedHMACSecretFN StoreReEncryptedData
-// }
+type GetHMACSecretByIDfn = func(secretID SecretID) (DEKCiphertext, *exceptions.ServiceError)
 
-// func (e *Crypto) HMACSha256CompareHash(ctx context.Context, opts HMACSha256CompareHashOptions) *exceptions.ServiceError {
-// 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
-// 		Location:  hmacLocation,
-// 		Method:    "HMACSha256CompareHash",
-// 		RequestID: opts.RequestID,
-// 	})
-// 	logger.DebugContext(ctx, "Comparing HMAC SHA256...")
-// }
+type GetHashedSecretFN = func() (SecretID, string, *exceptions.ServiceError)
+
+type HMACSha256CompareHashOptions struct {
+	RequestID                    string
+	PlainText                    string
+	HashedSecretFN               GetHashedSecretFN
+	GetHMACSecretByIDFN          GetHMACSecretByIDfn
+	GetDecryptDEKfn              GetDEKtoDecrypt
+	GetEncryptDEKfn              GetDEKtoEncrypt
+	StoreReEncryptedHMACSecretFN StoreReEncryptedData
+}
+
+func (e *Crypto) HMACSha256CompareHash(ctx context.Context, opts HMACSha256CompareHashOptions) *exceptions.ServiceError {
+	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
+		Location:  hmacLocation,
+		Method:    "HMACSha256CompareHash",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Comparing HMAC SHA256...")
+
+	secretID, hashedSecret, serviceErr := opts.HashedSecretFN()
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get hashed secret", "serviceError", serviceErr)
+		return serviceErr
+	}
+
+	dekCiphertext, serviceErr := opts.GetHMACSecretByIDFN(secretID)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get HMAC secret by ID", "serviceError", serviceErr)
+		return serviceErr
+	}
+
+	encodedSecret, serviceErr := e.DecryptWithDEK(ctx, DecryptWithDEKOptions{
+		RequestID:              opts.RequestID,
+		GetDecryptDEKfn:        opts.GetDecryptDEKfn,
+		GetEncryptDEKfn:        opts.GetEncryptDEKfn,
+		StoreReEncryptedDataFn: opts.StoreReEncryptedHMACSecretFN,
+		EntityID:               secretID,
+		Ciphertext:             dekCiphertext,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to decrypt HMAC secret", "serviceError", serviceErr)
+		return serviceErr
+	}
+
+	secret, err := decodeHMACSecret(encodedSecret)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to decode HMAC secret", "error", err)
+		return exceptions.NewInternalServerError()
+	}
+
+	hashedSecretBytes, err := decodeHMACData(hashedSecret)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to decode hashed secret", "error", err)
+		return exceptions.NewInternalServerError()
+	}
+
+	mac := hmac.New(sha256.New, secret)
+	mac.Write([]byte(opts.PlainText))
+	if !utils.CompareSha256(mac.Sum(nil), hashedSecretBytes) {
+		logger.WarnContext(ctx, "HMAC SHA256 hash mismatch", "plainText", opts.PlainText, "hashedSecret", hashedSecret)
+		return exceptions.NewUnauthorizedError()
+	}
+
+	return nil
+}

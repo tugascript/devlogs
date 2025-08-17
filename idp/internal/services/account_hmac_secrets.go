@@ -10,7 +10,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -33,25 +32,7 @@ func (s *Services) buildStoreAccountHMACSecretFn(
 	logger.InfoContext(ctx, "Building store function for account HMAC secret...")
 
 	return func(dekID string, secretID string, encryptedSecret string) (int32, *exceptions.ServiceError) {
-		var qrs *database.Queries
-		var txn pgx.Tx
-		var err error
-		var serviceErr *exceptions.ServiceError
-		if opts.queries != nil {
-			qrs = opts.queries
-		} else {
-			qrs, txn, err = s.database.BeginTx(ctx)
-			if err != nil {
-				logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-				return 0, exceptions.FromDBError(err)
-			}
-			defer func() {
-				logger.DebugContext(ctx, "Finalizing transaction")
-				s.database.FinalizeTx(ctx, txn, err, serviceErr)
-			}()
-		}
-
-		id, err := qrs.CreateAccountHMACSecret(ctx, database.CreateAccountHMACSecretParams{
+		id, err := s.mapQueries(opts.queries).CreateAccountHMACSecret(ctx, database.CreateAccountHMACSecretParams{
 			AccountID: opts.accountID,
 			SecretID:  secretID,
 			Secret:    encryptedSecret,
@@ -60,8 +41,7 @@ func (s *Services) buildStoreAccountHMACSecretFn(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create account HMAC secret", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return 0, serviceErr
+			return 0, exceptions.FromDBError(err)
 		}
 
 		opts.data["secretID"] = secretID
@@ -153,5 +133,37 @@ func (s *Services) BuildUpdateHMACSecretFN(
 
 		logger.InfoContext(ctx, "Updated HMAC secret successfully")
 		return nil
+	}
+}
+
+type BuildGetHMACSecretByIDFNOptions struct {
+	RequestID string
+	AccountID int32
+	Queries   *database.Queries
+}
+
+func (s *Services) BuildGetHMACSecretByIDFN(
+	ctx context.Context,
+	opts BuildGetHMACSecretByIDFNOptions,
+) crypto.GetHMACSecretByIDfn {
+	logger := s.buildLogger(opts.RequestID, accountHMACSecretsLocation, "BuildGetHMACSecretByIDFN")
+	logger.InfoContext(ctx, "Building get HMAC secret by ID function...")
+
+	return func(secretID crypto.SecretID) (crypto.DEKCiphertext, *exceptions.ServiceError) {
+		logger.InfoContext(ctx, "Getting HMAC secret by ID...", "secretID", secretID)
+
+		secret, err := s.mapQueries(opts.Queries).FindAccountHMACSecretByAccountIDAndSecretID(
+			ctx,
+			database.FindAccountHMACSecretByAccountIDAndSecretIDParams{
+				AccountID: opts.AccountID,
+				SecretID:  secretID,
+			},
+		)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to find account HMAC secret", "error", err)
+			return "", exceptions.FromDBError(err)
+		}
+
+		return secret.Secret, nil
 	}
 }

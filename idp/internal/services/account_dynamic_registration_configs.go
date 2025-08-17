@@ -231,3 +231,48 @@ func (s *Services) GetAccountDynamicRegistrationConfig(
 
 	return dtos.MapAccountDynamicRegistrationConfigToDTO(&accountDynamicRegistrationConfig), nil
 }
+
+type DeleteAccountDynamicRegistrationConfigOptions struct {
+	RequestID       string
+	AccountPublicID uuid.UUID
+	AccountVersion  int32
+}
+
+func (s *Services) DeleteAccountDynamicRegistrationConfig(
+	ctx context.Context,
+	opts DeleteAccountDynamicRegistrationConfigOptions,
+) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.RequestID, accountDynamicRegistrationConfigsLocation, "DeleteAccountDynamicRegistrationConfig").With(
+		"accountPublicID", opts.AccountPublicID,
+		"accountVersion", opts.AccountVersion,
+	)
+	logger.InfoContext(ctx, "Deleting account dynamic registration config...")
+
+	dynamicRegistratioDTO, serviceErr := s.GetAccountDynamicRegistrationConfig(
+		ctx,
+		GetAccountDynamicRegistrationConfigOptions{
+			RequestID:       opts.RequestID,
+			AccountPublicID: opts.AccountPublicID,
+		},
+	)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get account dynamic registration config", "serviceError", serviceErr)
+		return serviceErr
+	}
+
+	if _, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.AccountPublicID,
+		Version:   opts.AccountVersion,
+	}); serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get account ID by public ID and version", "serviceError", serviceErr)
+		return serviceErr
+	}
+
+	if err := s.database.DeleteAccountDynamicRegistrationConfig(ctx, dynamicRegistratioDTO.ID()); err != nil {
+		logger.ErrorContext(ctx, "Failed to delete account dynamic registration config", "error", err)
+		return exceptions.FromDBError(err)
+	}
+
+	return nil
+}

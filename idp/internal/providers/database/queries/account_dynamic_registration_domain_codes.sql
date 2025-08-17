@@ -6,19 +6,17 @@
 
 -- name: CreateAccountDynamicRegistrationDomainCode :exec
 INSERT INTO "account_dynamic_registration_domain_codes" (
-    "account_id",
     "account_dynamic_registration_domain_id",
-    "verification_host",
-    "verification_code",
-    "verification_prefix",
-    "hmac_secret_id",
-    "expires_at"
+    "dynamic_registration_domain_code_id",
+    "account_id"
 ) VALUES (
     $1,
     $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7
+    $3
 );
+
+-- name: FindDynamicRegistrationDomainCodeByAccountDynamicRegistrationDomainID :one
+SELECT "d".* FROM "dynamic_registration_domain_codes" "d"
+LEFT JOIN "account_dynamic_registration_domain_codes" "a" ON "d"."id" = "a"."dynamic_registration_domain_code_id"
+WHERE "a"."account_dynamic_registration_domain_id" = $1
+LIMIT 1;

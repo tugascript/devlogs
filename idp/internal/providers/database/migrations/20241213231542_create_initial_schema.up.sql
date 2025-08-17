@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-16T10:00:02.079Z
+-- Generated at: 2025-08-17T08:47:57.041Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -30,7 +30,8 @@ CREATE TYPE "token_key_type" AS ENUM (
   'client_credentials',
   'email_verification',
   'password_reset',
-  '2fa_authentication'
+  '2fa_authentication',
+  'dynamic_registration'
 );
 
 CREATE TYPE "two_factor_type" AS ENUM (
@@ -77,8 +78,12 @@ CREATE TYPE "account_credentials_scope" AS ENUM (
   'account:users:write',
   'account:apps:read',
   'account:apps:write',
+  'account:apps:configs:read',
+  'account:apps:configs:write',
   'account:credentials:read',
   'account:credentials:write',
+  'account:credentials:configs:read',
+  'account:credentials:configs:write',
   'account:auth_providers:read'
 );
 
@@ -573,10 +578,9 @@ CREATE TABLE "account_dynamic_registration_domains" (
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
-CREATE TABLE "account_dynamic_registration_domain_codes" (
+CREATE TABLE "dynamic_registration_domain_codes" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
-  "account_dynamic_registration_domain_id" integer NOT NULL,
   "verification_host" varchar(50) NOT NULL,
   "verification_code" text NOT NULL,
   "hmac_secret_id" varchar(22) NOT NULL,
@@ -584,6 +588,14 @@ CREATE TABLE "account_dynamic_registration_domain_codes" (
   "expires_at" timestamptz NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "account_dynamic_registration_domain_codes" (
+  "account_dynamic_registration_domain_id" integer NOT NULL,
+  "dynamic_registration_domain_code_id" integer NOT NULL,
+  "account_id" integer NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  PRIMARY KEY ("account_dynamic_registration_domain_id", "dynamic_registration_domain_code_id")
 );
 
 CREATE TABLE "app_dynamic_registration_configs" (
@@ -892,9 +904,13 @@ CREATE INDEX "account_dynamic_registration_domains_domain_idx" ON "account_dynam
 
 CREATE UNIQUE INDEX "account_dynamic_registration_domains_account_public_id_domain_uidx" ON "account_dynamic_registration_domains" ("account_public_id", "domain");
 
+CREATE INDEX "account_dynamic_registration_domain_codes_account_id_idx" ON "dynamic_registration_domain_codes" ("account_id");
+
 CREATE INDEX "account_dynamic_registration_domain_codes_account_id_idx" ON "account_dynamic_registration_domain_codes" ("account_id");
 
-CREATE INDEX "account_dynamic_registration_domain_codes_account_dynamic_registration_domain_id_idx" ON "account_dynamic_registration_domain_codes" ("account_dynamic_registration_domain_id");
+CREATE UNIQUE INDEX "account_dynamic_registration_domain_codes_account_dynamic_registration_domain_id_uidx" ON "account_dynamic_registration_domain_codes" ("account_dynamic_registration_domain_id");
+
+CREATE UNIQUE INDEX "account_dynamic_registration_domain_codes_dynamic_registration_domain_code_id_uidx" ON "account_dynamic_registration_domain_codes" ("dynamic_registration_domain_code_id");
 
 CREATE INDEX "app_dynamic_registration_configs_account_id_idx" ON "app_dynamic_registration_configs" ("account_id");
 
@@ -1034,11 +1050,15 @@ ALTER TABLE "account_dynamic_registration_configs" ADD FOREIGN KEY ("account_id"
 
 ALTER TABLE "account_dynamic_registration_domains" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
+ALTER TABLE "dynamic_registration_domain_codes" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "dynamic_registration_domain_codes" ADD FOREIGN KEY ("hmac_secret_id") REFERENCES "account_hmac_secrets" ("secret_id") ON DELETE CASCADE ON UPDATE CASCADE;
+
 ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("account_dynamic_registration_domain_id") REFERENCES "account_dynamic_registration_domains" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("hmac_secret_id") REFERENCES "account_hmac_secrets" ("secret_id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("dynamic_registration_domain_code_id") REFERENCES "dynamic_registration_domain_codes" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
