@@ -201,8 +201,8 @@ func processHost(backendDomain string, host string) (string, error) {
 	}
 
 	hostArr := strings.Split(host, ".")
-	if len(hostArr) < 2 {
-		return "", errors.New("host must contain at least two parts")
+	if len(hostArr) < 3 {
+		return "", errors.New("host must contain at least three parts")
 	}
 
 	username := hostArr[0]

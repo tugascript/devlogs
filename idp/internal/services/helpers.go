@@ -7,7 +7,10 @@
 package services
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/url"
 	"strings"
 
@@ -19,6 +22,8 @@ import (
 )
 
 const (
+	helpersLocation string = "helpers"
+
 	AuthMethodPrivateKeyJwt     string = "private_key_jwt"
 	AuthMethodClientSecretBasic string = "client_secret_basic"
 	AuthMethodClientSecretPost  string = "client_secret_post"
@@ -243,4 +248,40 @@ func mapEmptyString(str string) pgtype.Text {
 	}
 
 	return pgtype.Text{String: strings.TrimSpace(str), Valid: true}
+}
+
+type verifyTXTRecordOptions struct {
+	requestID string
+	host      string
+	domain    string
+	prefix    string
+	code      string
+}
+
+func (s *Services) verifyTXTRecord(
+	ctx context.Context,
+	opts verifyTXTRecordOptions,
+) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.requestID, helpersLocation, "verifyTXTRecord").With(
+		"host", opts.host,
+		"domain", opts.domain,
+		"prefix", opts.prefix,
+	)
+	logger.InfoContext(ctx, "Verifying TXT record...")
+
+	records, err := net.LookupTXT(fmt.Sprintf("%s.%s", opts.host, opts.domain))
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to lookup TXT record: %s", err)
+		return exceptions.NewValidationError("TXT record not found")
+	}
+
+	hashSet := utils.SliceToHashSet(records)
+	value := fmt.Sprintf("%s=%s", opts.prefix, opts.code)
+	if !hashSet.Contains(value) {
+		logger.InfoContext(ctx, "TXT code not found in records")
+		return exceptions.NewValidationError("TXT code not found in records")
+	}
+
+	logger.InfoContext(ctx, "TXT code found in records")
+	return nil
 }

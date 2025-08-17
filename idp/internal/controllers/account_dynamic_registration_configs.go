@@ -94,3 +94,33 @@ func (c *Controllers) GetAccountDynamicRegistrationConfig(ctx *fiber.Ctx) error 
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&dto)
 }
+
+func (c *Controllers) DeleteAccountDynamicRegistrationConfig(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(
+		requestID,
+		accountDynamicRegistrationConfigsLocation,
+		"DeleteAccountDynamicRegistrationConfig",
+	)
+	logRequest(logger, ctx)
+
+	accountClaims, serviceErr := getAccountClaims(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	serviceErr = c.services.DeleteAccountDynamicRegistrationConfig(
+		ctx.UserContext(),
+		services.DeleteAccountDynamicRegistrationConfigOptions{
+			RequestID:       requestID,
+			AccountPublicID: accountClaims.AccountID,
+			AccountVersion:  accountClaims.AccountVersion,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusNoContent)
+	return ctx.SendStatus(fiber.StatusNoContent)
+}

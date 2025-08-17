@@ -7,38 +7,25 @@ package database
 
 import (
 	"context"
-	"time"
 )
 
 const createAccountDynamicRegistrationDomainCode = `-- name: CreateAccountDynamicRegistrationDomainCode :exec
 
 INSERT INTO "account_dynamic_registration_domain_codes" (
-    "account_id",
     "account_dynamic_registration_domain_id",
-    "verification_host",
-    "verification_code",
-    "verification_prefix",
-    "hmac_secret_id",
-    "expires_at"
+    "dynamic_registration_domain_code_id",
+    "account_id"
 ) VALUES (
     $1,
     $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7
+    $3
 )
 `
 
 type CreateAccountDynamicRegistrationDomainCodeParams struct {
-	AccountID                          int32
 	AccountDynamicRegistrationDomainID int32
-	VerificationHost                   string
-	VerificationCode                   string
-	VerificationPrefix                 string
-	HmacSecretID                       string
-	ExpiresAt                          time.Time
+	DynamicRegistrationDomainCodeID    int32
+	AccountID                          int32
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -47,14 +34,30 @@ type CreateAccountDynamicRegistrationDomainCodeParams struct {
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 func (q *Queries) CreateAccountDynamicRegistrationDomainCode(ctx context.Context, arg CreateAccountDynamicRegistrationDomainCodeParams) error {
-	_, err := q.db.Exec(ctx, createAccountDynamicRegistrationDomainCode,
-		arg.AccountID,
-		arg.AccountDynamicRegistrationDomainID,
-		arg.VerificationHost,
-		arg.VerificationCode,
-		arg.VerificationPrefix,
-		arg.HmacSecretID,
-		arg.ExpiresAt,
-	)
+	_, err := q.db.Exec(ctx, createAccountDynamicRegistrationDomainCode, arg.AccountDynamicRegistrationDomainID, arg.DynamicRegistrationDomainCodeID, arg.AccountID)
 	return err
+}
+
+const findDynamicRegistrationDomainCodeByAccountDynamicRegistrationDomainID = `-- name: FindDynamicRegistrationDomainCodeByAccountDynamicRegistrationDomainID :one
+SELECT d.id, d.account_id, d.verification_host, d.verification_code, d.hmac_secret_id, d.verification_prefix, d.expires_at, d.created_at, d.updated_at FROM "dynamic_registration_domain_codes" "d"
+LEFT JOIN "account_dynamic_registration_domain_codes" "a" ON "d"."id" = "a"."dynamic_registration_domain_code_id"
+WHERE "a"."account_dynamic_registration_domain_id" = $1
+LIMIT 1
+`
+
+func (q *Queries) FindDynamicRegistrationDomainCodeByAccountDynamicRegistrationDomainID(ctx context.Context, accountDynamicRegistrationDomainID int32) (DynamicRegistrationDomainCode, error) {
+	row := q.db.QueryRow(ctx, findDynamicRegistrationDomainCodeByAccountDynamicRegistrationDomainID, accountDynamicRegistrationDomainID)
+	var i DynamicRegistrationDomainCode
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.VerificationHost,
+		&i.VerificationCode,
+		&i.HmacSecretID,
+		&i.VerificationPrefix,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

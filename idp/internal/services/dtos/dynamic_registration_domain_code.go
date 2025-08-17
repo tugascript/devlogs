@@ -13,38 +13,43 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 )
 
-type AccountCredentialsRegistrationDomainDTO struct {
+type DynamicRegistrationDomainCodeDTO struct {
 	id int32
 
-	Domain   string `json:"domain"`
-	Verified bool   `json:"verified"`
-
-	VerificationHost          string `json:"verification_host,omitempty"`
-	VerificationPrefix        string `json:"verification_prefix,omitempty"`
+	VerificationHost          string `json:"verification_host"`
+	VerificationPrefix        string `json:"verification_prefix"`
 	VerificationCode          string `json:"verification_code,omitempty"`
 	VerificationValue         string `json:"verification_value,omitempty"`
-	VerificationCodeExpiresAt int64  `json:"verification_code_expires_at,omitempty"`
+	VerificationCodeExpiresAt int64  `json:"verification_code_expires_at"`
 }
 
-func (a *AccountCredentialsRegistrationDomainDTO) ID() int32 {
+func (a *DynamicRegistrationDomainCodeDTO) ID() int32 {
 	return a.id
 }
 
-func MapAccountCredentialsRegistrationDomainToDTOWithCode(
-	domain *database.AccountDynamicRegistrationDomain,
+func MapDynamicRegistrationDomainCodeToDTO(
+	domainCode *database.DynamicRegistrationDomainCode,
+) DynamicRegistrationDomainCodeDTO {
+	return DynamicRegistrationDomainCodeDTO{
+		id:                        domainCode.ID,
+		VerificationHost:          domainCode.VerificationHost,
+		VerificationPrefix:        domainCode.VerificationPrefix,
+		VerificationCode:          domainCode.VerificationCode,
+		VerificationCodeExpiresAt: domainCode.ExpiresAt.Unix(),
+	}
+}
+
+func CreateDynamicRegistrationDomainCodeDTO(
 	verificationHost string,
 	verificationPrefix string,
 	verificationCode string,
 	expiresAt time.Time,
-) AccountCredentialsRegistrationDomainDTO {
-	return AccountCredentialsRegistrationDomainDTO{
-		id:                        domain.ID,
-		Domain:                    domain.Domain,
+) DynamicRegistrationDomainCodeDTO {
+	return DynamicRegistrationDomainCodeDTO{
 		VerificationHost:          verificationHost,
 		VerificationPrefix:        verificationPrefix,
 		VerificationCode:          verificationCode,
 		VerificationValue:         fmt.Sprintf("%s=%s", verificationPrefix, verificationCode),
 		VerificationCodeExpiresAt: expiresAt.Unix(),
-		Verified:                  false,
 	}
 }

@@ -7,5 +7,9 @@
 package paths
 
 const (
-	DynamicRegistrationBase string = "/dynamic-registration"
+	Domains string = "/domains"
+
+	SingleDomain string = "/:domain"
+	VerifyDomain string = "/:domain/verify"
+	DomainCode   string = "/:domain/code"
 )

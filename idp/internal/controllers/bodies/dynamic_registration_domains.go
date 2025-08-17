@@ -4,8 +4,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-package paths
+package bodies
 
-const (
-	DynamicRegistrationBase string = "/dynamic-registration"
-)
+type CreateDynamicRegistrationDomainBody struct {
+	Domain string `json:"domain" validate:"required,fqdn,max=250"`
+}

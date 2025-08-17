@@ -76,6 +76,7 @@ Enum token_key_type {
     "email_verification"
     "password_reset"
     "2fa_authentication"
+    "dynamic_registration"
 }
 
 Table token_signing_keys as TS {
@@ -325,8 +326,12 @@ Enum account_credentials_scope {
     "account:users:write"
     "account:apps:read"
     "account:apps:write"
+    "account:apps:configs:read"
+    "account:apps:configs:write"
     "account:credentials:read"
     "account:credentials:write"
+    "account:credentials:configs:read"
+    "account:credentials:configs:write"
     "account:auth_providers:read"
 }
 
@@ -943,12 +948,10 @@ Table account_dynamic_registration_domains as ADRD {
 }
 Ref: ADRD.account_id > A.id [delete: cascade]
 
-Table account_dynamic_registration_domain_codes as ADRDC {
+Table dynamic_registration_domain_codes as DRDC {
     id serial [pk]
 
     account_id integer [not null]
-    account_dynamic_registration_domain_id integer [not null]
-
     verification_host varchar(50) [not null]
     verification_code text [not null]
     hmac_secret_id varchar(22) [not null]
@@ -960,12 +963,28 @@ Table account_dynamic_registration_domain_codes as ADRDC {
 
     Indexes {
         (account_id) [name: 'account_dynamic_registration_domain_codes_account_id_idx']
-        (account_dynamic_registration_domain_id) [name: 'account_dynamic_registration_domain_codes_account_dynamic_registration_domain_id_idx']
+    }
+}
+Ref: DRDC.account_id > A.id [delete: cascade]
+Ref: DRDC.hmac_secret_id > AHS.secret_id [delete: cascade, update: cascade]
+
+Table account_dynamic_registration_domain_codes as ADRDC {
+    account_dynamic_registration_domain_id integer [not null]
+    dynamic_registration_domain_code_id integer [not null]
+
+    account_id integer [not null]
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_dynamic_registration_domain_id, dynamic_registration_domain_code_id) [pk]
+        (account_id) [name: 'account_dynamic_registration_domain_codes_account_id_idx']
+        (account_dynamic_registration_domain_id) [unique, name: 'account_dynamic_registration_domain_codes_account_dynamic_registration_domain_id_uidx']
+        (dynamic_registration_domain_code_id) [unique, name: 'account_dynamic_registration_domain_codes_dynamic_registration_domain_code_id_uidx']
     }
 }
 Ref: ADRDC.account_id > A.id [delete: cascade]
 Ref: ADRDC.account_dynamic_registration_domain_id > ADRD.id [delete: cascade]
-Ref: ADRDC.hmac_secret_id > AHS.secret_id [delete: cascade, update: cascade]
+Ref: ADRDC.dynamic_registration_domain_code_id > DRDC.id [delete: cascade]
 
 Table app_dynamic_registration_configs as APDRC {
     id serial [pk]

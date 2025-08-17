@@ -22,16 +22,20 @@ import (
 type AccountScope = string
 
 const (
-	AccountScopeEmail             AccountScope = "email"
-	AccountScopeProfile           AccountScope = "profile"
-	AccountScopeAdmin             AccountScope = "account:admin"
-	AccountScopeUsersRead         AccountScope = "account:users:read"
-	AccountScopeUsersWrite        AccountScope = "account:users:write"
-	AccountScopeAppsRead          AccountScope = "account:apps:read"
-	AccountScopeAppsWrite         AccountScope = "account:apps:write"
-	AccountScopeCredentialsRead   AccountScope = "account:credentials:read"
-	AccountScopeCredentialsWrite  AccountScope = "account:credentials:write"
-	AccountScopeAuthProvidersRead AccountScope = "account:auth_providers:read"
+	AccountScopeEmail                   AccountScope = "email"
+	AccountScopeProfile                 AccountScope = "profile"
+	AccountScopeAdmin                   AccountScope = "account:admin"
+	AccountScopeUsersRead               AccountScope = "account:users:read"
+	AccountScopeUsersWrite              AccountScope = "account:users:write"
+	AccountScopeAppsRead                AccountScope = "account:apps:read"
+	AccountScopeAppsWrite               AccountScope = "account:apps:write"
+	AccountScopeAppsConfigsRead         AccountScope = "account:apps:configs:read"
+	AccountScopeAppsConfigsWrite        AccountScope = "account:apps:configs:write"
+	AccountScopeCredentialsRead         AccountScope = "account:credentials:read"
+	AccountScopeCredentialsWrite        AccountScope = "account:credentials:write"
+	AccountScopeCredentialsConfigsRead  AccountScope = "account:credentials:configs:read"
+	AccountScopeCredentialsConfigsWrite AccountScope = "account:credentials:configs:write"
+	AccountScopeAuthProvidersRead       AccountScope = "account:auth_providers:read"
 )
 
 var baseAuthScopes = []AccountScope{AccountScopeEmail, AccountScopeProfile}

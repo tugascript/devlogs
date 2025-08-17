@@ -7,15 +7,16 @@
 package validations
 
 import (
-	"github.com/go-playground/validator/v10"
 	"regexp"
+
+	"github.com/go-playground/validator/v10"
 )
 
 const singleScopeValidatorTag string = "single_scope"
 
 const multipleScopeValidatorTag string = "multiple_scope"
 
-var singleScopeRegex = regexp.MustCompile(`^[a-z\d]+(?:([-_:])[a-z\d]+)*$`)
+var singleScopeRegex = regexp.MustCompile(`^[a-z\d]+(?:([-_:\.])[a-z\d]+)*$`)
 var spacesRegex = regexp.MustCompile(`\s+`)
 
 func singleScopeValidator(fl validator.FieldLevel) bool {
