@@ -8,6 +8,7 @@ package server
 
 func (s *FiberServer) RegisterFiberRoutes() {
 	s.routes.HealthRoutes(s.App)
+	s.routes.AccountDynamicRegistrationConfigurationRoutes(s.App)
 	s.routes.OAuthRoutes(s.App)
 	s.routes.AuthRoutes(s.App)
 	s.routes.AccountCredentialsRoutes(s.App)

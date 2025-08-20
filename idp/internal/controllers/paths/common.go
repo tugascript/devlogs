@@ -11,4 +11,5 @@ const (
 	Keys    string = "/keys"
 	Confirm string = "/confirm"
 	Recover string = "/recover"
+	Config  string = "/config"
 )

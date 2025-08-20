@@ -7,6 +7,6 @@
 package bodies
 
 type UpdateAccountBody struct {
-	GivenName  string `json:"given_name" validate:"required,min=2,max=50"`
-	FamilyName string `json:"family_name" validate:"required,min=2,max=50"`
+	GivenName  string `json:"given_name" validate:"required,min=2,max=100"`
+	FamilyName string `json:"family_name" validate:"required,min=2,max=100"`
 }

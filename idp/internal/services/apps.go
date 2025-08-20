@@ -8,7 +8,6 @@ package services
 
 import (
 	"context"
-	"net/url"
 	"strings"
 	"time"
 
@@ -30,6 +29,7 @@ const (
 	transportSTDIO          string = "stdio"
 	transportStreamableHTTP string = "streamable_http"
 	transportHTTP           string = "http"
+	transportHTTPS          string = "https"
 )
 
 var authCodeAppGrantTypes = []database.GrantType{database.GrantTypeAuthorizationCode, database.GrantTypeRefreshToken}
@@ -619,27 +619,6 @@ func (s *Services) checkForDuplicateApps(
 
 	logger.InfoContext(ctx, "No duplicate apps found")
 	return nil
-}
-
-func mapDomain(clientURI string, domain string) (string, *exceptions.ServiceError) {
-	trimmed := strings.TrimSpace(domain)
-	if trimmed != "" {
-		return trimmed, nil
-	}
-
-	parsed, err := url.Parse(strings.TrimSpace(clientURI))
-	if err != nil || parsed == nil {
-		return "", exceptions.NewValidationError("Invalid client URI")
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return "", exceptions.NewValidationError("Invalid client URI")
-	}
-
-	host := parsed.Hostname()
-	if strings.TrimSpace(host) == "" {
-		return "", exceptions.NewValidationError("Invalid client URI")
-	}
-	return host, nil
 }
 
 type createAppOptions struct {
@@ -2032,7 +2011,6 @@ type updateAppOptions struct {
 	logoURI               string
 	tosURI                string
 	policyURI             string
-	softwareID            string
 	softwareVersion       string
 	contacts              []string
 	redirectURIs          []string
@@ -2086,7 +2064,6 @@ func (s *Services) updateApp(
 		LogoUri:               mapEmptyURL(opts.logoURI),
 		TosUri:                mapEmptyURL(opts.tosURI),
 		PolicyUri:             mapEmptyURL(opts.policyURI),
-		SoftwareID:            opts.softwareID,
 		SoftwareVersion:       softwareVersion,
 		Domain:                derivedDomain,
 		Transport:             opts.transport,
@@ -2154,7 +2131,6 @@ func (s *Services) updateSingleApp(
 		LogoUri:               mapEmptyURL(opts.logoURI),
 		TosUri:                mapEmptyURL(opts.tosURI),
 		PolicyUri:             mapEmptyURL(opts.policyURI),
-		SoftwareID:            opts.softwareID,
 		SoftwareVersion:       softwareVersion,
 		Domain:                derivedDomain,
 		Transport:             opts.transport,
@@ -2280,7 +2256,6 @@ func (s *Services) UpdateWebSPANativeApp(
 		logoURI:               opts.LogoURI,
 		tosURI:                opts.TOSURI,
 		policyURI:             opts.PolicyURI,
-		softwareID:            opts.SoftwareID,
 		softwareVersion:       opts.SoftwareVersion,
 		contacts:              opts.Contacts,
 		redirectURIs:          opts.RedirectURIs,
@@ -2359,7 +2334,6 @@ func (s *Services) UpdateBackendApp(
 		logoURI:               opts.LogoURI,
 		tosURI:                opts.TOSURI,
 		policyURI:             opts.PolicyURI,
-		softwareID:            opts.SoftwareID,
 		softwareVersion:       opts.SoftwareVersion,
 		contacts:              opts.Contacts,
 		redirectURIs:          make([]string, 0),
@@ -2492,7 +2466,6 @@ func (s *Services) UpdateDeviceApp(
 		logoURI:               opts.LogoURI,
 		tosURI:                opts.TOSURI,
 		policyURI:             opts.PolicyURI,
-		softwareID:            opts.SoftwareID,
 		softwareVersion:       opts.SoftwareVersion,
 		contacts:              opts.Contacts,
 		redirectURIs:          make([]string, 0),
@@ -2610,7 +2583,6 @@ func (s *Services) UpdateServiceApp(
 		logoURI:               opts.LogoURI,
 		tosURI:                opts.TOSURI,
 		policyURI:             opts.PolicyURI,
-		softwareID:            opts.SoftwareID,
 		softwareVersion:       opts.SoftwareVersion,
 		contacts:              opts.Contacts,
 		redirectURIs:          make([]string, 0),
@@ -2710,7 +2682,6 @@ func (s *Services) UpdateMCPApp(
 		logoURI:               opts.LogoURI,
 		tosURI:                opts.TOSURI,
 		policyURI:             opts.PolicyURI,
-		softwareID:            opts.SoftwareID,
 		softwareVersion:       opts.SoftwareVersion,
 		contacts:              opts.Contacts,
 		redirectURIs:          utils.ToEmptySlice(opts.RedirectURIs),

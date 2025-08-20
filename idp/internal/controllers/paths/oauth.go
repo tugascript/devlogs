@@ -14,6 +14,7 @@ const (
 	OAuthUserInfo   string = "/userinfo"
 	OAuthToken      string = "/token"
 	OAuthRevoke     string = "/revoke"
+	OAuthRegister   string = "/register"
 	OAuthIntrospect string = "/introspect"
 	OAuthDeviceAuth string = "/auth/device"
 

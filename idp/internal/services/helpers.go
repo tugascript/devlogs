@@ -7,7 +7,11 @@
 package services
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
+	"net"
+	"net/url"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -18,6 +22,8 @@ import (
 )
 
 const (
+	helpersLocation string = "helpers"
+
 	AuthMethodPrivateKeyJwt     string = "private_key_jwt"
 	AuthMethodClientSecretBasic string = "client_secret_basic"
 	AuthMethodClientSecretPost  string = "client_secret_post"
@@ -55,6 +61,13 @@ func (s *Services) buildLogger(requestID, location, function string) *slog.Logge
 	})
 }
 
+func (s *Services) mapQueries(qrs *database.Queries) *database.Queries {
+	if qrs != nil {
+		return qrs
+	}
+	return s.database.Queries
+}
+
 func extractAuthHeaderToken(ah string) (string, *exceptions.ServiceError) {
 	if ah == "" {
 		return "", exceptions.NewUnauthorizedError()
@@ -81,7 +94,7 @@ func mapAuthMethod(authMethod string) (database.AuthMethod, *exceptions.ServiceE
 		return database.AuthMethodClientSecretPost, nil
 	case AuthMethodClientSecretJWT:
 		return database.AuthMethodClientSecretJwt, nil
-	case AuthMethodNone:
+	case AuthMethodNone, "":
 		return database.AuthMethodNone, nil
 	default:
 		return "", exceptions.NewValidationError("invalid auth method")
@@ -164,6 +177,27 @@ func mapScope(scope string) (database.Scopes, *exceptions.ServiceError) {
 	}
 }
 
+func mapDomain(baseURI string, domain string) (string, *exceptions.ServiceError) {
+	trimmed := strings.TrimSpace(domain)
+	if trimmed != "" {
+		return trimmed, nil
+	}
+
+	parsed, err := url.Parse(strings.TrimSpace(baseURI))
+	if err != nil || parsed == nil {
+		return "", exceptions.NewValidationError("Invalid client URI")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", exceptions.NewValidationError("Invalid client URI")
+	}
+
+	host := parsed.Hostname()
+	if strings.TrimSpace(host) == "" {
+		return "", exceptions.NewValidationError("Invalid client URI")
+	}
+	return host, nil
+}
+
 func mapTwoFactorType(twoFactorType string) (database.TwoFactorType, *exceptions.ServiceError) {
 	if len(twoFactorType) < 4 {
 		return "", exceptions.NewValidationError("invalid two factor type")
@@ -214,4 +248,40 @@ func mapEmptyString(str string) pgtype.Text {
 	}
 
 	return pgtype.Text{String: strings.TrimSpace(str), Valid: true}
+}
+
+type verifyTXTRecordOptions struct {
+	requestID string
+	host      string
+	domain    string
+	prefix    string
+	code      string
+}
+
+func (s *Services) verifyTXTRecord(
+	ctx context.Context,
+	opts verifyTXTRecordOptions,
+) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.requestID, helpersLocation, "verifyTXTRecord").With(
+		"host", opts.host,
+		"domain", opts.domain,
+		"prefix", opts.prefix,
+	)
+	logger.InfoContext(ctx, "Verifying TXT record...")
+
+	records, err := net.LookupTXT(fmt.Sprintf("%s.%s", opts.host, opts.domain))
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to lookup TXT record: %s", err)
+		return exceptions.NewValidationError("TXT record not found")
+	}
+
+	hashSet := utils.SliceToHashSet(records)
+	value := fmt.Sprintf("%s=%s", opts.prefix, opts.code)
+	if !hashSet.Contains(value) {
+		logger.InfoContext(ctx, "TXT code not found in records")
+		return exceptions.NewValidationError("TXT code not found in records")
+	}
+
+	logger.InfoContext(ctx, "TXT code found in records")
+	return nil
 }

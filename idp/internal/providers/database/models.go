@@ -16,16 +16,20 @@ import (
 type AccountCredentialsScope string
 
 const (
-	AccountCredentialsScopeEmail                    AccountCredentialsScope = "email"
-	AccountCredentialsScopeProfile                  AccountCredentialsScope = "profile"
-	AccountCredentialsScopeAccountAdmin             AccountCredentialsScope = "account:admin"
-	AccountCredentialsScopeAccountUsersRead         AccountCredentialsScope = "account:users:read"
-	AccountCredentialsScopeAccountUsersWrite        AccountCredentialsScope = "account:users:write"
-	AccountCredentialsScopeAccountAppsRead          AccountCredentialsScope = "account:apps:read"
-	AccountCredentialsScopeAccountAppsWrite         AccountCredentialsScope = "account:apps:write"
-	AccountCredentialsScopeAccountCredentialsRead   AccountCredentialsScope = "account:credentials:read"
-	AccountCredentialsScopeAccountCredentialsWrite  AccountCredentialsScope = "account:credentials:write"
-	AccountCredentialsScopeAccountAuthProvidersRead AccountCredentialsScope = "account:auth_providers:read"
+	AccountCredentialsScopeEmail                          AccountCredentialsScope = "email"
+	AccountCredentialsScopeProfile                        AccountCredentialsScope = "profile"
+	AccountCredentialsScopeAccountAdmin                   AccountCredentialsScope = "account:admin"
+	AccountCredentialsScopeAccountUsersRead               AccountCredentialsScope = "account:users:read"
+	AccountCredentialsScopeAccountUsersWrite              AccountCredentialsScope = "account:users:write"
+	AccountCredentialsScopeAccountAppsRead                AccountCredentialsScope = "account:apps:read"
+	AccountCredentialsScopeAccountAppsWrite               AccountCredentialsScope = "account:apps:write"
+	AccountCredentialsScopeAccountAppsConfigsRead         AccountCredentialsScope = "account:apps:configs:read"
+	AccountCredentialsScopeAccountAppsConfigsWrite        AccountCredentialsScope = "account:apps:configs:write"
+	AccountCredentialsScopeAccountCredentialsRead         AccountCredentialsScope = "account:credentials:read"
+	AccountCredentialsScopeAccountCredentialsWrite        AccountCredentialsScope = "account:credentials:write"
+	AccountCredentialsScopeAccountCredentialsConfigsRead  AccountCredentialsScope = "account:credentials:configs:read"
+	AccountCredentialsScopeAccountCredentialsConfigsWrite AccountCredentialsScope = "account:credentials:configs:write"
+	AccountCredentialsScopeAccountAuthProvidersRead       AccountCredentialsScope = "account:auth_providers:read"
 )
 
 func (e *AccountCredentialsScope) Scan(src interface{}) error {
@@ -66,8 +70,9 @@ func (ns NullAccountCredentialsScope) Value() (driver.Value, error) {
 type AccountCredentialsType string
 
 const (
-	AccountCredentialsTypeClient AccountCredentialsType = "client"
-	AccountCredentialsTypeMcp    AccountCredentialsType = "mcp"
+	AccountCredentialsTypeNative  AccountCredentialsType = "native"
+	AccountCredentialsTypeService AccountCredentialsType = "service"
+	AccountCredentialsTypeMcp     AccountCredentialsType = "mcp"
 )
 
 func (e *AccountCredentialsType) Scan(src interface{}) error {
@@ -517,6 +522,49 @@ func (ns NullDekUsage) Value() (driver.Value, error) {
 	return string(ns.DekUsage), nil
 }
 
+type DomainVerificationMethod string
+
+const (
+	DomainVerificationMethodAuthorizationCode DomainVerificationMethod = "authorization_code"
+	DomainVerificationMethodSoftwareStatement DomainVerificationMethod = "software_statement"
+	DomainVerificationMethodDnsTxtRecord      DomainVerificationMethod = "dns_txt_record"
+)
+
+func (e *DomainVerificationMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DomainVerificationMethod(s)
+	case string:
+		*e = DomainVerificationMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DomainVerificationMethod: %T", src)
+	}
+	return nil
+}
+
+type NullDomainVerificationMethod struct {
+	DomainVerificationMethod DomainVerificationMethod
+	Valid                    bool // Valid is true if DomainVerificationMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDomainVerificationMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.DomainVerificationMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DomainVerificationMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDomainVerificationMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DomainVerificationMethod), nil
+}
+
 type GrantType string
 
 const (
@@ -863,13 +911,14 @@ func (ns NullTokenCryptoSuite) Value() (driver.Value, error) {
 type TokenKeyType string
 
 const (
-	TokenKeyTypeAccess            TokenKeyType = "access"
-	TokenKeyTypeRefresh           TokenKeyType = "refresh"
-	TokenKeyTypeIDToken           TokenKeyType = "id_token"
-	TokenKeyTypeClientCredentials TokenKeyType = "client_credentials"
-	TokenKeyTypeEmailVerification TokenKeyType = "email_verification"
-	TokenKeyTypePasswordReset     TokenKeyType = "password_reset"
-	TokenKeyType2faAuthentication TokenKeyType = "2fa_authentication"
+	TokenKeyTypeAccess              TokenKeyType = "access"
+	TokenKeyTypeRefresh             TokenKeyType = "refresh"
+	TokenKeyTypeIDToken             TokenKeyType = "id_token"
+	TokenKeyTypeClientCredentials   TokenKeyType = "client_credentials"
+	TokenKeyTypeEmailVerification   TokenKeyType = "email_verification"
+	TokenKeyTypePasswordReset       TokenKeyType = "password_reset"
+	TokenKeyType2faAuthentication   TokenKeyType = "2fa_authentication"
+	TokenKeyTypeDynamicRegistration TokenKeyType = "dynamic_registration"
 )
 
 func (e *TokenKeyType) Scan(src interface{}) error {
@@ -1150,12 +1199,24 @@ type AccountCredential struct {
 	ID                      int32
 	AccountID               int32
 	AccountPublicID         uuid.UUID
+	ClientID                string
+	Name                    string
+	Domain                  string
 	CredentialsType         AccountCredentialsType
 	Scopes                  []AccountCredentialsScope
 	TokenEndpointAuthMethod AuthMethod
-	Issuers                 []string
-	Alias                   string
-	ClientID                string
+	GrantTypes              []GrantType
+	Version                 int32
+	Transport               Transport
+	CreationMethod          CreationMethod
+	ClientUri               string
+	RedirectUris            []string
+	LogoUri                 pgtype.Text
+	PolicyUri               pgtype.Text
+	TosUri                  pgtype.Text
+	SoftwareID              string
+	SoftwareVersion         pgtype.Text
+	Contacts                []string
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
 }
@@ -1167,27 +1228,6 @@ type AccountCredentialsKey struct {
 	AccountPublicID      uuid.UUID
 	JwkKid               string
 	CreatedAt            time.Time
-}
-
-type AccountCredentialsMcp struct {
-	ID                         int32
-	AccountID                  int32
-	AccountPublicID            uuid.UUID
-	AccountCredentialsID       int32
-	AccountCredentialsClientID string
-	CreationMethod             CreationMethod
-	Transport                  Transport
-	ResponseTypes              []ResponseType
-	CallbackUris               []string
-	ClientUri                  string
-	LogoUri                    pgtype.Text
-	PolicyUri                  pgtype.Text
-	TosUri                     pgtype.Text
-	SoftwareID                 string
-	SoftwareVersion            pgtype.Text
-	Contacts                   []string
-	CreatedAt                  time.Time
-	UpdatedAt                  time.Time
 }
 
 type AccountCredentialsSecret struct {
@@ -1203,6 +1243,49 @@ type AccountDataEncryptionKey struct {
 	AccountID           int32
 	DataEncryptionKeyID int32
 	CreatedAt           time.Time
+}
+
+type AccountDynamicRegistrationConfig struct {
+	ID                                       int32
+	AccountID                                int32
+	AccountPublicID                          uuid.UUID
+	AccountCredentialsTypes                  []AccountCredentialsType
+	WhitelistedDomains                       []string
+	RequireSoftwareStatementCredentialTypes  []AccountCredentialsType
+	SoftwareStatementVerificationMethods     []SoftwareStatementVerificationMethod
+	RequireInitialAccessTokenCredentialTypes []AccountCredentialsType
+	InitialAccessTokenGenerationMethods      []InitialAccessTokenGenerationMethod
+	CreatedAt                                time.Time
+	UpdatedAt                                time.Time
+}
+
+type AccountDynamicRegistrationDomain struct {
+	ID                 int32
+	AccountID          int32
+	AccountPublicID    uuid.UUID
+	Domain             string
+	VerifiedAt         pgtype.Timestamptz
+	VerificationMethod DomainVerificationMethod
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type AccountDynamicRegistrationDomainCode struct {
+	AccountDynamicRegistrationDomainID int32
+	DynamicRegistrationDomainCodeID    int32
+	AccountID                          int32
+	CreatedAt                          time.Time
+}
+
+type AccountHmacSecret struct {
+	ID        int32
+	AccountID int32
+	SecretID  string
+	Secret    string
+	DekKid    string
+	IsRevoked bool
+	ExpiresAt time.Time
+	CreatedAt time.Time
 }
 
 type AccountKeyEncryptionKey struct {
@@ -1269,6 +1352,30 @@ type AppDesign struct {
 	FaviconUrl  pgtype.Text
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type AppDynamicRegistrationConfig struct {
+	ID                                   int32
+	AccountID                            int32
+	AllowedAppTypes                      []AppType
+	WhitelistedDomains                   []string
+	DefaultAllowUserRegistration         bool
+	DefaultAuthProviders                 []AuthProvider
+	DefaultUsernameColumn                AppUsernameColumn
+	DefaultAllowedScopes                 []Scopes
+	DefaultScopes                        []Scopes
+	RequireSoftwareStatementAppTypes     []AppType
+	SoftwareStatementVerificationMethods []SoftwareStatementVerificationMethod
+	RequireInitialAccessTokenAppTypes    []AppType
+	InitialAccessTokenGenerationMethods  []InitialAccessTokenGenerationMethod
+	InitialAccessTokenTtl                int32
+	InitialAccessTokenMaxUses            int32
+	AllowedGrantTypes                    []GrantType
+	AllowedResponseTypes                 []ResponseType
+	AllowedTokenEndpointAuthMethods      []AuthMethod
+	MaxRedirectUris                      int32
+	CreatedAt                            time.Time
+	UpdatedAt                            time.Time
 }
 
 type AppKey struct {
@@ -1351,28 +1458,16 @@ type DataEncryptionKey struct {
 	UpdatedAt time.Time
 }
 
-type DynamicRegistrationConfig struct {
-	ID                                   int32
-	AccountID                            int32
-	AllowedAppTypes                      []AppType
-	WhitelistedDomains                   []string
-	DefaultAllowUserRegistration         bool
-	DefaultAuthProviders                 []AuthProvider
-	DefaultUsernameColumn                AppUsernameColumn
-	DefaultAllowedScopes                 []Scopes
-	DefaultScopes                        []Scopes
-	RequireSoftwareStatementAppTypes     []AppType
-	SoftwareStatementVerificationMethods []SoftwareStatementVerificationMethod
-	RequireInitialAccessTokenAppTypes    []AppType
-	InitialAccessTokenGenerationMethods  []InitialAccessTokenGenerationMethod
-	InitialAccessTokenTtl                int32
-	InitialAccessTokenMaxUses            int32
-	AllowedGrantTypes                    []GrantType
-	AllowedResponseTypes                 []ResponseType
-	AllowedTokenEndpointAuthMethods      []AuthMethod
-	MaxRedirectUris                      int32
-	CreatedAt                            time.Time
-	UpdatedAt                            time.Time
+type DynamicRegistrationDomainCode struct {
+	ID                 int32
+	AccountID          int32
+	VerificationHost   string
+	VerificationCode   string
+	HmacSecretID       string
+	VerificationPrefix string
+	ExpiresAt          time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type KeyEncryptionKey struct {

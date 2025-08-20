@@ -76,6 +76,7 @@ Enum token_key_type {
     "email_verification"
     "password_reset"
     "2fa_authentication"
+    "dynamic_registration"
 }
 
 Table token_signing_keys as TS {
@@ -118,9 +119,9 @@ Table accounts as A {
     id serial [pk]
     public_id uuid [not null]
     
-    given_name varchar(50) [not null]
-    family_name varchar(50) [not null]
-    username varchar(63) [not null]
+    given_name varchar(100) [not null]
+    family_name varchar(100) [not null]
+    username varchar(63) [not null] // maximum length of a DNS label
     email varchar(250) [not null]
     organization varchar(50)
     password text
@@ -263,6 +264,30 @@ Table account_data_encryption_keys as ADEK {
 Ref: ADEK.account_id > A.id [delete: cascade]
 Ref: ADEK.data_encryption_key_id > DEK.id [delete: cascade]
 
+Table account_hmac_secrets as AHS {
+    id serial [pk]
+
+    account_id integer [not null]
+
+    secret_id varchar(22) [not null]
+    secret text [not null]
+    dek_kid varchar(22) [not null]
+    is_revoked boolean [not null, default: false]
+    expires_at timestamptz [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'account_hmac_secrets_account_id_idx']
+        (secret_id) [unique, name: 'account_hmac_secrets_secret_id_uidx']
+        (dek_kid) [name: 'account_hmac_secrets_dek_kid_idx']
+        (account_id, secret_id) [name: 'account_hmac_secrets_account_id_secret_id_idx']
+        (account_id, is_revoked, expires_at) [name: 'account_hmac_secrets_account_id_is_revoked_expires_at_idx']
+    }
+}
+Ref: AHS.account_id > A.id [delete: cascade]
+Ref: AHS.dek_kid > DEK.kid [delete: cascade, update: cascade]
+
 Table account_totps as AT {
     account_id integer [not null]
     totp_id integer [not null]
@@ -301,42 +326,20 @@ Enum account_credentials_scope {
     "account:users:write"
     "account:apps:read"
     "account:apps:write"
+    "account:apps:configs:read"
+    "account:apps:configs:write"
     "account:credentials:read"
     "account:credentials:write"
+    "account:credentials:configs:read"
+    "account:credentials:configs:write"
     "account:auth_providers:read"
 }
 
 Enum account_credentials_type {
-    "client"
+    "native"
+    "service"
     "mcp"
 }
-
-Table account_credentials as AC {
-    id serial [pk]
-
-    account_id integer [not null]
-    account_public_id uuid [not null]
-
-    credentials_type account_credentials_type [not null]
-    scopes "account_credentials_scope[]" [not null]
-    token_endpoint_auth_method "auth_method" [not null]
-    issuers "varchar(255)[]" [not null]
-
-    alias varchar(100) [not null]
-    client_id varchar(22) [not null]
-
-    created_at timestamptz [not null, default: `now()`]
-    updated_at timestamptz [not null, default: `now()`]
-
-    Indexes {
-        (client_id) [unique, name: 'account_credentials_client_id_uidx']
-        (account_id) [name: 'account_credentials_account_id_idx']
-        (account_public_id) [name: 'account_credentials_account_public_id_idx']
-        (account_public_id, client_id) [name: 'account_credentials_account_public_id_client_id_idx']
-        (alias, account_id) [unique, name: 'account_credentials_alias_account_id_uidx']
-    }
-}
-Ref: AC.account_id > A.id [delete: cascade]
 
 Enum transport {
     "http"
@@ -350,40 +353,45 @@ Enum creation_method {
     "dynamic_registration"
 }
 
-Table account_credentials_mcps as ACM {
+Table account_credentials as AC {
     id serial [pk]
 
     account_id integer [not null]
     account_public_id uuid [not null]
-    account_credentials_id integer [not null]
-    account_credentials_client_id varchar(22) [not null]
 
-    creation_method creation_method [not null]
+    client_id varchar(22) [not null]
+    name varchar(255) [not null]
+    domain "varchar(250)" [not null]
+    credentials_type account_credentials_type [not null]
+    scopes "account_credentials_scope[]" [not null]
+    token_endpoint_auth_method "auth_method" [not null]
+    grant_types "grant_type[]" [not null]
+    version integer [not null, default: 1]
+
     transport transport [not null]
+    creation_method creation_method [not null]
 
-    response_types "response_type[]" [not null]
-    callback_uris "varchar(2048)[]" [not null]
     client_uri varchar(512) [not null]
+    redirect_uris "varchar(2048)[]" [not null]
     logo_uri varchar(512) [null]
     policy_uri varchar(512) [null]
     tos_uri varchar(512) [null]
     software_id varchar(512) [not null]
     software_version varchar(512) [null]
-    contacts "varchar(512)[]" [not null, default: '{}']
+    contacts "varchar(250)[]" [not null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
 
     Indexes {
-        (account_id) [name: 'account_credentials_mcp_account_id_idx']
-        (account_public_id) [name: 'account_credentials_mcp_account_public_id_idx']
-        (account_credentials_id) [unique, name: 'account_credentials_mcp_account_credentials_id_uidx']
-        (account_credentials_client_id) [name: 'account_credentials_mcp_account_credentials_client_id_idx']
-        (account_credentials_id, software_id) [unique, name: 'account_credentials_mcp_account_credentials_id_software_id_uidx']
+        (client_id) [unique, name: 'account_credentials_client_id_uidx']
+        (account_id) [name: 'account_credentials_account_id_idx']
+        (account_public_id) [name: 'account_credentials_account_public_id_idx']
+        (account_public_id, client_id) [name: 'account_credentials_account_public_id_client_id_idx']
+        (name, account_id) [unique, name: 'account_credentials_name_account_id_uidx']
     }
 }
-Ref: ACM.account_id > A.id [delete: cascade]
-Ref: ACM.account_credentials_id > AC.id [delete: cascade]
+Ref: AC.account_id > A.id [delete: cascade]
 
 Table account_credentials_secrets as ACS {
     account_id integer [not null]
@@ -532,7 +540,7 @@ Table users as U {
     account_id integer [not null]
 
     email varchar(250) [not null]
-    username varchar(250) [not null]
+    username varchar(63) [not null] // maximum length of a DNS label
     password text
     version integer [not null, default: 1]
     email_verified boolean [not null, default: false]
@@ -721,7 +729,7 @@ Table apps as APP {
     account_public_id uuid [not null]
 
     app_type app_type [not null]
-    name varchar(100) [not null]
+    name varchar(255) [not null]
     client_id varchar(22) [not null]
     version integer [not null, default: 1]
     creation_method creation_method [not null]
@@ -888,7 +896,97 @@ Enum software_statement_verification_method {
     "jwks_uri"
 }
 
-Table dynamic_registration_configs as DRC {
+Table account_dynamic_registration_configs as ADRC {
+    id serial [pk]
+
+    account_id integer [not null]
+    account_public_id uuid [not null]
+
+    account_credentials_types "account_credentials_type[]" [not null]
+    whitelisted_domains "varchar(250)[]" [not null]
+    require_software_statement_credential_types "account_credentials_type[]" [not null]
+    software_statement_verification_methods "software_statement_verification_method[]" [not null]
+
+    require_initial_access_token_credential_types "account_credentials_type[]" [not null]
+    initial_access_token_generation_methods "initial_access_token_generation_method[]" [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [unique, name: 'account_dynamic_registration_configs_account_id_uidx']
+        (account_public_id) [name: 'account_dynamic_registration_configs_account_public_id_idx']
+    }
+}
+Ref: ADRC.account_id > A.id [delete: cascade]
+
+Enum domain_verification_method {
+    "authorization_code"
+    "software_statement"
+    "dns_txt_record"
+}
+
+Table account_dynamic_registration_domains as ADRD {
+    id serial [pk]
+
+    account_id integer [not null]
+    account_public_id uuid [not null]
+
+    domain varchar(250) [not null]
+    verified_at timestamptz [null]
+    verification_method domain_verification_method [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'accounts_totps_account_id_idx']
+        (account_public_id) [name: 'account_dynamic_registration_domains_account_public_id_idx']
+        (domain) [name: 'account_dynamic_registration_domains_domain_idx']
+        (account_public_id, domain) [unique, name: 'account_dynamic_registration_domains_account_public_id_domain_uidx']
+    }
+}
+Ref: ADRD.account_id > A.id [delete: cascade]
+
+Table dynamic_registration_domain_codes as DRDC {
+    id serial [pk]
+
+    account_id integer [not null]
+    verification_host varchar(50) [not null]
+    verification_code text [not null]
+    hmac_secret_id varchar(22) [not null]
+    verification_prefix varchar(70) [not null]
+    expires_at timestamptz [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'account_dynamic_registration_domain_codes_account_id_idx']
+    }
+}
+Ref: DRDC.account_id > A.id [delete: cascade]
+Ref: DRDC.hmac_secret_id > AHS.secret_id [delete: cascade, update: cascade]
+
+Table account_dynamic_registration_domain_codes as ADRDC {
+    account_dynamic_registration_domain_id integer [not null]
+    dynamic_registration_domain_code_id integer [not null]
+
+    account_id integer [not null]
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_dynamic_registration_domain_id, dynamic_registration_domain_code_id) [pk]
+        (account_id) [name: 'account_dynamic_registration_domain_codes_account_id_idx']
+        (account_dynamic_registration_domain_id) [unique, name: 'account_dynamic_registration_domain_codes_account_dynamic_registration_domain_id_uidx']
+        (dynamic_registration_domain_code_id) [unique, name: 'account_dynamic_registration_domain_codes_dynamic_registration_domain_code_id_uidx']
+    }
+}
+Ref: ADRDC.account_id > A.id [delete: cascade]
+Ref: ADRDC.account_dynamic_registration_domain_id > ADRD.id [delete: cascade]
+Ref: ADRDC.dynamic_registration_domain_code_id > DRDC.id [delete: cascade]
+
+Table app_dynamic_registration_configs as APDRC {
     id serial [pk]
 
     account_id integer [not null]
@@ -918,10 +1016,10 @@ Table dynamic_registration_configs as DRC {
     updated_at timestamptz [not null, default: `now()`]
 
     Indexes {
-        (account_id) [name: 'dynamic_registrations_configs_account_id_idx']
+        (account_id) [name: 'app_dynamic_registration_configs_account_id_idx']
     }
 }
-Ref: DRC.account_id > A.id [delete: cascade]
+Ref: APDRC.account_id > A.id [delete: cascade]
 
 Enum app_profile_type {
     "human"

@@ -283,6 +283,9 @@ func New(
 		cfg.AccountCCExpDays(),
 		cfg.UserCCExpDays(),
 		cfg.AppCCExpDays(),
+		cfg.HMACSecretExpDays(),
+		cfg.AccountDomainVerificationHost(),
+		cfg.AccountDomainVerificationTTL(),
 	)
 	logger.InfoContext(ctx, "Finished building services")
 

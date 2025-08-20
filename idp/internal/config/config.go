@@ -17,32 +17,37 @@ import (
 )
 
 type Config struct {
-	port                 int64
-	env                  string
-	maxProcs             int64
-	databaseURL          string
-	valkeyURL            string
-	frontendDomain       string
-	backendDomain        string
-	cookieSecret         string
-	cookieName           string
-	emailPubChannel      string
-	encryptionSecret     string
-	serviceID            uuid.UUID
-	serviceName          string
-	loggerConfig         LoggerConfig
-	tokensConfig         TokensConfig
-	oAuthProvidersConfig OAuthProvidersConfig
-	rateLimiterConfig    RateLimiterConfig
-	openBaoConfig        OpenBaoConfig
-	cryptoConfig         CryptoConfig
-	distributedCache     DistributedCache
-	kekExpirationDays    int64
-	dekExpirationDays    int64
-	jwkExpirationDays    int64
-	accountCCExpDays     int64
-	userCCExpDays        int64
-	appCCExpDays         int64
+	port                          int64
+	env                           string
+	maxProcs                      int64
+	databaseURL                   string
+	valkeyURL                     string
+	frontendDomain                string
+	backendDomain                 string
+	cookieSecret                  string
+	cookieName                    string
+	emailPubChannel               string
+	encryptionSecret              string
+	serviceID                     uuid.UUID
+	serviceName                   string
+	loggerConfig                  LoggerConfig
+	tokensConfig                  TokensConfig
+	oAuthProvidersConfig          OAuthProvidersConfig
+	rateLimiterConfig             RateLimiterConfig
+	openBaoConfig                 OpenBaoConfig
+	cryptoConfig                  CryptoConfig
+	distributedCache              DistributedCache
+	kekExpirationDays             int64
+	dekExpirationDays             int64
+	jwkExpirationDays             int64
+	hmacSecretExpDays             int64
+	accountCCExpDays              int64
+	userCCExpDays                 int64
+	appCCExpDays                  int64
+	accountDomainVerificationHost string
+	appsDomainVerificationHost    string
+	accountDomainVerificationTTL  int64
+	appsDomainVerificationTTL     int64
 }
 
 func (c *Config) Port() int64 {
@@ -137,6 +142,10 @@ func (c *Config) JWKExpirationDays() int64 {
 	return c.jwkExpirationDays
 }
 
+func (c *Config) HMACSecretExpDays() int64 {
+	return c.hmacSecretExpDays
+}
+
 func (c *Config) AccountCCExpDays() int64 {
 	return c.accountCCExpDays
 }
@@ -147,6 +156,22 @@ func (c *Config) UserCCExpDays() int64 {
 
 func (c *Config) AppCCExpDays() int64 {
 	return c.appCCExpDays
+}
+
+func (c *Config) AccountDomainVerificationHost() string {
+	return c.accountDomainVerificationHost
+}
+
+func (c *Config) AppsDomainVerificationHost() string {
+	return c.appsDomainVerificationHost
+}
+
+func (c *Config) AccountDomainVerificationTTL() int64 {
+	return c.accountDomainVerificationTTL
+}
+
+func (c *Config) AppsDomainVerificationTTL() int64 {
+	return c.appsDomainVerificationTTL
 }
 
 var variables = [45]string{
@@ -177,14 +202,10 @@ var variables = [45]string{
 	"OPENBAO_ROLE_ID",
 	"OPENBAO_SECRET_ID",
 	"KEK_PATH",
-	"DEK_TTL_SEC",
-	"JWK_TTL_SEC",
 	"KEK_EXPIRATION_DAYS",
 	"DEK_EXPIRATION_DAYS",
 	"JWK_EXPIRATION_DAYS",
-	"KEK_CACHE_TTL_SEC",
-	"DECRYPT_DEK_CACHE_TTL_SEC",
-	"ENCRYPT_DEK_CACHE_TTL_SEC",
+	"HMAC_SECRET_EXPIRATION_DAYS",
 	"PUBLIC_JWK_CACHE_TTL_SEC",
 	"PRIVATE_JWK_CACHE_TTL_SEC",
 	"PUBLIC_JWKS_CACHE_TTL_SEC",
@@ -195,6 +216,10 @@ var variables = [45]string{
 	"APP_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
 	"OAUTH_STATE_TTL_SEC",
 	"OAUTH_CODE_TTL_SEC",
+	"ACCOUNT_CREDENTIALS_DOMAIN_VERIFICATION_HOST",
+	"ACCOUNT_CREDENTIALS_DOMAIN_VERIFICATION_TTL_SEC",
+	"APPS_DOMAIN_VERIFICATION_HOST",
+	"APPS_DOMAIN_VERIFICATION_TTL_SEC",
 }
 
 var optionalVariables = [10]string{
@@ -210,7 +235,7 @@ var optionalVariables = [10]string{
 	"MICROSOFT_CLIENT_SECRET",
 }
 
-var numerics = [29]string{
+var numerics = [27]string{
 	"PORT",
 	"MAX_PROCS",
 	"JWT_ACCESS_TTL_SEC",
@@ -222,14 +247,10 @@ var numerics = [29]string{
 	"JWT_APPS_TTL_SEC",
 	"RATE_LIMITER_MAX",
 	"RATE_LIMITER_EXP_SEC",
-	"DEK_TTL_SEC",
-	"JWK_TTL_SEC",
 	"KEK_EXPIRATION_DAYS",
 	"DEK_EXPIRATION_DAYS",
 	"JWK_EXPIRATION_DAYS",
-	"KEK_CACHE_TTL_SEC",
-	"DECRYPT_DEK_CACHE_TTL_SEC",
-	"ENCRYPT_DEK_CACHE_TTL_SEC",
+	"HMAC_SECRET_EXPIRATION_DAYS",
 	"PUBLIC_JWK_CACHE_TTL_SEC",
 	"PRIVATE_JWK_CACHE_TTL_SEC",
 	"PUBLIC_JWKS_CACHE_TTL_SEC",
@@ -240,6 +261,8 @@ var numerics = [29]string{
 	"APP_CLIENT_CREDENTIALS_EXPIRATION_DAYS",
 	"OAUTH_STATE_TTL_SEC",
 	"OAUTH_CODE_TTL_SEC",
+	"ACCOUNT_CREDENTIALS_DOMAIN_VERIFICATION_TTL_SEC",
+	"APPS_DOMAIN_VERIFICATION_TTL_SEC",
 }
 
 func NewConfig(logger *slog.Logger, envPath string) Config {
@@ -319,12 +342,11 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 		),
 		cryptoConfig: NewEncryptionConfig(
 			variablesMap["KEK_PATH"],
-			intMap["DEK_TTL_SEC"],
-			intMap["JWK_TTL_SEC"],
 		),
 		kekExpirationDays: intMap["KEK_EXPIRATION_DAYS"],
 		dekExpirationDays: intMap["DEK_EXPIRATION_DAYS"],
 		jwkExpirationDays: intMap["JWK_EXPIRATION_DAYS"],
+		hmacSecretExpDays: intMap["HMAC_SECRET_EXPIRATION_DAYS"],
 		distributedCache: NewDistributedCache(
 			intMap["KEK_CACHE_TTL_SEC"],
 			intMap["DECRYPT_DEK_CACHE_TTL_SEC"],
@@ -337,8 +359,12 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 			intMap["OAUTH_STATE_TTL_SEC"],
 			intMap["OAUTH_CODE_TTL_SEC"],
 		),
-		accountCCExpDays: intMap["ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
-		userCCExpDays:    intMap["USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
-		appCCExpDays:     intMap["APP_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
+		accountCCExpDays:              intMap["ACCOUNT_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
+		userCCExpDays:                 intMap["USER_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
+		appCCExpDays:                  intMap["APP_CLIENT_CREDENTIALS_EXPIRATION_DAYS"],
+		accountDomainVerificationHost: variablesMap["ACCOUNT_CREDENTIALS_DOMAIN_VERIFICATION_HOST"],
+		appsDomainVerificationHost:    variablesMap["APPS_DOMAIN_VERIFICATION_HOST"],
+		accountDomainVerificationTTL:  intMap["ACCOUNT_CREDENTIALS_DOMAIN_VERIFICATION_TTL_SEC"],
+		appsDomainVerificationTTL:     intMap["APPS_DOMAIN_VERIFICATION_TTL_SEC"],
 	}
 }
