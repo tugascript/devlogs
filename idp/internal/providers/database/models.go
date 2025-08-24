@@ -869,6 +869,7 @@ func (ns NullSoftwareStatementVerificationMethod) Value() (driver.Value, error) 
 type TokenCryptoSuite string
 
 const (
+	TokenCryptoSuiteRS256 TokenCryptoSuite = "RS256"
 	TokenCryptoSuiteES256 TokenCryptoSuite = "ES256"
 	TokenCryptoSuiteEdDSA TokenCryptoSuite = "EdDSA"
 )
@@ -1274,6 +1275,15 @@ type AccountDynamicRegistrationDomainCode struct {
 	AccountDynamicRegistrationDomainID int32
 	DynamicRegistrationDomainCodeID    int32
 	AccountID                          int32
+	CreatedAt                          time.Time
+}
+
+type AccountDynamicRegistrationSoftwareStatementKey struct {
+	ID                                 int32
+	AccountID                          int32
+	AccountPublicID                    uuid.UUID
+	CredentialsKeyID                   int32
+	AccountDynamicRegistrationDomainID int32
 	CreatedAt                          time.Time
 }
 

@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-17T08:47:57.041Z
+-- Generated at: 2025-08-18T07:42:22.764Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -14,6 +14,7 @@ CREATE TYPE "dek_usage" AS ENUM (
 );
 
 CREATE TYPE "token_crypto_suite" AS ENUM (
+  'RS256',
   'ES256',
   'EdDSA'
 );
@@ -598,6 +599,15 @@ CREATE TABLE "account_dynamic_registration_domain_codes" (
   PRIMARY KEY ("account_dynamic_registration_domain_id", "dynamic_registration_domain_code_id")
 );
 
+CREATE TABLE "account_dynamic_registration_software_statement_keys" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "account_public_id" uuid NOT NULL,
+  "credentials_key_id" integer NOT NULL,
+  "account_dynamic_registration_domain_id" integer NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now())
+);
+
 CREATE TABLE "app_dynamic_registration_configs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
@@ -912,6 +922,14 @@ CREATE UNIQUE INDEX "account_dynamic_registration_domain_codes_account_dynamic_r
 
 CREATE UNIQUE INDEX "account_dynamic_registration_domain_codes_dynamic_registration_domain_code_id_uidx" ON "account_dynamic_registration_domain_codes" ("dynamic_registration_domain_code_id");
 
+CREATE INDEX "account_dynamic_registration_software_statement_keys_account_id_idx" ON "account_dynamic_registration_software_statement_keys" ("account_id");
+
+CREATE INDEX "account_dynamic_registration_software_statement_keys_account_public_id_idx" ON "account_dynamic_registration_software_statement_keys" ("account_public_id");
+
+CREATE UNIQUE INDEX "account_dynamic_registration_software_statement_keys_credentials_key_id_uidx" ON "account_dynamic_registration_software_statement_keys" ("credentials_key_id");
+
+CREATE UNIQUE INDEX "account_dynamic_registration_software_statement_keys_account_dynamic_registration_domain_id_uidx" ON "account_dynamic_registration_software_statement_keys" ("account_dynamic_registration_domain_id");
+
 CREATE INDEX "app_dynamic_registration_configs_account_id_idx" ON "app_dynamic_registration_configs" ("account_id");
 
 CREATE INDEX "user_profiles_app_id_idx" ON "app_profiles" ("app_id");
@@ -1059,6 +1077,12 @@ ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("accoun
 ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("account_dynamic_registration_domain_id") REFERENCES "account_dynamic_registration_domains" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("dynamic_registration_domain_code_id") REFERENCES "dynamic_registration_domain_codes" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_dynamic_registration_software_statement_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_dynamic_registration_software_statement_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_dynamic_registration_software_statement_keys" ADD FOREIGN KEY ("account_dynamic_registration_domain_id") REFERENCES "account_dynamic_registration_domains" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

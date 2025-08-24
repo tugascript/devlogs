@@ -13,8 +13,8 @@ import (
 )
 
 type AuthProviderDTO struct {
-	Provider     string `json:"provider"`
-	RegisteredAt string `json:"registered_at"`
+	Provider     database.AuthProvider `json:"provider"`
+	RegisteredAt string                `json:"registered_at"`
 
 	id int32
 }
@@ -26,7 +26,7 @@ func (a *AuthProviderDTO) ID() int32 {
 func MapAccountAuthProviderToDTO(provider *database.AccountAuthProvider) AuthProviderDTO {
 	return AuthProviderDTO{
 		id:           provider.ID,
-		Provider:     string(provider.Provider),
+		Provider:     provider.Provider,
 		RegisteredAt: provider.CreatedAt.Format(time.RFC3339),
 	}
 }

@@ -127,7 +127,7 @@ func (s *Services) sendConfirmationEmail(
 	accountDTO *dtos.AccountDTO,
 ) *exceptions.ServiceError {
 	logger.InfoContext(ctx, "Sending confirmation email...")
-	signedToken, err := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
+	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: requestID,
 		Token: s.jwt.CreateConfirmationToken(tokens.AccountConfirmationTokenOptions{
 			PublicID: accountDTO.PublicID,
@@ -142,8 +142,8 @@ func (s *Services) sendConfirmationEmail(
 		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, requestID),
 		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, requestID),
 	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to sign confirmation token", "error", err)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to sign confirmation token", "serviceError", serviceErr)
 		return exceptions.NewInternalServerError()
 	}
 
