@@ -174,7 +174,7 @@ func (c *Config) AppsDomainVerificationTTL() int64 {
 	return c.appsDomainVerificationTTL
 }
 
-var variables = [45]string{
+var variables = [46]string{
 	"PORT",
 	"ENV",
 	"DEBUG",
@@ -197,6 +197,7 @@ var variables = [45]string{
 	"JWT_RESET_TTL_SEC",
 	"JWT_2FA_TTL_SEC",
 	"JWT_APPS_TTL_SEC",
+	"JWT_DYNAMIC_REGISTRATION_TTL_SEC",
 	"OPENBAO_URL",
 	"OPENBAO_DEV_TOKEN",
 	"OPENBAO_ROLE_ID",
@@ -235,7 +236,7 @@ var optionalVariables = [10]string{
 	"MICROSOFT_CLIENT_SECRET",
 }
 
-var numerics = [27]string{
+var numerics = [28]string{
 	"PORT",
 	"MAX_PROCS",
 	"JWT_ACCESS_TTL_SEC",
@@ -245,6 +246,7 @@ var numerics = [27]string{
 	"JWT_RESET_TTL_SEC",
 	"JWT_2FA_TTL_SEC",
 	"JWT_APPS_TTL_SEC",
+	"JWT_DYNAMIC_REGISTRATION_TTL_SEC",
 	"RATE_LIMITER_MAX",
 	"RATE_LIMITER_EXP_SEC",
 	"KEK_EXPIRATION_DAYS",
@@ -322,6 +324,7 @@ func NewConfig(logger *slog.Logger, envPath string) Config {
 			intMap["JWT_RESET_TTL_SEC"],
 			intMap["JWT_2FA_TTL_SEC"],
 			intMap["JWT_APPS_TTL_SEC"],
+			intMap["JWT_DYNAMIC_REGISTRATION_TTL_SEC"],
 		),
 		oAuthProvidersConfig: NewOAuthProviders(
 			NewOAuthProvider(variablesMap["GITHUB_CLIENT_ID"], variablesMap["GITHUB_CLIENT_SECRET"]),

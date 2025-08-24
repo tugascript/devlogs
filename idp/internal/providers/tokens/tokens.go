@@ -44,15 +44,16 @@ const (
 )
 
 type Tokens struct {
-	logger                *slog.Logger
-	backendDomain         string
-	accessTTL             int64
-	accountCredentialsTTL int64
-	appsTTL               int64
-	refreshTTL            int64
-	confirmationTTL       int64
-	resetTTL              int64
-	twoFATTL              int64
+	logger                 *slog.Logger
+	backendDomain          string
+	accessTTL              int64
+	accountCredentialsTTL  int64
+	appsTTL                int64
+	refreshTTL             int64
+	confirmationTTL        int64
+	resetTTL               int64
+	twoFATTL               int64
+	dynamicRegistrationTTL int64
 }
 
 func NewTokens(
@@ -65,16 +66,18 @@ func NewTokens(
 	confirmationTTL int64,
 	resetTTL int64,
 	twoFATTL int64,
+	dynamicRegistrationTTL int64,
 ) *Tokens {
 	return &Tokens{
-		logger:                logger.With(utils.BaseLayer, logLayer),
-		accessTTL:             accessTTL,
-		accountCredentialsTTL: accountCredentialsTTL,
-		appsTTL:               appsTTL,
-		refreshTTL:            refreshTTL,
-		confirmationTTL:       confirmationTTL,
-		resetTTL:              resetTTL,
-		twoFATTL:              twoFATTL,
-		backendDomain:         backendDomain,
+		logger:                 logger.With(utils.BaseLayer, logLayer),
+		accessTTL:              accessTTL,
+		accountCredentialsTTL:  accountCredentialsTTL,
+		appsTTL:                appsTTL,
+		refreshTTL:             refreshTTL,
+		confirmationTTL:        confirmationTTL,
+		resetTTL:               resetTTL,
+		twoFATTL:               twoFATTL,
+		backendDomain:          backendDomain,
+		dynamicRegistrationTTL: dynamicRegistrationTTL,
 	}
 }

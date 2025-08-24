@@ -59,6 +59,7 @@ Table data_encryption_keys as DEK {
 Ref: DEK.kek_kid > KEK.kid [delete: cascade, update: cascade]
 
 Enum token_crypto_suite {
+    "RS256"
     "ES256"
     "EdDSA"
 }
@@ -985,6 +986,27 @@ Table account_dynamic_registration_domain_codes as ADRDC {
 Ref: ADRDC.account_id > A.id [delete: cascade]
 Ref: ADRDC.account_dynamic_registration_domain_id > ADRD.id [delete: cascade]
 Ref: ADRDC.dynamic_registration_domain_code_id > DRDC.id [delete: cascade]
+
+Table account_dynamic_registration_software_statement_keys as ADRSK {
+    id serial [pk]
+
+    account_id integer [not null]
+    account_public_id uuid [not null]
+    credentials_key_id integer [not null]
+    account_dynamic_registration_domain_id integer [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+    
+    Indexes {
+        (account_id) [name: 'account_dynamic_registration_software_statement_keys_account_id_idx']
+        (account_public_id) [name: 'account_dynamic_registration_software_statement_keys_account_public_id_idx']
+        (credentials_key_id) [unique, name: 'account_dynamic_registration_software_statement_keys_credentials_key_id_uidx']
+        (account_dynamic_registration_domain_id) [unique, name: 'account_dynamic_registration_software_statement_keys_account_dynamic_registration_domain_id_uidx']
+    }
+}
+Ref: ADRSK.account_id > A.id [delete: cascade]
+Ref: ADRSK.credentials_key_id > CK.id [delete: cascade]
+Ref: ADRSK.account_dynamic_registration_domain_id > ADRD.id [delete: cascade]
 
 Table app_dynamic_registration_configs as APDRC {
     id serial [pk]

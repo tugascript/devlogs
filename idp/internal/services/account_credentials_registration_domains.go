@@ -545,11 +545,7 @@ func (s *Services) GetAccountCredentialsRegistrationDomainCode(
 	)
 	logger.InfoContext(ctx, "Getting account credentials registration domain code...")
 
-	domainDTO, serviceErr := s.GetAccountCredentialsRegistrationDomain(ctx, GetAccountCredentialsRegistrationDomainOptions{
-		RequestID:       opts.RequestID,
-		AccountPublicID: opts.AccountPublicID,
-		Domain:          opts.Domain,
-	})
+	domainDTO, serviceErr := s.GetAccountCredentialsRegistrationDomain(ctx, GetAccountCredentialsRegistrationDomainOptions(opts))
 	if serviceErr != nil {
 		return dtos.DynamicRegistrationDomainCodeDTO{}, serviceErr
 	}

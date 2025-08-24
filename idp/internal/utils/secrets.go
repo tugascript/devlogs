@@ -32,6 +32,15 @@ func GenerateBase64Secret(byteLen int) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(randomBytes), nil
 }
 
+func GenerateBase62Secret(byteLen int) (string, error) {
+	randomBytes, err := GenerateRandomBytes(byteLen)
+	if err != nil {
+		return "", err
+	}
+
+	return Base62Encode(randomBytes), nil
+}
+
 func DecodeBase64Secret(secret string) ([]byte, error) {
 	decoded, err := base64.RawURLEncoding.DecodeString(secret)
 	if err != nil {

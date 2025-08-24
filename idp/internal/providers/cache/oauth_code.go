@@ -20,7 +20,13 @@ import (
 const (
 	oauthCodePrefix   string = "oauth_code"
 	oauthCodeLocation string = "oauth_code"
+
+	codeByteLen int = 16
 )
+
+func buildOAuthCodeKey(codeID string) string {
+	return fmt.Sprintf("%s:%s", oauthCodePrefix, utils.Sha256HashHex([]byte(codeID)))
+}
 
 type OAuthCodeData struct {
 	Email      string `json:"email"`
@@ -49,8 +55,12 @@ func (c *Cache) GenerateOAuthCode(ctx context.Context, opts GenerateOAuthCodeOpt
 	logger.DebugContext(ctx, "Generating OAuth code...")
 
 	codeID := utils.Base62UUID()
-	code := utils.Base62UUID()
-	key := fmt.Sprintf("%s:%s", oauthCodePrefix, codeID)
+	code, err := utils.GenerateBase62Secret(codeByteLen)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error generating OAuth code", "error", err)
+		return "", err
+	}
+	key := buildOAuthCodeKey(codeID)
 
 	data := OAuthCodeData{
 		Email:      opts.Email,
@@ -98,7 +108,7 @@ func (c *Cache) VerifyOAuthCode(ctx context.Context, opts VerifyOAuthCodeOptions
 		return OAuthCodeData{}, false, nil
 	}
 
-	key := fmt.Sprintf("%s:%s", oauthCodePrefix, parts[0])
+	key := buildOAuthCodeKey(parts[0])
 	valByte, err := c.storage.Get(key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting OAuth code", "error", err)

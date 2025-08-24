@@ -7,24 +7,26 @@
 package config
 
 type TokensConfig struct {
-	accessTTL             int64
-	accountCredentialsTTL int64
-	refreshTTL            int64
-	confirmTTL            int64
-	resetTTL              int64
-	twoFATTL              int64
-	appsTTL               int64
+	accessTTL              int64
+	accountCredentialsTTL  int64
+	refreshTTL             int64
+	confirmTTL             int64
+	resetTTL               int64
+	twoFATTL               int64
+	appsTTL                int64
+	dynamicRegistrationTTL int64
 }
 
-func NewTokensConfig(access, accountCredentials, refresh, confirm, reset, twoFA, apps int64) TokensConfig {
+func NewTokensConfig(access, accountCredentials, refresh, confirm, reset, twoFA, apps, dynamicRegistration int64) TokensConfig {
 	return TokensConfig{
-		accessTTL:             access,
-		accountCredentialsTTL: accountCredentials,
-		refreshTTL:            refresh,
-		confirmTTL:            confirm,
-		resetTTL:              reset,
-		twoFATTL:              twoFA,
-		appsTTL:               apps,
+		accessTTL:              access,
+		accountCredentialsTTL:  accountCredentials,
+		refreshTTL:             refresh,
+		confirmTTL:             confirm,
+		resetTTL:               reset,
+		twoFATTL:               twoFA,
+		appsTTL:                apps,
+		dynamicRegistrationTTL: dynamicRegistration,
 	}
 }
 
@@ -56,4 +58,8 @@ func (t TokensConfig) TwoFATTL() int64 {
 
 func (t TokensConfig) AppsTTL() int64 {
 	return t.appsTTL
+}
+
+func (t TokensConfig) DynamicRegistrationTTL() int64 {
+	return t.dynamicRegistrationTTL
 }

@@ -142,6 +142,7 @@ func initTestServicesAndApp(t *testing.T) {
 		tokensCfg.ConfirmTTL(),
 		tokensCfg.ResetTTL(),
 		tokensCfg.TwoFATTL(),
+		tokensCfg.DynamicRegistrationTTL(),
 	)
 	logger.InfoContext(ctx, "Finished building JWT tokens keys")
 

@@ -271,7 +271,7 @@ func (s *Services) verifyTXTRecord(
 
 	records, err := net.LookupTXT(fmt.Sprintf("%s.%s", opts.host, opts.domain))
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to lookup TXT record: %s", err)
+		logger.ErrorContext(ctx, "Failed to lookup TXT record", "error", err)
 		return exceptions.NewValidationError("TXT record not found")
 	}
 
