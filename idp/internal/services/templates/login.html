@@ -275,7 +275,7 @@
         </div>
 
         <div class="oauth-buttons">
-            <button class="oauth-button apple" onclick="initiateOAuth('apple')" type="button">
+            <button class="oauth-button apple" onclick="initiateOAuth('/accounts/credentials/clientID/oauth2/auth?client_id=apple')" type="button">
                 <div class="oauth-button-content">
                     <svg class="oauth-icon" fill="currentColor" viewBox="0 0 24 24">
                         <path
@@ -287,7 +287,7 @@
                 </div>
             </button>
 
-            <button class="oauth-button google" onclick="initiateOAuth('google')" type="button">
+            <button class="oauth-button google" onclick="initiateOAuth('/accounts/credentials/clientID/oauth2/auth?client_id=google')" type="button">
                 <div class="oauth-button-content">
                     <svg class="oauth-icon" viewBox="0 0 24 24">
                         <path
@@ -309,7 +309,7 @@
                 </div>
             </button>
 
-            <button class="oauth-button github" onclick="initiateOAuth('github')" type="button">
+            <button class="oauth-button github" onclick="initiateOAuth('/accounts/credentials/clientID/oauth2/auth?client_id=github')" type="button">
                 <div class="oauth-button-content">
                     <svg class="oauth-icon" fill="currentColor" viewBox="0 0 24 24">
                         <path
@@ -321,7 +321,7 @@
                 </div>
             </button>
 
-            <button class="oauth-button facebook" onclick="initiateOAuth('facebook')" type="button">
+            <button class="oauth-button facebook" onclick="initiateOAuth('/accounts/credentials/clientID/oauth2/auth?client_id=facebook')" type="button">
                 <div class="oauth-button-content">
                     <svg class="oauth-icon" fill="currentColor" viewBox="0 0 24 24">
                         <path
@@ -333,7 +333,7 @@
                 </div>
             </button>
 
-            <button class="oauth-button microsoft" onclick="initiateOAuth('microsoft')" type="button">
+            <button class="oauth-button microsoft" onclick="initiateOAuth('/accounts/credentials/clientID/oauth2/auth?client_id=microsoft')" type="button">
                 <div class="oauth-button-content">
                     <svg class="oauth-icon" preserveAspectRatio="xMidYMid" viewBox="0 0 276 276"
                         xmlns="http://www.w3.org/2000/svg">
@@ -389,14 +389,16 @@
 
         // Store PKCE parameters in sessionStorage for later use
         function storePKCEParams(provider, codeVerifier, state) {
-            sessionStorage.setItem(`${provider}_code_verifier`, codeVerifier);
-            sessionStorage.setItem(`${provider}_state`, state);
+            sessionStorage.setItem(provider + "_code_verifier", codeVerifier);
+            sessionStorage.setItem(provider + "_state", state);
         }
 
         // Main OAuth initiation function
-        async function initiateOAuth(provider) {
+        async function initiateOAuth(urlPath) {
             try {
                 // Generate PKCE parameters
+                const data = urlPath.split('?client_id=');
+                const provider = data[1];
                 const codeVerifier = generateCodeVerifier();
                 const codeChallenge = await generateCodeChallenge(codeVerifier);
                 const state = generateState();
@@ -405,7 +407,7 @@
                 storePKCEParams(provider, codeVerifier, state);
 
                 // Build OAuth URL with PKCE parameters
-                const oauthUrl = buildOAuthURL(provider, codeChallenge, state);
+                const oauthUrl = buildOAuthURL(data[0], provider, codeChallenge, state);
 
                 // Redirect to OAuth provider
                 window.location.href = oauthUrl;
@@ -416,8 +418,7 @@
         }
 
         // Build OAuth URL with required parameters
-        function buildOAuthURL(provider, codeChallenge, state) {
-            const baseUrl = `/oauth/${provider}`;
+        function buildOAuthURL(baseUrl, provider, codeChallenge, state) {
             const params = new URLSearchParams({
                 client_id: provider,
                 response_type: 'code',
@@ -426,38 +427,8 @@
                 state: state
             });
 
-            return `${baseUrl}?${params.toString()}`;
+            return baseUrl + "?" + params.toString();
         }
-
-        // Function to retrieve stored PKCE parameters (for callback handling)
-        function getStoredPKCEParams(provider) {
-            const codeVerifier = sessionStorage.getItem(`${provider}_code_verifier`);
-            const state = sessionStorage.getItem(`${provider}_state`);
-
-            // Clean up stored parameters
-            sessionStorage.removeItem(`${provider}_code_verifier`);
-            sessionStorage.removeItem(`${provider}_state`);
-
-            return { codeVerifier, state };
-        }
-
-        // Check if we're returning from OAuth callback
-        window.addEventListener('load', function () {
-            const urlParams = new URLSearchParams(window.location.search);
-            const code = urlParams.get('code');
-            const state = urlParams.get('state');
-            const error = urlParams.get('error');
-
-            if (code && state) {
-                // Handle successful OAuth callback
-                console.log('OAuth callback received:', { code, state });
-                // You can implement additional callback handling here
-            } else if (error) {
-                // Handle OAuth error
-                console.error('OAuth error:', error);
-                alert(`OAuth error: ${error}`);
-            }
-        });
     </script>
 </body>
 
