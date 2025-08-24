@@ -12,11 +12,14 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type accountCredentialsDynamicRegistrationClaims struct {
 	AccountClaims
-	Domain string `json:"domain"`
+	Domain   string `json:"domain"`
+	ClientID string `json:"client_id"`
 	jwt.RegisteredClaims
 }
 
@@ -39,7 +42,8 @@ func (t *Tokens) CreateAccountCredentialsDynamicRegistrationToken(
 				AccountID:      opts.AccountPublicID,
 				AccountVersion: opts.AccountVersion,
 			},
-			Domain: opts.Domain,
+			Domain:   opts.Domain,
+			ClientID: utils.Base62UUID(),
 			RegisteredClaims: jwt.RegisteredClaims{
 				Issuer: fmt.Sprintf("https://%s", t.backendDomain),
 				Audience: []string{
