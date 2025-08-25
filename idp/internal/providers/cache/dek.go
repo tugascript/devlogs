@@ -75,7 +75,7 @@ func (c *Cache) SaveEncDEK(ctx context.Context, opts SaveEncDEKOptions) error {
 		return err
 	}
 
-	if err := c.storage.Set(buildEncDEKKey(opts.Suffix), dekData, c.dekEncTTL); err != nil {
+	if err := c.storage.SetWithContext(ctx, buildEncDEKKey(opts.Suffix), dekData, c.dekEncTTL); err != nil {
 		logger.ErrorContext(ctx, "Error caching DEK", "error", err)
 		return err
 	}
@@ -97,7 +97,7 @@ func (c *Cache) GetEncDEK(ctx context.Context, opts GetEncDEKOptions) (string, s
 	}).With("suffix", opts.Suffix)
 	logger.DebugContext(ctx, "Getting DEK...")
 
-	dekData, err := c.storage.Get(buildEncDEKKey(opts.Suffix))
+	dekData, err := c.storage.GetWithContext(ctx, buildEncDEKKey(opts.Suffix))
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting DEK", "error", err)
 		return "", "", uuid.Nil, false, err
@@ -163,7 +163,8 @@ func (c *Cache) SaveDecDEK(ctx context.Context, opts SaveDecDEKOptions) error {
 	logger.DebugContext(ctx, "Caching DEK...")
 
 	decDEKValue := buildDecDEKValue(opts.DEK, opts.KEKid, opts.ExpiresAt)
-	if err := c.storage.Set(
+	if err := c.storage.SetWithContext(
+		ctx,
 		buildDecDEKKey(opts.Prefix, opts.KID),
 		[]byte(decDEKValue),
 		c.dekDecTTL,
@@ -190,7 +191,7 @@ func (c *Cache) GetDecDEK(ctx context.Context, opts GetDecDEKOptions) (string, u
 	}).With("dekKID", opts.KID)
 	logger.DebugContext(ctx, "Getting DEK...")
 
-	dekData, err := c.storage.Get(buildDecDEKKey(opts.Prefix, opts.KID))
+	dekData, err := c.storage.GetWithContext(ctx, buildDecDEKKey(opts.Prefix, opts.KID))
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting DEK", "error", err)
 		return "", uuid.Nil, time.Time{}, false, err

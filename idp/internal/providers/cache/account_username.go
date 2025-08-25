@@ -28,7 +28,8 @@ func (c *Cache) AddAccountUsername(ctx context.Context, opts AddAccountUsernameO
 	}).With("accountId", opts.ID)
 	logger.DebugContext(ctx, "Adding account username...")
 
-	return c.storage.Set(
+	return c.storage.SetWithContext(
+		ctx,
 		fmt.Sprintf("%s:%s", accountUsernamePrefix, opts.Username),
 		[]byte(strconv.Itoa(int(opts.ID))),
 		c.accountUsernameTTL,
@@ -51,7 +52,7 @@ func (c *Cache) GetAccountIDByUsername(
 	}).With("username", opts.Username)
 	logger.DebugContext(ctx, "Getting account username...")
 
-	val, err := c.storage.Get(fmt.Sprintf("%s:%s", accountUsernamePrefix, opts.Username))
+	val, err := c.storage.GetWithContext(ctx, fmt.Sprintf("%s:%s", accountUsernamePrefix, opts.Username))
 	if err != nil {
 		return 0, err
 	}

@@ -41,7 +41,7 @@ func SaveResponse[T any](
 		return "", err
 	}
 
-	if err := c.storage.Set(opts.Key, responseBytes, time.Duration(opts.TTL)*time.Second); err != nil {
+	if err := c.storage.SetWithContext(ctx, opts.Key, responseBytes, time.Duration(opts.TTL)*time.Second); err != nil {
 		logger.ErrorContext(ctx, "Error saving response", "error", err)
 		return "", err
 	}
@@ -68,7 +68,7 @@ func GetResponse[T any](
 	logger.DebugContext(ctx, "Getting cached response...")
 
 	var response T
-	responseBytes, err := c.storage.Get(opts.Key)
+	responseBytes, err := c.storage.GetWithContext(ctx, opts.Key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting cached response", "error", err)
 		return response, "", err

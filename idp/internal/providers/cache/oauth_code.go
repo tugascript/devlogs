@@ -8,8 +8,6 @@ package cache
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -25,7 +23,7 @@ const (
 )
 
 func buildOAuthCodeKey(codeID string) string {
-	return fmt.Sprintf("%s:%s", oauthCodePrefix, utils.Sha256HashHex([]byte(codeID)))
+	return fmt.Sprintf("%s:%s", oauthCodePrefix, utils.Sha256HashHex(codeID))
 }
 
 type OAuthCodeData struct {
@@ -68,7 +66,7 @@ func (c *Cache) GenerateOAuthCode(ctx context.Context, opts GenerateOAuthCodeOpt
 		FamilyName: opts.FamilyName,
 		Provider:   opts.Provider,
 		Challenge:  opts.Challenge,
-		Code:       utils.Sha256HashHex([]byte(code)),
+		Code:       utils.Sha256HashHex(code),
 	}
 	val, err := json.Marshal(data)
 	if err != nil {
@@ -76,7 +74,7 @@ func (c *Cache) GenerateOAuthCode(ctx context.Context, opts GenerateOAuthCodeOpt
 		return "", err
 	}
 
-	if err := c.storage.Set(key, val, c.oauthCodeTTL); err != nil {
+	if err := c.storage.SetWithContext(ctx, key, val, c.oauthCodeTTL); err != nil {
 		logger.ErrorContext(ctx, "Error caching OAuth code", "error", err)
 		return "", err
 	}
@@ -109,7 +107,7 @@ func (c *Cache) VerifyOAuthCode(ctx context.Context, opts VerifyOAuthCodeOptions
 	}
 
 	key := buildOAuthCodeKey(parts[0])
-	valByte, err := c.storage.Get(key)
+	valByte, err := c.storage.GetWithContext(ctx, key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting OAuth code", "error", err)
 		return OAuthCodeData{}, false, err
@@ -125,19 +123,16 @@ func (c *Cache) VerifyOAuthCode(ctx context.Context, opts VerifyOAuthCodeOptions
 		return OAuthCodeData{}, false, err
 	}
 
-	decodedHashedCode, err := hex.DecodeString(data.Code)
+	ok, err := utils.CompareShaHex(parts[1], data.Code)
 	if err != nil {
-		logger.ErrorContext(ctx, "Error decoding OAuth code hash", "error", err)
+		logger.ErrorContext(ctx, "Error comparing OAuth code", "error", err)
 		return OAuthCodeData{}, false, err
 	}
-
-	hashedCode := sha256.Sum256([]byte(parts[1]))
-	if !utils.CompareSha256(hashedCode[:], decodedHashedCode) {
-		logger.DebugContext(ctx, "OAuth code does not match")
+	if !ok {
+		logger.DebugContext(ctx, "Invalid OAuth code")
 		return OAuthCodeData{}, false, nil
 	}
-
-	if err := c.storage.Delete(key); err != nil {
+	if err := c.storage.DeleteWithContext(ctx, key); err != nil {
 		logger.ErrorContext(ctx, "Error delete OAuth code", "error", err)
 		return OAuthCodeData{}, false, err
 	}

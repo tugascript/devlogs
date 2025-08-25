@@ -45,7 +45,7 @@ func (c *Cache) SavePublicJWK(ctx context.Context, opts SavePublicJWKOptions) er
 	logger.DebugContext(ctx, "Saving JWK...")
 
 	key := buildJWKKey(opts.Prefix, opts.CryptoSuite, opts.KeyID)
-	if err := c.storage.Set(key, opts.PublicKey, c.publicJWKTTL); err != nil {
+	if err := c.storage.SetWithContext(ctx, key, opts.PublicKey, c.publicJWKTTL); err != nil {
 		logger.ErrorContext(ctx, "Error caching JWK", "error", err)
 		return err
 	}
@@ -71,7 +71,7 @@ func (c *Cache) GetJWK(ctx context.Context, opts GetJWKOptions) (utils.JWK, bool
 	logger.DebugContext(ctx, "Getting JWK...")
 
 	key := buildJWKKey(opts.Prefix, opts.CryptoSuite, opts.KeyID)
-	val, err := c.storage.Get(key)
+	val, err := c.storage.GetWithContext(ctx, key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting JWK", "error", err)
 		return nil, false, err
@@ -123,7 +123,8 @@ func (c *Cache) SaveJWKPrivateKey(ctx context.Context, opts SaveJWKPrivateKeyOpt
 	}).With("kid", opts.KID)
 	logger.DebugContext(ctx, "Saving JWK private key...")
 
-	if err := c.storage.Set(
+	if err := c.storage.SetWithContext(
+		ctx,
 		buildJWKPrivateKeyKey(opts.CryptoSuite, opts.Suffix),
 		encodeJWKPrivateKeyData(opts.KID, opts.EncPrivKey),
 		c.privateJWKTTL,
@@ -153,7 +154,7 @@ func (c *Cache) GetJWKPrivateKey(
 	logger.DebugContext(ctx, "Getting JWK private key...")
 
 	key := buildJWKPrivateKeyKey(opts.CryptoSuite, opts.Suffix)
-	val, err := c.storage.Get(key)
+	val, err := c.storage.GetWithContext(ctx, key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting JWK private key", "error", err)
 		return "", "", false, err
@@ -196,7 +197,8 @@ func (c *Cache) SavePublicJWKs(
 		return "", err
 	}
 
-	if err := c.storage.Set(
+	if err := c.storage.SetWithContext(
+		ctx,
 		fmt.Sprintf("%s:%s:%s", jwkPrefix, opts.Prefix, jwkPublicSuffix),
 		jwksBytes,
 		c.publicJWKsTTL,
@@ -225,7 +227,7 @@ func (c *Cache) GetPublicJWKs(
 	logger.DebugContext(ctx, "Getting public JWKs...")
 
 	key := fmt.Sprintf("%s:%s:%s", jwkPrefix, opts.Prefix, jwkPublicSuffix)
-	val, err := c.storage.Get(key)
+	val, err := c.storage.GetWithContext(ctx, key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting public JWKs", "error", err)
 		return "", nil, false, err

@@ -88,8 +88,8 @@ func Argon2CompareHash(str, hash string) (bool, error) {
 	return bytes.Equal(decodedHash, comparisonHash), nil
 }
 
-func Sha256HashHex(bytes []byte) string {
-	hash := sha256.Sum256(bytes)
+func Sha256HashHex(str string) string {
+	hash := sha256.Sum256([]byte(str))
 	return hex.EncodeToString(hash[:])
 }
 
@@ -105,6 +105,27 @@ func CompareSha256(a, b []byte) bool {
 	return subtle.ConstantTimeCompare(a, b) == 1
 }
 
+func CompareShaHex(plainText, shaHex string) (bool, error) {
+	hash := sha256.Sum256([]byte(plainText))
+	shaBytes, err := hex.DecodeString(shaHex)
+	if err != nil {
+		return false, fmt.Errorf("failed to decode first hex string: %w", err)
+	}
+
+	return CompareSha256(hash[:], shaBytes), nil
+}
+
+func CompareShaBase64(plainText, shaBase64 string) (bool, error) {
+	hash := sha256.Sum256([]byte(plainText))
+	shaBytes, err := base64.RawURLEncoding.DecodeString(shaBase64)
+	if err != nil {
+		return false, fmt.Errorf("failed to decode first base64 string: %w", err)
+	}
+
+	return CompareSha256(hash[:], shaBytes), nil
+}
+
 func GenerateETag(bytes []byte) string {
-	return `"` + Sha256HashHex(bytes) + `"`
+	hash := sha256.Sum256(bytes)
+	return `"` + hex.EncodeToString(hash[:]) + `"`
 }
