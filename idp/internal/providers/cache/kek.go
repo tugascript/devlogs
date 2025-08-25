@@ -38,7 +38,7 @@ func (c *Cache) SaveKEKUUID(ctx context.Context, opts SaveKEKUUIDOptions) error 
 	})
 	logger.DebugContext(ctx, "Caching KEK UUID...")
 
-	return c.storage.Set(buildKEKKey(opts.Prefix), opts.KID[:], c.kekTTL)
+	return c.storage.SetWithContext(ctx, buildKEKKey(opts.Prefix), opts.KID[:], c.kekTTL)
 }
 
 type GetKEKUUIDOptions struct {
@@ -54,7 +54,7 @@ func (c *Cache) GetKEKUUID(ctx context.Context, opts GetKEKUUIDOptions) (uuid.UU
 	})
 	logger.DebugContext(ctx, "Getting KEK UUID...")
 
-	kid, err := c.storage.Get(buildKEKKey(opts.Prefix))
+	kid, err := c.storage.GetWithContext(ctx, buildKEKKey(opts.Prefix))
 	if err != nil {
 		return uuid.Nil, false, err
 	}

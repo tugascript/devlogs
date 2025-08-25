@@ -71,16 +71,11 @@ func (c *Cache) AddTwoFactorCode(ctx context.Context, opts AddTwoFactorCodeOptio
 		return "", err
 	}
 
-	hashedCode, err := utils.Argon2HashString(code)
-	if err != nil {
-		logger.ErrorContext(ctx, "Error hashing two factor code", "error", err)
-		return "", err
-	}
-
+	hashedCode := utils.Sha256HashHex(code)
 	key := generateKey(opts.AccountID, opts.UserID)
 	val := []byte(hashedCode)
 	exp := time.Duration(opts.TTL) * time.Second
-	if err := c.storage.Set(key, val, exp); err != nil {
+	if err := c.storage.SetWithContext(ctx, key, val, exp); err != nil {
 		logger.ErrorContext(ctx, "Error setting two factor code", "error", err)
 		return "", err
 	}
@@ -107,7 +102,7 @@ func (c *Cache) VerifyTwoFactorCode(ctx context.Context, opts VerifyTwoFactorCod
 	logger.DebugContext(ctx, "Verifying two factor code...")
 	key := generateKey(opts.AccountID, opts.UserID)
 
-	valByte, err := c.storage.Get(key)
+	valByte, err := c.storage.GetWithContext(ctx, key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error verifying two factor code", "error", err)
 		return false, err
@@ -117,17 +112,16 @@ func (c *Cache) VerifyTwoFactorCode(ctx context.Context, opts VerifyTwoFactorCod
 		return false, nil
 	}
 
-	ok, err := utils.Argon2CompareHash(opts.Code, string(valByte))
+	ok, err := utils.CompareShaHex(opts.Code, string(valByte))
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to compare code and its hash")
+		logger.ErrorContext(ctx, "Error comparing two factor code", "error", err)
 		return false, err
 	}
 	if !ok {
-		logger.WarnContext(ctx, "Invalid code")
+		logger.DebugContext(ctx, "Two factor code does not match")
 		return false, nil
 	}
-
-	if err := c.storage.Delete(key); err != nil {
+	if err := c.storage.DeleteWithContext(ctx, key); err != nil {
 		logger.ErrorContext(ctx, "Error deleting two factor code", "error", err)
 		return true, err
 	}

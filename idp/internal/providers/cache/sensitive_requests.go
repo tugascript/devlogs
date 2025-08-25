@@ -54,7 +54,7 @@ func (c *Cache) SaveUpdateEmailRequest(ctx context.Context, opts SaveUpdateEmail
 	key := fmt.Sprintf("%s:%s:%s", emailUpdatePrefix, opts.PrefixType, opts.PublicID.String())
 	val := []byte(opts.Email)
 	exp := time.Duration(opts.DurationSeconds) * time.Second
-	if err := c.storage.Set(key, val, exp); err != nil {
+	if err := c.storage.SetWithContext(ctx, key, val, exp); err != nil {
 		logger.ErrorContext(ctx, "Error caching update email request", "error", err)
 		return err
 	}
@@ -80,7 +80,7 @@ func (c *Cache) GetUpdateEmailRequest(ctx context.Context, opts GetUpdateEmailRe
 	logger.DebugContext(ctx, "Getting update email request...")
 
 	key := fmt.Sprintf("%s:%s:%s", emailUpdatePrefix, opts.PrefixType, opts.PublicID.String())
-	valByte, err := c.storage.Get(key)
+	valByte, err := c.storage.GetWithContext(ctx, key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting the update email request", "error", err)
 		return "", false, err
@@ -121,7 +121,7 @@ func (c *Cache) SaveUpdatePasswordRequest(ctx context.Context, opts SaveUpdatePa
 	key := fmt.Sprintf("%s:%s:%s", passwordUpdatePrefix, opts.PrefixType, opts.PublicID.String())
 	val := []byte(hashedPassword)
 	exp := time.Duration(opts.DurationSeconds) * time.Second
-	if err := c.storage.Set(key, val, exp); err != nil {
+	if err := c.storage.SetWithContext(ctx, key, val, exp); err != nil {
 		logger.ErrorContext(ctx, "Error caching update password request", "error", err)
 		return err
 	}
@@ -147,7 +147,7 @@ func (c *Cache) GetUpdatePasswordRequest(ctx context.Context, opts GetUpdatePass
 	logger.DebugContext(ctx, "Getting update password request...")
 
 	key := fmt.Sprintf("%s:%s:%s", passwordUpdatePrefix, opts.PrefixType, opts.PublicID.String())
-	valByte, err := c.storage.Get(key)
+	valByte, err := c.storage.GetWithContext(ctx, key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting the update password request", "error", err)
 		return "", false, err
@@ -181,7 +181,7 @@ func (c *Cache) SaveDeleteAccountRequest(ctx context.Context, opts SaveDeleteAcc
 	key := fmt.Sprintf("%s:%s:%s", deleteAccountPrefix, opts.PrefixType, opts.PublicID.String())
 	val := []byte("1")
 	exp := time.Duration(opts.DurationSeconds) * time.Second
-	if err := c.storage.Set(key, val, exp); err != nil {
+	if err := c.storage.SetWithContext(ctx, key, val, exp); err != nil {
 		logger.ErrorContext(ctx, "Error caching delete account request", "error", err)
 		return err
 	}
@@ -207,7 +207,7 @@ func (c *Cache) GetDeleteAccountRequest(ctx context.Context, opts GetDeleteAccou
 	logger.DebugContext(ctx, "Getting delete account request...")
 
 	key := fmt.Sprintf("%s:%s:%s", deleteAccountPrefix, opts.PrefixType, opts.PublicID.String())
-	val, err := c.storage.Get(key)
+	val, err := c.storage.GetWithContext(ctx, key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting the delete account request", "error", err)
 		return false, err
@@ -242,7 +242,7 @@ func (c *Cache) SaveTwoFactorUpdateRequest(ctx context.Context, opts SaveTwoFact
 	key := fmt.Sprintf("%s:%s:%s", twoFactorUpdatePrefix, opts.PrefixType, opts.PublicID.String())
 	val := []byte(opts.TwoFactorType)
 	exp := time.Duration(opts.DurationSeconds) * time.Second
-	if err := c.storage.Set(key, val, exp); err != nil {
+	if err := c.storage.SetWithContext(ctx, key, val, exp); err != nil {
 		logger.ErrorContext(ctx, "Error caching two-factor update request", "error", err)
 		return err
 	}
@@ -271,7 +271,7 @@ func (c *Cache) GetTwoFactorUpdateRequest(
 	logger.DebugContext(ctx, "Getting two-factor update request...")
 
 	key := fmt.Sprintf("%s:%s:%s", twoFactorUpdatePrefix, opts.PrefixType, opts.PublicID.String())
-	val, err := c.storage.Get(key)
+	val, err := c.storage.GetWithContext(ctx, key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting the two-factor update request", "error", err)
 		return "", err
@@ -307,7 +307,7 @@ func (c *Cache) SaveUpdateUsernameRequest(ctx context.Context, opts SaveUpdateUs
 	key := fmt.Sprintf("%s:%s:%s", usernameUpdatePrefix, opts.PrefixType, opts.PublicID.String())
 	val := []byte(opts.Username)
 	exp := time.Duration(opts.DurationSeconds) * time.Second
-	if err := c.storage.Set(key, val, exp); err != nil {
+	if err := c.storage.SetWithContext(ctx, key, val, exp); err != nil {
 		logger.ErrorContext(ctx, "Error caching update username request", "error", err)
 		return err
 	}
@@ -333,7 +333,7 @@ func (c *Cache) GetUpdateUsernameRequest(ctx context.Context, opts GetUpdateUser
 	logger.DebugContext(ctx, "Getting update username request...")
 
 	key := fmt.Sprintf("%s:%s:%s", usernameUpdatePrefix, opts.PrefixType, opts.PublicID.String())
-	val, err := c.storage.Get(key)
+	val, err := c.storage.GetWithContext(ctx, key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting the update username request", "error", err)
 		return "", err

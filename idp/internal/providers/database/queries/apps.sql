@@ -206,5 +206,10 @@ SELECT * FROM "apps"
 WHERE "client_id" IN (sqlc.slice('client_ids')) AND "account_id" = $1
 ORDER BY "name" ASC LIMIT $2;
 
+-- name: CountAppsByClientIDAndAccountPublicID :one
+SELECT COUNT(*) FROM "apps"
+WHERE "client_id" = $1 AND "account_public_id" = $2
+LIMIT 1;
+
 -- name: DeleteAllApps :exec
 DELETE FROM "apps";

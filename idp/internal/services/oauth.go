@@ -334,31 +334,6 @@ func (s *Services) ExtLoginAccount(
 	return queryParams.Encode(), nil
 }
 
-type verifyOAuthChallengeOptions struct {
-	requestID         string
-	challenge         string
-	challengeVerifier string
-}
-
-func (s *Services) verifyOAuthChallenge(
-	ctx context.Context,
-	opts verifyOAuthChallengeOptions,
-) *exceptions.ServiceError {
-	logger := s.buildLogger(opts.requestID, oauthLocation, "verifyOAuthChallenge")
-
-	hashedVerifier := utils.Sha256HashBase64([]byte(opts.challengeVerifier))
-	if !utils.CompareSha256([]byte(hashedVerifier), []byte(opts.challenge)) {
-		logger.WarnContext(ctx, "OAuth code challenge verification failed",
-			"challenge", opts.challenge,
-			"challengeVerifier", opts.challengeVerifier,
-		)
-		return exceptions.NewUnauthorizedError()
-	}
-
-	logger.InfoContext(ctx, "OAuth code challenge verified successfully")
-	return nil
-}
-
 type AppleLoginAccountOptions struct {
 	RequestID string
 	FirstName string
@@ -469,13 +444,14 @@ func (s *Services) OAuthLoginAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	if serviceErr := s.verifyOAuthChallenge(ctx, verifyOAuthChallengeOptions{
-		requestID:         opts.RequestID,
-		challenge:         oauthData.Challenge,
-		challengeVerifier: opts.ChallengeVerifier,
-	}); serviceErr != nil {
-		logger.WarnContext(ctx, "Failed to verify OAuth challenge", "serviceError", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
+	ok, err = utils.CompareShaBase64(oauthData.Challenge, opts.ChallengeVerifier)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to compare challenge", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+	if !ok {
+		logger.WarnContext(ctx, "OAuth Code challenge verification failed")
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
 	accountDTO, serviceErr := s.saveExtAccount(ctx, logger, saveExtAccount{

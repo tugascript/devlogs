@@ -43,6 +43,24 @@ func (q *Queries) CountAppsByAccountPublicID(ctx context.Context, accountPublicI
 	return count, err
 }
 
+const countAppsByClientIDAndAccountPublicID = `-- name: CountAppsByClientIDAndAccountPublicID :one
+SELECT COUNT(*) FROM "apps"
+WHERE "client_id" = $1 AND "account_public_id" = $2
+LIMIT 1
+`
+
+type CountAppsByClientIDAndAccountPublicIDParams struct {
+	ClientID        string
+	AccountPublicID uuid.UUID
+}
+
+func (q *Queries) CountAppsByClientIDAndAccountPublicID(ctx context.Context, arg CountAppsByClientIDAndAccountPublicIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAppsByClientIDAndAccountPublicID, arg.ClientID, arg.AccountPublicID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countFilteredAppsByNameAndByAccountPublicID = `-- name: CountFilteredAppsByNameAndByAccountPublicID :one
 SELECT COUNT(*) FROM "apps"
 WHERE "account_public_id" = $1 AND "name" ILIKE $2

@@ -19,7 +19,7 @@ const (
 )
 
 func buildOAuthStateKey(state string) string {
-	return oauthStatePrefix + ":" + utils.Sha256HashHex([]byte(state))
+	return oauthStatePrefix + ":" + utils.Sha256HashHex(state)
 }
 
 type SaveOAuthStateDataOptions struct {
@@ -55,7 +55,8 @@ func (c *Cache) SaveOAuthStateData(ctx context.Context, opts SaveOAuthStateDataO
 		return err
 	}
 
-	return c.storage.Set(
+	return c.storage.SetWithContext(
+		ctx,
 		buildOAuthStateKey(opts.State),
 		dataBytes,
 		c.oauthStateTTL,
@@ -78,7 +79,7 @@ func (c *Cache) GetOAuthState(
 	})
 	logger.DebugContext(ctx, "Getting OAuth state...")
 	key := buildOAuthStateKey(opts.State)
-	valByte, err := c.storage.Get(key)
+	valByte, err := c.storage.GetWithContext(ctx, key)
 
 	if err != nil {
 		logger.ErrorContext(ctx, "Error verifying OAuth state", "error", err)
@@ -94,7 +95,7 @@ func (c *Cache) GetOAuthState(
 		logger.ErrorContext(ctx, "Error unmarshalling OAuth state data", "error", err)
 		return OAuthStateData{}, false, err
 	}
-	if err := c.storage.Delete(key); err != nil {
+	if err := c.storage.DeleteWithContext(ctx, key); err != nil {
 		logger.ErrorContext(ctx, "Error deleting OAuth state", "error", err)
 		return OAuthStateData{}, false, err
 	}

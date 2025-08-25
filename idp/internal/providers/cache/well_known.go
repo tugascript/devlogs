@@ -46,7 +46,8 @@ func (c *Cache) AddWellKnownOIDCConfig(
 		return "", err
 	}
 
-	if err := c.storage.Set(
+	if err := c.storage.SetWithContext(
+		ctx,
 		fmt.Sprintf("%s:%s", wellKnownOIDCConfigPrefix, opts.AccountUsername),
 		oidcConfigBytes,
 		time.Duration(wellKnownOIDCConfigTTL)*time.Second,
@@ -74,7 +75,8 @@ func (c *Cache) GetWellKnownOIDCConfig(
 	}).With("accountUsername", opts.AccountUsername)
 	logger.DebugContext(ctx, "Getting well known OIDC config...")
 
-	oidcConfigBytes, err := c.storage.Get(
+	oidcConfigBytes, err := c.storage.GetWithContext(
+		ctx,
 		fmt.Sprintf("%s:%s", wellKnownOIDCConfigPrefix, opts.AccountUsername),
 	)
 	if err != nil {
