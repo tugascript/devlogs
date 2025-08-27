@@ -107,6 +107,10 @@ type GoogleMeResponse struct {
 	Genders   []people.Gender   `json:"genders,omitempty"`
 }
 
+func (p *Providers) IsGoogleEnabled() bool {
+	return p.google.Enabled
+}
+
 func (p *Providers) GetGoogleAuthorizationURL(
 	ctx context.Context,
 	opts AuthorizationURLOptions,

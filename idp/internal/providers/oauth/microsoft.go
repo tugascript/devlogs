@@ -50,6 +50,10 @@ func (mu *MicrosoftUserResponse) ToUserData() UserData {
 	}
 }
 
+func (p *Providers) IsMicrosoftEnabled() bool {
+	return p.microsoft.Enabled
+}
+
 func (p *Providers) GetMicrosoftAuthorizationURL(
 	ctx context.Context,
 	opts AuthorizationURLOptions,

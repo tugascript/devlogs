@@ -222,13 +222,13 @@ func mapCCSecretStorageMode(authMethod string) database.SecretStorageMode {
 
 func hashChallenge(challenge, challengeMethod string) (string, *exceptions.ServiceError) {
 	if challengeMethod == "" {
-		return utils.Sha256HashBase64([]byte(challenge)), nil
+		return utils.Sha256HashBase64(challenge), nil
 	}
 	switch utils.Lowered(challengeMethod) {
 	case ChallengeMethodS256:
 		return challenge, nil
 	case ChallengeMethodPlain:
-		return utils.Sha256HashBase64([]byte(challenge)), nil
+		return utils.Sha256HashBase64(challenge), nil
 	default:
 		return "", exceptions.NewValidationError("Invalid challenge method: " + challengeMethod)
 	}

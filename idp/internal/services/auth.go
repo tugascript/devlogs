@@ -412,6 +412,22 @@ func (s *Services) LoginAccount(
 		logger.WarnContext(ctx, "Account was not found", "error", serviceErr)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
+	if _, err := s.database.FindAccountAuthProviderByAccountPublicIdAndProvider(
+		ctx,
+		database.FindAccountAuthProviderByAccountPublicIdAndProviderParams{
+			AccountPublicID: accountDTO.PublicID,
+			Provider:        database.AuthProviderLocal,
+		},
+	); err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to find account auth provider", "error", err)
+			return dtos.AuthDTO{}, serviceErr
+		}
+
+		logger.WarnContext(ctx, "Account auth provider not found", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	}
 
 	passwordVerified, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
 	if err != nil {
