@@ -119,6 +119,10 @@ var facebookProfileParams = [8]string{
 	"short_name",
 }
 
+func (p *Providers) IsFacebookEnabled() bool {
+	return p.facebook.Enabled
+}
+
 func (p *Providers) GetFacebookAuthorizationURL(
 	ctx context.Context,
 	opts AuthorizationURLOptions,

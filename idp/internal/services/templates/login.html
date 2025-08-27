@@ -264,9 +264,14 @@
         </div>
 
         <form action="/login" method="post">
-
-            <input name="email" placeholder="Email" type="email">
-            <input name="password" placeholder="Password" type="password">
+            <input name="code_challenge" type="hidden" value="{{.CodeChallenge}}">
+            <input name="code_challenge_method" type="hidden" value="{{.CodeChallengeMethod}}">
+            <input name="state" type="hidden" value="{{.State}}">
+            <input name="redirect_uri" type="hidden" value="{{.RedirectURI}}">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <input name="response_type" type="hidden" value="code">
+            <input name="email" placeholder="Email" required type="email">
+            <input name="password" placeholder="Password" required type="password">
             <button type="submit">Continue</button>
         </form>
 
@@ -287,7 +292,7 @@
                 </div>
             </button>
 
-            <button class="oauth-button google" onclick="initiateOAuth('/accounts/credentials/clientID/oauth2/auth?client_id=google')" type="button">
+            <button class="oauth-button google" onclick="window.location.href='/google'" type="button">
                 <div class="oauth-button-content">
                     <svg class="oauth-icon" viewBox="0 0 24 24">
                         <path

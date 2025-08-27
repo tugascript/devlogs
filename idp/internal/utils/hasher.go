@@ -93,8 +93,8 @@ func Sha256HashHex(str string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func Sha256HashBase64(bytes []byte) string {
-	hash := sha256.Sum256(bytes)
+func Sha256HashBase64(str string) string {
+	hash := sha256.Sum256([]byte(str))
 	return base64.RawURLEncoding.EncodeToString(hash[:])
 }
 

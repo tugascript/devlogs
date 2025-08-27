@@ -8,4 +8,5 @@ package paths
 
 const (
 	DynamicRegistrationBase string = "/dynamic-registration"
+	InitialAccessToken      string = "/initial-access-token"
 )

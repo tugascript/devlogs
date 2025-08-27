@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"slices"
@@ -33,16 +32,8 @@ var appleScopes = oauthScopes{
 	profile: "name",
 }
 
-func NewAppleUserData(email, firstName, lastName string) UserData {
-	name := fmt.Sprintf("%s %s", firstName, lastName)
-	return UserData{
-		Name:       name,
-		FirstName:  firstName,
-		LastName:   lastName,
-		Username:   utils.Slugify(name),
-		Email:      email,
-		IsVerified: true,
-	}
+func (p *Providers) IsAppleEnabled() bool {
+	return p.apple.Enabled
 }
 
 func (p *Providers) GetAppleAuthorizationURL(

@@ -140,6 +140,10 @@ func (gu *GitHubUserResponse) ToUserData() UserData {
 	}
 }
 
+func (p *Providers) IsGitHubEnabled() bool {
+	return p.gitHub.Enabled
+}
+
 func (p *Providers) GetGithubAuthorizationURL(
 	ctx context.Context,
 	opts AuthorizationURLOptions,
