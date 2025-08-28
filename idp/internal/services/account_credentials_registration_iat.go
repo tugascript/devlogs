@@ -10,13 +10,13 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const accountCredentialsRegistrationIATLocation = "account_credentials_registration_iat"

@@ -11,10 +11,12 @@ import (
 	"net/url"
 
 	"github.com/google/uuid"
+	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
+	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/services/templates"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -143,6 +145,7 @@ func (s *Services) createAccountCredentialsRegistrationIATCode(
 type OAuthDynamicRegistrationIATLoginOptions struct {
 	RequestID           string
 	ClientID            string
+	CSRFToken           string
 	CodeChallenge       string
 	CodeChallengeMethod string
 	State               string
@@ -155,7 +158,7 @@ type OAuthDynamicRegistrationIATLoginOptions struct {
 func (s *Services) OAuthDynamicRegistrationIATLogin(
 	ctx context.Context,
 	opts OAuthDynamicRegistrationIATLoginOptions,
-) (string, *exceptions.ServiceError) {
+) (string, string, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, oauthDynamicRegistrationLocation, "OAuthDynamicRegistrationIATLogin").With(
 		"clientId", opts.ClientID,
 		"email", opts.Email,
@@ -168,30 +171,30 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get account credentials dynamic registration IAT", "error", err)
-		return "", exceptions.NewInternalServerError()
+		return "", "", exceptions.NewInternalServerError()
 	}
 	if !found {
 		logger.ErrorContext(ctx, "Account credentials dynamic registration IAT not found")
-		return "", exceptions.NewNotFoundValidationError("invalid client ID")
+		return "", "", exceptions.NewNotFoundValidationError("invalid client ID")
 	}
 
 	hashedChallenge, err := hashChallenge(opts.CodeChallenge, opts.CodeChallengeMethod)
 	if err != nil {
 		logger.ErrorContext(ctx, "Invalid code challenge", "error", err)
-		return "", exceptions.NewInternalServerError()
+		return "", "", exceptions.NewInternalServerError()
 	}
 	// Note this is not the verifier so standard comparison is ok
 	if hashedChallenge != data.Challenge {
 		logger.WarnContext(ctx, "OAuth Code challenge verification failed")
-		return "", exceptions.NewUnauthorizedError()
+		return "", "", exceptions.NewUnauthorizedError()
 	}
 	if data.State != opts.State {
 		logger.WarnContext(ctx, "OAuth State does not match")
-		return "", exceptions.NewUnauthorizedError()
+		return "", "", exceptions.NewUnauthorizedError()
 	}
 	if data.RedirectURI != opts.RedirectURI {
 		logger.WarnContext(ctx, "OAuth Redirect URI does not match")
-		return "", exceptions.NewUnauthorizedError()
+		return "", "", exceptions.NewUnauthorizedError()
 	}
 
 	accountDTO, serviceErr := s.GetAccountByEmail(ctx, GetAccountByEmailOptions{
@@ -200,11 +203,11 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 	})
 	if serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
-			return "", serviceErr
+			return "", "", serviceErr
 		}
 
 		logger.WarnContext(ctx, "Account was not found", "error", serviceErr)
-		return "", exceptions.NewUnauthorizedError()
+		return "", "", exceptions.NewUnauthorizedError()
 	}
 	if _, err := s.database.FindAccountAuthProviderByAccountPublicIdAndProvider(
 		ctx,
@@ -216,38 +219,70 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code != exceptions.CodeNotFound {
 			logger.ErrorContext(ctx, "Failed to find account auth provider", "error", err)
-			return "", serviceErr
+			return "", "", serviceErr
 		}
 
 		logger.WarnContext(ctx, "Account auth provider not found", "error", err)
-		return "", exceptions.NewUnauthorizedError()
+		return "", "", exceptions.NewUnauthorizedError()
 	}
 
 	passwordVerified, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to verify password", "error", err)
-		return "", exceptions.NewInternalServerError()
+		return "", "", exceptions.NewInternalServerError()
 	}
 	if !passwordVerified {
 		logger.WarnContext(ctx, "Passwords do not match")
-		return "", exceptions.NewUnauthorizedError()
+		return "", "", exceptions.NewUnauthorizedError()
 	}
 	if !accountDTO.EmailVerified() {
 		logger.InfoContext(ctx, "Account is not confirmed")
-		return "", exceptions.NewForbiddenError()
+		return "", "", exceptions.NewForbiddenError()
 	}
 
-	// TODO: add 2FA redirect here
+	if accountDTO.TwoFactorType != database.TwoFactorTypeNone {
+		logger.InfoContext(ctx, "Two-Factor is enabled, proceeding to 2FA step")
+		sessionID, err := s.cache.SaveAccountCredentialsDynamicRegistrationIAT2FA(
+			ctx,
+			cache.SaveAccountCredentialsDynamicRegistrationIAT2FAOptions{
+				RequestID:       opts.RequestID,
+				AccountPublicID: accountDTO.PublicID,
+				AccountVersion:  accountDTO.Version(),
+				RedirectURI:     opts.RedirectURI,
+				Domain:          data.Domain,
+				ClientID:        opts.ClientID,
+				Challenge:       data.Challenge,
+				State:           data.State,
+				TwoFATTL:        s.jwt.Get2FATTL(),
+			},
+		)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to save account credentials dynamic registration IAT 2FA", "error", err)
+			return "", "", exceptions.NewInternalServerError()
+		}
 
-	domainDTO, serviceErr := s.GetAccountCredentialsRegistrationDomain(ctx, GetAccountCredentialsRegistrationDomainOptions{
-		RequestID:       opts.RequestID,
-		AccountPublicID: accountDTO.PublicID,
-		Domain:          data.Domain,
-	})
-	if serviceErr != nil {
-		if serviceErr.Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to get account credentials registration domain", "serviceError", serviceErr)
-			return "", serviceErr
+		if accountDTO.TwoFactorType == database.TwoFactorTypeEmail {
+			code, err := s.cache.AddTwoFactorCode(ctx, cache.AddTwoFactorCodeOptions{
+				RequestID: opts.RequestID,
+				AccountID: accountDTO.ID(),
+				TTL:       s.jwt.Get2FATTL(),
+			})
+			if err != nil {
+				logger.ErrorContext(ctx, "Failed to add two factor code", "error", err)
+				return "", "", exceptions.NewInternalServerError()
+			}
+
+			if err := s.mail.Publish2FAEmail(ctx, mailer.TwoFactorEmailOptions{
+				RequestID: opts.RequestID,
+				Email:     accountDTO.Email,
+				Name:      accountDTO.GivenName,
+				Code:      code,
+			}); err != nil {
+				logger.ErrorContext(ctx, "Failed to send two factor code email", "error", err)
+				return "", "", exceptions.NewInternalServerError()
+			}
+
+			logger.InfoContext(ctx, "Sent two factor code email successfully")
 		}
 
 		if err := s.cache.DeleteAccountCredentialsDynamicRegistrationIATAuth(
@@ -258,15 +293,40 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 			},
 		); err != nil {
 			logger.ErrorContext(ctx, "Failed to delete account credentials dynamic registration IAT auth", "error", err)
-			return "", exceptions.NewInternalServerError()
+			return "", "", exceptions.NewInternalServerError()
+		}
+
+		return paths.AccountsBase + paths.CredentialsBase + "/" + opts.ClientID + paths.InitialAccessToken + paths.AuthLogin + paths.Auth2FA, sessionID, nil
+	}
+
+	domainDTO, serviceErr := s.GetAccountCredentialsRegistrationDomain(ctx, GetAccountCredentialsRegistrationDomainOptions{
+		RequestID:       opts.RequestID,
+		AccountPublicID: accountDTO.PublicID,
+		Domain:          data.Domain,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to get account credentials registration domain", "serviceError", serviceErr)
+			return "", "", serviceErr
+		}
+
+		if err := s.cache.DeleteAccountCredentialsDynamicRegistrationIATAuth(
+			ctx,
+			cache.DeleteAccountCredentialsDynamicRegistrationIATAuthOptions{
+				RequestID: opts.RequestID,
+				ClientID:  opts.ClientID,
+			},
+		); err != nil {
+			logger.ErrorContext(ctx, "Failed to delete account credentials dynamic registration IAT auth", "error", err)
+			return "", "", exceptions.NewInternalServerError()
 		}
 
 		logger.WarnContext(ctx, "Account credentials registration domain not found")
-		return "", exceptions.NewForbiddenError()
+		return "", "", exceptions.NewForbiddenError()
 	}
 	if !domainDTO.Verified {
 		logger.ErrorContext(ctx, "Account credentials registration domain is not verified")
-		return "", exceptions.NewForbiddenError()
+		return "", "", exceptions.NewForbiddenError()
 	}
 
 	code, serviceErr := s.createAccountCredentialsRegistrationIATCode(
@@ -282,7 +342,7 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 	)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to create account credentials registration IAT code", "serviceError", serviceErr)
-		return "", serviceErr
+		return "", "", serviceErr
 	}
 	if err := s.cache.DeleteAccountCredentialsDynamicRegistrationIATAuth(
 		ctx,
@@ -292,19 +352,20 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 		},
 	); err != nil {
 		logger.ErrorContext(ctx, "Failed to delete account credentials dynamic registration IAT auth", "error", err)
-		return "", exceptions.NewInternalServerError()
+		return "", "", exceptions.NewInternalServerError()
 	}
 
 	queryParams := make(url.Values)
 	queryParams.Add("code", code)
 	queryParams.Add("state", data.State)
 	queryParams.Add("iss", "https://"+opts.BackendDomain)
-	return data.RedirectURI + "?" + queryParams.Encode(), nil
+	return data.RedirectURI + "?" + queryParams.Encode(), "", nil
 }
 
 type OAuthDynamicRegistrationIAT2FAOptions struct {
 	RequestID string
 	ClientID  string
+	SessionID string
 	Code      string
 }
 
