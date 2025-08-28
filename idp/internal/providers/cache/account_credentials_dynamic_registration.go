@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -147,6 +148,71 @@ func (c *Cache) DeleteAccountCredentialsDynamicRegistrationIATAuth(
 	logger.DebugContext(ctx, "Deleting account credentials dynamic registration IAT...")
 
 	return c.storage.DeleteWithContext(ctx, buildAccountCredentialsDynamicRegistrationIATAuthCacheKey(opts.ClientID))
+}
+
+type AccountCredentialsDynamicRegistrationIAT2FAData struct {
+	AccountPublicID uuid.UUID `json:"account_public_id"`
+	AccountVersion  int32     `json:"account_version"`
+	RedirectURI     string    `json:"redirect_uri"`
+	Challenge       string    `json:"challenge"`
+	ClientID        string    `json:"clientId"`
+	Domain          string    `json:"domain"`
+	State           string    `json:"state"`
+}
+
+func buildAccountCredentialsDynamicRegistrationIAT2FACacheKey(sessionID string) string {
+	return fmt.Sprintf("%s:2fa:%s", accountCredentialsDynamicRegistrationIATPrefix, utils.Sha256HashHex(sessionID))
+}
+
+type SaveAccountCredentialsDynamicRegistrationIAT2FAOptions struct {
+	RequestID       string
+	AccountPublicID uuid.UUID
+	AccountVersion  int32
+	RedirectURI     string
+	Domain          string
+	ClientID        string
+	Challenge       string
+	State           string
+	TwoFATTL        int64
+}
+
+func (c *Cache) SaveAccountCredentialsDynamicRegistrationIAT2FA(
+	ctx context.Context,
+	opts SaveAccountCredentialsDynamicRegistrationIAT2FAOptions,
+) (string, error) {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  accountCredentialsDynamicRegistrationLocation,
+		Method:    "SaveAccountCredentialsDynamicRegistrationIAT2FA",
+		RequestID: opts.RequestID,
+	}).With(
+		"accountPublicId", opts.AccountPublicID,
+		"domain", opts.Domain,
+	)
+	logger.DebugContext(ctx, "Saving account credentials dynamic registration IAT2FA...")
+
+	sessionId := utils.Base64UUID()
+	data := AccountCredentialsDynamicRegistrationIAT2FAData{
+		AccountPublicID: opts.AccountPublicID,
+		AccountVersion:  opts.AccountVersion,
+		RedirectURI:     opts.RedirectURI,
+		Domain:          opts.Domain,
+		ClientID:        opts.ClientID,
+		Challenge:       opts.Challenge,
+		State:           opts.State,
+	}
+	dataBytes, err := json.Marshal(data)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to marshal account credentials dynamic registration IAT2FA data", "error", err)
+		return "", err
+	}
+
+	return sessionId, c.storage.SetWithContext(
+		ctx,
+		buildAccountCredentialsDynamicRegistrationIAT2FACacheKey(sessionId),
+		dataBytes,
+		time.Duration(opts.TwoFATTL)*time.Second,
+	)
+
 }
 
 func buildAccountCredentialsDynamicRegistrationIATCodeCacheKey(codeID string) string {

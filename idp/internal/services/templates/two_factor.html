@@ -136,6 +136,7 @@
     </div>
 
     <form action="{{.TwoFAURL}}" method="post">
+        <input name="session_id" type="hidden" value="{{.SessionID}}">
         <input name="code_challenge" type="hidden" value="{{.CodeChallenge}}">
         <input name="code_challenge_method" type="hidden" value="{{.CodeChallengeMethod}}">
         <input name="state" type="hidden" value="{{.State}}">

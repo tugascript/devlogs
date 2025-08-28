@@ -422,7 +422,7 @@ type AccountDynamicRegistrationIATAuthOptions struct {
 }
 
 func BuildAccountDynamicRegistrationIATAuthTemplate(opts AccountDynamicRegistrationIATAuthOptions) (string, error) {
-	baseURL := paths.AccountsBase + paths.CredentialsBase + opts.ClientID + paths.InitialAccessToken
+	baseURL := paths.AccountsBase + paths.CredentialsBase + "/" + opts.ClientID + paths.InitialAccessToken
 	data := accountDynamicRegistrationLoginTemplateData{
 		Title:               baseAccountLoginTitle,
 		Header:              "OAuth Dynamic Client Registration Initial Access Token Login",
@@ -651,7 +651,7 @@ const twoFaTemplate = `
 
 type accountDynamicRegistrationIAT2FAData struct {
 	TwoFAURL            string
-	ClientID            string
+	SessionID           string
 	CSRFToken           string
 	State               string
 	CodeChallenge       string
@@ -661,6 +661,7 @@ type accountDynamicRegistrationIAT2FAData struct {
 
 type AccountDynamicRegistrationIAT2FAOptions struct {
 	ClientID            string
+	SessionID           string
 	CSRFToken           string
 	State               string
 	CodeChallenge       string
@@ -668,8 +669,8 @@ type AccountDynamicRegistrationIAT2FAOptions struct {
 	RedirectURI         string
 }
 
-func BuildAccountDynamicRegistrationIAT2FATemplate(opts AccountDynamicRegistrationIATAuthOptions) (string, error) {
-	baseURL := paths.AccountsBase + paths.CredentialsBase + opts.ClientID + paths.InitialAccessToken
+func BuildAccountDynamicRegistrationIAT2FATemplate(opts AccountDynamicRegistrationIAT2FAOptions) (string, error) {
+	baseURL := paths.AccountsBase + paths.CredentialsBase + "/" + opts.ClientID + paths.InitialAccessToken
 	data := accountDynamicRegistrationIAT2FAData{
 		TwoFAURL:            baseURL + paths.AuthLogin + paths.Auth2FA,
 		RedirectURI:         opts.RedirectURI,
@@ -677,6 +678,7 @@ func BuildAccountDynamicRegistrationIAT2FATemplate(opts AccountDynamicRegistrati
 		CodeChallengeMethod: opts.CodeChallengeMethod,
 		State:               opts.State,
 		CSRFToken:           opts.CSRFToken,
+		SessionID:           opts.SessionID,
 	}
 
 	t, err := template.New("two_fa").Parse(twoFaTemplate)

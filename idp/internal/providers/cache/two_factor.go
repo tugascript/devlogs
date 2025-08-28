@@ -23,13 +23,17 @@ const (
 	twoFactorUserPrefix string = "user"
 )
 
-func generateCode() (string, error) {
-	const codeLength = 6
-	const digits = "0123456789"
+const (
+	codeLength int    = 6
+	digits     string = "0123456789"
+	digitsLen  int64  = 10
+)
+
+func generate2FACode() (string, error) {
 	code := make([]byte, codeLength)
 
 	for i := 0; i < codeLength; i++ {
-		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(digits))))
+		num, err := rand.Int(rand.Reader, big.NewInt(digitsLen))
 		if err != nil {
 			return "", err
 		}
@@ -65,7 +69,7 @@ func (c *Cache) AddTwoFactorCode(ctx context.Context, opts AddTwoFactorCodeOptio
 	)
 	logger.DebugContext(ctx, "Adding two factor code...")
 
-	code, err := generateCode()
+	code, err := generate2FACode()
 	if err != nil {
 		logger.ErrorContext(ctx, "Error generating two factor code", "error", err)
 		return "", err
