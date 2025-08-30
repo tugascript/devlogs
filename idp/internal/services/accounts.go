@@ -488,13 +488,7 @@ func (s *Services) ConfirmUpdateAccountEmail(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if serviceErr := s.verifyAccountTwoFactor(
-		ctx,
-		logger,
-		opts.RequestID,
-		&accountDTO,
-		opts.Code,
-	); serviceErr != nil {
+	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
 		return dtos.AuthDTO{}, serviceErr
 	}
 
@@ -685,13 +679,7 @@ func (s *Services) ConfirmUpdateAccountPassword(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	if serviceErr := s.verifyAccountTwoFactor(
-		ctx,
-		logger,
-		opts.RequestID,
-		&accountDTO,
-		opts.Code,
-	); serviceErr != nil {
+	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
 		return dtos.AuthDTO{}, serviceErr
 	}
 
@@ -1010,13 +998,7 @@ func (s *Services) ConfirmUpdateAccountUsername(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if serviceErr := s.verifyAccountTwoFactor(
-		ctx,
-		logger,
-		opts.RequestID,
-		&accountDTO,
-		opts.Code,
-	); serviceErr != nil {
+	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
 		return dtos.AuthDTO{}, serviceErr
 	}
 
@@ -1170,13 +1152,7 @@ func (s *Services) ConfirmDeleteAccount(
 		return serviceErr
 	}
 
-	if serviceErr := s.verifyAccountTwoFactor(
-		ctx,
-		logger,
-		opts.RequestID,
-		&accountDTO,
-		opts.Code,
-	); serviceErr != nil {
+	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
 		return serviceErr
 	}
 

@@ -32,6 +32,7 @@ type Cache struct {
 	wellKnownTTL       time.Duration
 	oauthStateTTL      time.Duration
 	oauthCodeTTL       time.Duration
+	oauthCodeSec       int64
 }
 
 func NewCache(
@@ -61,7 +62,12 @@ func NewCache(
 		wellKnownTTL:       time.Duration(wellKnownTTL) * time.Second,
 		oauthStateTTL:      time.Duration(oauthStateTTL) * time.Second,
 		oauthCodeTTL:       time.Duration(oauthCodeTTL) * time.Second,
+		oauthCodeSec:       oauthCodeTTL,
 	}
+}
+
+func (c *Cache) OAuthCodeTTL() int64 {
+	return c.oauthCodeSec
 }
 
 func (c *Cache) ResetCache() error {

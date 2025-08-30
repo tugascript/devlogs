@@ -26,6 +26,7 @@ type Config struct {
 	backendDomain                 string
 	cookieSecret                  string
 	cookieName                    string
+	sessionCookieName             string
 	emailPubChannel               string
 	encryptionSecret              string
 	serviceID                     uuid.UUID

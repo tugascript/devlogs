@@ -14,6 +14,11 @@ SELECT * FROM "account_credentials"
 WHERE "account_public_id" = $1 AND "client_id" = $2
 LIMIT 1;
 
+-- name: CountAccountCredentialsByAccountPublicIDAndClientID :one
+SELECT COUNT(*) FROM "account_credentials"
+WHERE "account_public_id" = $1 AND "client_id" = $2
+LIMIT 1;
+
 -- name: CreateAccountCredentials :one
 INSERT INTO "account_credentials" (
     "client_id",

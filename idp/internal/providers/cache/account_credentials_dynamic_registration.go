@@ -10,13 +10,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -24,13 +22,16 @@ const (
 	accountCredentialsDynamicRegistrationLocation string = "account_credentials_dynamic_registration"
 
 	accountCredentialsDynamicRegistrationIATPrefix string = "account_credentials_dynamic_registration_iat"
+
+	csrfTokenByteLen  int = 16
+	sessionKeyByteLen int = 32
 )
 
-func buildAccountCredentialsDynamicRegistrationIATAuthCacheKey(clientID string) string {
-	return fmt.Sprintf("%s:auth:%s", accountCredentialsDynamicRegistrationIATPrefix, clientID)
+func buildAccountCredentialsDynamicRegistrationIATLoginCacheKey(clientID string) string {
+	return fmt.Sprintf("%s:login:%s", accountCredentialsDynamicRegistrationIATPrefix, clientID)
 }
 
-type AccountCredentialsDynamicRegistrationIATAuthData struct {
+type AccountCredentialsDynamicRegistrationIATLoginData struct {
 	RedirectURI string `json:"redirect_uri"`
 	Challenge   string `json:"challenge"`
 	CSRFToken   string `json:"csrf_token"`
@@ -38,42 +39,37 @@ type AccountCredentialsDynamicRegistrationIATAuthData struct {
 	State       string `json:"state"`
 }
 
-type SaveAccountCredentialsDynamicRegistrationIATAuthOptions struct {
+type SaveAccountCredentialsDynamicRegistrationIATLoginOptions struct {
+	Domain      string
 	RequestID   string
 	Challenge   string
 	State       string
 	RedirectURI string
 }
 
-func (c *Cache) SaveAccountCredentialsDynamicRegistrationIATAuth(
+func (c *Cache) SaveAccountCredentialsDynamicRegistrationIATLogin(
 	ctx context.Context,
-	opts SaveAccountCredentialsDynamicRegistrationIATAuthOptions,
+	opts SaveAccountCredentialsDynamicRegistrationIATLoginOptions,
 ) (string, string, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  accountCredentialsDynamicRegistrationLocation,
-		Method:    "SaveAccountCredentialsDynamicRegistrationIATAuth",
+		Method:    "SaveAccountCredentialsDynamicRegistrationIATLogin",
 		RequestID: opts.RequestID,
 	}).With(
 		"redirectUri", opts.RedirectURI,
 	)
 	logger.DebugContext(ctx, "Saving account credentials dynamic registration IAT sessions...")
 
-	u, err := url.Parse(opts.RedirectURI)
-	if err != nil {
-		logger.ErrorContext(ctx, "Invalid redirect URI", "error", err)
-		return "", "", exceptions.NewValidationError("invalid redirect URI")
-	}
-
-	csrfToken, err := utils.GenerateBase64Secret(16)
+	csrfToken, err := utils.GenerateBase64Secret(csrfTokenByteLen)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error generating CSRF token", "error", err)
 		return "", "", err
 	}
 
-	data := AccountCredentialsDynamicRegistrationIATAuthData{
+	data := AccountCredentialsDynamicRegistrationIATLoginData{
 		Challenge:   opts.Challenge,
 		State:       opts.State,
-		Domain:      u.Hostname(),
+		Domain:      opts.Domain,
 		RedirectURI: opts.RedirectURI,
 		CSRFToken:   utils.Sha256HashHex(csrfToken),
 	}
@@ -86,7 +82,7 @@ func (c *Cache) SaveAccountCredentialsDynamicRegistrationIATAuth(
 	clientID := utils.Base62UUID()
 	return clientID, csrfToken, c.storage.SetWithContext(
 		ctx,
-		buildAccountCredentialsDynamicRegistrationIATAuthCacheKey(clientID),
+		buildAccountCredentialsDynamicRegistrationIATLoginCacheKey(clientID),
 		dataBytes,
 		c.oauthStateTTL,
 	)
@@ -100,7 +96,7 @@ type GetAccountCredentialsDynamicRegistrationIATAuthOptions struct {
 func (c *Cache) GetAccountCredentialsDynamicRegistrationAuthIAT(
 	ctx context.Context,
 	opts GetAccountCredentialsDynamicRegistrationIATAuthOptions,
-) (AccountCredentialsDynamicRegistrationIATAuthData, bool, error) {
+) (AccountCredentialsDynamicRegistrationIATLoginData, bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  accountCredentialsDynamicRegistrationLocation,
 		Method:    "GetAccountCredentialsDynamicRegistrationAuthIAT",
@@ -110,20 +106,20 @@ func (c *Cache) GetAccountCredentialsDynamicRegistrationAuthIAT(
 	)
 	logger.DebugContext(ctx, "Getting account credentials dynamic registration IAT...")
 
-	data, err := c.storage.GetWithContext(ctx, buildAccountCredentialsDynamicRegistrationIATAuthCacheKey(opts.ClientID))
+	data, err := c.storage.GetWithContext(ctx, buildAccountCredentialsDynamicRegistrationIATLoginCacheKey(opts.ClientID))
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to get account credentials dynamic registration IAT", "error", err)
-		return AccountCredentialsDynamicRegistrationIATAuthData{}, false, err
+		return AccountCredentialsDynamicRegistrationIATLoginData{}, false, err
 	}
 	if data == nil {
 		logger.DebugContext(ctx, "Account credentials dynamic registration IAT not found")
-		return AccountCredentialsDynamicRegistrationIATAuthData{}, false, nil
+		return AccountCredentialsDynamicRegistrationIATLoginData{}, false, nil
 	}
 
-	var authData AccountCredentialsDynamicRegistrationIATAuthData
+	var authData AccountCredentialsDynamicRegistrationIATLoginData
 	if err := json.Unmarshal(data, &authData); err != nil {
 		logger.ErrorContext(ctx, "Failed to unmarshal account credentials dynamic registration IAT data", "error", err)
-		return AccountCredentialsDynamicRegistrationIATAuthData{}, false, err
+		return AccountCredentialsDynamicRegistrationIATLoginData{}, false, err
 	}
 
 	return authData, true, nil
@@ -147,7 +143,7 @@ func (c *Cache) DeleteAccountCredentialsDynamicRegistrationIATAuth(
 	)
 	logger.DebugContext(ctx, "Deleting account credentials dynamic registration IAT...")
 
-	return c.storage.DeleteWithContext(ctx, buildAccountCredentialsDynamicRegistrationIATAuthCacheKey(opts.ClientID))
+	return c.storage.DeleteWithContext(ctx, buildAccountCredentialsDynamicRegistrationIATLoginCacheKey(opts.ClientID))
 }
 
 type AccountCredentialsDynamicRegistrationIAT2FAData struct {
@@ -212,7 +208,150 @@ func (c *Cache) SaveAccountCredentialsDynamicRegistrationIAT2FA(
 		dataBytes,
 		time.Duration(opts.TwoFATTL)*time.Second,
 	)
+}
 
+type GetAccountCredentialsDynamicRegistrationIAT2FAOptions struct {
+	RequestID string
+	SessionID string
+}
+
+func (c *Cache) GetAccountCredentialsDynamicRegistrationIAT2FA(
+	ctx context.Context,
+	opts GetAccountCredentialsDynamicRegistrationIAT2FAOptions,
+) (AccountCredentialsDynamicRegistrationIAT2FAData, bool, error) {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  accountCredentialsDynamicRegistrationLocation,
+		Method:    "GetAccountCredentialsDynamicRegistrationIAT2FA",
+		RequestID: opts.RequestID,
+	}).With(
+		"sessionId", opts.SessionID,
+	)
+	logger.DebugContext(ctx, "Getting account credentials dynamic registration IAT2FA...")
+
+	data, err := c.storage.GetWithContext(ctx, buildAccountCredentialsDynamicRegistrationIAT2FACacheKey(opts.SessionID))
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account credentials dynamic registration IAT2FA", "error", err)
+		return AccountCredentialsDynamicRegistrationIAT2FAData{}, false, err
+	}
+	if data == nil {
+		logger.DebugContext(ctx, "Account credentials dynamic registration IAT2FA not found")
+		return AccountCredentialsDynamicRegistrationIAT2FAData{}, false, nil
+	}
+
+	var twoFAData AccountCredentialsDynamicRegistrationIAT2FAData
+	if err := json.Unmarshal(data, &twoFAData); err != nil {
+		logger.ErrorContext(ctx, "Failed to unmarshal account credentials dynamic registration IAT2FA data", "error", err)
+		return AccountCredentialsDynamicRegistrationIAT2FAData{}, false, err
+	}
+
+	return twoFAData, true, nil
+}
+
+func buildAccountCredentialsDynamicRegistrationIAT2FACSRFCacheKey(sessionID string) string {
+	return fmt.Sprintf("%s:2fa-csrf:%s", accountCredentialsDynamicRegistrationIATPrefix, utils.Sha256HashHex(sessionID))
+}
+
+type SaveAccountCredentialsDynamicRegistrationIAT2FACSRFTokenOptions struct {
+	RequestID string
+	SessionID string
+	TwoFATTL  int64
+}
+
+func (c *Cache) SaveAccountCredentialsDynamicRegistrationIAT2FACSRFToken(
+	ctx context.Context,
+	opts SaveAccountCredentialsDynamicRegistrationIAT2FACSRFTokenOptions,
+) (string, error) {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  accountCredentialsDynamicRegistrationLocation,
+		Method:    "SaveAccountCredentialsDynamicRegistrationIAT2FACSRFToken",
+		RequestID: opts.RequestID,
+	}).With(
+		"sessionId", opts.SessionID,
+	)
+	logger.DebugContext(ctx, "Saving account credentials dynamic registration IAT2FA CSRF token...")
+
+	csrfToken, err := utils.GenerateBase64Secret(csrfTokenByteLen)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error generating CSRF token", "error", err)
+		return "", err
+	}
+
+	return csrfToken, c.storage.SetWithContext(
+		ctx,
+		buildAccountCredentialsDynamicRegistrationIAT2FACSRFCacheKey(opts.SessionID),
+		[]byte(utils.Sha256HashHex(csrfToken)),
+		time.Duration(opts.TwoFATTL)*time.Second,
+	)
+}
+
+type VerifyAccountCredentialsDynamicRegistrationIAT2FACSRFTokenOptions struct {
+	RequestID string
+	SessionID string
+	CSRFToken string
+}
+
+func (c *Cache) VerifyAccountCredentialsDynamicRegistrationIAT2FACSRFToken(
+	ctx context.Context,
+	opts VerifyAccountCredentialsDynamicRegistrationIAT2FACSRFTokenOptions,
+) (bool, error) {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  accountCredentialsDynamicRegistrationLocation,
+		Method:    "VerifyAccountCredentialsDynamicRegistrationIAT2FACSRFToken",
+		RequestID: opts.RequestID,
+	}).With(
+		"sessionId", opts.SessionID,
+	)
+	logger.DebugContext(ctx, "Verifying account credentials dynamic registration IAT2FA CSRF token...")
+
+	hashedCSRFToken, err := c.storage.GetWithContext(ctx, buildAccountCredentialsDynamicRegistrationIAT2FACSRFCacheKey(opts.SessionID))
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account credentials dynamic registration IAT2FA CSRF token", "error", err)
+		return false, err
+	}
+	if hashedCSRFToken == nil {
+		logger.DebugContext(ctx, "Account credentials dynamic registration IAT2FA CSRF token not found")
+		return false, nil
+	}
+
+	ok, err := utils.CompareShaHex(opts.CSRFToken, string(hashedCSRFToken))
+	if err != nil {
+		logger.ErrorContext(ctx, "Error comparing CSRF token", "error", err)
+		return false, err
+	}
+	if !ok {
+		logger.DebugContext(ctx, "Invalid CSRF token")
+		return false, nil
+	}
+	if err := c.storage.DeleteWithContext(
+		ctx,
+		buildAccountCredentialsDynamicRegistrationIAT2FACSRFCacheKey(opts.SessionID),
+	); err != nil {
+		logger.ErrorContext(ctx, "Error deleting CSRF token", "error", err)
+		return false, err
+	}
+
+	return true, nil
+}
+
+type DeleteAccountCredentialsDynamicRegistrationIAT2FACSRFTokenOptions struct {
+	RequestID string
+	SessionID string
+}
+
+func (c *Cache) DeleteAccountCredentialsDynamicRegistrationIAT2FACSRFToken(
+	ctx context.Context,
+	opts DeleteAccountCredentialsDynamicRegistrationIAT2FACSRFTokenOptions,
+) error {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  accountCredentialsDynamicRegistrationLocation,
+		Method:    "DeleteAccountCredentialsDynamicRegistrationIAT2FACSRFToken",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Deleting account credentials dynamic registration IAT2FA CSRF token...")
+	return c.storage.DeleteWithContext(
+		ctx,
+		buildAccountCredentialsDynamicRegistrationIAT2FACSRFCacheKey(opts.SessionID),
+	)
 }
 
 func buildAccountCredentialsDynamicRegistrationIATCodeCacheKey(codeID string) string {
@@ -346,4 +485,159 @@ func (c *Cache) VerifyAccountCredentialsRegistrationIATCode(
 		return AccountCredentialsDynamicRegistrationIATCodeData{}, false, err
 	}
 	return codeData, true, nil
+}
+
+type AccountCredentialsDynamicRegistrationSessionData struct {
+	AccountPublicID uuid.UUID `json:"account_public_id"`
+	AccountVersion  int32     `json:"account_version"`
+	SessionKey      string    `json:"session_key"`
+}
+
+func buildAccountCredentialsDynamicRegistrationSessionCacheKey(domain string, clientID string) string {
+	return fmt.Sprintf("%s:session:%s:%s", accountCredentialsDynamicRegistrationIATPrefix, domain, clientID)
+}
+
+func formatSessionKey(clientID, sessionKey string) string {
+	return fmt.Sprintf("%s.%s", clientID, sessionKey)
+}
+
+func parseSessionKey(sessionKey string) (string, string, bool) {
+	parts := strings.Split(sessionKey, ".")
+	if len(parts) != 2 {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
+}
+
+type CreateAccountCredentialsRegistrationSessionKeyOptions struct {
+	RequestID       string
+	ClientID        string
+	Domain          string
+	AccountPublicID uuid.UUID
+	AccountVersion  int32
+}
+
+func (c *Cache) CreateAccountCredentialsRegistrationSessionKey(
+	ctx context.Context,
+	opts CreateAccountCredentialsRegistrationSessionKeyOptions,
+) (string, error) {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  accountCredentialsDynamicRegistrationLocation,
+		Method:    "CreateAccountCredentialsRegistrationSessionKey",
+		RequestID: opts.RequestID,
+	}).With(
+		"clientId", opts.ClientID,
+		"domain", opts.Domain,
+		"accountPublicId", opts.AccountPublicID,
+	)
+	logger.DebugContext(ctx, "Creating account credentials registration session key...")
+
+	sessionKey, err := utils.GenerateBase64Secret(sessionKeyByteLen)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error generating session key", "error", err)
+		return "", err
+	}
+
+	data := AccountCredentialsDynamicRegistrationSessionData{
+		AccountPublicID: opts.AccountPublicID,
+		AccountVersion:  opts.AccountVersion,
+		SessionKey:      utils.Sha256HashHex(sessionKey),
+	}
+	dataBytes, err := json.Marshal(data)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to marshal account credentials registration session data", "error", err)
+		return "", err
+	}
+
+	if err := c.storage.SetWithContext(
+		ctx,
+		buildAccountCredentialsDynamicRegistrationSessionCacheKey(opts.Domain, opts.ClientID),
+		dataBytes,
+		c.oauthCodeTTL,
+	); err != nil {
+		logger.ErrorContext(ctx, "Failed to set account credentials registration session in cache", "error", err)
+		return "", err
+	}
+
+	return formatSessionKey(opts.ClientID, sessionKey), nil
+}
+
+type VerifyAccountCredentialsRegistrationSessionKeyOptions struct {
+	RequestID  string
+	Domain     string
+	SessionKey string
+}
+
+func (c *Cache) VerifyAccountCredentialsRegistrationSessionKey(
+	ctx context.Context,
+	opts VerifyAccountCredentialsRegistrationSessionKeyOptions,
+) (AccountCredentialsDynamicRegistrationSessionData, string, bool, bool, error) {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  accountCredentialsDynamicRegistrationLocation,
+		Method:    "VerifyAccountCredentialsRegistrationSessionKey",
+		RequestID: opts.RequestID,
+	}).With(
+		"domain", opts.Domain,
+	)
+	logger.DebugContext(ctx, "Verifying account credentials registration session key...")
+
+	clientID, sessionKey, ok := parseSessionKey(opts.SessionKey)
+	if !ok {
+		logger.DebugContext(ctx, "Invalid account credentials registration session key format")
+		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, true, nil
+	}
+
+	data, err := c.storage.GetWithContext(ctx, buildAccountCredentialsDynamicRegistrationSessionCacheKey(opts.Domain, clientID))
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account credentials registration session from cache", "error", err)
+		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, false, err
+	}
+	if data == nil {
+		logger.DebugContext(ctx, "Account credentials registration session not found")
+		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, false, nil
+	}
+
+	var sessionData AccountCredentialsDynamicRegistrationSessionData
+	if err := json.Unmarshal(data, &sessionData); err != nil {
+		logger.ErrorContext(ctx, "Failed to unmarshal account credentials registration session data", "error", err)
+		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, false, err
+	}
+
+	ok, err = utils.CompareShaHex(sessionKey, sessionData.SessionKey)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error comparing session key", "error", err)
+		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, false, err
+	}
+	if !ok {
+		logger.DebugContext(ctx, "Invalid session key")
+		return AccountCredentialsDynamicRegistrationSessionData{}, clientID, false, true, nil
+	}
+
+	return sessionData, clientID, true, true, nil
+}
+
+type DeleteAccountCredentialsRegistrationSessionKeyOptions struct {
+	RequestID string
+	Domain    string
+	ClientID  string
+}
+
+func (c *Cache) DeleteAccountCredentialsRegistrationSessionKey(
+	ctx context.Context,
+	opts DeleteAccountCredentialsRegistrationSessionKeyOptions,
+) error {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  accountCredentialsDynamicRegistrationLocation,
+		Method:    "DeleteAccountCredentialsRegistrationSessionKey",
+		RequestID: opts.RequestID,
+	}).With(
+		"domain", opts.Domain,
+		"clientId", opts.ClientID,
+	)
+	logger.DebugContext(ctx, "Deleting account credentials registration session key...")
+
+	return c.storage.DeleteWithContext(
+		ctx,
+		buildAccountCredentialsDynamicRegistrationSessionCacheKey(opts.Domain, opts.ClientID),
+	)
 }

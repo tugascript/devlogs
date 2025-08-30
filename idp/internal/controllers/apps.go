@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
+
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"

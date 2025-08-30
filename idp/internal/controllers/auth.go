@@ -8,6 +8,7 @@ package controllers
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
@@ -20,11 +21,11 @@ const authLocation string = "auth"
 
 func (c *Controllers) saveAccountRefreshCookie(ctx *fiber.Ctx, token string) {
 	ctx.Cookie(&fiber.Cookie{
-		Name:     c.refreshCookieName,
+		Name:     c.cookieName + refreshCookieSuffix,
 		Value:    token,
-		Path:     "/auth",
+		Path:     paths.V1 + paths.AuthBase,
 		HTTPOnly: true,
-		SameSite: "None",
+		SameSite: fiber.CookieSameSiteNoneMode,
 		Secure:   true,
 		MaxAge:   int(c.services.GetRefreshTTL()),
 	})
@@ -32,11 +33,12 @@ func (c *Controllers) saveAccountRefreshCookie(ctx *fiber.Ctx, token string) {
 
 func (c *Controllers) clearAccountRefreshCookie(ctx *fiber.Ctx) {
 	ctx.Cookie(&fiber.Cookie{
-		Name:     c.refreshCookieName,
+		Name:     c.cookieName + refreshCookieSuffix,
 		Value:    "",
+		Path:     paths.V1 + paths.AuthBase,
 		HTTPOnly: true,
 		Secure:   true,
-		SameSite: "None",
+		SameSite: fiber.CookieSameSiteNoneMode,
 		MaxAge:   -1,
 	})
 }
@@ -195,7 +197,7 @@ func (c *Controllers) LogoutAccount(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "LogoutAccount")
 
-	refreshToken := ctx.Cookies(c.refreshCookieName)
+	refreshToken := ctx.Cookies(c.cookieName + refreshCookieSuffix)
 	if refreshToken == "" {
 		body := new(bodies.RefreshTokenBody)
 		if err := ctx.BodyParser(body); err != nil {
@@ -215,6 +217,7 @@ func (c *Controllers) LogoutAccount(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
+	c.clearAccountRefreshCookie(ctx)
 	logResponse(logger, ctx, fiber.StatusNoContent)
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
@@ -224,7 +227,8 @@ func (c *Controllers) RefreshAccount(ctx *fiber.Ctx) error {
 	logger := c.buildLogger(requestID, authLocation, "RefreshAccount")
 	logRequest(logger, ctx)
 
-	refreshToken := ctx.Cookies(c.refreshCookieName)
+	refreshToken := ctx.Cookies(c.cookieName + refreshCookieSuffix)
+	isCookie := true
 	if refreshToken == "" {
 		body := new(bodies.RefreshTokenBody)
 		if err := ctx.BodyParser(body); err != nil {
@@ -234,6 +238,7 @@ func (c *Controllers) RefreshAccount(ctx *fiber.Ctx) error {
 			return validateBodyErrorResponse(logger, ctx, err)
 		}
 
+		isCookie = false
 		refreshToken = body.RefreshToken
 	}
 
@@ -242,6 +247,9 @@ func (c *Controllers) RefreshAccount(ctx *fiber.Ctx) error {
 		RefreshToken: refreshToken,
 	})
 	if serviceErr != nil {
+		if isCookie {
+			c.clearAccountRefreshCookie(ctx)
+		}
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 

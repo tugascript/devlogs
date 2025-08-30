@@ -408,7 +408,8 @@ type accountDynamicRegistrationLoginTemplateData struct {
 }
 
 type AccountDynamicRegistrationIATAuthOptions struct {
-	ClientID            string
+	ACCClientID         string
+	Domain              string
 	CSRFToken           string
 	State               string
 	CodeChallenge       string
@@ -422,7 +423,8 @@ type AccountDynamicRegistrationIATAuthOptions struct {
 }
 
 func BuildAccountDynamicRegistrationIATAuthTemplate(opts AccountDynamicRegistrationIATAuthOptions) (string, error) {
-	baseURL := paths.AccountsBase + paths.CredentialsBase + "/" + opts.ClientID + paths.InitialAccessToken
+	baseURL := paths.V1 + paths.AccountsBase + paths.CredentialsBase + paths.DynamicRegistrationBase +
+		paths.InitialAccessToken + "/" + opts.ACCClientID
 	data := accountDynamicRegistrationLoginTemplateData{
 		Title:               baseAccountLoginTitle,
 		Header:              "OAuth Dynamic Client Registration Initial Access Token Login",
@@ -436,6 +438,7 @@ func BuildAccountDynamicRegistrationIATAuthTemplate(opts AccountDynamicRegistrat
 	baseTemplateBody := loginForm + divider
 
 	urlParams := make(url.Values)
+	urlParams.Add("client_id", opts.Domain)
 	urlParams.Add("response_type", "code")
 	urlParams.Add("state", opts.State)
 	urlParams.Add("code_challenge", opts.CodeChallenge)
@@ -670,9 +673,9 @@ type AccountDynamicRegistrationIAT2FAOptions struct {
 }
 
 func BuildAccountDynamicRegistrationIAT2FATemplate(opts AccountDynamicRegistrationIAT2FAOptions) (string, error) {
-	baseURL := paths.AccountsBase + paths.CredentialsBase + "/" + opts.ClientID + paths.InitialAccessToken
 	data := accountDynamicRegistrationIAT2FAData{
-		TwoFAURL:            baseURL + paths.AuthLogin + paths.Auth2FA,
+		TwoFAURL: paths.AccountsBase + paths.CredentialsBase + paths.DynamicRegistrationBase +
+			paths.InitialAccessToken + "/" + opts.ClientID + paths.AuthLogin + paths.Auth2FA,
 		RedirectURI:         opts.RedirectURI,
 		CodeChallenge:       opts.CodeChallenge,
 		CodeChallengeMethod: opts.CodeChallengeMethod,

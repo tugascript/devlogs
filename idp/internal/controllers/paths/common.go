@@ -8,6 +8,7 @@ package paths
 
 const (
 	Base    string = "/"
+	V1      string = "/v1"
 	Keys    string = "/keys"
 	Confirm string = "/confirm"
 	Recover string = "/recover"

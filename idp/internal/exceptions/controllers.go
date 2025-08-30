@@ -233,7 +233,7 @@ func buildFieldErrorMessage(tag string, val any) string {
 	}
 }
 
-func ValidationErrorResponseFromErr(err *validator.ValidationErrors, location string) ValidationErrorResponse {
+func ValidationErrorResponseFromErr(err *validator.ValidationErrors, location string) *ValidationErrorResponse {
 	fields := make([]FieldError, len(*err))
 
 	for i, field := range *err {
@@ -245,7 +245,7 @@ func ValidationErrorResponseFromErr(err *validator.ValidationErrors, location st
 		}
 	}
 
-	return ValidationErrorResponse{
+	return &ValidationErrorResponse{
 		Code:     StatusValidation,
 		Message:  ValidationResponseMessage,
 		Fields:   fields,

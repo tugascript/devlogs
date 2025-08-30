@@ -6,10 +6,12 @@
 
 package routes
 
-import "github.com/gofiber/fiber/v2"
+import (
+	"github.com/gofiber/fiber/v2"
 
-const V1Path string = "/v1"
+	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
+)
 
 func v1PathRouter(app *fiber.App) fiber.Router {
-	return app.Group(V1Path)
+	return app.Group(paths.V1)
 }
