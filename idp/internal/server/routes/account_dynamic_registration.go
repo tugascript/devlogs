@@ -14,70 +14,69 @@ import (
 )
 
 func (r *Routes) AccountDynamicRegistrationConfigurationRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(
-		paths.AccountsBase+paths.CredentialsBase+paths.DynamicRegistrationBase,
-		r.controllers.AccountAccessClaimsMiddleware,
-	)
+	router := v1PathRouter(app).Group(paths.AccountsBase + paths.CredentialsBase + paths.DynamicRegistrationBase)
 
 	credentialsConfigsWriteScopeMiddleware := r.controllers.ScopeMiddleware(tokens.AccountScopeCredentialsConfigsWrite)
 	credentialsConfigsReadScopeMiddleware := r.controllers.ScopeMiddleware(tokens.AccountScopeCredentialsConfigsRead)
 
 	// Dynamic Registration Config
-	router.Get(
-		paths.Config,
+	configRouter := router.Group(paths.Config, r.controllers.AccountAccessClaimsMiddleware)
+	configRouter.Get(
+		paths.Base,
 		credentialsConfigsReadScopeMiddleware,
 		r.controllers.GetAccountDynamicRegistrationConfig,
 	)
-	router.Put(
-		paths.Config,
+	configRouter.Put(
+		paths.Base,
 		credentialsConfigsWriteScopeMiddleware,
 		r.controllers.UpsertAccountDynamicRegistrationConfig,
 	)
-	router.Delete(
-		paths.Config,
+	configRouter.Delete(
+		paths.Base,
 		credentialsConfigsWriteScopeMiddleware,
 		r.controllers.DeleteAccountDynamicRegistrationConfig,
 	)
 
 	// Dynamic Registration Domains
-	router.Post(
-		paths.Domains,
+	domainsRouter := router.Group(paths.Domains, r.controllers.AccountAccessClaimsMiddleware)
+	domainsRouter.Post(
+		paths.Base,
 		credentialsConfigsWriteScopeMiddleware,
 		r.controllers.CreateAccountCredentialsRegistrationDomain,
 	)
-	router.Get(
-		paths.Domains,
+	domainsRouter.Get(
+		paths.Base,
 		credentialsConfigsReadScopeMiddleware,
 		r.controllers.ListAccountCredentialsRegistrationDomains,
 	)
-	router.Get(
-		paths.Domains+paths.SingleDomain,
+	domainsRouter.Get(
+		paths.SingleDomain,
 		credentialsConfigsReadScopeMiddleware,
 		r.controllers.GetAccountCredentialsRegistrationDomain,
 	)
-	router.Delete(
-		paths.Domains+paths.SingleDomain,
+	domainsRouter.Delete(
+		paths.SingleDomain,
 		credentialsConfigsWriteScopeMiddleware,
 		r.controllers.DeleteAccountCredentialsRegistrationDomain,
 	)
-	router.Post(
-		paths.Domains+paths.VerifyDomain,
+	domainsRouter.Post(
+		paths.VerifyDomain,
 		credentialsConfigsWriteScopeMiddleware,
 		r.controllers.VerifyAccountCredentialsRegistrationDomain,
 	)
 	// Dynamic Registration Domains Code
-	router.Get(
-		paths.Domains+paths.DomainCode,
+	domainsRouter.Get(
+		paths.DomainCode,
 		credentialsConfigsReadScopeMiddleware,
 		r.controllers.GetAccountCredentialsRegistrationDomainCode,
 	)
-	router.Put(
-		paths.Domains+paths.DomainCode,
+	domainsRouter.Put(
+		paths.DomainCode,
 		credentialsConfigsWriteScopeMiddleware,
 		r.controllers.UpsertAccountCredentialsRegistrationDomainCode,
 	)
-	router.Delete(
-		paths.Domains+paths.DomainCode,
+	domainsRouter.Delete(
+		paths.DomainCode,
 		credentialsConfigsWriteScopeMiddleware,
 		r.controllers.DeleteAccountCredentialsRegistrationDomainCode,
 	)

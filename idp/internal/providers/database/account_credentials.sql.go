@@ -25,6 +25,24 @@ func (q *Queries) CountAccountCredentialsByAccountPublicID(ctx context.Context, 
 	return count, err
 }
 
+const countAccountCredentialsByAccountPublicIDAndClientID = `-- name: CountAccountCredentialsByAccountPublicIDAndClientID :one
+SELECT COUNT(*) FROM "account_credentials"
+WHERE "account_public_id" = $1 AND "client_id" = $2
+LIMIT 1
+`
+
+type CountAccountCredentialsByAccountPublicIDAndClientIDParams struct {
+	AccountPublicID uuid.UUID
+	ClientID        string
+}
+
+func (q *Queries) CountAccountCredentialsByAccountPublicIDAndClientID(ctx context.Context, arg CountAccountCredentialsByAccountPublicIDAndClientIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccountCredentialsByAccountPublicIDAndClientID, arg.AccountPublicID, arg.ClientID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countAccountCredentialsByNameAndAccountID = `-- name: CountAccountCredentialsByNameAndAccountID :one
 SELECT COUNT(*) FROM "account_credentials"
 WHERE "account_id" = $1 AND "name" = $2

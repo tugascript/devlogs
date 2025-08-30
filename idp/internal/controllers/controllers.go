@@ -21,23 +21,24 @@ type Controllers struct {
 	validate          *validator.Validate
 	frontendDomain    string
 	backendDomain     string
-	refreshCookieName string
+	cookieName        string
+	sessionCookieName string
 }
 
 func NewControllers(
 	logger *slog.Logger,
 	services *services.Services,
 	validate *validator.Validate,
-	frontendDomain,
-	backendDomain,
-	refreshCookieName string,
+	frontendDomain string,
+	backendDomain string,
+	cookieName string,
 ) *Controllers {
 	return &Controllers{
-		logger:            logger.With(utils.BaseLayer, utils.ControllersLogLayer),
-		services:          services,
-		validate:          validate,
-		frontendDomain:    frontendDomain,
-		backendDomain:     backendDomain,
-		refreshCookieName: refreshCookieName,
+		logger:         logger.With(utils.BaseLayer, utils.ControllersLogLayer),
+		services:       services,
+		validate:       validate,
+		frontendDomain: frontendDomain,
+		backendDomain:  backendDomain,
+		cookieName:     cookieName,
 	}
 }

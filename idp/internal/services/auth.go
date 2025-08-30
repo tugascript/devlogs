@@ -120,6 +120,14 @@ func (s *Services) GetRefreshTTL() int64 {
 	return s.jwt.GetRefreshTTL()
 }
 
+func (s *Services) Get2FATTL() int64 {
+	return s.jwt.Get2FATTL()
+}
+
+func (s *Services) GetOAuthCodeTTL() int64 {
+	return s.cache.OAuthCodeTTL()
+}
+
 func (s *Services) sendConfirmationEmail(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -577,11 +585,16 @@ func (s *Services) VerifyAccountTotp(
 
 func (s *Services) verifyAccountTwoFactor(
 	ctx context.Context,
-	logger *slog.Logger,
 	requestID string,
 	accountDTO *dtos.AccountDTO,
 	code string,
 ) *exceptions.ServiceError {
+	logger := s.buildLogger(requestID, authLocation, "verifyAccountTwoFactor").With(
+		"accountPublicId", accountDTO.PublicID,
+		"twoFactorType", accountDTO.TwoFactorType,
+	)
+	logger.InfoContext(ctx, "Verifying account two factor...")
+
 	switch accountDTO.TwoFactorType {
 	case database.TwoFactorTypeNone:
 		logger.WarnContext(ctx, "User has two factor inactive")
@@ -656,13 +669,7 @@ func (s *Services) TwoFactorLoginAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	if serviceErr := s.verifyAccountTwoFactor(
-		ctx,
-		logger,
-		opts.RequestID,
-		&accountDTO,
-		opts.Code,
-	); serviceErr != nil {
+	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
 		return dtos.AuthDTO{}, serviceErr
 	}
 
@@ -780,27 +787,14 @@ func (s *Services) RefreshTokenAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
 		PublicID:  data.AccountClaims.AccountID,
+		Version:   data.AccountClaims.AccountVersion,
 	})
 	if serviceErr != nil {
-		if serviceErr.Code != exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "Account not found", "error", serviceErr)
-			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-		}
-
-		logger.ErrorContext(ctx, "Failed to get account", "error", serviceErr)
+		logger.WarnContext(ctx, "Failed to get account by public ID and version", "serviceErr", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
-	}
-
-	accountVersion := accountDTO.Version()
-	if accountVersion != data.AccountClaims.AccountVersion {
-		logger.WarnContext(ctx, "Account versions do not match",
-			"claimsVersion", data.AccountClaims.AccountVersion,
-			"accountVersion", accountVersion,
-		)
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
 	if err := s.database.RevokeToken(ctx, database.RevokeTokenParams{
@@ -1619,13 +1613,7 @@ func (s *Services) ConfirmUpdateAccount2FAUpdate(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if serviceErr := s.verifyAccountTwoFactor(
-		ctx,
-		logger,
-		opts.RequestID,
-		&accountDTO,
-		opts.Code,
-	); serviceErr != nil {
+	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
 		return dtos.AuthDTO{}, serviceErr
 	}
 

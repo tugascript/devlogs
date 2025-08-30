@@ -14,6 +14,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/tugascript/devlogs/idp/internal/services/templates"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/utils"
@@ -21,6 +22,8 @@ import (
 
 const (
 	cacheControlNoStore string = "no-store, no-cache, must-revalidate, private"
+
+	refreshCookieSuffix = "_rt"
 
 	grantTypeRefresh           string = "refresh_token"
 	grantTypeAuthorization     string = "authorization_code"
@@ -59,33 +62,58 @@ func logResponse(logger *slog.Logger, ctx *fiber.Ctx, status int) {
 	)
 }
 
-func validateErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, location string, err error) error {
-	logger.WarnContext(ctx.UserContext(), "Failed to validate request", "error", err)
-	logResponse(logger, ctx, fiber.StatusBadRequest)
-
+func validationErrorException(location string, err error) *exceptions.ValidationErrorResponse {
 	var errs validator.ValidationErrors
 	ok := errors.As(err, &errs)
 	if !ok {
-		return ctx.
-			Status(fiber.StatusBadRequest).
-			JSON(exceptions.NewEmptyValidationErrorResponse(location))
+		return exceptions.NewEmptyValidationErrorResponse(location)
 	}
 
+	return exceptions.ValidationErrorResponseFromErr(&errs, location)
+}
+
+func validateErrorJSONResponse(logger *slog.Logger, ctx *fiber.Ctx, location string, err error) error {
+	logger.WarnContext(ctx.UserContext(), "Failed to validate request", "error", err)
+	logResponse(logger, ctx, fiber.StatusBadRequest)
 	return ctx.
 		Status(fiber.StatusBadRequest).
-		JSON(exceptions.ValidationErrorResponseFromErr(&errs, location))
+		JSON(validationErrorException(location, err))
 }
 
 func validateBodyErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err error) error {
-	return validateErrorResponse(logger, ctx, exceptions.ValidationResponseLocationBody, err)
+	return validateErrorJSONResponse(logger, ctx, exceptions.ValidationResponseLocationBody, err)
 }
 
 func validateURLParamsErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err error) error {
-	return validateErrorResponse(logger, ctx, exceptions.ValidationResponseLocationParams, err)
+	return validateErrorJSONResponse(logger, ctx, exceptions.ValidationResponseLocationParams, err)
 }
 
 func validateQueryParamsErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err error) error {
-	return validateErrorResponse(logger, ctx, exceptions.ValidationResponseLocationQuery, err)
+	return validateErrorJSONResponse(logger, ctx, exceptions.ValidationResponseLocationQuery, err)
+}
+
+func validationErrorHTMLResponse(logger *slog.Logger, ctx *fiber.Ctx, location string, err error) error {
+	logger.WarnContext(ctx.UserContext(), "Failed to validate request", "error", err)
+	expt := validationErrorException(location, err)
+	errHtml, err := templates.BuildErrorTemplate(
+		templates.ErrorTemplateOptions{
+			Status:       fiber.StatusBadRequest,
+			ErrorCode:    expt.Code,
+			MessageTitle: expt.Message,
+			Messages: utils.MapSlice(expt.Fields, func(f *exceptions.FieldError) string {
+				return fmt.Sprintf("Field '%s' - Value '%s': %s", f.Param, f.Value, f.Message)
+			}),
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx.UserContext(), "Failed to build error template", "error", err)
+		logResponse(logger, ctx, fiber.StatusInternalServerError)
+		return ctx.Status(fiber.StatusInternalServerError).
+			Type("html").
+			SendString(templates.InternalServerErrorTemplate)
+	}
+
+	return ctx.Status(fiber.StatusBadRequest).Type("html").SendString(errHtml)
 }
 
 func serviceErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *exceptions.ServiceError) error {
@@ -101,6 +129,27 @@ func serviceErrorWithFieldsResponse(logger *slog.Logger, ctx *fiber.Ctx, service
 		exceptions.ValidationResponseLocationBody,
 		serviceErr.Fields,
 	))
+}
+
+func serviceErrorHTMLResponse(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *exceptions.ServiceError) error {
+	status := exceptions.NewRequestErrorStatus(serviceErr.Code)
+	errHtml, err := templates.BuildErrorTemplate(
+		templates.ErrorTemplateOptions{
+			Status:       status,
+			ErrorCode:    serviceErr.Code,
+			MessageTitle: serviceErr.Message,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx.UserContext(), "Failed to build error template", "error", err)
+		logResponse(logger, ctx, fiber.StatusInternalServerError)
+		return ctx.Status(fiber.StatusInternalServerError).
+			Type("html").
+			SendString(templates.InternalServerErrorTemplate)
+	}
+
+	logResponse(logger, ctx, status)
+	return ctx.Status(status).Type("html").SendString(errHtml)
 }
 
 func oauthErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, message string) error {
