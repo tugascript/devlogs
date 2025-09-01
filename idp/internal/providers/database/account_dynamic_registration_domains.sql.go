@@ -43,6 +43,74 @@ func (q *Queries) CountFilteredAccountDynamicRegistrationDomainsByAccountPublicI
 	return count, err
 }
 
+const countVerifiedAccountDynamicRegistrationDomainsByDomain = `-- name: CountVerifiedAccountDynamicRegistrationDomainsByDomain :one
+SELECT COUNT(*) FROM "account_dynamic_registration_domains"
+WHERE "domain" = $1 AND "verified_at" IS NOT NULL
+LIMIT 1
+`
+
+func (q *Queries) CountVerifiedAccountDynamicRegistrationDomainsByDomain(ctx context.Context, domain string) (int64, error) {
+	row := q.db.QueryRow(ctx, countVerifiedAccountDynamicRegistrationDomainsByDomain, domain)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countVerifiedAccountDynamicRegistrationDomainsByDomainAndAccountPublicID = `-- name: CountVerifiedAccountDynamicRegistrationDomainsByDomainAndAccountPublicID :one
+SELECT COUNT(*) FROM "account_dynamic_registration_domains"
+WHERE
+    "account_public_id" = $1 AND
+    "domain" = $2 AND
+    "verified_at" IS NOT NULL
+LIMIT 1
+`
+
+type CountVerifiedAccountDynamicRegistrationDomainsByDomainAndAccountPublicIDParams struct {
+	AccountPublicID uuid.UUID
+	Domain          string
+}
+
+func (q *Queries) CountVerifiedAccountDynamicRegistrationDomainsByDomainAndAccountPublicID(ctx context.Context, arg CountVerifiedAccountDynamicRegistrationDomainsByDomainAndAccountPublicIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countVerifiedAccountDynamicRegistrationDomainsByDomainAndAccountPublicID, arg.AccountPublicID, arg.Domain)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countVerifiedAccountDynamicRegistrationDomainsByDomains = `-- name: CountVerifiedAccountDynamicRegistrationDomainsByDomains :one
+SELECT COUNT(*) FROM "account_dynamic_registration_domains"
+WHERE "domain" IN ($1) AND "verified_at" IS NOT NULL
+LIMIT 1
+`
+
+func (q *Queries) CountVerifiedAccountDynamicRegistrationDomainsByDomains(ctx context.Context, domains []string) (int64, error) {
+	row := q.db.QueryRow(ctx, countVerifiedAccountDynamicRegistrationDomainsByDomains, domains)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countVerifiedAccountDynamicRegistrationDomainsByDomainsAndAccountPublicID = `-- name: CountVerifiedAccountDynamicRegistrationDomainsByDomainsAndAccountPublicID :one
+SELECT COUNT(*) FROM "account_dynamic_registration_domains"
+WHERE
+    "account_public_id" = $1 AND
+    "domain" IN ($2) AND
+    "verified_at" IS NOT NULL
+LIMIT 1
+`
+
+type CountVerifiedAccountDynamicRegistrationDomainsByDomainsAndAccountPublicIDParams struct {
+	AccountPublicID uuid.UUID
+	Domains         []string
+}
+
+func (q *Queries) CountVerifiedAccountDynamicRegistrationDomainsByDomainsAndAccountPublicID(ctx context.Context, arg CountVerifiedAccountDynamicRegistrationDomainsByDomainsAndAccountPublicIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countVerifiedAccountDynamicRegistrationDomainsByDomainsAndAccountPublicID, arg.AccountPublicID, arg.Domains)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAccountDynamicRegistrationDomain = `-- name: CreateAccountDynamicRegistrationDomain :one
 
 INSERT INTO "account_dynamic_registration_domains" (

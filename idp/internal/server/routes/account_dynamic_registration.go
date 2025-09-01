@@ -80,4 +80,17 @@ func (r *Routes) AccountDynamicRegistrationConfigurationRoutes(app *fiber.App) {
 		credentialsConfigsWriteScopeMiddleware,
 		r.controllers.DeleteAccountCredentialsRegistrationDomainCode,
 	)
+
+	// Initial Access Token (IAT) routes
+	iatRouter := router.Group(paths.InitialAccessToken)
+
+	// Dynamic Registration IAT Code Exchange flow
+	iatRouter.Get(paths.OAuthAuth, r.controllers.OAuthDynamicRegistrationIATAuth)
+	const loginRoute = paths.InitialAccessTokenSingle + paths.AuthLogin
+	iatRouter.Get(loginRoute, r.controllers.OAuthDynamicRegistrationIATLoginGet)
+	iatRouter.Post(loginRoute, r.controllers.OAuthDynamicRegistrationIATLoginPost)
+	iatRouter.Get(loginRoute+paths.Auth2FA, r.controllers.OAuthDynamicRegistrationIAT2FAGet)
+	iatRouter.Post(loginRoute+paths.Auth2FA, r.controllers.OAuthDynamicRegistrationIAT2FAPost)
+	iatRouter.Post(paths.OAuthToken, r.controllers.OAuthDynamicRegistrationIATToken)
+
 }

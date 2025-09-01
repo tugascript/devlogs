@@ -55,13 +55,19 @@ func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx *fiber.Ctx) error {
 		return c.redirectErrorCallback(logger, ctx, baseQPrms.RedirectURI, state, exceptions.OAuthErrorInvalidRequest)
 	}
 
+	sessionKey := ctx.Cookies(c.cookieName + accountsIATCookieSuffix)
+	if sessionKey != "" {
+		// This ensures that the key is only used once
+		c.removeAccountIATCookie(ctx)
+	}
+
 	redirectURL, serviceErr := c.services.InitiateOAuthDynamicRegistrationIATAuth(
 		ctx.UserContext(),
 		services.InitiateOAuthDynamicRegistrationIATAuthOptions{
 			RequestID:       requestID,
 			Domain:          baseQPrms.ClientID,
 			State:           qPrms.State,
-			SessionKey:      ctx.Cookies(c.cookieName + accountsIATCookieSuffix),
+			SessionKey:      sessionKey,
 			RefreshToken:    ctx.Cookies(c.cookieName + refreshCookieSuffix),
 			Challenge:       qPrms.Challenge,
 			ChallengeMethod: qPrms.ChallengeMethod,
@@ -70,7 +76,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx *fiber.Ctx) error {
 		},
 	)
 	if serviceErr != nil {
-		return serviceErrorHTMLResponse(logger, ctx, serviceErr)
+		return c.redirectServiceErrorCallback(logger, ctx, baseQPrms.RedirectURI, state, serviceErr)
 	}
 
 	logResponse(logger, ctx, fiber.StatusFound)
@@ -81,6 +87,13 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginGet(ctx *fiber.Ctx) error 
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthDynamicRegistrationIATLoginGet")
 	logRequest(logger, ctx)
+
+	uPrms := params.OAuthDynamicRegistrationIATAuthURLParams{
+		ACCClientID: ctx.Params("accClientID"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &uPrms); err != nil {
+		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewNotFoundError())
+	}
 
 	baseQPrms := params.OAuthDynamicRegistrationIATAuthBaseQueryParams{
 		ClientID:    ctx.Query("client_id"),
@@ -104,6 +117,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginGet(ctx *fiber.Ctx) error 
 		ctx.UserContext(),
 		services.OAuthDynamicRegistrationIATAuthRenderOptions{
 			RequestID:           requestID,
+			ACCClientID:         uPrms.ACCClientID,
 			State:               qPrms.State,
 			Domain:              baseQPrms.ClientID,
 			CodeChallenge:       qPrms.Challenge,
