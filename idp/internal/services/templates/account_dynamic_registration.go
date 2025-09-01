@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/url"
+	"strings"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 )
@@ -152,7 +153,7 @@ const accountDynamicRegistrationBaseTemplate = `
             align-items: center;
             gap: 0.75rem;
             position: relative;
-            width: 100%;
+            width: 100%%;
         }
 
         .oauth-button-text {
@@ -257,6 +258,12 @@ const accountDynamicRegistrationBaseTemplate = `
             color: #222;
             letter-spacing: 1px;
         }
+
+		#form-errors {
+            color: #C62828;
+            text-align: center;
+            margin-bottom: 1em;
+        }
     </style>
     <title>{{.Title}}</title>
 </head>
@@ -290,16 +297,27 @@ func buildEntryAccountDynamicRegistrationTemplate(body string) string {
 
 const baseAccountLoginTitle = "Account Login"
 
+const formErrors = `
+<div id="form-errors">
+	%s
+</div>
+`
+
+func buildFormErrors(errors []string) string {
+	return fmt.Sprintf(formErrors, strings.Join(errors, "\n"))
+}
+
 const loginForm = `
 <form action="{{.LoginURL}}" method="post">
+	<input name="client_id" type="hidden" value="{{.ClientID}}">
 	<input name="code_challenge" type="hidden" value="{{.CodeChallenge}}">
     <input name="code_challenge_method" type="hidden" value="{{.CodeChallengeMethod}}">
     <input name="state" type="hidden" value="{{.State}}">
     <input name="redirect_uri" type="hidden" value="{{.RedirectURI}}">
     <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
 	<input name="response_type" type="hidden" value="code">
-    <input type="email" name="email" placeholder="Email" required>
-    <input type="password" name="password" placeholder="Password" required>
+    <input maxlength="250" minlength="5" type="email" name="email" placeholder="Email" required>
+    <input minlength="1" type="password" name="password" placeholder="Password" required>
     <button type="submit">Continue</button>
 </form>
 `
@@ -394,6 +412,7 @@ const accountDynamicRegistrationLoginTemplateName = "login"
 type accountDynamicRegistrationLoginTemplateData struct {
 	Title               string
 	Header              string
+	ClientID            string
 	LoginURL            string
 	AppleLoginURL       string
 	FacebookLoginURL    string
@@ -415,6 +434,7 @@ type AccountDynamicRegistrationIATAuthOptions struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 	RedirectURI         string
+	Errors              []string
 	AppleEnabled        bool
 	FacebookEnabled     bool
 	GitHubEnabled       bool
@@ -423,58 +443,61 @@ type AccountDynamicRegistrationIATAuthOptions struct {
 }
 
 func BuildAccountDynamicRegistrationIATAuthTemplate(opts AccountDynamicRegistrationIATAuthOptions) (string, error) {
+	baseTemplateBody := ""
+	if len(opts.Errors) > 0 {
+		baseTemplateBody += buildFormErrors(opts.Errors)
+	}
+
 	baseURL := paths.V1 + paths.AccountsBase + paths.CredentialsBase + paths.DynamicRegistrationBase +
-		paths.InitialAccessToken + "/" + opts.ACCClientID
+		paths.InitialAccessToken + "/" + opts.ACCClientID + paths.OAuthAuth
 	data := accountDynamicRegistrationLoginTemplateData{
 		Title:               baseAccountLoginTitle,
 		Header:              "OAuth Dynamic Client Registration Initial Access Token Login",
 		LoginURL:            baseURL + paths.AuthLogin,
 		RedirectURI:         opts.RedirectURI,
+		ClientID:            opts.Domain,
 		CodeChallenge:       opts.CodeChallenge,
 		CodeChallengeMethod: opts.CodeChallengeMethod,
 		State:               opts.State,
 		CSRFToken:           opts.CSRFToken,
 	}
-	baseTemplateBody := loginForm + divider
+	baseTemplateBody += loginForm
 
-	urlParams := make(url.Values)
-	urlParams.Add("client_id", opts.Domain)
-	urlParams.Add("response_type", "code")
-	urlParams.Add("state", opts.State)
-	urlParams.Add("code_challenge", opts.CodeChallenge)
-	if opts.CodeChallengeMethod != "" {
-		urlParams.Add("code_challenge_method", opts.CodeChallengeMethod)
-	}
-	urlParams.Add("redirect_uri", opts.RedirectURI)
+	if opts.AppleEnabled || opts.FacebookEnabled || opts.GitHubEnabled || opts.GoogleEnabled || opts.MicrosoftEnabled {
+		baseTemplateBody += divider
+		extAuthURL := baseURL + paths.InitialAccessTokenAuthEXT
 
-	if opts.AppleEnabled {
-		urlParams.Add("client_id", "apple")
-		data.AppleLoginURL = baseURL + paths.OAuthAuth + "?" + urlParams.Encode()
-		baseTemplateBody += appleLoginButton
-	}
-	if opts.FacebookEnabled {
-		urlParams.Del("client_id")
-		urlParams.Add("client_id", "facebook")
-		data.FacebookLoginURL = baseURL + paths.OAuthAuth + "?" + urlParams.Encode()
-		baseTemplateBody += facebookLoginButton
-	}
-	if opts.GitHubEnabled {
-		urlParams.Del("client_id")
-		urlParams.Add("client_id", "github")
-		data.GithubLoginURL = baseURL + paths.OAuthAuth + "?" + urlParams.Encode()
-		baseTemplateBody += githubLoginButton
-	}
-	if opts.GoogleEnabled {
-		urlParams.Del("client_id")
-		urlParams.Add("client_id", "google")
-		data.GoogleLoginURL = baseURL + paths.OAuthAuth + "?" + urlParams.Encode()
-		baseTemplateBody += googleLoginButton
-	}
-	if opts.MicrosoftEnabled {
-		urlParams.Del("client_id")
-		urlParams.Add("client_id", "microsoft")
-		data.MicrosoftLoginURL = baseURL + paths.OAuthAuth + "?" + urlParams.Encode()
-		baseTemplateBody += microsoftLoginButton
+		// Common URL parameters for all OAuth providers
+		urlParams := make(url.Values)
+		urlParams.Add("client_id", opts.Domain)
+		urlParams.Add("response_type", "code")
+		urlParams.Add("state", opts.State)
+		urlParams.Add("code_challenge", opts.CodeChallenge)
+		if opts.CodeChallengeMethod != "" {
+			urlParams.Add("code_challenge_method", opts.CodeChallengeMethod)
+		}
+		urlParams.Add("redirect_uri", opts.RedirectURI)
+
+		if opts.AppleEnabled {
+			data.AppleLoginURL = extAuthURL + "/apple" + "?" + urlParams.Encode()
+			baseTemplateBody += appleLoginButton
+		}
+		if opts.FacebookEnabled {
+			data.FacebookLoginURL = extAuthURL + "/facebook" + "?" + urlParams.Encode()
+			baseTemplateBody += facebookLoginButton
+		}
+		if opts.GitHubEnabled {
+			data.GithubLoginURL = extAuthURL + "/github" + "?" + urlParams.Encode()
+			baseTemplateBody += githubLoginButton
+		}
+		if opts.GoogleEnabled {
+			data.GoogleLoginURL = extAuthURL + "/google" + "?" + urlParams.Encode()
+			baseTemplateBody += googleLoginButton
+		}
+		if opts.MicrosoftEnabled {
+			data.MicrosoftLoginURL = extAuthURL + "/microsoft" + "?" + urlParams.Encode()
+			baseTemplateBody += microsoftLoginButton
+		}
 	}
 
 	loginTemplate := buildEntryAccountDynamicRegistrationTemplate(baseTemplateBody)
@@ -605,6 +628,12 @@ const twoFaTemplate = `
             color: #222;
             letter-spacing: 1px;
         }
+
+		#form-errors {
+            color: #C62828;
+            text-align: center;
+            margin-bottom: 1em;
+        }
     </style>
     <title>Title</title>
 </head>
@@ -627,17 +656,21 @@ const twoFaTemplate = `
         </div>
         <h1>Two-Factor Authentication</h1>
     </div>
-
+	%s
     <form action="{{.TwoFAURL}}" method="post">
-        <input name="code_challenge" type="hidden" value="{{.CodeChallenge}}">
-        <input name="code_challenge_method" type="hidden" value="{{.CodeChallengeMethod}}">
-        <input name="state" type="hidden" value="{{.State}}">
-        <input name="redirect_uri" type="hidden" value="{{.RedirectURI}}">
-        <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+		<input name="client_id" type="hidden" value="{{.ClientID}}">
+		<input name="code_challenge" type="hidden" value="{{.CodeChallenge}}">
+		<input name="code_challenge_method" type="hidden" value="{{.CodeChallengeMethod}}">
+		<input name="state" type="hidden" value="{{.State}}">
+		<input name="redirect_uri" type="hidden" value="{{.RedirectURI}}">
+		<input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+		<input name="response_type" type="hidden" value="code">
+		<input name="session_id" type="hidden" value="{{.SessionID}}">
         <input
                 autofocus
                 id="code"
                 inputmode="numeric"
+				minlength="6"
                 maxlength="6"
                 name="code"
                 pattern="[0-9]{6}"
@@ -654,15 +687,6 @@ const twoFaTemplate = `
 
 type accountDynamicRegistrationIAT2FAData struct {
 	TwoFAURL            string
-	SessionID           string
-	CSRFToken           string
-	State               string
-	CodeChallenge       string
-	CodeChallengeMethod string
-	RedirectURI         string
-}
-
-type AccountDynamicRegistrationIAT2FAOptions struct {
 	ClientID            string
 	SessionID           string
 	CSRFToken           string
@@ -672,10 +696,28 @@ type AccountDynamicRegistrationIAT2FAOptions struct {
 	RedirectURI         string
 }
 
+type AccountDynamicRegistrationIAT2FAOptions struct {
+	Errors              []string
+	ACCClientID         string
+	Domain              string
+	SessionID           string
+	CSRFToken           string
+	State               string
+	CodeChallenge       string
+	CodeChallengeMethod string
+	RedirectURI         string
+}
+
 func BuildAccountDynamicRegistrationIAT2FATemplate(opts AccountDynamicRegistrationIAT2FAOptions) (string, error) {
+	errDiv := ""
+	if len(opts.Errors) > 0 {
+		errDiv = buildFormErrors(opts.Errors)
+	}
+
 	data := accountDynamicRegistrationIAT2FAData{
-		TwoFAURL: paths.AccountsBase + paths.CredentialsBase + paths.DynamicRegistrationBase +
-			paths.InitialAccessToken + "/" + opts.ClientID + paths.AuthLogin + paths.Auth2FA,
+		TwoFAURL: paths.V1 + paths.AccountsBase + paths.CredentialsBase + paths.DynamicRegistrationBase +
+			paths.InitialAccessToken + "/" + opts.ACCClientID + paths.OAuthAuth + paths.AuthLogin + paths.Auth2FA,
+		ClientID:            opts.Domain,
 		RedirectURI:         opts.RedirectURI,
 		CodeChallenge:       opts.CodeChallenge,
 		CodeChallengeMethod: opts.CodeChallengeMethod,
@@ -684,7 +726,7 @@ func BuildAccountDynamicRegistrationIAT2FATemplate(opts AccountDynamicRegistrati
 		SessionID:           opts.SessionID,
 	}
 
-	t, err := template.New("two_fa").Parse(twoFaTemplate)
+	t, err := template.New("two_fa").Parse(fmt.Sprintf(twoFaTemplate, errDiv))
 	if err != nil {
 		return "", nil
 	}

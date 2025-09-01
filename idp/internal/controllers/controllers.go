@@ -16,13 +16,12 @@ import (
 )
 
 type Controllers struct {
-	logger            *slog.Logger
-	services          *services.Services
-	validate          *validator.Validate
-	frontendDomain    string
-	backendDomain     string
-	cookieName        string
-	sessionCookieName string
+	logger         *slog.Logger
+	services       *services.Services
+	validate       *validator.Validate
+	frontendDomain string
+	backendDomain  string
+	cookieName     string
 }
 
 func NewControllers(

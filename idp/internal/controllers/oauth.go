@@ -10,8 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 
 	"github.com/gofiber/fiber/v2"
+
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
@@ -29,6 +31,38 @@ func formatAccountRedirectURL(backendDomain, provider string) string {
 	return fmt.Sprintf("https://%s/v1/auth/oauth2/%s/callback", backendDomain, provider)
 }
 
+func (c *Controllers) errorCallback(logger *slog.Logger, ctx *fiber.Ctx, state string, errStr string) error {
+	qPrams := make(url.Values)
+	qPrams.Add("error", errStr)
+	if state != "" {
+		qPrams.Add("state", state)
+	}
+
+	qPrams.Add("iss", fmt.Sprintf("https://%s", c.backendDomain))
+	ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)
+	logResponse(logger, ctx, fiber.StatusFound)
+	return ctx.Redirect(
+		fmt.Sprintf("https://%s/auth/callback?error=%s", c.frontendDomain, qPrams.Encode()),
+		fiber.StatusFound,
+	)
+}
+
+func (c *Controllers) serviceErrorCallback(
+	logger *slog.Logger,
+	ctx *fiber.Ctx,
+	state string,
+	serviceErr *exceptions.ServiceError,
+) error {
+	switch serviceErr.Code {
+	case exceptions.CodeUnauthorized, exceptions.CodeForbidden:
+		return c.errorCallback(logger, ctx, state, exceptions.OAuthErrorAccessDenied)
+	case exceptions.CodeNotFound, exceptions.CodeValidation:
+		return c.errorCallback(logger, ctx, state, exceptions.OAuthErrorInvalidRequest)
+	default:
+		return c.errorCallback(logger, ctx, state, exceptions.OAuthServerError)
+	}
+}
+
 func (c *Controllers) AccountOAuthURL(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthLocation, "AccountOAuthURL")
@@ -42,10 +76,10 @@ func (c *Controllers) AccountOAuthURL(ctx *fiber.Ctx) error {
 		State:           ctx.Query("state"),
 	}
 	if err := c.validate.StructCtx(ctx.UserContext(), qPrms); err != nil {
-		return validateQueryParamsErrorResponse(logger, ctx, err)
+		return c.errorCallback(logger, ctx, qPrms.State, exceptions.OAuthErrorInvalidRequest)
 	}
 
-	url, serviceErr := c.services.AccountOAuthURL(ctx.UserContext(), services.AccountOAuthURLOptions{
+	oAuthURL, serviceErr := c.services.AccountOAuthURL(ctx.UserContext(), services.AccountOAuthURLOptions{
 		RequestID:       requestID,
 		Provider:        qPrms.ClientID,
 		RedirectURL:     formatAccountRedirectURL(c.backendDomain, qPrms.ClientID),
@@ -54,11 +88,11 @@ func (c *Controllers) AccountOAuthURL(ctx *fiber.Ctx) error {
 		State:           qPrms.State,
 	})
 	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
+		return c.serviceErrorCallback(logger, ctx, qPrms.State, serviceErr)
 	}
 
 	logResponse(logger, ctx, fiber.StatusFound)
-	return ctx.Redirect(url, fiber.StatusFound)
+	return ctx.Redirect(oAuthURL, fiber.StatusFound)
 }
 
 func (c *Controllers) acceptCallback(logger *slog.Logger, ctx *fiber.Ctx, oauthParams string) error {
@@ -66,15 +100,6 @@ func (c *Controllers) acceptCallback(logger *slog.Logger, ctx *fiber.Ctx, oauthP
 	logResponse(logger, ctx, fiber.StatusFound)
 	return ctx.Redirect(
 		fmt.Sprintf("https://%s/auth/callback?%s", c.frontendDomain, oauthParams),
-		fiber.StatusFound,
-	)
-}
-
-func (c *Controllers) errorCallback(logger *slog.Logger, ctx *fiber.Ctx, errStr string) error {
-	ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)
-	logResponse(logger, ctx, fiber.StatusFound)
-	return ctx.Redirect(
-		fmt.Sprintf("https://%s/auth/callback?error=%s", c.frontendDomain, errStr),
 		fiber.StatusFound,
 	)
 }
@@ -89,35 +114,28 @@ func (c *Controllers) AccountOAuthCallback(ctx *fiber.Ctx) error {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	queryParams := params.OAuthCallbackQueryParams{
+	qPrms := params.OAuthCallbackQueryParams{
 		Code:  ctx.Query("code"),
 		State: ctx.Query("state"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), queryParams); err != nil {
+	if err := c.validate.StructCtx(ctx.UserContext(), &qPrms); err != nil {
 		errQuery := ctx.Query("error")
 		if errQuery != "" {
-			return c.errorCallback(logger, ctx, errQuery)
+			return c.errorCallback(logger, ctx, qPrms.State, errQuery)
 		}
 
-		return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+		return c.errorCallback(logger, ctx, qPrms.State, exceptions.OAuthErrorInvalidRequest)
 	}
 
 	oauthParams, serviceErr := c.services.ExtLoginAccount(ctx.UserContext(), services.ExtLoginAccountOptions{
 		RequestID:   requestID,
 		Provider:    urlParams.Provider,
-		Code:        queryParams.Code,
-		State:       queryParams.State,
+		Code:        qPrms.Code,
+		State:       qPrms.State,
 		RedirectURL: formatAccountRedirectURL(c.backendDomain, urlParams.Provider),
 	})
 	if serviceErr != nil {
-		switch serviceErr.Code {
-		case exceptions.CodeUnauthorized, exceptions.CodeForbidden:
-			return c.errorCallback(logger, ctx, exceptions.OAuthErrorAccessDenied)
-		case exceptions.CodeNotFound, exceptions.CodeValidation:
-			return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
-		default:
-			return c.errorCallback(logger, ctx, exceptions.OAuthServerError)
-		}
+		return c.serviceErrorCallback(logger, ctx, qPrms.State, serviceErr)
 	}
 
 	return c.acceptCallback(logger, ctx, oauthParams)
@@ -129,24 +147,24 @@ func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
 	logRequest(logger, ctx)
 
 	if ctx.Get("Content-Type") != "application/x-www-form-urlencoded" {
-		return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+		return c.errorCallback(logger, ctx, "", exceptions.OAuthErrorInvalidRequest)
 	}
 
 	body := new(bodies.AppleLoginBody)
 	if err := ctx.BodyParser(body); err != nil {
-		return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+		return c.errorCallback(logger, ctx, "", exceptions.OAuthErrorInvalidRequest)
 	}
 	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
-		return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+		return c.errorCallback(logger, ctx, "", exceptions.OAuthErrorInvalidRequest)
 	}
 
 	user := new(bodies.AppleUser)
 	if err := json.Unmarshal([]byte(body.User), user); err != nil {
-		return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidScope)
+		return c.errorCallback(logger, ctx, "", exceptions.OAuthErrorInvalidScope)
 	}
 	if err := c.validate.StructCtx(ctx.UserContext(), user); err != nil {
 		logger.WarnContext(ctx.UserContext(), "Failed to parse apple user data")
-		return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidScope)
+		return c.errorCallback(logger, ctx, "", exceptions.OAuthErrorInvalidScope)
 	}
 
 	oauthParams, serviceErr := c.services.AppleLoginAccount(ctx.UserContext(), services.AppleLoginAccountOptions{
@@ -158,14 +176,7 @@ func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
 		State:     body.State,
 	})
 	if serviceErr != nil {
-		switch serviceErr.Code {
-		case exceptions.CodeUnauthorized, exceptions.CodeForbidden:
-			return c.errorCallback(logger, ctx, exceptions.OAuthErrorAccessDenied)
-		case exceptions.CodeNotFound, exceptions.CodeValidation:
-			return c.errorCallback(logger, ctx, exceptions.OAuthErrorInvalidRequest)
-		default:
-			return c.errorCallback(logger, ctx, exceptions.OAuthServerError)
-		}
+		return c.serviceErrorCallback(logger, ctx, "", serviceErr)
 	}
 
 	return c.acceptCallback(logger, ctx, oauthParams)
@@ -392,18 +403,10 @@ func (c *Controllers) AccountOAuthToken(ctx *fiber.Ctx) error {
 	logRequest(logger, ctx)
 
 	if ctx.Get("Content-Type") != "application/x-www-form-urlencoded" {
-		return serviceErrorResponse(logger, ctx, exceptions.NewUnsupportedMediaTypeError(
-			"Content-Type must be application/x-www-form-urlencoded",
-		))
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
 	grantType := ctx.FormValue("grant_type")
-	if grantType == "" {
-		logger.WarnContext(ctx.UserContext(), "Missing grant_type")
-		logResponse(logger, ctx, fiber.StatusBadRequest)
-
-	}
-
 	switch grantType {
 	case grantTypeRefresh:
 		return c.accountRefreshToken(ctx, requestID)

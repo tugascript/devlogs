@@ -101,6 +101,9 @@ func (c *Controllers) ListAccountCredentialsRegistrationDomains(ctx *fiber.Ctx) 
 			},
 		)
 	}
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
 
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(dtos.NewPaginationDTO(

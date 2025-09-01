@@ -33,7 +33,6 @@ func buildAccountCredentialsDynamicRegistrationIATLoginCacheKey(clientID string)
 
 type AccountCredentialsDynamicRegistrationIATLoginData struct {
 	RedirectURI string `json:"redirect_uri"`
-	Challenge   string `json:"challenge"`
 	CSRFToken   string `json:"csrf_token"`
 	Domain      string `json:"domain"`
 	State       string `json:"state"`
@@ -42,7 +41,6 @@ type AccountCredentialsDynamicRegistrationIATLoginData struct {
 type SaveAccountCredentialsDynamicRegistrationIATLoginOptions struct {
 	Domain      string
 	RequestID   string
-	Challenge   string
 	State       string
 	RedirectURI string
 }
@@ -67,7 +65,6 @@ func (c *Cache) SaveAccountCredentialsDynamicRegistrationIATLogin(
 	}
 
 	data := AccountCredentialsDynamicRegistrationIATLoginData{
-		Challenge:   opts.Challenge,
 		State:       opts.State,
 		Domain:      opts.Domain,
 		RedirectURI: opts.RedirectURI,
@@ -150,7 +147,6 @@ type AccountCredentialsDynamicRegistrationIAT2FAData struct {
 	AccountPublicID uuid.UUID `json:"account_public_id"`
 	AccountVersion  int32     `json:"account_version"`
 	RedirectURI     string    `json:"redirect_uri"`
-	Challenge       string    `json:"challenge"`
 	ClientID        string    `json:"clientId"`
 	Domain          string    `json:"domain"`
 	State           string    `json:"state"`
@@ -167,7 +163,6 @@ type SaveAccountCredentialsDynamicRegistrationIAT2FAOptions struct {
 	RedirectURI     string
 	Domain          string
 	ClientID        string
-	Challenge       string
 	State           string
 	TwoFATTL        int64
 }
@@ -193,7 +188,6 @@ func (c *Cache) SaveAccountCredentialsDynamicRegistrationIAT2FA(
 		RedirectURI:     opts.RedirectURI,
 		Domain:          opts.Domain,
 		ClientID:        opts.ClientID,
-		Challenge:       opts.Challenge,
 		State:           opts.State,
 	}
 	dataBytes, err := json.Marshal(data)
@@ -436,7 +430,7 @@ func (c *Cache) VerifyAccountCredentialsRegistrationIATCode(
 ) (AccountCredentialsDynamicRegistrationIATCodeData, bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  accountCredentialsDynamicRegistrationLocation,
-		Method:    "VerifyAccountCredentialsRegistrationIATCode",
+		Method:    "VerifyOAuthDynamicRegistrationIATCode",
 		RequestID: opts.RequestID,
 	})
 	logger.DebugContext(ctx, "Verifying account credentials registration IAT code...")
