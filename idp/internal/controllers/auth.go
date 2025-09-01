@@ -8,10 +8,10 @@ package controllers
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
+	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
@@ -23,7 +23,7 @@ func (c *Controllers) saveAccountRefreshCookie(ctx *fiber.Ctx, token string) {
 	ctx.Cookie(&fiber.Cookie{
 		Name:     c.cookieName + refreshCookieSuffix,
 		Value:    token,
-		Path:     paths.V1 + paths.AuthBase,
+		Path:     paths.V1,
 		HTTPOnly: true,
 		SameSite: fiber.CookieSameSiteNoneMode,
 		Secure:   true,

@@ -66,6 +66,32 @@ WHERE
     "domain" ILIKE $2
 LIMIT 1;
 
+-- name: CountVerifiedAccountDynamicRegistrationDomainsByDomain :one
+SELECT COUNT(*) FROM "account_dynamic_registration_domains"
+WHERE "domain" = $1 AND "verified_at" IS NOT NULL
+LIMIT 1;
+
+-- name: CountVerifiedAccountDynamicRegistrationDomainsByDomains :one
+SELECT COUNT(*) FROM "account_dynamic_registration_domains"
+WHERE "domain" IN (sqlc.slice('domains')) AND "verified_at" IS NOT NULL
+LIMIT 1;
+
+-- name: CountVerifiedAccountDynamicRegistrationDomainsByDomainsAndAccountPublicID :one
+SELECT COUNT(*) FROM "account_dynamic_registration_domains"
+WHERE
+    "account_public_id" = $1 AND
+    "domain" IN (sqlc.slice('domains')) AND
+    "verified_at" IS NOT NULL
+LIMIT 1;
+
+-- name: CountVerifiedAccountDynamicRegistrationDomainsByDomainAndAccountPublicID :one
+SELECT COUNT(*) FROM "account_dynamic_registration_domains"
+WHERE
+    "account_public_id" = $1 AND
+    "domain" = $2 AND
+    "verified_at" IS NOT NULL
+LIMIT 1;
+
 -- name: DeleteAccountDynamicRegistrationDomain :exec
 DELETE FROM "account_dynamic_registration_domains"
 WHERE "id" = $1;

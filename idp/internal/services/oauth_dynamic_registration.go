@@ -12,15 +12,16 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
-	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
-	"github.com/tugascript/devlogs/idp/internal/services/dtos"
+	"golang.org/x/net/publicsuffix"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
+	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
+	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"github.com/tugascript/devlogs/idp/internal/services/templates"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -33,6 +34,7 @@ const (
 )
 
 type buildOAuthDynamicRegistrationIATLoginURLOptions struct {
+	accClientID     string
 	domain          string
 	state           string
 	challenge       string
@@ -49,7 +51,7 @@ func buildOAuthDynamicRegistrationIATLoginURL(opts buildOAuthDynamicRegistration
 	if opts.challengeMethod != "" {
 		queryParams.Add("code_challenge_method", opts.challengeMethod)
 	}
-	return oauthDynamicRegistrationIATAuthPath + paths.AuthLogin + "?" + queryParams.Encode()
+	return oauthDynamicRegistrationIATPath + "/" + opts.accClientID + paths.OAuthAuth + paths.AuthLogin + "?" + queryParams.Encode()
 }
 
 type buildOAuthDynamicRegistrationIATCallbackURLOptions struct {
@@ -124,6 +126,92 @@ func (s *Services) generateOAuthDynamicRegistrationIATCallback(
 	}), nil
 }
 
+type oauthDynamicRegistrationIATAuthOptions struct {
+	requestID       string
+	challenge       string
+	challengeMethod string
+	domain          string
+	redirectURI     string
+	state           string
+}
+
+func (s *Services) oauthDynamicRegistrationIATAuth(
+	ctx context.Context,
+	opts oauthDynamicRegistrationIATAuthOptions,
+) (string, *exceptions.ServiceError) {
+	logger := s.buildLogger(
+		opts.requestID,
+		oauthDynamicRegistrationLocation,
+		"oauthDynamicRegistrationIATAuth",
+	).With(
+		"domain", opts.domain,
+		"redirectUri", opts.redirectURI,
+	)
+	logger.InfoContext(ctx, "Handling OAuth dynamic registration IAT auth...")
+
+	tldOneDomain, err := publicsuffix.EffectiveTLDPlusOne(opts.domain)
+	if err != nil {
+		logger.WarnContext(ctx, "Invalid domain", "error", err)
+		return "", exceptions.NewValidationError("invalid client_id")
+	}
+
+	var count int64
+	if tldOneDomain != opts.domain {
+		count, err = s.database.CountVerifiedAccountDynamicRegistrationDomainsByDomains(
+			ctx,
+			[]string{opts.domain, tldOneDomain},
+		)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to count account dynamic registration domains by domains", "error", err)
+			return "", exceptions.NewInternalServerError()
+		}
+		if count == 0 {
+			logger.WarnContext(ctx, "Domain not registered for dynamic registration")
+			return "", exceptions.NewForbiddenError()
+		}
+	} else {
+		count, err = s.database.CountVerifiedAccountDynamicRegistrationDomainsByDomain(ctx, opts.domain)
+	}
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count account dynamic registration domains by domains", "error", err)
+		return "", exceptions.NewInternalServerError()
+	}
+	if count == 0 {
+		logger.WarnContext(ctx, "Domain not registered for dynamic registration")
+		return "", exceptions.NewForbiddenError()
+	}
+
+	hashedChallenge, serviceErr := hashChallenge(opts.challenge, opts.challengeMethod)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Invalid code challenge", "serviceError", serviceErr)
+		return "", serviceErr
+	}
+
+	clientID, err := s.cache.SaveAccountCredentialsDynamicRegistrationIATAuth(
+		ctx,
+		cache.SaveAccountCredentialsDynamicRegistrationIATAuthOptions{
+			Domain:      opts.domain,
+			RequestID:   opts.requestID,
+			State:       opts.state,
+			RedirectURI: opts.redirectURI,
+			Challenge:   hashedChallenge,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to save account credentials dynamic registration IAT auth", "error", err)
+		return "", exceptions.NewInternalServerError()
+	}
+
+	return buildOAuthDynamicRegistrationIATLoginURL(buildOAuthDynamicRegistrationIATLoginURLOptions{
+		accClientID:     clientID,
+		domain:          opts.domain,
+		state:           opts.state,
+		challenge:       opts.challenge,
+		challengeMethod: opts.challengeMethod,
+		redirectURI:     opts.redirectURI,
+	}), nil
+}
+
 type refreshTokenOAuthDynamicRegistrationIATLoginOptions struct {
 	requestID       string
 	refreshToken    string
@@ -144,6 +232,7 @@ func (s *Services) refreshTokenOAuthDynamicRegistrationIATLogin(
 		oauthDynamicRegistrationLocation,
 		"refreshTokenOAuthDynamicRegistrationIATLogin",
 	).With(
+		"domain", opts.domain,
 		"redirectUri", opts.redirectURI,
 	)
 	logger.InfoContext(ctx, "Refreshing OAuth dynamic registration IAT callback...")
@@ -208,13 +297,14 @@ func (s *Services) refreshTokenOAuthDynamicRegistrationIATLogin(
 		}
 
 		logger.WarnContext(ctx, "Account not found or version mismatch", "serviceError", serviceErr)
-		return buildOAuthDynamicRegistrationIATLoginURL(buildOAuthDynamicRegistrationIATLoginURLOptions{
-			domain:          opts.domain,
-			state:           opts.state,
+		return s.oauthDynamicRegistrationIATAuth(ctx, oauthDynamicRegistrationIATAuthOptions{
+			requestID:       opts.requestID,
 			challenge:       opts.challenge,
 			challengeMethod: opts.challengeMethod,
+			domain:          opts.domain,
 			redirectURI:     opts.redirectURI,
-		}), nil
+			state:           opts.state,
+		})
 	}
 
 	cbURL, serviceErr := s.generateOAuthDynamicRegistrationIATCallback(
@@ -268,13 +358,14 @@ func (s *Services) InitiateOAuthDynamicRegistrationIATAuth(
 	if opts.SessionKey == "" {
 		if opts.RefreshToken == "" {
 			logger.InfoContext(ctx, "No session key or refresh token provided, redirecting to login")
-			return buildOAuthDynamicRegistrationIATLoginURL(buildOAuthDynamicRegistrationIATLoginURLOptions{
-				domain:          opts.Domain,
-				state:           opts.State,
+			return s.oauthDynamicRegistrationIATAuth(ctx, oauthDynamicRegistrationIATAuthOptions{
+				requestID:       opts.RequestID,
 				challenge:       opts.Challenge,
 				challengeMethod: opts.ChallengeMethod,
+				domain:          opts.Domain,
 				redirectURI:     opts.RedirectURI,
-			}), nil
+				state:           opts.State,
+			})
 		}
 
 		logger.InfoContext(ctx, "No session key provided, attempting to refresh with refresh token")
@@ -306,14 +397,8 @@ func (s *Services) InitiateOAuthDynamicRegistrationIATAuth(
 		return "", exceptions.NewInternalServerError()
 	}
 	if !found {
-		logger.InfoContext(ctx, "Account credentials registration session key not found")
-		return buildOAuthDynamicRegistrationIATLoginURL(buildOAuthDynamicRegistrationIATLoginURLOptions{
-			domain:          opts.Domain,
-			state:           opts.State,
-			challenge:       opts.Challenge,
-			challengeMethod: opts.ChallengeMethod,
-			redirectURI:     opts.RedirectURI,
-		}), nil
+		logger.WarnContext(ctx, "Account credentials registration session key not found")
+		return "", exceptions.NewUnauthorizedError()
 	}
 
 	if !verified {
@@ -368,6 +453,7 @@ func (s *Services) InitiateOAuthDynamicRegistrationIATAuth(
 
 type OAuthDynamicRegistrationIATAuthRenderOptions struct {
 	RequestID           string
+	ACCClientID         string
 	State               string
 	Domain              string
 	CodeChallenge       string
@@ -388,23 +474,51 @@ func (s *Services) OAuthDynamicRegistrationIATAuthRender(
 	)
 	logger.InfoContext(ctx, "Starting OAuth dynamic registration IAT authorization html render...")
 
-	clientID, csrfToken, err := s.cache.SaveAccountCredentialsDynamicRegistrationIATLogin(
+	data, found, err := s.cache.GetAccountCredentialsDynamicRegistrationAuthIAT(
 		ctx,
-		cache.SaveAccountCredentialsDynamicRegistrationIATLoginOptions{
-			RequestID:   opts.RequestID,
-			State:       opts.State,
-			RedirectURI: opts.RedirectURI,
-			Domain:      opts.Domain,
+		cache.GetAccountCredentialsDynamicRegistrationIATAuthOptions{
+			RequestID: opts.RequestID,
+			ClientID:  opts.ACCClientID,
 		},
 	)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to save account credentials dynamic registration IAT auth", "error", err)
+		logger.ErrorContext(ctx, "Failed to get account credentials dynamic registration IAT", "error", err)
+		return "", exceptions.NewInternalServerError()
+	}
+	if !found {
+		logger.WarnContext(ctx, "Account credentials dynamic registration IAT not found")
+		return "", exceptions.NewForbiddenError()
+	}
+
+	if data.Domain != opts.Domain {
+		logger.WarnContext(ctx, "OAuth Domain does not match", "dataDomain", data.Domain)
+		return "", exceptions.NewUnauthorizedError()
+	}
+	if data.State != opts.State {
+		logger.WarnContext(ctx, "OAuth State does not match")
+		return "", exceptions.NewUnauthorizedError()
+	}
+	if data.RedirectURI != opts.RedirectURI {
+		logger.WarnContext(ctx, "OAuth Redirect URI does not match")
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	csrfToken, err := s.cache.SaveAccountCredentialsDynamicRegistrationIATLoginCSRF(
+		ctx,
+		cache.SaveAccountCredentialsDynamicRegistrationIATLoginCSRFOptions{
+			RequestID: opts.RequestID,
+			ClientID:  opts.ACCClientID,
+			Domain:    opts.Domain,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to save account credentials dynamic registration IAT auth CSRF token", "error", err)
 		return "", exceptions.NewInternalServerError()
 	}
 
 	loginHTML, err := templates.BuildAccountDynamicRegistrationIATAuthTemplate(
 		templates.AccountDynamicRegistrationIATAuthOptions{
-			ACCClientID:         clientID,
+			ACCClientID:         opts.ACCClientID,
 			CSRFToken:           csrfToken,
 			Domain:              opts.Domain,
 			State:               opts.State,
@@ -500,6 +614,24 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 		"domain", opts.Domain,
 	)
 	logger.InfoContext(ctx, "Logging in with OAuth dynamic registration IAT...")
+
+	validCSRF, err := s.cache.VerifyAccountCredentialsDynamicRegistrationIATLoginCSRF(
+		ctx,
+		cache.VerifyAccountCredentialsDynamicRegistrationIATLoginCSRFOptions{
+			RequestID: opts.RequestID,
+			ClientID:  opts.ACCClientID,
+			Domain:    opts.Domain,
+			CSRFToken: opts.CSRFToken,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to verify account credentials dynamic registration IAT auth CSRF token", "error", err)
+		return "", "", false, exceptions.NewInternalServerError()
+	}
+	if !validCSRF {
+		logger.WarnContext(ctx, "Invalid CSRF token")
+		return "", "", false, exceptions.NewForbiddenError()
+	}
 
 	data, found, err := s.cache.GetAccountCredentialsDynamicRegistrationAuthIAT(ctx, cache.GetAccountCredentialsDynamicRegistrationIATAuthOptions{
 		RequestID: opts.RequestID,
@@ -663,7 +795,7 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 		return "", "", false, exceptions.NewForbiddenError()
 	}
 	if !domainDTO.Verified {
-		logger.ErrorContext(ctx, "Account credentials registration domain is not verified")
+		logger.ErrorContext(ctx, "Account credentials registration domain is not validCSRF")
 		return "", "", false, exceptions.NewForbiddenError()
 	}
 
@@ -831,6 +963,23 @@ func (s *Services) OAuthDynamicRegistrationIATVerify2FACode(
 	)
 	logger.InfoContext(ctx, "Verifying OAuth dynamic registration IAT 2FA...")
 
+	verifiedCSRF, err := s.cache.VerifyAccountCredentialsDynamicRegistrationIAT2FACSRFToken(
+		ctx,
+		cache.VerifyAccountCredentialsDynamicRegistrationIAT2FACSRFTokenOptions{
+			RequestID: opts.RequestID,
+			SessionID: opts.SessionID,
+			CSRFToken: opts.CSRFToken,
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to verify account credentials dynamic registration IAT 2FA CSRF token", "error", err)
+		return "", "", exceptions.NewInternalServerError()
+	}
+	if !verifiedCSRF {
+		logger.WarnContext(ctx, "Invalid CSRF token")
+		return "", "", exceptions.NewForbiddenError()
+	}
+
 	data, found, err := s.cache.GetAccountCredentialsDynamicRegistrationIAT2FA(ctx, cache.GetAccountCredentialsDynamicRegistrationIAT2FAOptions{
 		RequestID: opts.RequestID,
 		SessionID: opts.SessionID,
@@ -846,23 +995,6 @@ func (s *Services) OAuthDynamicRegistrationIATVerify2FACode(
 	if opts.ACCClientID != data.ClientID {
 		logger.WarnContext(ctx, "Client IDs do not match", "sessionClientId", data.ClientID)
 		return "", "", exceptions.NewUnauthorizedError()
-	}
-
-	csrfTokenValid, err := s.cache.VerifyAccountCredentialsDynamicRegistrationIAT2FACSRFToken(
-		ctx,
-		cache.VerifyAccountCredentialsDynamicRegistrationIAT2FACSRFTokenOptions{
-			RequestID: opts.RequestID,
-			SessionID: opts.SessionID,
-			CSRFToken: opts.CSRFToken,
-		},
-	)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to verify account credentials dynamic registration IAT 2FA CSRF token", "error", err)
-		return "", "", exceptions.NewInternalServerError()
-	}
-	if !csrfTokenValid {
-		logger.WarnContext(ctx, "Invalid CSRF token")
-		return "", "", exceptions.NewForbiddenError()
 	}
 
 	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
@@ -927,6 +1059,8 @@ func (s *Services) OAuthDynamicRegistrationIATVerify2FACode(
 	return oauthDynamicRegistrationIATAuthPath, sessionKey, nil
 }
 
+// TODO: add external callbacks
+
 type VerifyOAuthDynamicRegistrationIATCodeOptions struct {
 	RequestID    string
 	Code         string
@@ -979,18 +1113,37 @@ func (s *Services) VerifyOAuthDynamicRegistrationIATCode(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	domainDTO, serviceErr := s.GetAccountCredentialsRegistrationDomain(ctx, GetAccountCredentialsRegistrationDomainOptions{
-		RequestID:       opts.RequestID,
-		AccountPublicID: accountDTO.PublicID,
-		Domain:          data.Domain,
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get account credentials registration domain", "serviceError", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
+	tldOneDomain, err := publicsuffix.EffectiveTLDPlusOne(opts.Domain)
+	if err != nil {
+		logger.WarnContext(ctx, "Invalid domain", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewValidationError("invalid client_id")
 	}
-	if !domainDTO.Verified {
-		logger.ErrorContext(ctx, "Account credentials registration domain is not verified")
-		return dtos.AuthDTO{}, exceptions.NewValidationError("account credentials registration domain is not verified")
+
+	var count int64
+	if tldOneDomain != data.Domain {
+		count, err = s.database.CountVerifiedAccountDynamicRegistrationDomainsByDomainsAndAccountPublicID(
+			ctx,
+			database.CountVerifiedAccountDynamicRegistrationDomainsByDomainsAndAccountPublicIDParams{
+				AccountPublicID: accountDTO.PublicID,
+				Domains:         []string{data.Domain, tldOneDomain},
+			},
+		)
+	} else {
+		count, err = s.database.CountVerifiedAccountDynamicRegistrationDomainsByDomainAndAccountPublicID(
+			ctx,
+			database.CountVerifiedAccountDynamicRegistrationDomainsByDomainAndAccountPublicIDParams{
+				AccountPublicID: accountDTO.PublicID,
+				Domain:          data.Domain,
+			},
+		)
+	}
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count verified account dynamic registration domains by domains and account public ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+	if count == 0 {
+		logger.WarnContext(ctx, "Account does not have any verified dynamic registration domains matching the OAuth Domain")
+		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 	}
 
 	tokenTTL := s.jwt.GetDynamicRegistrationTTL()
