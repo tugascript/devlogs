@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -178,4 +179,38 @@ func parseRequestErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err error) e
 	return ctx.
 		Status(fiber.StatusBadRequest).
 		JSON(exceptions.NewEmptyValidationErrorResponse(exceptions.ValidationResponseLocationBody))
+}
+
+func (c *Controllers) redirectErrorCallback(
+	logger *slog.Logger,
+	ctx *fiber.Ctx,
+	redirectURI string,
+	state string,
+	errMsg string,
+) error {
+	qPrams := make(url.Values)
+	qPrams.Add("error", errMsg)
+	if state != "" {
+		qPrams.Add("state", state)
+	}
+	qPrams.Add("iss", fmt.Sprintf("https://%s", c.backendDomain))
+	logResponse(logger, ctx, fiber.StatusFound)
+	return ctx.Redirect(redirectURI+"?"+qPrams.Encode(), fiber.StatusFound)
+}
+
+func (c *Controllers) redirectServiceErrorCallback(
+	logger *slog.Logger,
+	ctx *fiber.Ctx,
+	redirectURI string,
+	state string,
+	serviceErr *exceptions.ServiceError,
+) error {
+	switch serviceErr.Code {
+	case exceptions.CodeUnauthorized, exceptions.CodeForbidden:
+		return c.redirectErrorCallback(logger, ctx, redirectURI, state, exceptions.OAuthErrorAccessDenied)
+	case exceptions.CodeNotFound, exceptions.CodeValidation:
+		return c.redirectErrorCallback(logger, ctx, redirectURI, state, exceptions.OAuthErrorInvalidRequest)
+	default:
+		return c.redirectErrorCallback(logger, ctx, redirectURI, state, exceptions.OAuthServerError)
+	}
 }

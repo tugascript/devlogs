@@ -24,3 +24,20 @@ type OAuthDynamicClientRegistrationBody struct {
 	SoftwareID              string   `json:"software_id,omitempty" validate:"omitempty,max=250"`
 	SoftwareVersion         string   `json:"software_version,omitempty" validate:"omitempty,max=250"`
 }
+
+type OAuthDynamicRegistrationIATAuthHiddenFieldsBody struct {
+	CSRFToken           string `json:"csrf_token" validate:"required,min=21,base64rawurl"`
+	ClientID            string `json:"client_id" validate:"required,fqdn"`
+	ResponseType        string `json:"response_type" validate:"required,oneof=code"`
+	CodeChallenge       string `json:"code_challenge" validate:"required,min=1"`
+	CodeChallengeMethod string `json:"code_challenge_method" validate:"omitempty,oneof=plain s256 S256"`
+	State               string `json:"state" validate:"required,min=1"`
+	RedirectURI         string `json:"redirect_uri" validate:"required,uri"`
+}
+
+type OAuthDynamicRegistrationIATTokenBody struct {
+	ClientID     string `json:"client_id" validate:"required,fqdn"`
+	GrantType    string `json:"grant_type" validate:"required,eq=authorization_code"`
+	Code         string `json:"code" validate:"required,min=1"`
+	CodeVerifier string `json:"code_verifier" validate:"required,min=1"`
+}
