@@ -719,3 +719,93 @@ func (c *Cache) DeleteAccountCredentialsRegistrationSessionKey(
 		buildAccountCredentialsDynamicRegistrationSessionCacheKey(opts.Domain, opts.ClientID),
 	)
 }
+
+func buildAccountCredentialsDynamicRegistrationIATExtAuthCacheKey(provider, state string) string {
+	return fmt.Sprintf("%s:ext-auth:%s:%s", accountCredentialsDynamicRegistrationIATPrefix, provider, utils.Sha256HashHex(state))
+}
+
+type AccountCredentialsDynamicRegistrationIATExtAuthData struct {
+	ClientID     string `json:"client_id"`
+	Domain       string `json:"domain"`
+	RequestState string `json:"request_state"`
+}
+
+type SaveAccountCredentialsDynamicRegistrationIATExtAuthOptions struct {
+	RequestID    string
+	ClientID     string
+	Domain       string
+	Provider     string
+	State        string
+	RequestState string
+}
+
+func (c *Cache) SaveAccountCredentialsDynamicRegistrationIATExtAuth(
+	ctx context.Context,
+	opts SaveAccountCredentialsDynamicRegistrationIATExtAuthOptions,
+) error {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  accountCredentialsDynamicRegistrationLocation,
+		Method:    "SaveAccountCredentialsDynamicRegistrationIATExtAuth",
+		RequestID: opts.RequestID,
+	}).With(
+		"clientId", opts.ClientID,
+		"provider", opts.Provider,
+	)
+	logger.DebugContext(ctx, "Saving account credentials dynamic registration IAT external auth...")
+
+	data := AccountCredentialsDynamicRegistrationIATExtAuthData{
+		ClientID:     opts.ClientID,
+		Domain:       opts.Domain,
+		RequestState: opts.RequestState,
+	}
+	dataBytes, err := json.Marshal(data)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to marshal account credentials dynamic registration IAT external auth data", "error", err)
+		return err
+	}
+
+	return c.storage.SetWithContext(
+		ctx,
+		buildAccountCredentialsDynamicRegistrationIATExtAuthCacheKey(opts.Provider, opts.State),
+		dataBytes,
+		c.oauthStateTTL,
+	)
+}
+
+type GetAccountCredentialsDynamicRegistrationIATExtAuthOptions struct {
+	RequestID string
+	Provider  string
+	State     string
+}
+
+func (c *Cache) GetAccountCredentialsDynamicRegistrationIATExtAuth(
+	ctx context.Context,
+	opts GetAccountCredentialsDynamicRegistrationIATExtAuthOptions,
+) (AccountCredentialsDynamicRegistrationIATExtAuthData, bool, error) {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  accountCredentialsDynamicRegistrationLocation,
+		Method:    "GetAccountCredentialsDynamicRegistrationIATExtAuth",
+		RequestID: opts.RequestID,
+	}).With(
+		"provider", opts.Provider,
+	)
+	logger.DebugContext(ctx, "Getting account credentials dynamic registration IAT external auth...")
+
+	data, err := c.storage.GetWithContext(ctx, buildAccountCredentialsDynamicRegistrationIATExtAuthCacheKey(opts.Provider, opts.State))
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account credentials dynamic registration IAT external auth", "error", err)
+		return AccountCredentialsDynamicRegistrationIATExtAuthData{}, false, err
+	}
+	if data == nil {
+		logger.DebugContext(ctx, "Account credentials dynamic registration IAT external auth not found")
+		return AccountCredentialsDynamicRegistrationIATExtAuthData{}, false, nil
+	}
+
+	var authData AccountCredentialsDynamicRegistrationIATExtAuthData
+	if err := json.Unmarshal(data, &authData); err != nil {
+		logger.ErrorContext(ctx, "Failed to unmarshal account credentials dynamic registration IAT external auth data", "error", err)
+		return AccountCredentialsDynamicRegistrationIATExtAuthData{}, false, err
+	}
+
+	return authData, true, nil
+}

@@ -86,11 +86,21 @@ func (r *Routes) AccountDynamicRegistrationConfigurationRoutes(app *fiber.App) {
 
 	// Dynamic Registration IAT Code Exchange flow
 	iatRouter.Get(paths.OAuthAuth, r.controllers.OAuthDynamicRegistrationIATAuth)
+	iatRouter.Post(paths.OAuthToken, r.controllers.OAuthDynamicRegistrationIATToken)
+
+	// Dynamic Registration IAT Login flow
 	const loginRoute = paths.InitialAccessTokenSingle + paths.AuthLogin
 	iatRouter.Get(loginRoute, r.controllers.OAuthDynamicRegistrationIATLoginGet)
 	iatRouter.Post(loginRoute, r.controllers.OAuthDynamicRegistrationIATLoginPost)
-	iatRouter.Get(loginRoute+paths.Auth2FA, r.controllers.OAuthDynamicRegistrationIAT2FAGet)
-	iatRouter.Post(loginRoute+paths.Auth2FA, r.controllers.OAuthDynamicRegistrationIAT2FAPost)
-	iatRouter.Post(paths.OAuthToken, r.controllers.OAuthDynamicRegistrationIATToken)
 
+	// Dynamic Registration IAT 2FA flow
+	const twoFAAuthRoute = loginRoute + paths.Auth2FA
+	iatRouter.Get(twoFAAuthRoute, r.controllers.OAuthDynamicRegistrationIAT2FAGet)
+	iatRouter.Post(twoFAAuthRoute, r.controllers.OAuthDynamicRegistrationIAT2FAPost)
+
+	// Dynamic Registration IAT External Auth flow
+	const extAuthRoute = paths.InitialAccessTokenSingle + paths.OAuthAuth + paths.InitialAccessTokenAuthEXT
+	iatRouter.Get(extAuthRoute+paths.InitialAccessTokenProvider, r.controllers.OAuthDynamicRegistrationIATExtAuthGet)
+	// TODO: add Apple callback
+	iatRouter.Get(extAuthRoute+paths.OAuthCallback, r.controllers.OAuthDynamicRegistrationIATExtCB)
 }

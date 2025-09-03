@@ -20,6 +20,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
+	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"github.com/tugascript/devlogs/idp/internal/services/templates"
@@ -75,7 +76,6 @@ type generateOAuthDynamicRegistrationIATCallbackOptions struct {
 	accountPublicID uuid.UUID
 	accountVersion  int32
 	challenge       string
-	challengeMethod string
 	domain          string
 	redirectURI     string
 	state           string
@@ -96,12 +96,6 @@ func (s *Services) generateOAuthDynamicRegistrationIATCallback(
 	)
 	logger.InfoContext(ctx, "Generating OAuth dynamic registration IAT callback...")
 
-	hashedChallenge, serviceErr := hashChallenge(opts.challenge, opts.challengeMethod)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Invalid code challenge", "serviceError", serviceErr)
-		return "", serviceErr
-	}
-
 	code, err := s.cache.GenerateAccountCredentialsRegistrationIATCode(
 		ctx,
 		cache.GenerateAccountCredentialsRegistrationIATCodeOptions{
@@ -109,7 +103,7 @@ func (s *Services) generateOAuthDynamicRegistrationIATCallback(
 			ClientID:        opts.clientID,
 			AccountPublicID: opts.accountPublicID,
 			AccountVersion:  opts.accountVersion,
-			Challenge:       hashedChallenge,
+			Challenge:       opts.challenge,
 			Domain:          opts.domain,
 		},
 	)
@@ -256,7 +250,7 @@ func (s *Services) refreshTokenOAuthDynamicRegistrationIATLogin(
 	}
 
 	if !slices.ContainsFunc(data.Scopes, func(s string) bool {
-		return s == tokens.AccountScopeAdmin || s == tokens.AccountScopeCredentialsConfigsWrite
+		return s == tokens.AccountScopeAdmin || s == tokens.AccountScopeCredentialsWrite
 	}) {
 		logger.WarnContext(ctx, "Refresh token missing offline_access scope")
 		return buildOAuthDynamicRegistrationIATLoginURL(buildOAuthDynamicRegistrationIATLoginURLOptions{
@@ -307,6 +301,12 @@ func (s *Services) refreshTokenOAuthDynamicRegistrationIATLogin(
 		})
 	}
 
+	hashedChallenge, serviceErr := hashChallenge(opts.challenge, opts.challengeMethod)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Invalid code challenge", "serviceError", serviceErr)
+		return "", serviceErr
+	}
+
 	cbURL, serviceErr := s.generateOAuthDynamicRegistrationIATCallback(
 		ctx,
 		generateOAuthDynamicRegistrationIATCallbackOptions{
@@ -314,8 +314,7 @@ func (s *Services) refreshTokenOAuthDynamicRegistrationIATLogin(
 			clientID:        utils.Base62UUID(),
 			accountPublicID: accountDTO.PublicID,
 			accountVersion:  accountDTO.Version(),
-			challenge:       opts.challenge,
-			challengeMethod: opts.challengeMethod,
+			challenge:       hashedChallenge,
 			domain:          opts.domain,
 			redirectURI:     opts.redirectURI,
 			state:           opts.state,
@@ -427,6 +426,12 @@ func (s *Services) InitiateOAuthDynamicRegistrationIATAuth(
 		return "", serviceErr
 	}
 
+	hashedChallenge, serviceErr := hashChallenge(opts.Challenge, opts.ChallengeMethod)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Invalid code challenge", "serviceError", serviceErr)
+		return "", serviceErr
+	}
+
 	logger.InfoContext(ctx, "Successfully verified account credentials registration IAT session key, creating code...")
 	cbURL, serviceErr := s.generateOAuthDynamicRegistrationIATCallback(
 		ctx,
@@ -435,8 +440,7 @@ func (s *Services) InitiateOAuthDynamicRegistrationIATAuth(
 			clientID:        credsClientID,
 			accountPublicID: accountDTO.PublicID,
 			accountVersion:  accountDTO.Version(),
-			challenge:       opts.Challenge,
-			challengeMethod: opts.ChallengeMethod,
+			challenge:       hashedChallenge,
 			domain:          opts.Domain,
 			redirectURI:     opts.RedirectURI,
 			state:           opts.State,
@@ -1171,4 +1175,229 @@ func (s *Services) VerifyOAuthDynamicRegistrationIATCode(
 
 	logger.InfoContext(ctx, "Verified account credentials registration IAT code successfully")
 	return dtos.NewAuthDTO(signedToken, tokenTTL), nil
+}
+
+type OAuthDynamicRegistrationIATExtGetOptions struct {
+	RequestID     string
+	ACCClientID   string
+	Domain        string
+	Provider      string
+	CallbackURL   string
+	RedirectURI   string
+	State         string
+	BackendDomain string
+}
+
+func (s *Services) OAuthDynamicRegistrationIATExtGet(
+	ctx context.Context,
+	opts OAuthDynamicRegistrationIATExtGetOptions,
+) (string, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, oauthLocation, "OAuthDynamicRegistrationIATExtGet").With(
+		"Provider", opts.Provider,
+	)
+	logger.InfoContext(ctx, "External logging in account...")
+
+	authUrlOpts := oauth.AuthorizationURLOptions{
+		RequestID:   opts.RequestID,
+		Scopes:      oauthScopes,
+		RedirectURL: opts.CallbackURL,
+	}
+	var oauthUrl, state string
+	var serviceErr *exceptions.ServiceError
+	switch opts.Provider {
+	case AuthProviderApple:
+		oauthUrl, state, serviceErr = s.oauthProviders.GetAppleAuthorizationURL(ctx, authUrlOpts)
+	case AuthProviderFacebook:
+		oauthUrl, state, serviceErr = s.oauthProviders.GetFacebookAuthorizationURL(ctx, authUrlOpts)
+	case AuthProviderGitHub:
+		oauthUrl, state, serviceErr = s.oauthProviders.GetGithubAuthorizationURL(ctx, authUrlOpts)
+	case AuthProviderGoogle:
+		oauthUrl, state, serviceErr = s.oauthProviders.GetGoogleAuthorizationURL(ctx, authUrlOpts)
+	case AuthProviderMicrosoft:
+		oauthUrl, state, serviceErr = s.oauthProviders.GetMicrosoftAuthorizationURL(ctx, authUrlOpts)
+	default:
+		logger.ErrorContext(ctx, "Provider must be 'apple', 'facebook', 'github', 'google' and 'microsoft'")
+		return "", exceptions.NewInternalServerError()
+	}
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get authorization url or State", "error", serviceErr)
+		return "", serviceErr
+	}
+
+	data, found, err := s.cache.GetAccountCredentialsDynamicRegistrationAuthIAT(ctx, cache.GetAccountCredentialsDynamicRegistrationIATAuthOptions{
+		RequestID: opts.RequestID,
+		ClientID:  opts.ACCClientID,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account credentials dynamic registration IAT", "error", err)
+		return "", exceptions.NewInternalServerError()
+	}
+	if !found {
+		logger.ErrorContext(ctx, "Account credentials dynamic registration IAT not found")
+		return "", exceptions.NewNotFoundError()
+	}
+
+	if data.Domain != opts.Domain {
+		logger.WarnContext(ctx, "OAuth Domain does not match", "dataDomain", data.Domain)
+		return "", exceptions.NewUnauthorizedError()
+	}
+	if data.State != opts.State {
+		logger.WarnContext(ctx, "OAuth State does not match")
+		return "", exceptions.NewUnauthorizedError()
+	}
+	if data.RedirectURI != opts.RedirectURI {
+		logger.WarnContext(ctx, "OAuth Redirect URI does not match")
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	if err := s.cache.SaveAccountCredentialsDynamicRegistrationIATExtAuth(ctx, cache.SaveAccountCredentialsDynamicRegistrationIATExtAuthOptions{
+		RequestID:    opts.RequestID,
+		ClientID:     opts.ACCClientID,
+		Domain:       opts.Domain,
+		Provider:     opts.Provider,
+		State:        state,
+		RequestState: opts.State,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to save account credentials dynamic registration IAT external auth", "error", err)
+		return "", exceptions.NewInternalServerError()
+	}
+
+	logger.InfoContext(ctx, "Saved account credentials dynamic registration IAT external auth successfully")
+	return oauthUrl, nil
+}
+
+type OAuthDynamicRegistrationIATExtCBOptions struct {
+	RequestID     string
+	ACCClientID   string
+	Provider      string
+	State         string
+	Code          string
+	RedirectURL   string
+	BackendDomain string
+}
+
+func (s *Services) OAuthDynamicRegistrationIATExtCB(
+	ctx context.Context,
+	opts OAuthDynamicRegistrationIATExtCBOptions,
+) (string, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, oauthLocation, "OAuthDynamicRegistrationIATExtCB")
+	logger.InfoContext(ctx, "External callback for account...")
+
+	data, found, err := s.cache.GetAccountCredentialsDynamicRegistrationIATExtAuth(ctx, cache.GetAccountCredentialsDynamicRegistrationIATExtAuthOptions{
+		RequestID: opts.RequestID,
+		Provider:  opts.Provider,
+		State:     opts.State,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account credentials dynamic registration IAT external auth", "error", err)
+		return "", exceptions.NewInternalServerError()
+	}
+	if !found {
+		logger.ErrorContext(ctx, "Account credentials dynamic registration IAT external auth not found")
+		return "", exceptions.NewNotFoundError()
+	}
+
+	if data.ClientID != opts.ACCClientID {
+		logger.WarnContext(ctx, "Client IDs do not match", "dataClientId", data.ClientID)
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	accessTokenOpts := oauth.AccessTokenOptions{
+		RequestID:   opts.RequestID,
+		Code:        opts.Code,
+		Scopes:      oauthScopes,
+		RedirectURL: opts.RedirectURL,
+	}
+	var token string
+	var serviceErr *exceptions.ServiceError
+	switch opts.Provider {
+	case AuthProviderFacebook:
+		token, serviceErr = s.oauthProviders.GetFacebookAccessToken(ctx, accessTokenOpts)
+	case AuthProviderGitHub:
+		token, serviceErr = s.oauthProviders.GetGithubAccessToken(ctx, accessTokenOpts)
+	case AuthProviderGoogle:
+		token, serviceErr = s.oauthProviders.GetGoogleAccessToken(ctx, accessTokenOpts)
+	case AuthProviderMicrosoft:
+		token, serviceErr = s.oauthProviders.GetMicrosoftAccessToken(ctx, accessTokenOpts)
+	default:
+		logger.ErrorContext(ctx, "Provider must be 'facebook', 'github', 'google' and 'microsoft'")
+		return "", exceptions.NewInternalServerError()
+	}
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to get oauth access token", "error", serviceErr)
+		return "", serviceErr
+	}
+
+	authData, found, err := s.cache.GetAccountCredentialsDynamicRegistrationAuthIAT(ctx, cache.GetAccountCredentialsDynamicRegistrationIATAuthOptions{
+		RequestID: opts.RequestID,
+		ClientID:  opts.ACCClientID,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account credentials dynamic registration IAT", "error", err)
+		return "", exceptions.NewInternalServerError()
+	}
+	if !found {
+		logger.ErrorContext(ctx, "Account credentials dynamic registration IAT not found")
+		return "", exceptions.NewNotFoundError()
+	}
+
+	if authData.Domain != data.Domain {
+		logger.WarnContext(ctx, "OAuth Domain does not match", "dataDomain", authData.Domain)
+		return "", exceptions.NewUnauthorizedError()
+	}
+	if authData.State != data.RequestState {
+		logger.WarnContext(ctx, "OAuth State does not match")
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	userData, serviceErr := s.extOAuthUser(ctx, logger, extOAuthUserOptions{
+		requestID: opts.RequestID,
+		provider:  opts.Provider,
+		token:     token,
+	})
+	if serviceErr != nil {
+		return "", serviceErr
+	}
+
+	accountDTO, serviceErr := s.GetAccountByEmail(ctx, GetAccountByEmailOptions{
+		RequestID: opts.RequestID,
+		Email:     userData.Email,
+	})
+	if serviceErr != nil {
+		return "", serviceErr
+	}
+	if _, serviceErr := s.GetAccountAuthProvider(ctx, GetAccountAuthProviderOptions{
+		RequestID: opts.RequestID,
+		PublicID:  accountDTO.PublicID,
+		Provider:  opts.Provider,
+	}); serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to get account auth provider", "serviceError", serviceErr)
+			return "", serviceErr
+		}
+
+		logger.WarnContext(ctx, "Account auth provider not found", "serviceError", serviceErr)
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	cbURL, serviceErr := s.generateOAuthDynamicRegistrationIATCallback(
+		ctx,
+		generateOAuthDynamicRegistrationIATCallbackOptions{
+			requestID:       opts.RequestID,
+			clientID:        opts.ACCClientID,
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			challenge:       authData.Challenge,
+			domain:          authData.Domain,
+			redirectURI:     authData.RedirectURI,
+			state:           authData.State,
+			backendDomain:   opts.BackendDomain,
+		},
+	)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to generate OAuth dynamic registration IAT callback", "serviceError", serviceErr)
+		return "", serviceErr
+	}
+
+	return cbURL, nil
 }
