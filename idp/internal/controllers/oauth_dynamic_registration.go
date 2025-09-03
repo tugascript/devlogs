@@ -475,6 +475,110 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAPost(ctx *fiber.Ctx) error {
 	return ctx.Redirect(redirectURL, fiber.StatusSeeOther)
 }
 
+func (c *Controllers) OAuthDynamicRegistrationIATExtAuthGet(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthDynamicRegistrationIATExtAuthGet")
+	logRequest(logger, ctx)
+
+	uPrms := params.OAuthDynamicRegistrationIATExtAuthURLParams{
+		ACCClientID: ctx.Params("accClientID"),
+		Provider:    ctx.Params("provider"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &uPrms); err != nil {
+		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewNotFoundError())
+	}
+
+	baseQPrms := params.OAuthDynamicRegistrationIATAuthBaseQueryParams{
+		ClientID:    ctx.Query("client_id"),
+		RedirectURI: ctx.Query("redirect_uri"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), baseQPrms); err != nil {
+		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
+	}
+
+	responseType := ctx.Query("response_type")
+	state := ctx.Query("state")
+	if responseType != "code" {
+		return c.redirectErrorCallback(logger, ctx, baseQPrms.RedirectURI, state, exceptions.OAuthErrorUnsupportedResponseType)
+	}
+
+	qPrms := params.OAuthDynamicRegistrationIATAuthQueryParams{
+		ResponseType:    responseType,
+		Challenge:       ctx.Query("code_challenge"),
+		ChallengeMethod: ctx.Query("code_challenge_method"),
+		State:           state,
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), qPrms); err != nil {
+		return c.redirectErrorCallback(logger, ctx, baseQPrms.RedirectURI, state, exceptions.OAuthErrorInvalidRequest)
+	}
+
+	authURL, serviceErr := c.services.OAuthDynamicRegistrationIATExtGet(
+		ctx.UserContext(),
+		services.OAuthDynamicRegistrationIATExtGetOptions{
+			RequestID:     requestID,
+			ACCClientID:   uPrms.ACCClientID,
+			Provider:      uPrms.Provider,
+			Domain:        baseQPrms.ClientID,
+			CallbackURL:   baseQPrms.RedirectURI,
+			RedirectURI:   baseQPrms.RedirectURI,
+			State:         qPrms.State,
+			BackendDomain: c.backendDomain,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorHTMLResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusFound)
+	return ctx.Redirect(authURL, fiber.StatusFound)
+}
+
+func (c *Controllers) OAuthDynamicRegistrationIATExtCB(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthDynamicRegistrationIATExtCB")
+	logRequest(logger, ctx)
+
+	uPrms := params.OAuthDynamicRegistrationIATExtAuthURLParams{
+		ACCClientID: ctx.Params("accClientID"),
+		Provider:    ctx.Params("provider"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &uPrms); err != nil {
+		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewNotFoundError())
+	}
+
+	qPrms := params.OAuthCallbackQueryParams{
+		Code:  ctx.Query("code"),
+		State: ctx.Query("state"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &qPrms); err != nil {
+		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
+	}
+
+	cbURL, serviceErr := c.services.OAuthDynamicRegistrationIATExtCB(
+		ctx.UserContext(),
+		services.OAuthDynamicRegistrationIATExtCBOptions{
+			RequestID:   requestID,
+			ACCClientID: uPrms.ACCClientID,
+			Provider:    uPrms.Provider,
+			State:       qPrms.State,
+			Code:        qPrms.Code,
+			RedirectURL: "https://" + c.backendDomain + paths.V1 + paths.AccountsBase +
+				paths.CredentialsBase + paths.DynamicRegistrationBase + paths.InitialAccessToken +
+				"/" + uPrms.ACCClientID + paths.OAuthAuth + paths.InitialAccessTokenAuthEXT + "/" +
+				uPrms.Provider + paths.InitialAccessTokenCallback,
+			BackendDomain: c.backendDomain,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorHTMLResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusFound)
+	return ctx.Redirect(cbURL, fiber.StatusFound)
+}
+
+// TODO: add Apple callback
+
 func (c *Controllers) OAuthDynamicRegistrationIATToken(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthDynamicRegistrationIATToken")

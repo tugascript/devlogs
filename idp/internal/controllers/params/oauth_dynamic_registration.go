@@ -21,3 +21,8 @@ type OAuthDynamicRegistrationIATAuthQueryParams struct {
 type OAuthDynamicRegistrationIATAuthURLParams struct {
 	ACCClientID string `validate:"required,min=22,max=22,alphanum"`
 }
+
+type OAuthDynamicRegistrationIATExtAuthURLParams struct {
+	ACCClientID string `validate:"required,min=22,max=22,alphanum"`
+	Provider    string `validate:"required,oneof=apple facebook github google microsoft"`
+}

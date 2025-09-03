@@ -7,8 +7,10 @@
 package paths
 
 const (
-	DynamicRegistrationBase   string = "/dynamic-registration"
-	InitialAccessToken        string = "/initial-access-token"
-	InitialAccessTokenAuthEXT string = "/ext"
-	InitialAccessTokenSingle  string = "/:accClientID"
+	DynamicRegistrationBase    string = "/dynamic-registration"
+	InitialAccessToken         string = "/initial-access-token"
+	InitialAccessTokenAuthEXT  string = "/ext"
+	InitialAccessTokenCallback string = "/callback"
+	InitialAccessTokenProvider string = "/:provider"
+	InitialAccessTokenSingle   string = "/:accClientID"
 )
