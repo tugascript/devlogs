@@ -93,30 +93,6 @@ func validateQueryParamsErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err e
 	return validateErrorJSONResponse(logger, ctx, exceptions.ValidationResponseLocationQuery, err)
 }
 
-func validationErrorHTMLResponse(logger *slog.Logger, ctx *fiber.Ctx, location string, err error) error {
-	logger.WarnContext(ctx.UserContext(), "Failed to validate request", "error", err)
-	expt := validationErrorException(location, err)
-	errHtml, err := templates.BuildErrorTemplate(
-		templates.ErrorTemplateOptions{
-			Status:       fiber.StatusBadRequest,
-			ErrorCode:    expt.Code,
-			MessageTitle: expt.Message,
-			Messages: utils.MapSlice(expt.Fields, func(f *exceptions.FieldError) string {
-				return fmt.Sprintf("Field '%s' - Value '%s': %s", f.Param, f.Value, f.Message)
-			}),
-		},
-	)
-	if err != nil {
-		logger.ErrorContext(ctx.UserContext(), "Failed to build error template", "error", err)
-		logResponse(logger, ctx, fiber.StatusInternalServerError)
-		return ctx.Status(fiber.StatusInternalServerError).
-			Type("html").
-			SendString(templates.InternalServerErrorTemplate)
-	}
-
-	return ctx.Status(fiber.StatusBadRequest).Type("html").SendString(errHtml)
-}
-
 func serviceErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *exceptions.ServiceError) error {
 	status := exceptions.NewRequestErrorStatus(serviceErr.Code)
 	resErr := exceptions.NewErrorResponse(serviceErr)

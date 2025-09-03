@@ -46,7 +46,7 @@ func TestAccountOAuthURL(t *testing.T) {
 		params.Add("response_type", "code")
 		params.Add("scope", "email profile")
 		params.Add("state", generateState(t))
-		params.Add("code_challenge", utils.Sha256HashBase64([]byte(generateState(t))))
+		params.Add("code_challenge", utils.Sha256HashBase64(generateState(t)))
 		params.Add("code_challenge_method", "S256")
 		return "?" + params.Encode()
 	}
@@ -165,7 +165,7 @@ func callbackBeforeEach(t *testing.T, provider string) (string, string, string) 
 
 	testCache := GetTestCache(t)
 	requestID := uuid.NewString()
-	challenge := utils.Sha256HashBase64([]byte(state + requestID))
+	challenge := utils.Sha256HashBase64(state + requestID)
 	stateOpts := cache.SaveOAuthStateDataOptions{
 		RequestID:    requestID,
 		State:        state,
@@ -695,7 +695,7 @@ func TestOAuthToken(t *testing.T) {
 			GivenName:  account.GivenName,
 			FamilyName: account.FamilyName,
 			Provider:   provider,
-			Challenge:  utils.Sha256HashBase64([]byte(challenge)),
+			Challenge:  utils.Sha256HashBase64(challenge),
 		})
 		if err != nil {
 			t.Fatal("Failed to generate OAuth code", err)

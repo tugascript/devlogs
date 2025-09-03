@@ -214,7 +214,7 @@ func NewProviders(
 			},
 			Enabled: microsoftCfg.Enabled(),
 		},
-		logger: log,
+		logger: log.With(utils.BaseLayer, logLayer),
 	}
 }
 
