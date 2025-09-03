@@ -1480,7 +1480,7 @@ func TestListAccountAuthProviders(t *testing.T) {
 			AssertFn: func(t *testing.T, _ string, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.ItemsDTO[dtos.AuthProviderDTO]{})
 				AssertEqual(t, len(resBody.Items), 1)
-				AssertEqual(t, resBody.Items[0].Provider, services.AuthProviderLocal)
+				AssertEqual(t, resBody.Items[0].Provider, database.AuthProviderLocal)
 				AssertNotEmpty(t, resBody.Items[0].RegisteredAt)
 			},
 		},
@@ -1549,11 +1549,11 @@ func TestListAccountAuthProviders(t *testing.T) {
 			AssertFn: func(t *testing.T, _ string, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.ItemsDTO[dtos.AuthProviderDTO]{})
 				AssertEqual(t, len(resBody.Items), 3)
-				AssertEqual(t, resBody.Items[0].Provider, services.AuthProviderGoogle)
+				AssertEqual(t, resBody.Items[0].Provider, database.AuthProviderGoogle)
 				AssertNotEmpty(t, resBody.Items[0].RegisteredAt)
-				AssertEqual(t, resBody.Items[1].Provider, services.AuthProviderMicrosoft)
+				AssertEqual(t, resBody.Items[1].Provider, database.AuthProviderMicrosoft)
 				AssertNotEmpty(t, resBody.Items[1].RegisteredAt)
-				AssertEqual(t, resBody.Items[2].Provider, services.AuthProviderLocal)
+				AssertEqual(t, resBody.Items[2].Provider, database.AuthProviderLocal)
 				AssertNotEmpty(t, resBody.Items[2].RegisteredAt)
 			},
 		},
@@ -1639,7 +1639,7 @@ func TestGetAccountAuthProvider(t *testing.T) {
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, provider string, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AuthProviderDTO{})
-				AssertEqual(t, resBody.Provider, services.AuthProviderApple)
+				AssertEqual(t, resBody.Provider, database.AuthProviderApple)
 				AssertNotEmpty(t, resBody.RegisteredAt)
 			},
 			Path: authProviderPath + "/apple",
@@ -1690,7 +1690,7 @@ func TestGetAccountAuthProvider(t *testing.T) {
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, provider string, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AuthProviderDTO{})
-				AssertEqual(t, resBody.Provider, services.AuthProviderGoogle)
+				AssertEqual(t, resBody.Provider, database.AuthProviderGoogle)
 				AssertNotEmpty(t, resBody.RegisteredAt)
 			},
 			Path: authProviderPath + "/google",
