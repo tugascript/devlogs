@@ -1199,7 +1199,7 @@ func (s *Services) OAuthDynamicRegistrationIATExtGet(
 
 	authUrlOpts := oauth.AuthorizationURLOptions{
 		RequestID:   opts.RequestID,
-		Scopes:      oauthScopes,
+		Scopes:      make([]oauth.Scope, 0),
 		RedirectURL: opts.CallbackURL,
 	}
 	var oauthUrl, state string
@@ -1370,6 +1370,131 @@ func (s *Services) OAuthDynamicRegistrationIATExtCB(
 		RequestID: opts.RequestID,
 		PublicID:  accountDTO.PublicID,
 		Provider:  opts.Provider,
+	}); serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to get account auth provider", "serviceError", serviceErr)
+			return "", serviceErr
+		}
+
+		logger.WarnContext(ctx, "Account auth provider not found", "serviceError", serviceErr)
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	cbURL, serviceErr := s.generateOAuthDynamicRegistrationIATCallback(
+		ctx,
+		generateOAuthDynamicRegistrationIATCallbackOptions{
+			requestID:       opts.RequestID,
+			clientID:        opts.ACCClientID,
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			challenge:       authData.Challenge,
+			domain:          authData.Domain,
+			redirectURI:     authData.RedirectURI,
+			state:           authData.State,
+			backendDomain:   opts.BackendDomain,
+		},
+	)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to generate OAuth dynamic registration IAT callback", "serviceError", serviceErr)
+		return "", serviceErr
+	}
+
+	return cbURL, nil
+}
+
+type OAuthDynamicRegistrationIATExtAppleCBOptions struct {
+	RequestID     string
+	ACCClientID   string
+	Email         string
+	Code          string
+	State         string
+	RedirectURL   string
+	BackendDomain string
+}
+
+func (s *Services) OAuthDynamicRegistrationIATExtAppleCB(
+	ctx context.Context,
+	opts OAuthDynamicRegistrationIATExtAppleCBOptions,
+) (string, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, oauthLocation, "OAuthDynamicRegistrationIATExtAppleCB")
+	logger.InfoContext(ctx, "External callback for account...")
+
+	data, found, err := s.cache.GetAccountCredentialsDynamicRegistrationIATExtAuth(ctx, cache.GetAccountCredentialsDynamicRegistrationIATExtAuthOptions{
+		RequestID: opts.RequestID,
+		Provider:  AuthProviderApple,
+		State:     opts.State,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account credentials dynamic registration IAT external auth", "error", err)
+		return "", exceptions.NewInternalServerError()
+	}
+	if !found {
+		logger.ErrorContext(ctx, "Account credentials dynamic registration IAT external auth not found")
+		return "", exceptions.NewNotFoundError()
+	}
+
+	if data.ClientID != opts.ACCClientID {
+		logger.WarnContext(ctx, "Client IDs do not match", "dataClientId", data.ClientID)
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	idToken, serviceErr := s.oauthProviders.GetAppleIDToken(ctx, oauth.AccessTokenOptions{
+		RequestID: opts.RequestID,
+		Code:      opts.Code,
+		Scopes:    oauthScopes,
+	})
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to get apple AccountID token", "error", serviceErr)
+		return "", serviceErr
+	}
+
+	authData, found, err := s.cache.GetAccountCredentialsDynamicRegistrationAuthIAT(ctx, cache.GetAccountCredentialsDynamicRegistrationIATAuthOptions{
+		RequestID: opts.RequestID,
+		ClientID:  opts.ACCClientID,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get account credentials dynamic registration IAT", "error", err)
+		return "", exceptions.NewInternalServerError()
+	}
+	if !found {
+		logger.ErrorContext(ctx, "Account credentials dynamic registration IAT not found")
+		return "", exceptions.NewNotFoundError()
+	}
+
+	if authData.Domain != data.Domain {
+		logger.WarnContext(ctx, "OAuth Domain does not match", "dataDomain", authData.Domain)
+		return "", exceptions.NewUnauthorizedError()
+	}
+	if authData.State != data.RequestState {
+		logger.WarnContext(ctx, "OAuth State does not match")
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	ok, serviceErr := s.oauthProviders.ValidateAppleIDToken(ctx, oauth.ValidateAppleIDTokenOptions{
+		RequestID: opts.RequestID,
+		Token:     idToken,
+		Email:     opts.Email,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to validate apple AccountID token", "error", serviceErr)
+		return "", serviceErr
+	}
+	if !ok {
+		logger.WarnContext(ctx, "Apple account is not verified")
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	accountDTO, serviceErr := s.GetAccountByEmail(ctx, GetAccountByEmailOptions{
+		RequestID: opts.RequestID,
+		Email:     opts.Email,
+	})
+	if serviceErr != nil {
+		return "", serviceErr
+	}
+	if _, serviceErr := s.GetAccountAuthProvider(ctx, GetAccountAuthProviderOptions{
+		RequestID: opts.RequestID,
+		PublicID:  accountDTO.PublicID,
+		Provider:  AuthProviderApple,
 	}); serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
 			logger.ErrorContext(ctx, "Failed to get account auth provider", "serviceError", serviceErr)

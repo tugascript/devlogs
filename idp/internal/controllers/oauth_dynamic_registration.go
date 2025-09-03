@@ -7,6 +7,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
@@ -577,7 +578,61 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtCB(ctx *fiber.Ctx) error {
 	return ctx.Redirect(cbURL, fiber.StatusFound)
 }
 
-// TODO: add Apple callback
+func (c *Controllers) OAuthDynamicRegistrationIATExtAppleCB(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthDynamicRegistrationIATExtAppleCB")
+	logRequest(logger, ctx)
+
+	uPrms := params.OAuthDynamicRegistrationIATExtAppleURLParams{
+		ACCClientID: ctx.Params("accClientID"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &uPrms); err != nil {
+		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewNotFoundError())
+	}
+
+	if ctx.Get("Content-Type") != "application/x-www-form-urlencoded" {
+		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewUnsupportedMediaTypeError("Only application/x-www-form-urlencoded is supported"))
+	}
+
+	qPrms := bodies.OAuthDynamicRegistrationIATExtAppleBody{
+		Code:  ctx.FormValue("code"),
+		State: ctx.FormValue("state"),
+		User:  ctx.FormValue("user"),
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), &qPrms); err != nil {
+		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
+	}
+
+	user := new(bodies.OAuthDynamicRegistrationIATExtAppleUserBody)
+	if err := json.Unmarshal([]byte(qPrms.User), user); err != nil {
+		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
+	}
+	if err := c.validate.StructCtx(ctx.UserContext(), user); err != nil {
+		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
+	}
+
+	cbURL, serviceErr := c.services.OAuthDynamicRegistrationIATExtAppleCB(
+		ctx.UserContext(),
+		services.OAuthDynamicRegistrationIATExtAppleCBOptions{
+			RequestID:   requestID,
+			ACCClientID: uPrms.ACCClientID,
+			Email:       user.Email,
+			Code:        qPrms.Code,
+			State:       qPrms.State,
+			RedirectURL: "https://" + c.backendDomain + paths.V1 + paths.AccountsBase +
+				paths.CredentialsBase + paths.DynamicRegistrationBase + paths.InitialAccessToken +
+				"/" + uPrms.ACCClientID + paths.OAuthAuth + paths.InitialAccessTokenAuthEXT + "/" +
+				services.AuthProviderApple + paths.InitialAccessTokenCallback,
+			BackendDomain: c.backendDomain,
+		},
+	)
+	if serviceErr != nil {
+		return serviceErrorHTMLResponse(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusFound)
+	return ctx.Redirect(cbURL, fiber.StatusFound)
+}
 
 func (c *Controllers) OAuthDynamicRegistrationIATToken(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
