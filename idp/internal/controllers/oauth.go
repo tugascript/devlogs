@@ -152,19 +152,19 @@ func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
 
 	body := new(bodies.AppleLoginBody)
 	if err := ctx.BodyParser(body); err != nil {
-		return c.errorCallback(logger, ctx, "", exceptions.OAuthErrorInvalidRequest)
+		return c.errorCallback(logger, ctx, body.State, exceptions.OAuthErrorInvalidRequest)
 	}
 	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
-		return c.errorCallback(logger, ctx, "", exceptions.OAuthErrorInvalidRequest)
+		return c.errorCallback(logger, ctx, body.State, exceptions.OAuthErrorInvalidRequest)
 	}
 
 	user := new(bodies.AppleUser)
 	if err := json.Unmarshal([]byte(body.User), user); err != nil {
-		return c.errorCallback(logger, ctx, "", exceptions.OAuthErrorInvalidScope)
+		return c.errorCallback(logger, ctx, body.State, exceptions.OAuthErrorInvalidScope)
 	}
 	if err := c.validate.StructCtx(ctx.UserContext(), user); err != nil {
 		logger.WarnContext(ctx.UserContext(), "Failed to parse apple user data")
-		return c.errorCallback(logger, ctx, "", exceptions.OAuthErrorInvalidScope)
+		return c.errorCallback(logger, ctx, body.State, exceptions.OAuthErrorInvalidScope)
 	}
 
 	oauthParams, serviceErr := c.services.AppleLoginAccount(ctx.UserContext(), services.AppleLoginAccountOptions{
@@ -176,7 +176,7 @@ func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
 		State:     body.State,
 	})
 	if serviceErr != nil {
-		return c.serviceErrorCallback(logger, ctx, "", serviceErr)
+		return c.serviceErrorCallback(logger, ctx, body.State, serviceErr)
 	}
 
 	return c.acceptCallback(logger, ctx, oauthParams)

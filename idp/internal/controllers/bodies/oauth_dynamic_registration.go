@@ -41,3 +41,13 @@ type OAuthDynamicRegistrationIATTokenBody struct {
 	Code         string `json:"code" validate:"required,min=1"`
 	CodeVerifier string `json:"code_verifier" validate:"required,min=1"`
 }
+
+type OAuthDynamicRegistrationIATExtAppleUserBody struct {
+	Email string `json:"email" validate:"required,email"`
+}
+
+type OAuthDynamicRegistrationIATExtAppleBody struct {
+	Code  string `json:"code" validate:"required,min=1"`
+	State string `json:"state" validate:"required,min=1"`
+	User  string `json:"user" validate:"required,json"`
+}
