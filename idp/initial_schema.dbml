@@ -110,10 +110,10 @@ Table token_signing_keys as TS {
 }
 Ref: TS.dek_kid > DEK.kid [delete: cascade, update: cascade]
 
-Enum two_factor_type {
-    "none"
-    "totp"
-    "email"
+Enum activity_status {
+    "active"
+    "suspended"
+    "blocked"
 }
 
 Table accounts as A {
@@ -128,9 +128,7 @@ Table accounts as A {
     password text
     version integer [not null, default: 1]
     email_verified boolean [not null, default: false]
-
-    is_active boolean [not null, default: true]
-    two_factor_type two_factor_type [not null, default: 'none']
+    activity_status activity_status [not null, default: 'active']
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -142,6 +140,33 @@ Table accounts as A {
         (username) [unique, name: 'accounts_username_uidx']
     }
 }
+
+Enum two_factor_type {
+    "totp"
+    "email"
+}
+
+Table account_2fa_configs as A2FA {
+    id serial [pk]
+
+    account_id integer [not null]
+    account_public_id uuid [not null]
+
+    two_factor_type two_factor_type [not null]
+    is_default boolean [not null, default: false]
+    is_active boolean [not null, default: false]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'account_2fa_configs_account_id_idx']
+        (account_public_id) [name: 'account_2fa_configs_account_public_id_idx']
+        (account_public_id, is_default) [name: 'account_2fa_configs_account_public_id_is_default_idx']
+        (account_public_id, two_factor_type) [name: 'account_2fa_configs_account_public_id_two_factor_type_idx']
+    }
+}
+Ref: A2FA.account_id > A.id [delete: cascade]
 
 Enum totp_usage {
     "account"
@@ -545,9 +570,7 @@ Table users as U {
     password text
     version integer [not null, default: 1]
     email_verified boolean [not null, default: false]
-
-    is_active boolean [not null, default: true]
-    two_factor_type two_factor_type [not null, default: 'none']
+    activity_status activity_status [not null, default: 'active']
 
     user_data jsonb [not null, default: '{}']
 
@@ -563,6 +586,27 @@ Table users as U {
     }
 }
 Ref: U.account_id > A.id [delete: cascade]
+
+Table user_2fa_configs as U2FA {
+    id serial [pk]
+    account_id integer [not null]
+
+    user_id integer [not null]
+    two_factor_type two_factor_type [not null]
+    is_default boolean [not null, default: false]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'user_2fa_configs_account_id_idx']
+        (user_id) [name: 'user_2fa_configs_user_id_idx']
+        (two_factor_type) [name: 'user_2fa_configs_two_factor_type_idx']
+        (user_id, two_factor_type) [unique, name: 'user_2fa_configs_user_id_two_factor_type_uidx']
+    }
+}
+Ref: U2FA.account_id > A.id [delete: cascade]
+Ref: U2FA.user_id > U.id [delete: cascade]
 
 Table user_data_encryption_keys as UDEK {
     user_id integer [not null]
@@ -895,6 +939,7 @@ Enum initial_access_token_generation_method {
 Enum software_statement_verification_method {
     "manual"
     "jwks_uri"
+    "jwk_x5_parameters"
 }
 
 Table account_dynamic_registration_configs as ADRC {

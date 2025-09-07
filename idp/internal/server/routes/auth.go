@@ -32,17 +32,6 @@ func (r *Routes) AuthRoutes(app *fiber.App) {
 		r.controllers.TwoFAAccessClaimsMiddleware,
 		r.controllers.RecoverAccount,
 	)
-	router.Put(
-		paths.Auth2FA,
-		r.controllers.AccountAccessClaimsMiddleware,
-		r.controllers.AdminScopeMiddleware,
-		r.controllers.UpdateAccount2FA,
-	)
-	router.Post(
-		paths.Auth2FA+paths.Confirm,
-		r.controllers.TwoFAAccessClaimsMiddleware,
-		r.controllers.ConfirmUpdateAccount2FA,
-	)
 	router.Post(paths.AuthRefresh, r.controllers.RefreshAccount)
 	router.Post(paths.AuthLogout, r.controllers.AccountAccessClaimsMiddleware, r.controllers.LogoutAccount)
 	router.Post(paths.AuthForgotPassword, r.controllers.ForgotAccountPassword)
@@ -58,5 +47,42 @@ func (r *Routes) AuthRoutes(app *fiber.App) {
 		r.controllers.AccountAccessClaimsMiddleware,
 		authProvsReaderMW,
 		r.controllers.GetAccountAuthProvider,
+	)
+
+	// 2FA routes
+	router.Post(
+		paths.Auth2FA,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.AdminScopeMiddleware,
+		r.controllers.CreateAccount2FAConfig,
+	)
+	router.Get(
+		paths.Auth2FA+paths.TwoFADefault,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.AdminScopeMiddleware,
+		r.controllers.GetDefaultAccount2FAConfig,
+	)
+	router.Get(
+		paths.Auth2FA+paths.TwoFASingle,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.AdminScopeMiddleware,
+		r.controllers.GetAccount2FAConfig,
+	)
+	router.Patch(
+		paths.Auth2FA+paths.TwoFASingle,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.AdminScopeMiddleware,
+		r.controllers.SetAccount2FAConfigDefault,
+	)
+	router.Delete(
+		paths.Auth2FA+paths.TwoFASingle,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.AdminScopeMiddleware,
+		r.controllers.DeleteAccount2FAConfig,
+	)
+	router.Post(
+		paths.Auth2FA+paths.TwoFASingle+paths.Confirm,
+		r.controllers.TwoFAAccessClaimsMiddleware,
+		r.controllers.ConfirmDeleteAccount2FAConfig,
 	)
 }

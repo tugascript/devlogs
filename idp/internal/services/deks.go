@@ -53,11 +53,13 @@ func (s *Services) buildStoreGlobalDEKfn(
 	ctx context.Context,
 	requestID string,
 	data map[string]string,
+	queries *database.Queries,
 ) crypto.StoreDEK {
 	logger := s.buildLogger(requestID, deksLocation, "storeGlobalDEK")
 	logger.InfoContext(ctx, "Building store function for global DEK...")
 	return func(dekID string, encryptedDEK string, kekID uuid.UUID) (int32, *exceptions.ServiceError) {
-		dekEnt, err := s.database.CreateDataEncryptionKey(ctx, database.CreateDataEncryptionKeyParams{
+		qrs := s.mapQueries(queries)
+		dekEnt, err := qrs.CreateDataEncryptionKey(ctx, database.CreateDataEncryptionKeyParams{
 			Kid:       dekID,
 			KekKid:    kekID,
 			Usage:     database.DekUsageGlobal,
@@ -87,15 +89,20 @@ func (s *Services) buildStoreGlobalDEKfn(
 	}
 }
 
+type BuildGetGlobalDEKFnOptions struct {
+	RequestID string
+	Queries   *database.Queries
+}
+
 func (s *Services) BuildGetEncGlobalDEKFn(
 	ctx context.Context,
-	requestID string,
+	opts BuildGetGlobalDEKFnOptions,
 ) crypto.GetDEKtoEncrypt {
-	logger := s.buildLogger(requestID, deksLocation, "BuildGetEncGlobalDEKFn")
+	logger := s.buildLogger(opts.RequestID, deksLocation, "BuildGetEncGlobalDEKFn")
 	logger.InfoContext(ctx, "Build GetDEKtoEncrypt function...")
 	return func() (crypto.DEKID, crypto.EncryptedDEK, uuid.UUID, *exceptions.ServiceError) {
 		kid, dek, kekKID, ok, err := s.cache.GetEncDEK(ctx, cache.GetEncDEKOptions{
-			RequestID: requestID,
+			RequestID: opts.RequestID,
 			Suffix:    "global",
 		})
 		if err != nil {
@@ -107,7 +114,8 @@ func (s *Services) BuildGetEncGlobalDEKFn(
 			return kid, dek, kekKID, nil
 		}
 
-		dekEnt, err := s.database.FindValidGlobalDataEncryptionKey(ctx, time.Now().Add(-2*time.Hour))
+		qrs := s.mapQueries(opts.Queries)
+		dekEnt, err := qrs.FindValidGlobalDataEncryptionKey(ctx, time.Now().Add(-2*time.Hour))
 		if err != nil {
 			serviceErr := exceptions.FromDBError(err)
 			if serviceErr.Code != exceptions.CodeNotFound {
@@ -115,7 +123,7 @@ func (s *Services) BuildGetEncGlobalDEKFn(
 				return "", "", uuid.Nil, serviceErr
 			}
 
-			kekKID, serviceErr := s.GetOrCreateGlobalKEK(ctx, requestID)
+			kekKID, serviceErr := s.GetOrCreateGlobalKEK(ctx, opts.RequestID)
 			if serviceErr != nil {
 				logger.ErrorContext(ctx, "Failed to get or create global KEK", "error", serviceErr)
 				return "", "", uuid.Nil, serviceErr
@@ -123,9 +131,9 @@ func (s *Services) BuildGetEncGlobalDEKFn(
 
 			data := make(map[string]string)
 			if serviceErr := s.createDEK(ctx, createDEKOptions{
-				requestID: requestID,
+				requestID: opts.RequestID,
 				kekKID:    kekKID,
-				storeFN:   s.buildStoreGlobalDEKfn(ctx, requestID, data),
+				storeFN:   s.buildStoreGlobalDEKfn(ctx, opts.RequestID, data, qrs),
 			}); serviceErr != nil {
 				logger.ErrorContext(ctx, "Failed to create global DEK", "serviceError", serviceErr)
 				return "", "", uuid.Nil, serviceErr
@@ -153,14 +161,14 @@ func (s *Services) BuildGetEncGlobalDEKFn(
 
 func (s *Services) BuildGetGlobalDecDEKFn(
 	ctx context.Context,
-	requestID string,
+	opts BuildGetGlobalDEKFnOptions,
 ) crypto.GetDEKtoDecrypt {
-	logger := s.buildLogger(requestID, deksLocation, "BuildGetGlobalDecDEKFn")
+	logger := s.buildLogger(opts.RequestID, deksLocation, "BuildGetGlobalDecDEKFn")
 	logger.InfoContext(ctx, "Building GetDEKtoDecrypt function for global DEK...")
 
 	return func(kid string) (crypto.EncryptedDEK, crypto.KEKID, crypto.IsExpiredDEK, *exceptions.ServiceError) {
 		dek, kekKID, expiresAt, ok, err := s.cache.GetDecDEK(ctx, cache.GetDecDEKOptions{
-			RequestID: requestID,
+			RequestID: opts.RequestID,
 			KID:       kid,
 			Prefix:    "global",
 		})
@@ -175,14 +183,15 @@ func (s *Services) BuildGetGlobalDecDEKFn(
 			return dek, kekKID, now.After(expiresAt), nil
 		}
 
-		dekEnt, err := s.database.FindDataEncryptionKeyByKID(ctx, kid)
+		qrs := s.mapQueries(opts.Queries)
+		dekEnt, err := qrs.FindDataEncryptionKeyByKID(ctx, kid)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get DEK", "error", err)
 			return "", uuid.Nil, false, exceptions.FromDBError(err)
 		}
 
 		if err := s.cache.SaveDecDEK(ctx, cache.SaveDecDEKOptions{
-			RequestID: requestID,
+			RequestID: opts.RequestID,
 			DEK:       dekEnt.Dek,
 			KID:       dekEnt.Kid,
 			KEKid:     dekEnt.KekKid,
@@ -336,6 +345,7 @@ func (s *Services) BuildGetEncAccountDEKfn(
 						requestID: opts.RequestID,
 						accountID: opts.AccountID,
 						data:      data,
+						queries:   qrs,
 					}),
 				},
 			); serviceErr != nil {
@@ -408,8 +418,9 @@ func (s *Services) BuildGetDecAccountDEKFn(
 			return dek, kekKID, now.After(expiresAt), nil
 		}
 
+		qrs := s.mapQueries(opts.Queries)
 		logger.InfoContext(ctx, "DEK not found in cache, checking database...")
-		dekEnt, err := s.mapQueries(opts.Queries).FindAccountDataEncryptionKeyByAccountIDAndKID(
+		dekEnt, err := qrs.FindAccountDataEncryptionKeyByAccountIDAndKID(
 			ctx,
 			database.FindAccountDataEncryptionKeyByAccountIDAndKIDParams{
 				AccountID: opts.AccountID,

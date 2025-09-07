@@ -469,6 +469,7 @@ func (s *Services) OAuthLoginAccount(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		s.database.Queries,
 		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
@@ -717,9 +718,15 @@ func (s *Services) generateClientCredentialsAuthentication(
 			KeyType:   database.TokenKeyTypeClientCredentials,
 			TTL:       s.jwt.GetAccountCredentialsTTL(),
 		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.requestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.requestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: opts.requestID,
+		}),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: opts.requestID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: opts.requestID,
+		}),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign access token", "serviceError", serviceErr)

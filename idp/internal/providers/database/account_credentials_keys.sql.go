@@ -99,7 +99,7 @@ func (q *Queries) FindAccountCredentialKeyByAccountCredentialIDAndPublicKID(ctx 
 }
 
 const findAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKID = `-- name: FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKID :one
-SELECT a.id, a.public_id, a.given_name, a.family_name, a.username, a.email, a.organization, a.password, a.version, a.email_verified, a.is_active, a.two_factor_type, a.created_at, a.updated_at FROM "accounts" AS "a"
+SELECT a.id, a.public_id, a.given_name, a.family_name, a.username, a.email, a.organization, a.password, a.version, a.email_verified, a.activity_status, a.created_at, a.updated_at FROM "accounts" AS "a"
 LEFT JOIN "account_credentials_keys" AS "ack" ON "ack"."account_id" = "a"."id"
 WHERE
     "ack"."account_credentials_id" = $1 AND
@@ -126,8 +126,7 @@ func (q *Queries) FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKID
 		&i.Password,
 		&i.Version,
 		&i.EmailVerified,
-		&i.IsActive,
-		&i.TwoFactorType,
+		&i.ActivityStatus,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

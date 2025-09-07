@@ -110,6 +110,49 @@ func (ns NullAccountCredentialsType) Value() (driver.Value, error) {
 	return string(ns.AccountCredentialsType), nil
 }
 
+type ActivityStatus string
+
+const (
+	ActivityStatusActive    ActivityStatus = "active"
+	ActivityStatusSuspended ActivityStatus = "suspended"
+	ActivityStatusBlocked   ActivityStatus = "blocked"
+)
+
+func (e *ActivityStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ActivityStatus(s)
+	case string:
+		*e = ActivityStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ActivityStatus: %T", src)
+	}
+	return nil
+}
+
+type NullActivityStatus struct {
+	ActivityStatus ActivityStatus
+	Valid          bool // Valid is true if ActivityStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullActivityStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ActivityStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ActivityStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullActivityStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ActivityStatus), nil
+}
+
 type AppProfileType string
 
 const (
@@ -827,8 +870,9 @@ func (ns NullSecretStorageMode) Value() (driver.Value, error) {
 type SoftwareStatementVerificationMethod string
 
 const (
-	SoftwareStatementVerificationMethodManual  SoftwareStatementVerificationMethod = "manual"
-	SoftwareStatementVerificationMethodJwksUri SoftwareStatementVerificationMethod = "jwks_uri"
+	SoftwareStatementVerificationMethodManual          SoftwareStatementVerificationMethod = "manual"
+	SoftwareStatementVerificationMethodJwksUri         SoftwareStatementVerificationMethod = "jwks_uri"
+	SoftwareStatementVerificationMethodJwkX5Parameters SoftwareStatementVerificationMethod = "jwk_x5_parameters"
 )
 
 func (e *SoftwareStatementVerificationMethod) Scan(src interface{}) error {
@@ -1130,7 +1174,6 @@ func (ns NullTransport) Value() (driver.Value, error) {
 type TwoFactorType string
 
 const (
-	TwoFactorTypeNone  TwoFactorType = "none"
 	TwoFactorTypeTotp  TwoFactorType = "totp"
 	TwoFactorTypeEmail TwoFactorType = "email"
 )
@@ -1171,20 +1214,30 @@ func (ns NullTwoFactorType) Value() (driver.Value, error) {
 }
 
 type Account struct {
-	ID            int32
-	PublicID      uuid.UUID
-	GivenName     string
-	FamilyName    string
-	Username      string
-	Email         string
-	Organization  pgtype.Text
-	Password      pgtype.Text
-	Version       int32
-	EmailVerified bool
-	IsActive      bool
-	TwoFactorType TwoFactorType
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID             int32
+	PublicID       uuid.UUID
+	GivenName      string
+	FamilyName     string
+	Username       string
+	Email          string
+	Organization   pgtype.Text
+	Password       pgtype.Text
+	Version        int32
+	EmailVerified  bool
+	ActivityStatus ActivityStatus
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type Account2faConfig struct {
+	ID              int32
+	AccountID       int32
+	AccountPublicID uuid.UUID
+	TwoFactorType   TwoFactorType
+	IsDefault       bool
+	IsActive        bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type AccountAuthProvider struct {
@@ -1542,17 +1595,26 @@ type Totp struct {
 }
 
 type User struct {
+	ID             int32
+	PublicID       uuid.UUID
+	AccountID      int32
+	Email          string
+	Username       string
+	Password       pgtype.Text
+	Version        int32
+	EmailVerified  bool
+	ActivityStatus ActivityStatus
+	UserData       []byte
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type User2faConfig struct {
 	ID            int32
-	PublicID      uuid.UUID
 	AccountID     int32
-	Email         string
-	Username      string
-	Password      pgtype.Text
-	Version       int32
-	EmailVerified bool
-	IsActive      bool
+	UserID        int32
 	TwoFactorType TwoFactorType
-	UserData      []byte
+	IsDefault     bool
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

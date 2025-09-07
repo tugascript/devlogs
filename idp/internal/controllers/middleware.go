@@ -111,16 +111,17 @@ func (c *Controllers) AccountAccessClaimsMiddleware(ctx *fiber.Ctx) error {
 }
 
 func (c *Controllers) TwoFAAccessClaimsMiddleware(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
 	logger := c.buildLogger(getRequestID(ctx), middlewareLocation, "TwoFAAccessClaimsMiddleware")
 	authHeader := ctx.Get("Authorization")
 	if authHeader == "" {
 		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 	}
 
-	accountClaims, serviceErr := c.services.Process2FAAuthHeader(
+	accountClaims, twoFAType, serviceErr := c.services.Process2FAAuthHeader(
 		ctx.UserContext(),
 		services.ProcessAuthHeaderOptions{
-			RequestID:  getRequestID(ctx),
+			RequestID:  requestID,
 			AuthHeader: authHeader,
 		},
 	)
@@ -129,6 +130,7 @@ func (c *Controllers) TwoFAAccessClaimsMiddleware(ctx *fiber.Ctx) error {
 	}
 
 	ctx.Locals("account", accountClaims)
+	ctx.Locals("twoFAType", twoFAType)
 	return ctx.Next()
 }
 
@@ -250,12 +252,25 @@ func (c *Controllers) AccountHostMiddleware(ctx *fiber.Ctx) error {
 
 func getAccountClaims(ctx *fiber.Ctx) (tokens.AccountClaims, *exceptions.ServiceError) {
 	account, ok := ctx.Locals("account").(tokens.AccountClaims)
-
 	if !ok || account.AccountID == uuid.Nil {
 		return tokens.AccountClaims{}, exceptions.NewUnauthorizedError()
 	}
 
 	return account, nil
+}
+
+func getAccounts2FAClaims(ctx *fiber.Ctx) (tokens.AccountClaims, tokens.TwoFAType, *exceptions.ServiceError) {
+	account, ok := ctx.Locals("account").(tokens.AccountClaims)
+	if !ok || account.AccountID == uuid.Nil {
+		return tokens.AccountClaims{}, "", exceptions.NewUnauthorizedError()
+	}
+
+	twoFAType, ok := ctx.Locals("twoFAType").(tokens.TwoFAType)
+	if !ok || twoFAType == "" {
+		return tokens.AccountClaims{}, "", exceptions.NewUnauthorizedError()
+	}
+
+	return account, twoFAType, nil
 }
 
 func getScopes(ctx *fiber.Ctx) ([]tokens.AccountScope, *exceptions.ServiceError) {
@@ -293,20 +308,6 @@ func getUserAccessClaims(ctx *fiber.Ctx) (tokens.UserAuthClaims, tokens.AppClaim
 	}
 
 	return user, app, scopes, nil
-}
-
-func getUserPurposeClaims(ctx *fiber.Ctx) (tokens.UserPurposeClaims, tokens.AppClaims, *exceptions.ServiceError) {
-	user, ok := ctx.Locals("user").(tokens.UserPurposeClaims)
-	if !ok || user.UserID == uuid.Nil {
-		return tokens.UserPurposeClaims{}, tokens.AppClaims{}, exceptions.NewUnauthorizedError()
-	}
-
-	app, ok := ctx.Locals("app").(tokens.AppClaims)
-	if !ok || app.ClientID == "" {
-		return tokens.UserPurposeClaims{}, tokens.AppClaims{}, exceptions.NewUnauthorizedError()
-	}
-
-	return user, app, nil
 }
 
 func getHostAccount(ctx *fiber.Ctx) (string, int32, *exceptions.ServiceError) {

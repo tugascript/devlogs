@@ -152,46 +152,7 @@ func (c *Controllers) LoginUser(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) TwoFactorLoginUser(ctx *fiber.Ctx) error {
-	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, usersAuthLocation, "TwoFactorLoginUser")
-	logRequest(logger, ctx)
-
-	accountUsername, accountID, serviceErr := getHostAccount(ctx)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	userClaims, appClaims, serviceErr := getUserPurposeClaims(ctx)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	body := new(bodies.TwoFactorLoginBody)
-	if err := ctx.BodyParser(body); err != nil {
-		return parseRequestErrorResponse(logger, ctx, err)
-	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
-		return validateBodyErrorResponse(logger, ctx, err)
-	}
-
-	authDTO, serviceErr := c.services.TwoFactorLoginUser(ctx.UserContext(), services.TwoFactorLoginUserOptions{
-		RequestID:       requestID,
-		AccountID:       accountID,
-		AccountUsername: accountUsername,
-		AppClientID:     appClaims.ClientID,
-		AppVersion:      appClaims.Version,
-		UserPublicID:    userClaims.UserID,
-		UserVersion:     userClaims.UserVersion,
-		Code:            body.Code,
-	})
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	logResponse(logger, ctx, fiber.StatusOK)
-	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
-}
+// TODO: Add 2FA Login
 
 func (c *Controllers) LogoutUser(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)

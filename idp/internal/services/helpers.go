@@ -198,20 +198,6 @@ func mapDomain(baseURI string, domain string) (string, *exceptions.ServiceError)
 	return host, nil
 }
 
-func mapTwoFactorType(twoFactorType string) (database.TwoFactorType, *exceptions.ServiceError) {
-	if len(twoFactorType) < 4 {
-		return "", exceptions.NewValidationError("invalid two factor type")
-	}
-
-	dbTwoFactorType := database.TwoFactorType(twoFactorType)
-	switch dbTwoFactorType {
-	case database.TwoFactorTypeNone, database.TwoFactorTypeEmail, database.TwoFactorTypeTotp:
-		return dbTwoFactorType, nil
-	default:
-		return "", exceptions.NewValidationError("invalid two factor type")
-	}
-}
-
 func mapCCSecretStorageMode(authMethod string) database.SecretStorageMode {
 	if authMethod == AuthMethodClientSecretJWT {
 		return database.SecretStorageModeEncrypted

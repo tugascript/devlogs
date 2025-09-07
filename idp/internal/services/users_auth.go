@@ -201,7 +201,9 @@ func (s *Services) sendUserConfirmationEmail(
 			RequestID: opts.requestID,
 			AccountID: opts.accountID,
 		}),
-		StoreFN: s.BuildUpdateJWKDEKFn(ctx, opts.requestID),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: opts.requestID,
+		}),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign user token", "serviceError", serviceErr)
@@ -334,7 +336,9 @@ func (s *Services) generateFullUserAuthDTO(
 			RequestID: requestID,
 			AccountID: accountID,
 		}),
-		StoreFN: s.BuildUpdateJWKDEKFn(ctx, requestID),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: requestID,
+		}),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign access token", "serviceError", serviceErr)
@@ -373,7 +377,9 @@ func (s *Services) generateFullUserAuthDTO(
 			RequestID: requestID,
 			AccountID: accountID,
 		}),
-		StoreFN: s.BuildUpdateJWKDEKFn(ctx, requestID),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: requestID,
+		}),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign access token", "serviceError", serviceErr)
@@ -633,75 +639,7 @@ func (s *Services) LoginUser(
 		}
 	}
 
-	switch userDTO.TwoFactorType {
-	case database.TwoFactorTypeEmail, database.TwoFactorTypeTotp:
-		logger.WarnContext(ctx, "User has two-factor authentication enabled")
-		twoFAToken, err := s.jwt.CreateUserPurposeToken(tokens.UserPurposeTokenOptions{
-			TokenType:       tokens.PurposeTokenTypeTwoFA,
-			AccountUsername: opts.AccountUsername,
-			UserPublicID:    userDTO.PublicID,
-			UserVersion:     userDTO.Version(),
-			AppClientID:     appDTO.ClientID,
-			AppVersion:      appDTO.Version(),
-			Path:            paths.AppsBase + paths.UsersBase + paths.AuthLogin + paths.Auth2FA,
-		})
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create two-factor authentication token", "error", err)
-			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-		}
-
-		signedTwoFAToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
-			RequestID: opts.RequestID,
-			Token:     twoFAToken,
-			GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, BuildGetEncryptedAccountJWKFnOptions{
-				RequestID: opts.RequestID,
-				KeyType:   database.TokenKeyType2faAuthentication,
-				AccountID: opts.AccountID,
-			}),
-			GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
-				RequestID: opts.RequestID,
-				AccountID: opts.AccountID,
-			}),
-			GetEncryptDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
-				RequestID: opts.RequestID,
-				AccountID: opts.AccountID,
-			}),
-			StoreFN: s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
-		})
-		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to sign two-factor authentication token", "serviceError", serviceErr)
-			return dtos.AuthDTO{}, serviceErr
-		}
-
-		if userDTO.TwoFactorType == database.TwoFactorTypeEmail {
-			code, err := s.cache.AddTwoFactorCode(ctx, cache.AddTwoFactorCodeOptions{
-				RequestID: opts.RequestID,
-				AccountID: opts.AccountID,
-				UserID:    userDTO.ID(),
-				TTL:       s.jwt.Get2FATTL(),
-			})
-			if err != nil {
-				logger.ErrorContext(ctx, "Failed to add two-factor Code", "error", err)
-				return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-			}
-
-			if err := s.mail.PublishUser2FAEmail(ctx, mailer.User2FAEmailOptions{
-				RequestID: opts.RequestID,
-				AppName:   appDTO.Name,
-				Email:     userDTO.Email,
-				Code:      code,
-			}); err != nil {
-				logger.ErrorContext(ctx, "Failed to publish 2FA email", "error", err)
-				return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-			}
-		}
-
-		return dtos.NewTempAuthDTO(
-			signedTwoFAToken,
-			"Please provide two factor Code",
-			s.jwt.Get2FATTL(),
-		), nil
-	}
+	// TODO: add two factor login
 
 	return s.generateFullUserAuthDTO(
 		ctx,
@@ -716,17 +654,17 @@ func (s *Services) LoginUser(
 	)
 }
 
-type verifyUserTotpOptions struct {
+type VerifyUserTOTPOptions struct {
 	requestID string
 	userID    int32
 	code      string
 }
 
-func (s *Services) verifyUserTotp(
+func (s *Services) VerifyUserTOTP(
 	ctx context.Context,
-	opts verifyUserTotpOptions,
+	opts VerifyUserTOTPOptions,
 ) (bool, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.requestID, usersAuthLocation, "verifyUserTotp").With(
+	logger := s.buildLogger(opts.requestID, usersAuthLocation, "VerifyUserTOTP").With(
 		"userId", opts.userID,
 	)
 	logger.InfoContext(ctx, "Verifying user TOTP...")
@@ -765,18 +703,18 @@ func (s *Services) verifyUserTotp(
 	return true, nil
 }
 
-type verifierUserEmailCodeOptions struct {
+type VerifyUserEmailCodeOptions struct {
 	requestID string
 	accountID int32
 	userID    int32
 	code      string
 }
 
-func (s *Services) verifyUserEmailCode(
+func (s *Services) VerifyUserEmailCode(
 	ctx context.Context,
-	opts verifierUserEmailCodeOptions,
+	opts VerifyUserEmailCodeOptions,
 ) (bool, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.requestID, usersAuthLocation, "verifyUserEmailCode").With(
+	logger := s.buildLogger(opts.requestID, usersAuthLocation, "VerifyUserEmailCode").With(
 		"accountId", opts.accountID,
 		"userId", opts.userID,
 	)
@@ -800,106 +738,6 @@ func (s *Services) verifyUserEmailCode(
 
 	logger.InfoContext(ctx, "User two factor Code verified successfully")
 	return true, nil
-}
-
-type TwoFactorLoginUserOptions struct {
-	RequestID       string
-	AccountID       int32
-	AccountUsername string
-	AppClientID     string
-	AppVersion      int32
-	UserPublicID    uuid.UUID
-	UserVersion     int32
-	Code            string
-}
-
-func (s *Services) TwoFactorLoginUser(
-	ctx context.Context,
-	opts TwoFactorLoginUserOptions,
-) (dtos.AuthDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, usersAuthLocation, "TwoFactorLoginUser").With(
-		"accountId", opts.AccountID,
-		"appClientId", opts.AppClientID,
-		"userPublicId", opts.UserPublicID,
-	)
-	logger.InfoContext(ctx, "Two-factor login for user...")
-
-	appDTO, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{
-		RequestID: opts.RequestID,
-		ClientID:  opts.AppClientID,
-		Version:   opts.AppVersion,
-		AccountID: opts.AccountID,
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get app by ID", "error", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	userDTO, serviceErr := s.GetUserByPublicIDAndVersion(ctx, GetUserByPublicIDAndVersionOptions{
-		RequestID: opts.RequestID,
-		AccountID: opts.AccountID,
-		PublicID:  opts.UserPublicID,
-		Version:   opts.UserVersion,
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get user by ID", "error", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	if _, err := s.database.FindAppProfileByAppIDAndUserID(ctx, database.FindAppProfileByAppIDAndUserIDParams{
-		AppID:  appDTO.ID(),
-		UserID: userDTO.ID(),
-	}); err != nil {
-		serviceErr := exceptions.FromDBError(err)
-		if serviceErr.Code == exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "App profile not found")
-			return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-		}
-
-		logger.ErrorContext(ctx, "Failed to get app profile", "error", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	// Verify the two-factor Code based on the user's two-factor type
-	var verified bool
-	switch userDTO.TwoFactorType {
-	case database.TwoFactorTypeTotp:
-		verified, serviceErr = s.verifyUserTotp(ctx, verifyUserTotpOptions{
-			requestID: opts.RequestID,
-			userID:    userDTO.ID(),
-			code:      opts.Code,
-		})
-	case database.TwoFactorTypeEmail:
-		verified, serviceErr = s.verifyUserEmailCode(ctx, verifierUserEmailCodeOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			userID:    userDTO.ID(),
-			code:      opts.Code,
-		})
-	default:
-		logger.WarnContext(ctx, "Invalid two-factor type", "twoFactorType", userDTO.TwoFactorType)
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-	}
-
-	if serviceErr != nil {
-		return dtos.AuthDTO{}, serviceErr
-	}
-	if !verified {
-		logger.WarnContext(ctx, "Two-factor Code verification failed")
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-	}
-
-	return s.generateFullUserAuthDTO(
-		ctx,
-		logger,
-		opts.RequestID,
-		opts.AccountID,
-		&userDTO,
-		&appDTO,
-		appDTO.DefaultScopes,
-		opts.AccountUsername,
-		"User two-factor login successful",
-	)
 }
 
 type LogoutUserOptions struct {
@@ -1196,7 +1034,9 @@ func (s *Services) ForgotUserPassword(
 			RequestID: opts.RequestID,
 			AccountID: opts.AccountID,
 		}),
-		StoreFN: s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign reset token", "serviceError", serviceErr)

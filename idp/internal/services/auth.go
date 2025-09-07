@@ -104,16 +104,28 @@ func (s *Services) ProcessAccountAuthHeader(
 func (s *Services) Process2FAAuthHeader(
 	ctx context.Context,
 	opts ProcessAuthHeaderOptions,
-) (tokens.AccountClaims, *exceptions.ServiceError) {
-	return s.processPurposeAuthHeader(
-		ctx,
-		processPurposeAuthHeaderOptions{
-			requestID:    opts.RequestID,
-			authHeader:   opts.AuthHeader,
-			tokenPurpose: tokens.TokenPurpose2FA,
-			tokenKeyType: database.TokenKeyType2faAuthentication,
-		},
+) (tokens.AccountClaims, tokens.TwoFAType, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, authLocation, "Process2FAAuthHeader")
+	logger.InfoContext(ctx, "Processing purpose auth header...")
+
+	token, serviceErr := extractAuthHeaderToken(opts.AuthHeader)
+	if serviceErr != nil {
+		return tokens.AccountClaims{}, "", serviceErr
+	}
+
+	accountClaims, twoFAType, err := s.jwt.Verify2FAToken(
+		token,
+		s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
+			RequestID: opts.RequestID,
+			KeyType:   database.TokenKeyType2faAuthentication,
+		}),
 	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to verify purpose token", "error", err)
+		return tokens.AccountClaims{}, "", exceptions.NewUnauthorizedError()
+	}
+
+	return accountClaims, twoFAType, nil
 }
 
 func (s *Services) GetRefreshTTL() int64 {
@@ -146,9 +158,15 @@ func (s *Services) sendConfirmationEmail(
 			KeyType:   database.TokenKeyTypeEmailVerification,
 			TTL:       s.jwt.GetConfirmationTTL(),
 		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, requestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: requestID,
+		}),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: requestID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: requestID,
+		}),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign confirmation token", "serviceError", serviceErr)
@@ -217,6 +235,7 @@ func (s *Services) RegisterAccount(
 func (s *Services) GenerateFullAuthDTO(
 	ctx context.Context,
 	logger *slog.Logger,
+	qrs *database.Queries,
 	requestID string,
 	accountDTO *dtos.AccountDTO,
 	scopes []tokens.AccountScope,
@@ -240,10 +259,20 @@ func (s *Services) GenerateFullAuthDTO(
 			RequestID: requestID,
 			KeyType:   database.TokenKeyTypeAccess,
 			TTL:       s.jwt.GetAccessTTL(),
+			Queries:   qrs,
 		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, requestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: requestID,
+			Queries:   qrs,
+		}),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: requestID,
+			Queries:   qrs,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: requestID,
+			Queries:   qrs,
+		}),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign access token", "serviceError", serviceErr)
@@ -267,10 +296,20 @@ func (s *Services) GenerateFullAuthDTO(
 			RequestID: requestID,
 			KeyType:   database.TokenKeyTypeRefresh,
 			TTL:       s.jwt.GetRefreshTTL(),
+			Queries:   qrs,
 		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, requestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: requestID,
+			Queries:   qrs,
+		}),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: requestID,
+			Queries:   qrs,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: requestID,
+			Queries:   qrs,
+		}),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign refresh token", "serviceError", serviceErr)
@@ -332,6 +371,7 @@ func (s *Services) ConfirmAccount(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		s.database.Queries,
 		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
@@ -344,6 +384,7 @@ func (s *Services) generate2FAAuth(
 	logger *slog.Logger,
 	requestID string,
 	accountDTO *dtos.AccountDTO,
+	twoFAType database.TwoFactorType,
 	msg string,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
 	twoFAToken, err := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
@@ -357,16 +398,22 @@ func (s *Services) generate2FAAuth(
 			KeyType:   database.TokenKeyType2faAuthentication,
 			TTL:       s.jwt.Get2FATTL(),
 		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, requestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: requestID,
+		}),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: requestID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: requestID,
+		}),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to sign 2FA token", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
-	if accountDTO.TwoFactorType == database.TwoFactorTypeEmail {
+	if twoFAType == database.TwoFactorTypeEmail {
 		code, err := s.cache.AddTwoFactorCode(ctx, cache.AddTwoFactorCodeOptions{
 			RequestID: requestID,
 			AccountID: accountDTO.ID(),
@@ -455,13 +502,21 @@ func (s *Services) LoginAccount(
 		}
 	}
 
-	switch accountDTO.TwoFactorType {
-	case database.TwoFactorTypeEmail, database.TwoFactorTypeTotp:
+	default2FaConfig, serviceErr := s.getDefaultAccount2FAConfigInternal(ctx, getDefaultAccount2FAConfigInternalOptions{
+		requestID:       opts.RequestID,
+		accountPublicID: accountDTO.PublicID,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get default account 2FA config", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+	if default2FaConfig != nil {
 		authDTO, serviceErr := s.generate2FAAuth(
 			ctx,
 			logger,
 			opts.RequestID,
 			&accountDTO,
+			default2FaConfig.TwoFactorType,
 			"Please provide two factor code",
 		)
 		if serviceErr != nil {
@@ -473,6 +528,7 @@ func (s *Services) LoginAccount(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		s.database.Queries,
 		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
@@ -583,30 +639,65 @@ func (s *Services) VerifyAccountTotp(
 	return verified, nil
 }
 
-func (s *Services) verifyAccountTwoFactor(
+func mapTokens2FAType(twoFAType tokens.TwoFAType) (database.TwoFactorType, *exceptions.ServiceError) {
+	switch twoFAType {
+	case tokens.TwoFATypeTOTP:
+		return database.TwoFactorTypeTotp, nil
+	case tokens.TwoFATypeEmail:
+		return database.TwoFactorTypeEmail, nil
+	default:
+		return "", exceptions.NewUnauthorizedError()
+	}
+}
+
+type verifyAccount2FAInternalOptions struct {
+	requestID       string
+	accountID       int32
+	accountPublicID uuid.UUID
+	accountVersion  int32
+	twoFAType       tokens.TwoFAType
+	code            string
+}
+
+func (s *Services) verifyAccount2FAInternal(
 	ctx context.Context,
-	requestID string,
-	accountDTO *dtos.AccountDTO,
-	code string,
+	opts verifyAccount2FAInternalOptions,
 ) *exceptions.ServiceError {
-	logger := s.buildLogger(requestID, authLocation, "verifyAccountTwoFactor").With(
-		"accountPublicId", accountDTO.PublicID,
-		"twoFactorType", accountDTO.TwoFactorType,
+	logger := s.buildLogger(opts.requestID, authLocation, "verifyDefaultAccount2FA").With(
+		"accountPublicId", opts.accountPublicID,
 	)
 	logger.InfoContext(ctx, "Verifying account two factor...")
 
-	switch accountDTO.TwoFactorType {
-	case database.TwoFactorTypeNone:
-		logger.WarnContext(ctx, "User has two factor inactive")
-		return exceptions.NewForbiddenError()
+	twoFAType, serviceErr := mapTokens2FAType(opts.twoFAType)
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to map two factor type", "serviceError", serviceErr)
+		return serviceErr
+	}
+
+	configDTO, serviceErr := s.GetAccount2FAConfig(ctx, GetAccount2FAConfigOptions{
+		RequestID:       opts.requestID,
+		AccountPublicID: opts.accountPublicID,
+		TwoFAType:       twoFAType,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code == exceptions.CodeNotFound {
+			logger.WarnContext(ctx, "Account 2FA config not found", "serviceError", serviceErr)
+			return exceptions.NewForbiddenError()
+		}
+
+		logger.ErrorContext(ctx, "Failed to get account 2FA config", "serviceError", serviceErr)
+		return serviceErr
+	}
+
+	switch configDTO.TwoFactorType {
 	case database.TwoFactorTypeTotp:
 		ok, serviceErr := s.VerifyAccountTotp(ctx, VerifyAccountTotpOptions{
-			RequestID: requestID,
-			ID:        accountDTO.ID(),
-			Code:      code,
+			RequestID: opts.requestID,
+			ID:        opts.accountID,
+			Code:      opts.code,
 		})
 		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to verify TOTP Code", "error", serviceErr)
+			logger.ErrorContext(ctx, "Failed to verify TOTP Code", "serviceError", serviceErr)
 			return serviceErr
 		}
 		if !ok {
@@ -615,9 +706,9 @@ func (s *Services) verifyAccountTwoFactor(
 		}
 	case database.TwoFactorTypeEmail:
 		ok, err := s.cache.VerifyTwoFactorCode(ctx, cache.VerifyTwoFactorCodeOptions{
-			RequestID: requestID,
-			AccountID: accountDTO.ID(),
-			Code:      code,
+			RequestID: opts.requestID,
+			AccountID: opts.accountID,
+			Code:      opts.code,
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Error verifying Code", "error", err)
@@ -627,55 +718,59 @@ func (s *Services) verifyAccountTwoFactor(
 			logger.WarnContext(ctx, "Failed to verify Code")
 			return exceptions.NewUnauthorizedError()
 		}
+	default:
+		logger.WarnContext(ctx, "Invalid two factor type", "twoFactorType", configDTO.TwoFactorType)
+		return exceptions.NewUnauthorizedError()
 	}
 
+	logger.InfoContext(ctx, "Account two factor verified successfully")
 	return nil
 }
 
-type TwoFactorLoginAccountOptions struct {
-	RequestID string
-	PublicID  uuid.UUID
-	Version   int32
-	Code      string
+type VerifyAccount2FAOptions struct {
+	RequestID       string
+	AccountPublicID uuid.UUID
+	AccountVersion  int32
+	TwoFAType       tokens.TwoFAType
+	Code            string
 }
 
-func (s *Services) TwoFactorLoginAccount(
+func (s *Services) VerifyAccount2FA(
 	ctx context.Context,
-	opts TwoFactorLoginAccountOptions,
+	opts VerifyAccount2FAOptions,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, authLocation, "TwoFactorLoginAccount")
-	logger.InfoContext(ctx, "2FA logging in account...")
+	logger := s.buildLogger(opts.RequestID, authLocation, "VerifyAccount2FA").With(
+		"accountPublicId", opts.AccountPublicID,
+		"twoFactorType", opts.TwoFAType,
+	)
+	logger.InfoContext(ctx, "Verifying account two factor...")
 
-	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
-		PublicID:  opts.PublicID,
+		PublicID:  opts.AccountPublicID,
+		Version:   opts.AccountVersion,
 	})
 	if serviceErr != nil {
-		if serviceErr.Code != exceptions.CodeNotFound {
-			return dtos.AuthDTO{}, serviceErr
-		}
-
-		logger.WarnContext(ctx, "Account was not found", "error", serviceErr)
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+		logger.ErrorContext(ctx, "Failed to get account ID by public ID and version", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
 	}
 
-	logger = logger.With("accountId", accountDTO.ID())
-	accountVersion := accountDTO.Version()
-	if accountVersion != opts.Version {
-		logger.WarnContext(ctx, "Account versions do not match",
-			"accessTokenVersion", opts.Version,
-			"accountVersion", accountVersion,
-		)
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-	}
-
-	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
+	if serviceErr := s.verifyAccount2FAInternal(ctx, verifyAccount2FAInternalOptions{
+		requestID:       opts.RequestID,
+		accountID:       accountDTO.ID(),
+		accountPublicID: opts.AccountPublicID,
+		accountVersion:  opts.AccountVersion,
+		twoFAType:       opts.TwoFAType,
+		code:            opts.Code,
+	}); serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to verify account two factor", "serviceError", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
 
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		s.database.Queries,
 		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
@@ -812,6 +907,7 @@ func (s *Services) RefreshTokenAccount(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		s.database.Queries,
 		opts.RequestID,
 		&accountDTO,
 		data.Scopes,
@@ -853,9 +949,15 @@ func (s *Services) ForgotAccountPassword(
 			KeyType:   database.TokenKeyTypePasswordReset,
 			TTL:       s.jwt.GetResetTTL(),
 		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.RequestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate rest token", "error", err)
@@ -1042,8 +1144,12 @@ func (s *Services) RecoverAccount(
 		logger.ErrorContext(ctx, "Failed to get account by public ID and version", "error", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
-	if accountDTO.TwoFactorType != database.TwoFactorTypeTotp {
-		logger.WarnContext(ctx, "Account does not have TOTP enabled")
+	if _, serviceErr := s.GetAccount2FAConfig(ctx, GetAccount2FAConfigOptions{
+		RequestID:       opts.RequestID,
+		AccountPublicID: accountDTO.PublicID,
+		TwoFAType:       database.TwoFactorTypeTotp,
+	}); serviceErr != nil {
+		logger.WarnContext(ctx, "Account does not have TOTP enabled", "serviceError", serviceErr)
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
@@ -1082,9 +1188,15 @@ func (s *Services) RecoverAccount(
 			KeyType:   database.TokenKeyType2faAuthentication,
 			TTL:       s.jwt.Get2FATTL(),
 		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.RequestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign 2FA token", "serviceError", serviceErr)
@@ -1166,474 +1278,4 @@ func (s *Services) GetAccountAuthProvider(
 
 	logger.InfoContext(ctx, "Retrieved account auth provider successfully")
 	return dtos.MapAccountAuthProviderToDTO(&authProvider), nil
-}
-
-type buildStoreAccountTOTPOptions struct {
-	requestID string
-	accountID int32
-}
-
-func (s *Services) buildStoreAccountTOTP(
-	ctx context.Context,
-	opts buildStoreAccountTOTPOptions,
-) crypto.StoreTOTP {
-	logger := s.buildLogger(opts.requestID, authLocation, "buildStoreAccountTOTP").With(
-		"AccountID", opts.accountID,
-	)
-	logger.InfoContext(ctx, "Building store account TOTP function...")
-
-	return func(dekKID, encSecret string, hashedCode []byte, url string) *exceptions.ServiceError {
-		var serviceErr *exceptions.ServiceError
-		qrs, txn, err := s.database.BeginTx(ctx)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-			return exceptions.FromDBError(err)
-		}
-		defer func() {
-			logger.DebugContext(ctx, "Finalizing transaction")
-			s.database.FinalizeTx(ctx, txn, err, serviceErr)
-		}()
-
-		id, err := qrs.CreateTotp(ctx, database.CreateTotpParams{
-			DekKid:        dekKID,
-			Url:           url,
-			Secret:        encSecret,
-			RecoveryCodes: hashedCode,
-			Usage:         database.TotpUsageAccount,
-			AccountID:     opts.accountID,
-		})
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create TOTP", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return serviceErr
-		}
-
-		if err = qrs.CreateAccountTotp(ctx, database.CreateAccountTotpParams{
-			AccountID: opts.accountID,
-			TotpID:    id,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to create account recovery keys", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return serviceErr
-		}
-
-		if err = qrs.UpdateAccountTwoFactorType(ctx, database.UpdateAccountTwoFactorTypeParams{
-			TwoFactorType: database.TwoFactorTypeTotp,
-			ID:            opts.accountID,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to update account 2FA", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return serviceErr
-		}
-
-		return nil
-	}
-}
-
-type updateAccount2FAOptions struct {
-	requestID   string
-	id          int32
-	email       string
-	prev2FAType database.TwoFactorType
-}
-
-func (s *Services) updateAccountTOTP2FA(
-	ctx context.Context,
-	opts updateAccount2FAOptions,
-) (dtos.AuthDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.requestID, authLocation, "updateAccountTOTP2FA").With(
-		"id", opts.id,
-	)
-	logger.InfoContext(ctx, "Update account TOTP 2FA...")
-
-	totpKey, err := s.crypto.GenerateTotpKey(ctx, crypto.GenerateTotpKeyOptions{
-		RequestID: opts.requestID,
-		Email:     opts.email,
-		GetDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
-			RequestID: opts.requestID,
-			AccountID: opts.id,
-		}),
-		StoreTOTPfn: s.buildStoreAccountTOTP(ctx, buildStoreAccountTOTPOptions{
-			requestID: opts.requestID,
-			accountID: opts.id,
-		}),
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate TOTP", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-	}
-
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
-		RequestID: opts.requestID,
-		ID:        opts.id,
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get account by ID", "error", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
-		RequestID: opts.requestID,
-		Token: s.jwt.Create2FAToken(tokens.Account2FATokenOptions{
-			PublicID: accountDTO.PublicID,
-			Version:  accountDTO.Version(),
-		}),
-		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
-			RequestID: opts.requestID,
-			KeyType:   database.TokenKeyType2faAuthentication,
-			TTL:       s.jwt.Get2FATTL(),
-		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.requestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.requestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.requestID),
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to sign 2FA token", "serviceError", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	return dtos.NewAuthDTOWithData(
-		signedToken,
-		"Please scan QR Code with your authentication app",
-		map[string]string{
-			"image":         totpKey.Img(),
-			"recovery_keys": totpKey.Codes(),
-		},
-		s.jwt.Get2FATTL(),
-	), nil
-}
-
-func (s *Services) updateAccountEmail2FA(
-	ctx context.Context,
-	opts updateAccount2FAOptions,
-) (dtos.AuthDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.requestID, authLocation, "updateAccountEmail2FA").With(
-		"id", opts.id,
-	)
-	logger.InfoContext(ctx, "Update account email 2FA...")
-
-	code, err := s.cache.AddTwoFactorCode(ctx, cache.AddTwoFactorCodeOptions{
-		RequestID: opts.requestID,
-		AccountID: opts.id,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to generate two factor Code", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-	}
-
-	if opts.prev2FAType == database.TwoFactorTypeTotp {
-		var serviceErr *exceptions.ServiceError
-		qrs, txn, err := s.database.BeginTx(ctx)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-			return dtos.AuthDTO{}, exceptions.FromDBError(err)
-		}
-		defer func() {
-			logger.DebugContext(ctx, "Finalizing transaction")
-			s.database.FinalizeTx(ctx, txn, err, serviceErr)
-		}()
-
-		if err = qrs.UpdateAccountTwoFactorType(ctx, database.UpdateAccountTwoFactorTypeParams{
-			TwoFactorType: database.TwoFactorTypeEmail,
-			ID:            opts.id,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to enable 2FA email", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AuthDTO{}, serviceErr
-		}
-
-		if err := qrs.DeleteAccountRecoveryKeys(ctx, opts.id); err != nil {
-			logger.ErrorContext(ctx, "Failed to delete recovery keys", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AuthDTO{}, serviceErr
-		}
-	} else {
-		if err = s.database.UpdateAccountTwoFactorType(ctx, database.UpdateAccountTwoFactorTypeParams{
-			TwoFactorType: database.TwoFactorTypeEmail,
-			ID:            opts.id,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to enable 2FA email", "error", err)
-			return dtos.AuthDTO{}, exceptions.FromDBError(err)
-		}
-	}
-
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
-		RequestID: opts.requestID,
-		ID:        opts.id,
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get account by ID", "serviceError", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	if err := s.mail.Publish2FAEmail(ctx, mailer.TwoFactorEmailOptions{
-		RequestID: opts.requestID,
-		Email:     accountDTO.Email,
-		Name:      fmt.Sprintf("%s %s", accountDTO.GivenName, accountDTO.FamilyName),
-		Code:      code,
-	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to publish two factor email", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-	}
-
-	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
-		RequestID: opts.requestID,
-		Token: s.jwt.Create2FAToken(tokens.Account2FATokenOptions{
-			PublicID: accountDTO.PublicID,
-			Version:  accountDTO.Version(),
-		}),
-		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
-			RequestID: opts.requestID,
-			KeyType:   database.TokenKeyType2faAuthentication,
-			TTL:       s.jwt.Get2FATTL(),
-		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.requestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.requestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.requestID),
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to sign 2FA token", "serviceError", serviceErr)
-		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-	}
-
-	return dtos.NewTempAuthDTO(signedToken, "Please provide email two factor code", s.jwt.Get2FATTL()), nil
-}
-
-func (s *Services) disableAccount2FA(
-	ctx context.Context,
-	opts updateAccount2FAOptions,
-) (dtos.AuthDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.requestID, authLocation, "disableAccount2FA").With(
-		"id", opts.id,
-	)
-	logger.InfoContext(ctx, "Update account TOTP 2FA...")
-
-	if opts.prev2FAType == database.TwoFactorTypeTotp {
-		var serviceErr *exceptions.ServiceError
-		qrs, txn, err := s.database.BeginTx(ctx)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-			return dtos.AuthDTO{}, exceptions.FromDBError(err)
-		}
-		defer func() {
-			logger.DebugContext(ctx, "Finalizing transaction")
-			s.database.FinalizeTx(ctx, txn, err, serviceErr)
-		}()
-
-		if err = qrs.UpdateAccountTwoFactorType(ctx, database.UpdateAccountTwoFactorTypeParams{
-			TwoFactorType: database.TwoFactorTypeNone,
-			ID:            opts.id,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to disable 2FA", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AuthDTO{}, serviceErr
-		}
-
-		if err := qrs.DeleteAccountRecoveryKeys(ctx, opts.id); err != nil {
-			logger.ErrorContext(ctx, "Failed to delete recovery keys", "error", err)
-			serviceErr = exceptions.FromDBError(err)
-			return dtos.AuthDTO{}, serviceErr
-		}
-	} else {
-		if err := s.database.UpdateAccountTwoFactorType(ctx, database.UpdateAccountTwoFactorTypeParams{
-			TwoFactorType: database.TwoFactorTypeNone,
-			ID:            opts.id,
-		}); err != nil {
-			logger.ErrorContext(ctx, "Failed to disable 2FA", "error", err)
-			return dtos.AuthDTO{}, exceptions.FromDBError(err)
-		}
-	}
-
-	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{
-		RequestID: opts.requestID,
-		ID:        opts.id,
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get account by ID", "serviceError", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	return s.GenerateFullAuthDTO(
-		ctx,
-		logger,
-		opts.requestID,
-		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"Successfully disabled oauth",
-	)
-}
-
-type UpdateAccount2FAOptions struct {
-	RequestID     string
-	PublicID      uuid.UUID
-	Version       int32
-	TwoFactorType string
-	Password      string
-}
-
-func (s *Services) UpdateAccount2FA(
-	ctx context.Context,
-	opts UpdateAccount2FAOptions,
-) (dtos.AuthDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, authLocation, "UpdateAccount2FA").With(
-		"publicID", opts.PublicID,
-		"twoFactorType", opts.TwoFactorType,
-	)
-	logger.InfoContext(ctx, "Updating account 2FA...")
-
-	twoFactorType, serviceErr := mapTwoFactorType(opts.TwoFactorType)
-	if serviceErr != nil {
-		logger.WarnContext(ctx, "Invalid two factor type", "serviceError", serviceErr)
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
-		RequestID: opts.RequestID,
-		PublicID:  opts.PublicID,
-		Version:   opts.Version,
-	})
-	if serviceErr != nil {
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	count, err := s.database.CountAccountAuthProvidersByEmailAndProvider(
-		ctx,
-		database.CountAccountAuthProvidersByEmailAndProviderParams{
-			Email:    accountDTO.Email,
-			Provider: database.AuthProviderLocal,
-		},
-	)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to count auth providers", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-	}
-	if count > 0 {
-		if opts.Password == "" {
-			logger.WarnContext(ctx, "Password is required for email auth Provider")
-			return dtos.AuthDTO{}, exceptions.NewValidationError("password is required")
-		}
-
-		ok, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to compare password hashes", "error", err)
-			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-		}
-		if !ok {
-			logger.WarnContext(ctx, "Passwords do not match")
-			return dtos.AuthDTO{}, exceptions.NewValidationError("Invalid password")
-		}
-	}
-
-	if accountDTO.TwoFactorType == twoFactorType {
-		logger.WarnContext(ctx, "Account already uses given 2FA type", "twoFactorType", twoFactorType)
-		return dtos.AuthDTO{}, exceptions.NewValidationError("Account already uses given 2FA type")
-	}
-
-	updateOpts := updateAccount2FAOptions{
-		requestID:   opts.RequestID,
-		id:          accountDTO.ID(),
-		email:       accountDTO.Email,
-		prev2FAType: accountDTO.TwoFactorType,
-	}
-	if accountDTO.TwoFactorType == database.TwoFactorTypeNone {
-		switch twoFactorType {
-		case database.TwoFactorTypeTotp:
-			logger.InfoContext(ctx, "Enabling TOTP 2FA")
-			return s.updateAccountTOTP2FA(ctx, updateOpts)
-		case database.TwoFactorTypeEmail:
-			logger.InfoContext(ctx, "Enabling email 2FA")
-			return s.updateAccountEmail2FA(ctx, updateOpts)
-		default:
-			logger.WarnContext(ctx, "Unknown two factor type, it must be 'totp' or 'email'")
-			return dtos.AuthDTO{}, exceptions.NewForbiddenError()
-		}
-	}
-
-	if err := s.cache.SaveTwoFactorUpdateRequest(ctx, cache.SaveTwoFactorUpdateRequestOptions{
-		RequestID:       opts.RequestID,
-		PrefixType:      cache.SensitiveRequestAccountPrefix,
-		PublicID:        accountDTO.PublicID,
-		TwoFactorType:   database.TwoFactorType(opts.TwoFactorType),
-		DurationSeconds: s.jwt.Get2FATTL(),
-	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to save two-factor update request", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-	}
-
-	authDTO, serviceErr := s.generate2FAAuth(
-		ctx,
-		logger,
-		opts.RequestID,
-		&accountDTO,
-		"Please provide two factor code to confirm two factor update",
-	)
-	if serviceErr != nil {
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	return authDTO, nil
-}
-
-type ConfirmUpdateAccount2FAUpdateOptions struct {
-	RequestID string
-	PublicID  uuid.UUID
-	Version   int32
-	Code      string
-}
-
-func (s *Services) ConfirmUpdateAccount2FAUpdate(
-	ctx context.Context,
-	opts ConfirmUpdateAccount2FAUpdateOptions,
-) (dtos.AuthDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, authLocation, "ConfirmUpdateAccount2FAUpdate").With(
-		"publicID", opts.PublicID,
-	)
-	logger.InfoContext(ctx, "Confirming account 2FA update...")
-
-	twoFactorType, err := s.cache.GetTwoFactorUpdateRequest(ctx, cache.GetTwoFactorUpdateRequestOptions{
-		RequestID:  opts.RequestID,
-		PrefixType: cache.SensitiveRequestAccountPrefix,
-		PublicID:   opts.PublicID,
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to get two-factor update request", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-	}
-	if twoFactorType == "" {
-		logger.WarnContext(ctx, "Two-factor update request not found")
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-	}
-
-	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
-		RequestID: opts.RequestID,
-		PublicID:  opts.PublicID,
-		Version:   opts.Version,
-	})
-	if serviceErr != nil {
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
-		return dtos.AuthDTO{}, serviceErr
-	}
-
-	updateOpts := updateAccount2FAOptions{
-		requestID:   opts.RequestID,
-		id:          accountDTO.ID(),
-		email:       accountDTO.Email,
-		prev2FAType: accountDTO.TwoFactorType,
-	}
-	switch twoFactorType {
-	case database.TwoFactorTypeTotp:
-		logger.InfoContext(ctx, "Enabling TOTP 2FA")
-		return s.updateAccountTOTP2FA(ctx, updateOpts)
-	case database.TwoFactorTypeEmail:
-		logger.InfoContext(ctx, "Enabling email 2FA")
-		return s.updateAccountEmail2FA(ctx, updateOpts)
-	case database.TwoFactorTypeNone:
-		logger.InfoContext(ctx, "Disabling 2FA")
-		return s.disableAccount2FA(ctx, updateOpts)
-	default:
-		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
-	}
 }

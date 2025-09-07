@@ -73,9 +73,15 @@ func (s *Services) CreateAccountCredentialsRegistrationIAT(
 			KeyType:   database.TokenKeyTypeDynamicRegistration,
 			TTL:       s.jwt.GetDynamicRegistrationTTL(),
 		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.RequestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign account credentials registration IAT", "serviceError", serviceErr)

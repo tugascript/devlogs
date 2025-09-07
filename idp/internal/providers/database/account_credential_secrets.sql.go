@@ -100,7 +100,7 @@ func (q *Queries) FindAccountCredentialSecretByAccountCredentialIDAndCredentials
 }
 
 const findAccountCredentialsSecretAccountByAccountCredentialIDAndSecretID = `-- name: FindAccountCredentialsSecretAccountByAccountCredentialIDAndSecretID :one
-SELECT a.id, a.public_id, a.given_name, a.family_name, a.username, a.email, a.organization, a.password, a.version, a.email_verified, a.is_active, a.two_factor_type, a.created_at, a.updated_at FROM "accounts" AS "a"
+SELECT a.id, a.public_id, a.given_name, a.family_name, a.username, a.email, a.organization, a.password, a.version, a.email_verified, a.activity_status, a.created_at, a.updated_at FROM "accounts" AS "a"
 LEFT JOIN "account_credentials_secrets" AS "acs" ON "acs"."account_id" = "a"."id"
 WHERE
     "acs"."account_credentials_id" = $1 AND
@@ -127,8 +127,7 @@ func (q *Queries) FindAccountCredentialsSecretAccountByAccountCredentialIDAndSec
 		&i.Password,
 		&i.Version,
 		&i.EmailVerified,
-		&i.IsActive,
-		&i.TwoFactorType,
+		&i.ActivityStatus,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
