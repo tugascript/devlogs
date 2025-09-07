@@ -91,6 +91,7 @@ type buildStoreGlobalJWKfnOptions struct {
 	requestID string
 	keyType   database.TokenKeyType
 	data      map[string]string
+	queries   *database.Queries
 }
 
 func (s *Services) buildStoreGlobalJWKfn(
@@ -113,7 +114,8 @@ func (s *Services) buildStoreGlobalJWKfn(
 		}
 
 		logger.InfoContext(ctx, "Storing global JWK", "kid", kid, "cryptoSuite", dbCryptoSuite)
-		id, err := s.database.CreateTokenSigningKey(ctx, database.CreateTokenSigningKeyParams{
+		qrs := s.mapQueries(opts.queries)
+		id, err := qrs.CreateTokenSigningKey(ctx, database.CreateTokenSigningKeyParams{
 			Kid:           kid,
 			KeyType:       opts.keyType,
 			PublicKey:     pubKeyBytes,
@@ -151,6 +153,7 @@ type BuildEncryptedJWKFnOptions struct {
 	RequestID string
 	KeyType   database.TokenKeyType
 	TTL       int64
+	Queries   *database.Queries
 }
 
 func (s *Services) BuildGetGlobalEncryptedJWKFn(
@@ -183,7 +186,8 @@ func (s *Services) BuildGetGlobalEncryptedJWKFn(
 		}
 
 		logger.InfoContext(ctx, "JWK not found in cache, checking database...")
-		jwkEnt, err := s.database.FindGlobalTokenSigningKey(ctx, database.FindGlobalTokenSigningKeyParams{
+		qrs := s.mapQueries(opts.Queries)
+		jwkEnt, err := qrs.FindGlobalTokenSigningKey(ctx, database.FindGlobalTokenSigningKeyParams{
 			KeyType:   opts.KeyType,
 			ExpiresAt: time.Now().Add(-1 * (time.Hour + time.Duration(opts.TTL)*time.Second)),
 		})
@@ -200,11 +204,15 @@ func (s *Services) BuildGetGlobalEncryptedJWKFn(
 				requestID:   opts.RequestID,
 				keyType:     opts.KeyType,
 				cryptoSuite: cryptoSuite,
-				getDEKfn:    s.BuildGetEncGlobalDEKFn(ctx, opts.RequestID),
+				getDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+					RequestID: opts.RequestID,
+					Queries:   qrs,
+				}),
 				storeFN: s.buildStoreGlobalJWKfn(ctx, buildStoreGlobalJWKfnOptions{
 					requestID: opts.RequestID,
 					keyType:   opts.KeyType,
 					data:      data,
+					queries:   qrs,
 				}),
 			}); serviceErr != nil {
 				logger.ErrorContext(ctx, "Failed to create JWK", "serviceError", serviceErr)
@@ -730,22 +738,28 @@ func (s *Services) GetAndCacheAccountDistributedJWK(
 	return etag, jwks, nil
 }
 
+type BuildUpdateJWKDEKFnOptions struct {
+	RequestID string
+	Queries   *database.Queries
+}
+
 func (s *Services) BuildUpdateJWKDEKFn(
 	ctx context.Context,
-	requestID string,
+	opts BuildUpdateJWKDEKFnOptions,
 ) crypto.StoreReEncryptedData {
-	logger := s.buildLogger(requestID, jwkLocation, "BuildUpdateJWKDEKFn")
+	logger := s.buildLogger(opts.RequestID, jwkLocation, "BuildUpdateJWKDEKFn")
 	logger.InfoContext(ctx, "Building update JWK DEK function...")
 
 	return func(kid crypto.EntityID, dekID crypto.DEKID, encPrivKey crypto.DEKCiphertext) *exceptions.ServiceError {
 		logger.InfoContext(ctx, "Updating JWK DEK...")
-		jwkEnt, err := s.database.FindTokenSigningKeyByKID(ctx, kid)
+		qrs := s.mapQueries(opts.Queries)
+		jwkEnt, err := qrs.FindTokenSigningKeyByKID(ctx, kid)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get JWK from database", "error", err)
 			return exceptions.FromDBError(err)
 		}
 
-		if err := s.database.UpdateTokenSigningKeyDEKAndPrivateKey(
+		if err := qrs.UpdateTokenSigningKeyDEKAndPrivateKey(
 			ctx,
 			database.UpdateTokenSigningKeyDEKAndPrivateKeyParams{
 				ID:         jwkEnt.ID,

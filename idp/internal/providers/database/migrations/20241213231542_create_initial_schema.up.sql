@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-08-18T07:42:22.764Z
+-- Generated at: 2025-09-06T04:54:24.517Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -35,8 +35,13 @@ CREATE TYPE "token_key_type" AS ENUM (
   'dynamic_registration'
 );
 
+CREATE TYPE "activity_status" AS ENUM (
+  'active',
+  'suspended',
+  'blocked'
+);
+
 CREATE TYPE "two_factor_type" AS ENUM (
-  'none',
   'totp',
   'email'
 );
@@ -177,7 +182,8 @@ CREATE TYPE "initial_access_token_generation_method" AS ENUM (
 
 CREATE TYPE "software_statement_verification_method" AS ENUM (
   'manual',
-  'jwks_uri'
+  'jwks_uri',
+  'jwk_x5_parameters'
 );
 
 CREATE TYPE "domain_verification_method" AS ENUM (
@@ -247,8 +253,18 @@ CREATE TABLE "accounts" (
   "password" text,
   "version" integer NOT NULL DEFAULT 1,
   "email_verified" boolean NOT NULL DEFAULT false,
-  "is_active" boolean NOT NULL DEFAULT true,
-  "two_factor_type" two_factor_type NOT NULL DEFAULT 'none',
+  "activity_status" activity_status NOT NULL DEFAULT 'active',
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "account_2fa_configs" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "account_public_id" uuid NOT NULL,
+  "two_factor_type" two_factor_type NOT NULL,
+  "is_default" boolean NOT NULL DEFAULT false,
+  "is_active" boolean NOT NULL DEFAULT false,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -406,9 +422,18 @@ CREATE TABLE "users" (
   "password" text,
   "version" integer NOT NULL DEFAULT 1,
   "email_verified" boolean NOT NULL DEFAULT false,
-  "is_active" boolean NOT NULL DEFAULT true,
-  "two_factor_type" two_factor_type NOT NULL DEFAULT 'none',
+  "activity_status" activity_status NOT NULL DEFAULT 'active',
   "user_data" jsonb NOT NULL DEFAULT '{}',
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "user_2fa_configs" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "user_id" integer NOT NULL,
+  "two_factor_type" two_factor_type NOT NULL,
+  "is_default" boolean NOT NULL DEFAULT false,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -690,6 +715,14 @@ CREATE INDEX "accounts_public_id_version_idx" ON "accounts" ("public_id", "versi
 
 CREATE UNIQUE INDEX "accounts_username_uidx" ON "accounts" ("username");
 
+CREATE INDEX "account_2fa_configs_account_id_idx" ON "account_2fa_configs" ("account_id");
+
+CREATE INDEX "account_2fa_configs_account_public_id_idx" ON "account_2fa_configs" ("account_public_id");
+
+CREATE INDEX "account_2fa_configs_account_public_id_is_default_idx" ON "account_2fa_configs" ("account_public_id", "is_default");
+
+CREATE INDEX "account_2fa_configs_account_public_id_two_factor_type_idx" ON "account_2fa_configs" ("account_public_id", "two_factor_type");
+
 CREATE INDEX "accounts_totps_dek_kid_idx" ON "totps" ("dek_kid");
 
 CREATE INDEX "accounts_totps_account_id_idx" ON "totps" ("account_id");
@@ -797,6 +830,14 @@ CREATE INDEX "users_account_id_idx" ON "users" ("account_id");
 CREATE UNIQUE INDEX "users_public_id_uidx" ON "users" ("public_id");
 
 CREATE INDEX "users_public_id_version_idx" ON "users" ("public_id", "version");
+
+CREATE INDEX "user_2fa_configs_account_id_idx" ON "user_2fa_configs" ("account_id");
+
+CREATE INDEX "user_2fa_configs_user_id_idx" ON "user_2fa_configs" ("user_id");
+
+CREATE INDEX "user_2fa_configs_two_factor_type_idx" ON "user_2fa_configs" ("two_factor_type");
+
+CREATE UNIQUE INDEX "user_2fa_configs_user_id_two_factor_type_uidx" ON "user_2fa_configs" ("user_id", "two_factor_type");
 
 CREATE INDEX "user_data_encryption_keys_user_id_idx" ON "user_data_encryption_keys" ("user_id");
 
@@ -950,6 +991,8 @@ ALTER TABLE "data_encryption_keys" ADD FOREIGN KEY ("kek_kid") REFERENCES "key_e
 
 ALTER TABLE "token_signing_keys" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
 
+ALTER TABLE "account_2fa_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
 ALTER TABLE "totps" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
@@ -997,6 +1040,10 @@ ALTER TABLE "account_token_signing_keys" ADD FOREIGN KEY ("account_id") REFERENC
 ALTER TABLE "account_token_signing_keys" ADD FOREIGN KEY ("token_signing_key_id") REFERENCES "token_signing_keys" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "users" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_2fa_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_2fa_configs" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "user_data_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

@@ -706,7 +706,15 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 		return "", "", false, exceptions.NewForbiddenError()
 	}
 
-	if accountDTO.TwoFactorType != database.TwoFactorTypeNone {
+	default2FAConfig, serviceErr := s.getDefaultAccount2FAConfigInternal(ctx, getDefaultAccount2FAConfigInternalOptions{
+		requestID:       opts.RequestID,
+		accountPublicID: accountDTO.PublicID,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get default 2FA config", "serviceError", serviceErr)
+		return "", "", false, serviceErr
+	}
+	if default2FAConfig != nil {
 		logger.InfoContext(ctx, "Two-Factor is enabled, proceeding to 2FA step")
 		sessionID, err := s.cache.SaveAccountCredentialsDynamicRegistrationIAT2FA(
 			ctx,
@@ -718,6 +726,7 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 				Domain:          data.Domain,
 				ClientID:        opts.ACCClientID,
 				State:           data.State,
+				TwoFAType:       string(default2FAConfig.TwoFactorType),
 				TwoFATTL:        s.jwt.Get2FATTL(),
 			},
 		)
@@ -726,7 +735,7 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 			return "", "", false, exceptions.NewInternalServerError()
 		}
 
-		if accountDTO.TwoFactorType == database.TwoFactorTypeEmail {
+		if default2FAConfig.TwoFactorType == database.TwoFactorTypeEmail {
 			code, err := s.cache.AddTwoFactorCode(ctx, cache.AddTwoFactorCodeOptions{
 				RequestID: opts.RequestID,
 				AccountID: accountDTO.ID(),
@@ -947,6 +956,17 @@ func (s *Services) OAuthDynamicRegistrationIAT2FAReRender(
 	return twoFAhtml, nil
 }
 
+func map2FATypeTokens(twoFAType string) (tokens.TwoFAType, *exceptions.ServiceError) {
+	switch twoFAType {
+	case TwoFactorTypeEmail:
+		return tokens.TwoFATypeEmail, nil
+	case TwoFactorTypeTotp:
+		return tokens.TwoFATypeTOTP, nil
+	default:
+		return "", exceptions.NewValidationError("invalid two factor type")
+	}
+}
+
 type OAuthDynamicRegistrationIATVerify2FACodeOptions struct {
 	RequestID     string
 	ACCClientID   string
@@ -1000,6 +1020,11 @@ func (s *Services) OAuthDynamicRegistrationIATVerify2FACode(
 		logger.WarnContext(ctx, "Client IDs do not match", "sessionClientId", data.ClientID)
 		return "", "", exceptions.NewUnauthorizedError()
 	}
+	twoFAType, serviceErr := map2FATypeTokens(data.TwoFAType)
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to map two factor type", "serviceError", serviceErr)
+		return "", "", serviceErr
+	}
 
 	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
@@ -1010,7 +1035,14 @@ func (s *Services) OAuthDynamicRegistrationIATVerify2FACode(
 		logger.WarnContext(ctx, "Failed to get account by public ID and version", "serviceError", serviceErr)
 		return "", "", serviceErr
 	}
-	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
+	if serviceErr := s.verifyAccount2FAInternal(ctx, verifyAccount2FAInternalOptions{
+		requestID:       opts.RequestID,
+		accountID:       accountDTO.ID(),
+		accountPublicID: accountDTO.PublicID,
+		accountVersion:  accountDTO.Version(),
+		twoFAType:       twoFAType,
+		code:            opts.Code,
+	}); serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to verify account two factor", "serviceError", serviceErr)
 		return "", "", serviceErr
 	}
@@ -1164,9 +1196,15 @@ func (s *Services) VerifyOAuthDynamicRegistrationIATCode(
 			KeyType:   database.TokenKeyTypeDynamicRegistration,
 			TTL:       tokenTTL,
 		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, opts.RequestID),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, opts.RequestID),
-		StoreFN:         s.BuildUpdateJWKDEKFn(ctx, opts.RequestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
+		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to sign account credentials registration IAT", "serviceError", serviceErr)

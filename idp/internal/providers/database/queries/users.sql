@@ -69,14 +69,14 @@ LIMIT 1;
 
 -- name: UpdateUser :one
 UPDATE "users" SET
-    "email" = $1,
-    "username" = $2,
-    "user_data" = $3,
-    "is_active" = $4,
+    "email" = $2,
+    "username" = $3,
+    "user_data" = $4,
     "email_verified" = $5,
+    "activity_status" = $6,
     "version" = "version" + 1,
     "updated_at" = now()
-WHERE "id" = $6
+WHERE "id" = $1
 RETURNING *;
 
 -- name: UpdateUserPassword :one

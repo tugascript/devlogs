@@ -234,6 +234,7 @@ type AccountCredentialsDynamicRegistrationIAT2FAData struct {
 	ClientID        string    `json:"clientId"`
 	Domain          string    `json:"domain"`
 	State           string    `json:"state"`
+	TwoFAType       string    `json:"two_factor_type"`
 }
 
 func buildAccountCredentialsDynamicRegistrationIAT2FACacheKey(sessionID string) string {
@@ -248,6 +249,7 @@ type SaveAccountCredentialsDynamicRegistrationIAT2FAOptions struct {
 	Domain          string
 	ClientID        string
 	State           string
+	TwoFAType       string
 	TwoFATTL        int64
 }
 
@@ -273,6 +275,7 @@ func (c *Cache) SaveAccountCredentialsDynamicRegistrationIAT2FA(
 		Domain:          opts.Domain,
 		ClientID:        opts.ClientID,
 		State:           opts.State,
+		TwoFAType:       opts.TwoFAType,
 	}
 	dataBytes, err := json.Marshal(data)
 	if err != nil {

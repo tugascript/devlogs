@@ -16,10 +16,9 @@ import (
 )
 
 type UserDTO struct {
-	PublicID      uuid.UUID              `json:"id"`
-	Email         string                 `json:"email"`
-	Username      string                 `json:"username"`
-	TwoFactorType database.TwoFactorType `json:"two_factor_type"`
+	PublicID uuid.UUID `json:"id"`
+	Email    string    `json:"email"`
+	Username string    `json:"username"`
 	DataDTO
 
 	id            int32
@@ -55,7 +54,6 @@ func MapUserToDTO(user *database.User) (UserDTO, *exceptions.ServiceError) {
 		PublicID:      user.PublicID,
 		Email:         user.Email,
 		Username:      user.Username,
-		TwoFactorType: user.TwoFactorType,
 		DataDTO:       data,
 		version:       user.Version,
 		emailVerified: user.EmailVerified,

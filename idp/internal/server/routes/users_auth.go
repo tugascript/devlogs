@@ -18,11 +18,9 @@ func (r *Routes) UsersAuthRoutes(app *fiber.App) {
 	router.Post(paths.AuthRegister, r.controllers.AppAccessClaimsMiddleware, r.controllers.RegisterUser)
 	router.Post(paths.AuthConfirmEmail, r.controllers.AppAccessClaimsMiddleware, r.controllers.ConfirmUser)
 	router.Post(paths.AuthLogin, r.controllers.AppAccessClaimsMiddleware, r.controllers.LoginUser)
-	router.Post(
-		paths.AuthLogin+paths.Auth2FA,
-		r.controllers.User2FAClaimsMiddleware,
-		r.controllers.TwoFactorLoginUser,
-	)
+
+	// TODO: Add 2FA Login
+
 	router.Post(paths.AuthRefresh, r.controllers.AppAccessClaimsMiddleware, r.controllers.RefreshUser)
 	router.Post(
 		paths.AuthLogout,

@@ -399,59 +399,69 @@ func (s *Services) UpdateAccountEmail(
 		return dtos.AuthDTO{}, exceptions.NewConflictError("Email already in use")
 	}
 
-	if accountDTO.TwoFactorType != database.TwoFactorTypeNone {
-		logger.InfoContext(ctx, "Account has 2FA enabled", "twoFactorType", accountDTO.TwoFactorType)
-
-		err = s.cache.SaveUpdateEmailRequest(ctx, cache.SaveUpdateEmailRequestOptions{
-			RequestID:       opts.RequestID,
-			PrefixType:      cache.SensitiveRequestAccountPrefix,
-			PublicID:        accountDTO.PublicID,
-			Email:           newEmail,
-			DurationSeconds: s.jwt.Get2FATTL(),
-		})
+	default2FAConfig, serviceErr := s.getDefaultAccount2FAConfigInternal(ctx, getDefaultAccount2FAConfigInternalOptions{
+		requestID:       opts.RequestID,
+		accountPublicID: accountDTO.PublicID,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get default 2FA config", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+	if default2FAConfig == nil {
+		account, err := s.updateAccountEmailInDB(ctx, logger, accountDTO.ID(), accountDTO.Email, newEmail)
 		if err != nil {
-			logger.ErrorContext(ctx, "Failed to cache email update request", "error", err)
-			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-		}
-
-		authDTO, serviceErr := s.generate2FAAuth(
-			ctx,
-			logger,
-			opts.RequestID,
-			&accountDTO,
-			"Please provide two factor code to confirm email update",
-		)
-		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to update account email", "error", err)
+			serviceErr = exceptions.FromDBError(err)
 			return dtos.AuthDTO{}, serviceErr
 		}
 
-		logger.InfoContext(ctx, "Email update request cached successfully")
-		return authDTO, serviceErr
+		logger.InfoContext(ctx, "Updated account email successfully")
+		accountDTO = dtos.MapAccountToDTO(&account)
+		return s.GenerateFullAuthDTO(
+			ctx,
+			logger,
+			s.database.Queries,
+			opts.RequestID,
+			&accountDTO,
+			[]tokens.AccountScope{tokens.AccountScopeAdmin},
+			"Email updated successfully",
+		)
 	}
 
-	account, err := s.updateAccountEmailInDB(ctx, logger, accountDTO.ID(), accountDTO.Email, newEmail)
+	logger.InfoContext(ctx, "Account has 2FA enabled", "twoFactorType", default2FAConfig.TwoFactorType)
+	err = s.cache.SaveUpdateEmailRequest(ctx, cache.SaveUpdateEmailRequestOptions{
+		RequestID:       opts.RequestID,
+		PrefixType:      cache.SensitiveRequestAccountPrefix,
+		PublicID:        accountDTO.PublicID,
+		Email:           newEmail,
+		DurationSeconds: s.jwt.Get2FATTL(),
+	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to update account email", "error", err)
-		serviceErr = exceptions.FromDBError(err)
-		return dtos.AuthDTO{}, serviceErr
+		logger.ErrorContext(ctx, "Failed to cache email update request", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
-	logger.InfoContext(ctx, "Updated account email successfully")
-	accountDTO = dtos.MapAccountToDTO(&account)
-	return s.GenerateFullAuthDTO(
+	authDTO, serviceErr := s.generate2FAAuth(
 		ctx,
 		logger,
 		opts.RequestID,
 		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"Email updated successfully",
+		default2FAConfig.TwoFactorType,
+		"Please provide two factor code to confirm email update",
 	)
+	if serviceErr != nil {
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Email update request cached successfully")
+	return authDTO, serviceErr
 }
 
 type ConfirmUpdateAccountEmailOptions struct {
 	RequestID string
 	PublicID  uuid.UUID
 	Version   int32
+	TwoFAType tokens.TwoFAType
 	Code      string
 }
 
@@ -488,7 +498,15 @@ func (s *Services) ConfirmUpdateAccountEmail(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
+	if serviceErr := s.verifyAccount2FAInternal(ctx, verifyAccount2FAInternalOptions{
+		requestID:       opts.RequestID,
+		accountID:       accountDTO.ID(),
+		accountPublicID: opts.PublicID,
+		accountVersion:  opts.Version,
+		twoFAType:       opts.TwoFAType,
+		code:            opts.Code,
+	}); serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to verify account two factor", "serviceError", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
 
@@ -503,6 +521,7 @@ func (s *Services) ConfirmUpdateAccountEmail(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		s.database.Queries,
 		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
@@ -586,17 +605,24 @@ func (s *Services) UpdateAccountPassword(
 		return dtos.AuthDTO{}, exceptions.NewValidationError("Invalid password")
 	}
 
-	if accountDTO.TwoFactorType != database.TwoFactorTypeNone {
-		logger.InfoContext(ctx, "Account has 2FA enabled", "twoFactorType", accountDTO.TwoFactorType)
+	default2FAConfig, serviceErr := s.getDefaultAccount2FAConfigInternal(ctx, getDefaultAccount2FAConfigInternalOptions{
+		requestID:       opts.RequestID,
+		accountPublicID: accountDTO.PublicID,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get default 2FA config", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
 
-		err = s.cache.SaveUpdatePasswordRequest(ctx, cache.SaveUpdatePasswordRequestOptions{
+	if default2FAConfig != nil {
+		logger.InfoContext(ctx, "Account has 2FA enabled", "twoFactorType", default2FAConfig.TwoFactorType)
+		if err := s.cache.SaveUpdatePasswordRequest(ctx, cache.SaveUpdatePasswordRequestOptions{
 			RequestID:       opts.RequestID,
 			PrefixType:      cache.SensitiveRequestAccountPrefix,
 			PublicID:        accountDTO.PublicID,
 			NewPassword:     opts.NewPassword,
 			DurationSeconds: s.jwt.Get2FATTL(),
-		})
-		if err != nil {
+		}); err != nil {
 			logger.ErrorContext(ctx, "Failed to cache password update request", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 		}
@@ -606,6 +632,7 @@ func (s *Services) UpdateAccountPassword(
 			logger,
 			opts.RequestID,
 			&accountDTO,
+			default2FAConfig.TwoFactorType,
 			"Please provide two factor code to confirm password update",
 		)
 		if serviceErr != nil {
@@ -632,6 +659,7 @@ func (s *Services) UpdateAccountPassword(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		s.database.Queries,
 		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
@@ -643,6 +671,7 @@ type ConfirmUpdateAccountPasswordOptions struct {
 	RequestID string
 	PublicID  uuid.UUID
 	Version   int32
+	TwoFAType tokens.TwoFAType
 	Code      string
 }
 
@@ -679,7 +708,15 @@ func (s *Services) ConfirmUpdateAccountPassword(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
+	if serviceErr := s.verifyAccount2FAInternal(ctx, verifyAccount2FAInternalOptions{
+		requestID:       opts.RequestID,
+		accountID:       accountDTO.ID(),
+		accountPublicID: opts.PublicID,
+		accountVersion:  opts.Version,
+		twoFAType:       opts.TwoFAType,
+		code:            opts.Code,
+	}); serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to verify account two factor", "serviceError", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
 
@@ -694,6 +731,7 @@ func (s *Services) ConfirmUpdateAccountPassword(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		s.database.Queries,
 		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
@@ -789,6 +827,7 @@ func (s *Services) CreateAccountPassword(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		s.database.Queries,
 		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
@@ -908,8 +947,16 @@ func (s *Services) UpdateAccountUsername(
 		return dtos.AuthDTO{}, exceptions.NewConflictError("Username already in use")
 	}
 
-	if accountDTO.TwoFactorType != database.TwoFactorTypeNone {
-		logger.InfoContext(ctx, "Account has 2FA enabled", "twoFactorType", accountDTO.TwoFactorType)
+	default2FAConfig, serviceErr := s.getDefaultAccount2FAConfigInternal(ctx, getDefaultAccount2FAConfigInternalOptions{
+		requestID:       opts.RequestID,
+		accountPublicID: accountDTO.PublicID,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get default 2FA config", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+	if default2FAConfig != nil {
+		logger.InfoContext(ctx, "Account has 2FA enabled", "twoFactorType", default2FAConfig.TwoFactorType)
 
 		if err := s.cache.SaveUpdateUsernameRequest(ctx, cache.SaveUpdateUsernameRequestOptions{
 			RequestID:       opts.RequestID,
@@ -927,6 +974,7 @@ func (s *Services) UpdateAccountUsername(
 			logger,
 			opts.RequestID,
 			&accountDTO,
+			default2FAConfig.TwoFactorType,
 			"Please provide two factor code to confirm username update",
 		)
 		if serviceErr != nil {
@@ -951,6 +999,7 @@ func (s *Services) UpdateAccountUsername(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		s.database.Queries,
 		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
@@ -962,6 +1011,7 @@ type ConfirmUpdateAccountUsernameOptions struct {
 	RequestID string
 	PublicID  uuid.UUID
 	Version   int32
+	TwoFAType tokens.TwoFAType
 	Code      string
 }
 
@@ -998,7 +1048,15 @@ func (s *Services) ConfirmUpdateAccountUsername(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
+	if serviceErr := s.verifyAccount2FAInternal(ctx, verifyAccount2FAInternalOptions{
+		requestID:       opts.RequestID,
+		accountID:       accountDTO.ID(),
+		accountPublicID: opts.PublicID,
+		accountVersion:  opts.Version,
+		twoFAType:       opts.TwoFAType,
+		code:            opts.Code,
+	}); serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to verify account two factor", "serviceError", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
 
@@ -1016,6 +1074,7 @@ func (s *Services) ConfirmUpdateAccountUsername(
 	return s.GenerateFullAuthDTO(
 		ctx,
 		logger,
+		s.database.Queries,
 		opts.RequestID,
 		&accountDTO,
 		[]tokens.AccountScope{tokens.AccountScopeAdmin},
@@ -1075,9 +1134,17 @@ func (s *Services) DeleteAccount(
 		}
 	}
 
-	if accountDTO.TwoFactorType != database.TwoFactorTypeNone {
-		logger.InfoContext(ctx, "Account has 2FA enabled", "twoFactorType", accountDTO.TwoFactorType)
+	default2FAConfig, serviceErr := s.getDefaultAccount2FAConfigInternal(ctx, getDefaultAccount2FAConfigInternalOptions{
+		requestID:       opts.RequestID,
+		accountPublicID: accountDTO.PublicID,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get default 2FA config", "serviceError", serviceErr)
+		return false, dtos.AuthDTO{}, serviceErr
+	}
 
+	if default2FAConfig != nil {
+		logger.InfoContext(ctx, "Account has 2FA enabled", "twoFactorType", default2FAConfig.TwoFactorType)
 		if err := s.cache.SaveDeleteAccountRequest(ctx, cache.SaveDeleteAccountRequestOptions{
 			RequestID:       opts.RequestID,
 			PrefixType:      cache.SensitiveRequestAccountPrefix,
@@ -1093,6 +1160,7 @@ func (s *Services) DeleteAccount(
 			logger,
 			opts.RequestID,
 			&accountDTO,
+			default2FAConfig.TwoFactorType,
 			"Please provide two factor code to confirm account deletion",
 		)
 		if serviceErr != nil {
@@ -1116,6 +1184,7 @@ type ConfirmDeleteAccountOptions struct {
 	RequestID string
 	PublicID  uuid.UUID
 	Version   int32
+	TwoFAType tokens.TwoFAType
 	Code      string
 }
 
@@ -1152,7 +1221,14 @@ func (s *Services) ConfirmDeleteAccount(
 		return serviceErr
 	}
 
-	if serviceErr := s.verifyAccountTwoFactor(ctx, opts.RequestID, &accountDTO, opts.Code); serviceErr != nil {
+	if serviceErr := s.verifyAccount2FAInternal(ctx, verifyAccount2FAInternalOptions{
+		requestID:       opts.RequestID,
+		accountID:       accountDTO.ID(),
+		accountPublicID: opts.PublicID,
+		accountVersion:  opts.Version,
+		twoFAType:       opts.TwoFAType,
+		code:            opts.Code,
+	}); serviceErr != nil {
 		return serviceErr
 	}
 

@@ -512,7 +512,6 @@ func (s *Services) UpdateUser(
 		Email:         email,
 		Username:      username,
 		UserData:      data,
-		IsActive:      opts.IsActive,
 		EmailVerified: opts.EmailVerified,
 	})
 	if err != nil {

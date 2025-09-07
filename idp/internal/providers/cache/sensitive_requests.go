@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
@@ -28,8 +27,8 @@ const (
 	emailUpdatePrefix     string = "email_update"
 	passwordUpdatePrefix  string = "password_update"
 	deleteAccountPrefix   string = "delete_account"
-	twoFactorUpdatePrefix string = "two_factor_update"
 	usernameUpdatePrefix  string = "username_update"
+	twoFactorDeletePrefix string = "two_factor_delete"
 )
 
 type SaveUpdateEmailRequestOptions struct {
@@ -219,71 +218,6 @@ func (c *Cache) GetDeleteAccountRequest(ctx context.Context, opts GetDeleteAccou
 	return true, nil
 }
 
-type SaveTwoFactorUpdateRequestOptions struct {
-	RequestID       string
-	PrefixType      SensitiveRequestPrefixType
-	PublicID        uuid.UUID
-	TwoFactorType   database.TwoFactorType
-	DurationSeconds int64
-}
-
-func (c *Cache) SaveTwoFactorUpdateRequest(ctx context.Context, opts SaveTwoFactorUpdateRequestOptions) error {
-	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Location:  sensitiveRequestsLocation,
-		Method:    "SaveTwoFactorUpdateRequest",
-		RequestID: opts.RequestID,
-	}).With(
-		"prefixType", opts.PrefixType,
-		"publicID", opts.PublicID,
-		"twoFactorType", opts.TwoFactorType,
-	)
-	logger.DebugContext(ctx, "Saving two-factor update request...")
-
-	key := fmt.Sprintf("%s:%s:%s", twoFactorUpdatePrefix, opts.PrefixType, opts.PublicID.String())
-	val := []byte(opts.TwoFactorType)
-	exp := time.Duration(opts.DurationSeconds) * time.Second
-	if err := c.storage.SetWithContext(ctx, key, val, exp); err != nil {
-		logger.ErrorContext(ctx, "Error caching two-factor update request", "error", err)
-		return err
-	}
-
-	return nil
-}
-
-type GetTwoFactorUpdateRequestOptions struct {
-	RequestID  string
-	PrefixType SensitiveRequestPrefixType
-	PublicID   uuid.UUID
-}
-
-func (c *Cache) GetTwoFactorUpdateRequest(
-	ctx context.Context,
-	opts GetTwoFactorUpdateRequestOptions,
-) (database.TwoFactorType, error) {
-	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
-		Location:  sensitiveRequestsLocation,
-		Method:    "GetTwoFactorUpdateRequest",
-		RequestID: opts.RequestID,
-	}).With(
-		"prefixType", opts.PrefixType,
-		"publicID", opts.PublicID,
-	)
-	logger.DebugContext(ctx, "Getting two-factor update request...")
-
-	key := fmt.Sprintf("%s:%s:%s", twoFactorUpdatePrefix, opts.PrefixType, opts.PublicID.String())
-	val, err := c.storage.GetWithContext(ctx, key)
-	if err != nil {
-		logger.ErrorContext(ctx, "Error getting the two-factor update request", "error", err)
-		return "", err
-	}
-	if val == nil {
-		logger.DebugContext(ctx, "Two-factor update request not found")
-		return "", nil
-	}
-
-	return database.TwoFactorType(val), nil
-}
-
 type SaveUpdateUsernameRequestOptions struct {
 	RequestID       string
 	PrefixType      SensitiveRequestPrefixType
@@ -344,4 +278,102 @@ func (c *Cache) GetUpdateUsernameRequest(ctx context.Context, opts GetUpdateUser
 	}
 
 	return string(val), nil
+}
+
+type SaveDelete2FAConfigRequestOptions struct {
+	RequestID  string
+	PrefixType SensitiveRequestPrefixType
+	PublicID   uuid.UUID
+	TwoFAType  string
+	TTL        int64
+}
+
+func (c *Cache) SaveDelete2FAConfigRequest(
+	ctx context.Context,
+	opts SaveDelete2FAConfigRequestOptions,
+) (string, error) {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  sensitiveRequestsLocation,
+		Method:    "SaveDelete2FAConfigRequest",
+		RequestID: opts.RequestID,
+	}).With(
+		"prefixType", opts.PrefixType,
+		"publicID", opts.PublicID,
+		"twoFAType", opts.TwoFAType,
+	)
+	logger.DebugContext(ctx, "Saving delete 2FA config request...")
+
+	var code, hashedCode string
+	if opts.TwoFAType == "email" {
+		var err error
+		code, err = generate2FACode()
+		if err != nil {
+			logger.ErrorContext(ctx, "Error generating 2FA code", "error", err)
+			return "", err
+		}
+
+		hashedCode = utils.Sha256HashHex(code)
+	}
+
+	key := fmt.Sprintf("%s:%s:%s:%s", twoFactorDeletePrefix, opts.PrefixType, opts.PublicID.String(), opts.TwoFAType)
+	if err := c.storage.SetWithContext(ctx, key, []byte(hashedCode), time.Duration(opts.TTL)*time.Second); err != nil {
+		logger.ErrorContext(ctx, "Error caching delete 2FA config request", "error", err)
+		return "", err
+	}
+
+	return code, nil
+}
+
+type VerifyDelete2FAConfigRequestOptions struct {
+	RequestID  string
+	PrefixType SensitiveRequestPrefixType
+	PublicID   uuid.UUID
+	TwoFAType  string
+	Code       string
+}
+
+func (c *Cache) VerifyDelete2FAConfigRequest(
+	ctx context.Context,
+	opts VerifyDelete2FAConfigRequestOptions,
+) (bool, error) {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  sensitiveRequestsLocation,
+		Method:    "VerifyDelete2FAConfigRequest",
+		RequestID: opts.RequestID,
+	}).With(
+		"prefixType", opts.PrefixType,
+		"publicID", opts.PublicID,
+		"twoFAType", opts.TwoFAType,
+	)
+	logger.DebugContext(ctx, "Verifying delete 2FA config request...")
+
+	key := fmt.Sprintf("%s:%s:%s:%s", twoFactorDeletePrefix, opts.PrefixType, opts.PublicID.String(), opts.TwoFAType)
+	val, err := c.storage.GetWithContext(ctx, key)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error getting the delete 2FA config request", "error", err)
+		return false, err
+	}
+	if val == nil {
+		logger.DebugContext(ctx, "Delete 2FA config request not found")
+		return false, nil
+	}
+
+	if opts.TwoFAType == "email" {
+		ok, err := utils.CompareShaHex(opts.Code, string(val))
+		if err != nil {
+			logger.ErrorContext(ctx, "Error comparing delete 2FA config request", "error", err)
+			return false, err
+		}
+		if !ok {
+			logger.DebugContext(ctx, "Delete 2FA config request does not match")
+			return false, nil
+		}
+	}
+
+	if err := c.storage.DeleteWithContext(ctx, key); err != nil {
+		logger.ErrorContext(ctx, "Error deleting delete 2FA config request", "error", err)
+		return true, err
+	}
+
+	return true, nil
 }
