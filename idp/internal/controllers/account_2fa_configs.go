@@ -11,6 +11,7 @@ import (
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/services"
 )
 
@@ -172,7 +173,7 @@ func (c *Controllers) ConfirmDeleteAccount2FAConfig(ctx *fiber.Ctx) error {
 	logger := c.buildLogger(requestID, account2FAConfigsLocation, "ConfirmDeleteAccount2FAConfig")
 	logRequest(logger, ctx)
 
-	accountClaims, serviceErr := getAccountClaims(ctx)
+	accountClaims, twoFAType, serviceErr := getAccounts2FAClaims(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
@@ -180,6 +181,9 @@ func (c *Controllers) ConfirmDeleteAccount2FAConfig(ctx *fiber.Ctx) error {
 	urlParams := params.GetAccount2FAConfigURLParams{TwoFAType: ctx.Params("twoFAType")}
 	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
+	}
+	if string(twoFAType) != urlParams.TwoFAType {
+		return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 	}
 
 	body := new(bodies.TwoFactorLoginBody)
