@@ -59,7 +59,7 @@ func (c *Controllers) serviceErrorCallback(
 	case exceptions.CodeNotFound, exceptions.CodeValidation:
 		return c.errorCallback(logger, ctx, state, exceptions.OAuthErrorInvalidRequest)
 	default:
-		return c.errorCallback(logger, ctx, state, exceptions.OAuthServerError)
+		return c.errorCallback(logger, ctx, state, exceptions.OAuthErrorServerError)
 	}
 }
 
@@ -191,7 +191,7 @@ func oauthErrorResponseMapper(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *e
 	case exceptions.CodeForbidden:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnauthorizedClient)
 	default:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthServerError)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
 	}
 }
 
@@ -204,7 +204,7 @@ func oauthClientCredentialsErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, se
 	case exceptions.CodeForbidden:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnauthorizedClient)
 	default:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthServerError)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
 	}
 }
 

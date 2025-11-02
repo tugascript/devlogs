@@ -23,6 +23,8 @@ const (
 	CodeUnauthorized         string = "UNAUTHORIZED"
 	CodeForbidden            string = "FORBIDDEN"
 	CodeUnsupportedMediaType string = "UNSUPPORTED_MEDIA_TYPE"
+	CodeInvalidToken         string = "INVALID_TOKEN"
+	CodeUnauthorizedToken    string = "UNAUTHORIZED_TOKEN"
 )
 
 const (
@@ -89,6 +91,14 @@ func NewUnauthorizedError() *ServiceError {
 
 func NewForbiddenError() *ServiceError {
 	return NewError(CodeForbidden, MessageForbidden)
+}
+
+func NewInvalidTokenError(message string) *ServiceError {
+	return NewError(CodeInvalidToken, message)
+}
+
+func NewUnauthorizedTokenError(message string) *ServiceError {
+	return NewError(CodeUnauthorizedToken, message)
 }
 
 func NewForbiddenValidationError(message string) *ServiceError {

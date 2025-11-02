@@ -135,7 +135,8 @@ func (c *Controllers) TwoFAAccessClaimsMiddleware(ctx *fiber.Ctx) error {
 }
 
 func (c *Controllers) AppAccessClaimsMiddleware(ctx *fiber.Ctx) error {
-	logger := c.buildLogger(getRequestID(ctx), middlewareLocation, "AppAccessClaimsMiddleware")
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, middlewareLocation, "AppAccessClaimsMiddleware")
 
 	authHeader := ctx.Get("Authorization")
 	if authHeader == "" {
@@ -150,7 +151,7 @@ func (c *Controllers) AppAccessClaimsMiddleware(ctx *fiber.Ctx) error {
 	appClaims, serviceErr := c.services.ProcessAppAuthHeader(
 		ctx.UserContext(),
 		services.ProcessAppAuthHeaderOptions{
-			RequestID:  getRequestID(ctx),
+			RequestID:  requestID,
 			AuthHeader: authHeader,
 			AccountID:  accountID,
 		},
@@ -160,6 +161,35 @@ func (c *Controllers) AppAccessClaimsMiddleware(ctx *fiber.Ctx) error {
 	}
 
 	ctx.Locals("app", appClaims)
+	return ctx.Next()
+}
+
+func (c *Controllers) AccountCredentialsDRIATMiddleware(ctx *fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, middlewareLocation, "AccountCredentialsDRIATMiddleware")
+	authHeader := ctx.Get("Authorization")
+
+	if authHeader == "" {
+		logger.InfoContext(ctx.UserContext(), "No Authorization header found")
+		ctx.Locals("isAuthenticated", false)
+		return ctx.Next()
+	}
+
+	domain, accountClaims, serviceErr := c.services.ProcessAccountCredentialsRegistrationIATAuth(
+		ctx.UserContext(),
+		services.ProcessAccountCredentialsRegistrationIATAuthOptions{
+			RequestID:  requestID,
+			AuthHeader: authHeader,
+		},
+	)
+	if serviceErr != nil {
+		ctx.Set(fiber.HeaderWWWAuthenticate, "Bearer realm=\"accounts\", error=\"invalid_token\"")
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+	}
+
+	ctx.Locals("account", accountClaims)
+	ctx.Locals("domain", domain)
+	ctx.Locals("isAuthenticated", true)
 	return ctx.Next()
 }
 

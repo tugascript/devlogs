@@ -49,6 +49,7 @@ type checkAccountCRDomainOptions struct {
 	requestID              string
 	accountPublicID        uuid.UUID
 	domain                 string
+	iatDomain              string
 	requireVerifiedDomains bool
 }
 
@@ -65,6 +66,13 @@ func (s *Services) checkAccountCRDomain(
 	if err != nil {
 		logger.WarnContext(ctx, "Failed to parse base domain", "error", err)
 		return "", exceptions.NewValidationError("invalid client URI")
+	}
+	if opts.iatDomain != "" && opts.domain != opts.iatDomain && baseDomain != opts.iatDomain {
+		logger.WarnContext(ctx, "Client URI base domain does not match IAT domain",
+			"baseDomain", baseDomain,
+			"iatDomain", opts.iatDomain,
+		)
+		return "", exceptions.NewUnauthorizedError()
 	}
 
 	var count int64
@@ -586,8 +594,9 @@ func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
 type CreateAccountCredentialsRegistrationOptions struct {
 	RequestID                    string
 	AccountPublicID              uuid.UUID
-	AccountVersion               int32
 	IsAuthenticated              bool
+	IATDomain                    string
+	AccountVersion               int32
 	ApplicationType              string
 	RedirectURIs                 []string
 	TokenEndpointAuthMethod      string
@@ -690,16 +699,6 @@ func (s *Services) CreateAccountCredentialsRegistration(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	accountID, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
-		RequestID: opts.RequestID,
-		PublicID:  opts.AccountPublicID,
-		Version:   opts.AccountVersion,
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get account ID", "serviceError", serviceErr)
-		return dtos.AccountCredentialsDTO{}, serviceErr
-	}
-
 	if slices.Contains(accountDRConfigDTO.RequireInitialAccessTokenCredentialTypes, applicationType) &&
 		!opts.IsAuthenticated {
 		logger.WarnContext(ctx, "Account dynamic registration configuration needs to contain initial access token")
@@ -712,16 +711,23 @@ func (s *Services) CreateAccountCredentialsRegistration(
 		return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	_, serviceErr = s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicID(ctx, GetAccountByPublicIDOptions{
 		RequestID: opts.RequestID,
 		PublicID:  opts.AccountPublicID,
-		Version:   opts.AccountVersion,
 	})
 	if serviceErr != nil {
-		logger.WarnContext(ctx, "Failed to get account", "serviceError", serviceErr)
+		logger.ErrorContext(ctx, "Failed to get account ID", "serviceError", serviceErr)
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
+	if opts.AccountVersion != 0 && accountDTO.Version() != opts.AccountVersion {
+		logger.WarnContext(ctx, "Account version mismatch",
+			"providedVersion", opts.AccountVersion,
+			"currentVersion", accountDTO.Version(),
+		)
+		return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+	}
 
+	accountID := accountDTO.ID()
 	parsedClientURI, err := url.Parse(opts.ClientURI)
 	if err != nil {
 		logger.WarnContext(ctx, "Failed to parse client URI", "error", err)
@@ -732,6 +738,7 @@ func (s *Services) CreateAccountCredentialsRegistration(
 	baseDomain, serviceErr := s.checkAccountCRDomain(ctx, checkAccountCRDomainOptions{
 		requestID:              opts.RequestID,
 		accountPublicID:        opts.AccountPublicID,
+		iatDomain:              opts.IATDomain,
 		domain:                 domain,
 		requireVerifiedDomains: slices.Contains(accountDRConfigDTO.RequireVerifiedDomainsCredentialsType, applicationType),
 	})
@@ -793,7 +800,7 @@ func (s *Services) CreateAccountCredentialsRegistration(
 		})
 		if err != nil {
 			logger.WarnContext(ctx, "Failed to verify software statement", "error", err)
-			return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
+			return dtos.AccountCredentialsDTO{}, exceptions.NewInvalidTokenError("invalid software statement")
 		}
 		if serviceErr := s.verifySoftwareStatementSTDClaims(ctx, verifySoftwareStatementSTDClaimsOptions{
 			requestID:      opts.RequestID,
@@ -823,7 +830,7 @@ func (s *Services) CreateAccountCredentialsRegistration(
 	params, serviceErr := s.mapAccountCredentialsRegistrationDataToDBParams(ctx, mapAccountCredentialsRegistrationDataToDBParamsOptions{
 		applicationType:         applicationType,
 		accountPublicID:         opts.AccountPublicID,
-		accountID:               opts.AccountVersion,
+		accountID:               accountDTO.Version(),
 		domain:                  domain,
 		requestID:               opts.RequestID,
 		tokenEndpointAuthMethod: tokenEndpointAuthMethod,

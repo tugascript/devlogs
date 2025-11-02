@@ -134,17 +134,21 @@ func oauthErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, message string) err
 
 	switch message {
 	case exceptions.OAuthErrorInvalidRequest, exceptions.OAuthErrorInvalidGrant,
-		exceptions.OAuthErrorInvalidScope, exceptions.OAuthErrorUnsupportedGrantType:
+		exceptions.OAuthErrorInvalidScope, exceptions.OAuthErrorUnsupportedGrantType,
+		exceptions.OAuthErrorInvalidRedirectURI, exceptions.OAuthErrorInvalidClientMetadata,
+		exceptions.OAuthErrorInvalidSoftwareStatement, exceptions.OAuthErrorUnapprovedSoftwareStatement,
+		exceptions.OAuthErrorUnsupportedResponseType:
 		logResponse(logger, ctx, fiber.StatusBadRequest)
 		return ctx.Status(fiber.StatusBadRequest).JSON(&resErr)
-	case exceptions.OAuthErrorUnauthorizedClient, exceptions.OAuthErrorAccessDenied:
+	case exceptions.OAuthErrorUnauthorizedClient, exceptions.OAuthErrorAccessDenied, exceptions.OAuthErrorInvalidToken:
 		logResponse(logger, ctx, fiber.StatusUnauthorized)
 		return ctx.Status(fiber.StatusUnauthorized).JSON(&resErr)
-	case exceptions.OAuthServerError:
+	case exceptions.OAuthErrorServerError:
 		logResponse(logger, ctx, fiber.StatusInternalServerError)
 		return ctx.Status(fiber.StatusInternalServerError).JSON(&resErr)
 	default:
 		logResponse(logger, ctx, fiber.StatusBadRequest)
+		resErr = exceptions.NewOAuthError(exceptions.OAuthErrorInvalidRequest)
 		return ctx.Status(fiber.StatusBadRequest).JSON(&resErr)
 	}
 }
@@ -187,6 +191,25 @@ func (c *Controllers) redirectServiceErrorCallback(
 	case exceptions.CodeNotFound, exceptions.CodeValidation:
 		return c.redirectErrorCallback(logger, ctx, redirectURI, state, exceptions.OAuthErrorInvalidRequest)
 	default:
-		return c.redirectErrorCallback(logger, ctx, redirectURI, state, exceptions.OAuthServerError)
+		return c.redirectErrorCallback(logger, ctx, redirectURI, state, exceptions.OAuthErrorServerError)
+	}
+}
+
+func dynamicRegistrationServiceError(
+	logger *slog.Logger,
+	ctx *fiber.Ctx,
+	serviceErr *exceptions.ServiceError,
+) error {
+	switch serviceErr.Code {
+	case exceptions.CodeUnauthorized, exceptions.CodeForbidden:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnauthorizedClient)
+	case exceptions.CodeNotFound, exceptions.CodeValidation:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)
+	case exceptions.CodeInvalidToken:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidSoftwareStatement)
+	case exceptions.CodeUnauthorizedToken:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnapprovedSoftwareStatement)
+	default:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
 	}
 }

@@ -81,7 +81,7 @@ func (s *Services) verifySoftwareStatementSTDClaims(
 		logger.WarnContext(ctx, "Software statement issuer does not match client URI domain or base domain",
 			"issuer", opts.claims.Issuer,
 		)
-		return exceptions.NewUnauthorizedError()
+		return exceptions.NewUnauthorizedTokenError("issuer does not match client URI domain or base domain")
 	}
 	if opts.claims.Audience == nil || !slices.ContainsFunc(opts.claims.Audience, func(aud string) bool {
 		return aud == fmt.Sprintf("https://%s", opts.frontendDomain) || aud == fmt.Sprintf("https://%s", opts.backendDomain)
@@ -89,25 +89,25 @@ func (s *Services) verifySoftwareStatementSTDClaims(
 		logger.WarnContext(ctx, "Software statement audience does not match frontend or backend domain",
 			"audience", opts.claims.Audience,
 		)
-		return exceptions.NewUnauthorizedError()
+		return exceptions.NewUnauthorizedTokenError("audience does not match frontend or backend")
 	}
 	if opts.claims.IssuedAt == nil || opts.claims.IssuedAt.Time.IsZero() || opts.claims.IssuedAt.Time.After(time.Now()) {
 		logger.WarnContext(ctx, "Software statement issued at claim is invalid",
 			"issuedAt", opts.claims.IssuedAt,
 		)
-		return exceptions.NewUnauthorizedError()
+		return exceptions.NewUnauthorizedTokenError("issued at claim is invalid")
 	}
 	if opts.claims.NotBefore != nil && !opts.claims.NotBefore.Time.IsZero() && opts.claims.NotBefore.Time.After(time.Now()) {
 		logger.WarnContext(ctx, "Software statement not before claim is invalid",
 			"notBefore", opts.claims.NotBefore,
 		)
-		return exceptions.NewUnauthorizedError()
+		return exceptions.NewUnauthorizedTokenError("not before claim is invalid")
 	}
 	if opts.claims.ExpiresAt == nil || opts.claims.ExpiresAt.Time.IsZero() || opts.claims.ExpiresAt.Time.Before(time.Now()) {
 		logger.WarnContext(ctx, "Software statement expiration claim is invalid",
 			"expiresAt", opts.claims.ExpiresAt,
 		)
-		return exceptions.NewUnauthorizedError()
+		return exceptions.NewUnauthorizedTokenError("expiresAt claim is invalid")
 	}
 
 	logger.InfoContext(ctx, "Verified software statement standard claims")

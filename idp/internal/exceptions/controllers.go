@@ -28,10 +28,16 @@ const (
 	OAuthErrorInvalidGrant            string = "invalid_grant"
 	OAuthErrorUnauthorizedClient      string = "unauthorized_client"
 	OAuthErrorAccessDenied            string = "access_denied"
-	OAuthServerError                  string = "server_error"
+	OAuthErrorServerError             string = "server_error"
 	OAuthErrorInvalidScope            string = "invalid_scope"
 	OAuthErrorUnsupportedGrantType    string = "unsupported_grant_type"
 	OAuthErrorUnsupportedResponseType string = "unsupported_response_type"
+
+	OAuthErrorInvalidRedirectURI          string = "invalid_redirect_uri"
+	OAuthErrorInvalidClientMetadata       string = "invalid_client_metadata"
+	OAuthErrorInvalidSoftwareStatement    string = "invalid_software_statement"
+	OAuthErrorUnapprovedSoftwareStatement string = "unapproved_software_statement"
+	OAuthErrorInvalidToken                string = "invalid_token"
 )
 
 type ErrorResponse struct {
