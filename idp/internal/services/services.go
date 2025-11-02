@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/go-playground/validator/v10"
+
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -27,6 +29,7 @@ type Services struct {
 	jwt                           *tokens.Tokens
 	crypto                        *crypto.Crypto
 	oauthProviders                *oauth.Providers
+	validate                      *validator.Validate
 	kekExpDays                    time.Duration
 	dekExpDays                    time.Duration
 	jwkExpDays                    time.Duration
@@ -46,6 +49,7 @@ func NewServices(
 	jwt *tokens.Tokens,
 	encrypt *crypto.Crypto,
 	oauthProv *oauth.Providers,
+	validate *validator.Validate,
 	kekExpDays int64,
 	dekExpDays int64,
 	jwkExpDays int64,
@@ -64,6 +68,7 @@ func NewServices(
 		jwt:                           jwt,
 		crypto:                        encrypt,
 		oauthProviders:                oauthProv,
+		validate:                      validate,
 		kekExpDays:                    utils.ToDaysDuration(kekExpDays),
 		dekExpDays:                    utils.ToDaysDuration(dekExpDays),
 		jwkExpDays:                    utils.ToDaysDuration(jwkExpDays),

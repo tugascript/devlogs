@@ -9,7 +9,7 @@ INSERT INTO "apps" (
   "account_id",
   "account_public_id",
   "app_type",
-  "name",
+  "client_name",
   "client_id",
   "client_uri",
   "username_column",
@@ -64,7 +64,7 @@ INSERT INTO "apps" (
 
 -- name: CountAppsByAccountIDAndName :one
 SELECT COUNT(*) FROM "apps"
-WHERE "account_id" = $1 AND "name" = $2
+WHERE "account_id" = $1 AND "client_name" = $2
 LIMIT 1;
 
 -- name: FindAppByClientID :one
@@ -86,7 +86,7 @@ WHERE "id" = $1 LIMIT 1;
 
 -- name: UpdateApp :one
 UPDATE "apps"
-SET "name" = $2,
+SET "client_name" = $2,
     "username_column" = $3,
     "client_uri" = $4,
     "logo_uri" = $5,
@@ -129,7 +129,7 @@ OFFSET $2 LIMIT $3;
 -- name: FindPaginatedAppsByAccountPublicIDOrderedByName :many
 SELECT * FROM "apps"
 WHERE "account_public_id" = $1
-ORDER BY "name" ASC
+ORDER BY "client_name" ASC
 OFFSET $2 LIMIT $3;
 
 -- name: CountAppsByAccountPublicID :one
@@ -139,7 +139,7 @@ LIMIT 1;
 
 -- name: FilterAppsByNameAndByAccountPublicIDOrderedByID :many
 SELECT * FROM "apps"
-WHERE "account_public_id" = $1 AND "name" ILIKE $2
+WHERE "account_public_id" = $1 AND "client_name" ILIKE $2
 ORDER BY "id" DESC
 OFFSET $3 LIMIT $4;
 
@@ -152,34 +152,34 @@ OFFSET $3 LIMIT $4;
 -- name: FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByID :many
 SELECT * FROM "apps"
 WHERE "account_public_id" = $1 AND
-  "name" ILIKE $2 AND
+  "client_name" ILIKE $2 AND
   "app_type" = $3
 ORDER BY "id" DESC
 OFFSET $4 LIMIT $5;
 
 -- name: FilterAppsByNameAndByAccountPublicIDOrderedByName :many
 SELECT * FROM "apps"
-WHERE "account_public_id" = $1 AND "name" ILIKE $2
-ORDER BY "name" ASC
+WHERE "account_public_id" = $1 AND "client_name" ILIKE $2
+ORDER BY "client_name" ASC
 OFFSET $3 LIMIT $4;
 
 -- name: FilterAppsByTypeAndByAccountPublicIDOrderedByName :many
 SELECT * FROM "apps"
 WHERE "account_public_id" = $1 AND "app_type" = $2
-ORDER BY "name" ASC
+ORDER BY "client_name" ASC
 OFFSET $3 LIMIT $4;
 
 -- name: FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByName :many
 SELECT * FROM "apps"
 WHERE "account_public_id" = $1 AND
-  "name" ILIKE $2 AND
+  "client_name" ILIKE $2 AND
   "app_type" = $3
-ORDER BY "name" ASC
+ORDER BY "client_name" ASC
 OFFSET $4 LIMIT $5;
 
 -- name: CountFilteredAppsByNameAndByAccountPublicID :one
 SELECT COUNT(*) FROM "apps"
-WHERE "account_public_id" = $1 AND "name" ILIKE $2
+WHERE "account_public_id" = $1 AND "client_name" ILIKE $2
 LIMIT 1;
 
 -- name: CountFilteredAppsByTypeAndByAccountPublicID :one
@@ -190,7 +190,7 @@ LIMIT 1;
 -- name: CountFilteredAppsByNameAndTypeAndByAccountPublicID :one
 SELECT COUNT(*) FROM "apps"
 WHERE "account_public_id" = $1 AND
-  "name" ILIKE $2 AND
+  "client_name" ILIKE $2 AND
   "app_type" = $3
 LIMIT 1;
 
@@ -204,7 +204,7 @@ RETURNING *;
 -- name: FindAppsByClientIDsAndAccountID :many
 SELECT * FROM "apps"
 WHERE "client_id" IN (sqlc.slice('client_ids')) AND "account_id" = $1
-ORDER BY "name" ASC LIMIT $2;
+ORDER BY "client_name" ASC LIMIT $2;
 
 -- name: CountAppsByClientIDAndAccountPublicID :one
 SELECT COUNT(*) FROM "apps"

@@ -269,6 +269,10 @@ func New(
 	)
 	logger.InfoContext(ctx, "Finished building OAuth provider")
 
+	logger.InfoContext(ctx, "Loading validators...")
+	vld := validations.NewValidator(logger)
+	logger.InfoContext(ctx, "Finished loading validators")
+
 	logger.InfoContext(ctx, "Building services...")
 	newServices := services.NewServices(
 		logger,
@@ -278,6 +282,7 @@ func New(
 		jwts,
 		cryp,
 		oauthProviders,
+		vld,
 		cfg.KEKExpirationDays(),
 		cfg.DEKExpirationDays(),
 		cfg.JWKExpirationDays(),
@@ -289,10 +294,6 @@ func New(
 		cfg.AccountDomainVerificationTTL(),
 	)
 	logger.InfoContext(ctx, "Finished building services")
-
-	logger.InfoContext(ctx, "Loading validators...")
-	vld := validations.NewValidator(logger)
-	logger.InfoContext(ctx, "Finished loading validators")
 
 	server := &FiberServer{
 		App: fiber.New(fiber.Config{

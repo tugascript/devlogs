@@ -9,6 +9,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,8 +25,8 @@ import (
 const (
 	accountCredentialsLocation string = "account_credentials"
 
-	accountCredentialsKeysCacheTTL       int    = 900 // 15 minutes
-	accountCredentialsKeysCacheKeyPrefix string = "account_credentials_keys"
+	accountCredentialsKeysCacheTTL       time.Duration = 15 * time.Minute
+	accountCredentialsKeysCacheKeyPrefix string        = "account_credentials_keys"
 )
 
 func mapAccountCredentialsTransport(
@@ -103,6 +104,79 @@ func mapAccountCredentialsTokenEndpointAuthMethod(
 		return "", exceptions.NewValidationError("invalid transport: " + string(transport))
 	default:
 		return "", exceptions.NewValidationError("invalid credentials type: " + string(credentialType))
+	}
+}
+
+func mapAccountCredentialsGrantTypes(
+	applicationType database.AccountCredentialsType,
+	grantTypes []string,
+) ([]database.GrantType, *exceptions.ServiceError) {
+	switch applicationType {
+	case database.AccountCredentialsTypeMcp:
+		if len(grantTypes) == 0 {
+			return []database.GrantType{database.GrantTypeAuthorizationCode, database.GrantTypeRefreshToken}, nil
+		}
+
+		gts := make([]database.GrantType, 0, len(grantTypes))
+		for _, grantType := range grantTypes {
+			mappedGrantType, serviceErr := mapGrantType(grantType)
+			if serviceErr != nil {
+				return nil, serviceErr
+			}
+
+			if mappedGrantType != database.GrantTypeAuthorizationCode && mappedGrantType != database.GrantTypeRefreshToken {
+				return nil, exceptions.NewValidationError("only authorization_code and refresh_token grant types are supported for mcp credentials")
+			}
+
+			gts = append(gts, mappedGrantType)
+		}
+
+		return gts, nil
+	case database.AccountCredentialsTypeService:
+		if len(grantTypes) == 0 {
+			return []database.GrantType{database.GrantTypeClientCredentials, database.GrantTypeUrnIetfParamsOauthGrantTypeJwtBearer}, nil
+		}
+
+		gts := make([]database.GrantType, 0, len(grantTypes))
+		for _, grantType := range grantTypes {
+			mappedGrantType, serviceErr := mapGrantType(grantType)
+			if serviceErr != nil {
+				return nil, serviceErr
+			}
+
+			if mappedGrantType != database.GrantTypeClientCredentials && mappedGrantType != database.GrantTypeUrnIetfParamsOauthGrantTypeJwtBearer {
+				return nil, exceptions.NewValidationError("only client_credentials and urn:ietf:params:oauth:grant-type:jwt-bearer grant types are supported for service credentials")
+			}
+
+			gts = append(gts, mappedGrantType)
+		}
+
+		return gts, nil
+	case database.AccountCredentialsTypeNative:
+		if len(grantTypes) == 0 {
+			return []database.GrantType{database.GrantTypeAuthorizationCode, database.GrantTypeRefreshToken}, nil
+		}
+
+		gts := make([]database.GrantType, 0, len(grantTypes))
+		for _, grantType := range grantTypes {
+			mappedGrantType, serviceErr := mapGrantType(grantType)
+			if serviceErr != nil {
+				return nil, serviceErr
+			}
+
+			if mappedGrantType != database.GrantTypeAuthorizationCode && mappedGrantType != database.GrantTypeRefreshToken {
+				return nil, exceptions.NewValidationError("only authorization_code and refresh_token grant types are supported for native credentials")
+			}
+
+			gts = append(gts, mappedGrantType)
+		}
+		if !slices.Contains(gts, database.GrantTypeAuthorizationCode) {
+			return nil, exceptions.NewValidationError("authorization_code grant type is required for native credentials")
+		}
+
+		return gts, nil
+	default:
+		return nil, exceptions.NewValidationError("invalid credentials type: " + string(applicationType))
 	}
 }
 
@@ -219,8 +293,8 @@ func (s *Services) CreateAccountCredentials(
 	count, err := s.database.CountAccountCredentialsByNameAndAccountID(
 		ctx,
 		database.CountAccountCredentialsByNameAndAccountIDParams{
-			AccountID: accountID,
-			Name:      name,
+			AccountID:  accountID,
+			ClientName: name,
 		},
 	)
 	if err != nil {
@@ -240,7 +314,7 @@ func (s *Services) CreateAccountCredentials(
 				AccountID:               accountID,
 				AccountPublicID:         opts.AccountPublicID,
 				CredentialsType:         credentialsType,
-				Name:                    name,
+				ClientName:              name,
 				Scopes:                  scopes,
 				TokenEndpointAuthMethod: authMethod,
 				Domain:                  domain,
@@ -251,7 +325,7 @@ func (s *Services) CreateAccountCredentials(
 				LogoUri:         mapEmptyURL(opts.LogoURI),
 				PolicyUri:       mapEmptyURL(opts.PolicyURI),
 				TosUri:          mapEmptyURL(opts.TOSURI),
-				SoftwareID:      opts.SoftwareID,
+				SoftwareID:      mapEmptyString(opts.SoftwareID),
 				SoftwareVersion: mapEmptyString(opts.SoftwareVersion),
 				Contacts:        opts.Contacts,
 				CreationMethod:  opts.CreationMethod,
@@ -263,7 +337,7 @@ func (s *Services) CreateAccountCredentials(
 			return dtos.AccountCredentialsDTO{}, exceptions.FromDBError(err)
 		}
 
-		return dtos.MapAccountCredentialsToDTO(&accountCredentials), nil
+		return dtos.MapAccountCredentialsToDTO(&accountCredentials)
 	}
 
 	qrs, txn, err := s.database.BeginTx(ctx)
@@ -283,7 +357,7 @@ func (s *Services) CreateAccountCredentials(
 			AccountID:               accountID,
 			AccountPublicID:         opts.AccountPublicID,
 			CredentialsType:         credentialsType,
-			Name:                    name,
+			ClientName:              name,
 			Scopes:                  scopes,
 			TokenEndpointAuthMethod: authMethod,
 			Domain:                  domain,
@@ -294,7 +368,7 @@ func (s *Services) CreateAccountCredentials(
 			LogoUri:         mapEmptyURL(opts.LogoURI),
 			PolicyUri:       mapEmptyURL(opts.PolicyURI),
 			TosUri:          mapEmptyURL(opts.TOSURI),
-			SoftwareID:      opts.SoftwareID,
+			SoftwareID:      mapEmptyString(opts.SoftwareID),
 			SoftwareVersion: mapEmptyString(opts.SoftwareVersion),
 			Contacts:        opts.Contacts,
 			CreationMethod:  opts.CreationMethod,
@@ -344,7 +418,7 @@ func (s *Services) CreateAccountCredentials(
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
-		return dtos.MapAccountCredentialsToDTOWithJWK(&accountCredentials, jwk, dbPrms.ExpiresAt), nil
+		return dtos.MapAccountCredentialsToDTOWithJWK(&accountCredentials, jwk, dbPrms.ExpiresAt)
 	case AuthMethodClientSecretBasic, AuthMethodClientSecretPost, AuthMethodClientSecretJWT:
 		var ccID int32
 		var secretID, secret string
@@ -377,7 +451,7 @@ func (s *Services) CreateAccountCredentials(
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
-		return dtos.MapAccountCredentialsToDTOWithSecret(&accountCredentials, secretID, secret, exp), nil
+		return dtos.MapAccountCredentialsToDTOWithSecret(&accountCredentials, secretID, secret, exp)
 	default:
 		logger.ErrorContext(ctx, "Invalid auth method", "authMethod", opts.AuthMethod)
 		serviceErr = exceptions.NewInternalServerError()
@@ -420,7 +494,7 @@ func (s *Services) GetAccountCredentialsByClientIDAndAccountPublicID(
 	}
 
 	logger.InfoContext(ctx, "Got account keys by client id and account public id successfully")
-	return dtos.MapAccountCredentialsToDTO(&accountCredentials), nil
+	return dtos.MapAccountCredentialsToDTO(&accountCredentials)
 }
 
 type GetAccountCredentialsByPublicIDOptions struct {
@@ -449,7 +523,7 @@ func (s *Services) GetAccountCredentialsByPublicID(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	return dtos.MapAccountCredentialsToDTO(&accountClients), nil
+	return dtos.MapAccountCredentialsToDTO(&accountClients)
 }
 
 type getAccountCredentialsForMutationOptions struct {
@@ -520,8 +594,18 @@ func (s *Services) ListAccountCredentialsByAccountPublicID(
 		return nil, 0, exceptions.NewInternalServerError()
 	}
 
+	accountCredentialsDTOs := make([]dtos.AccountCredentialsDTO, len(accountCredentials))
+	for i, accountCredential := range accountCredentials {
+		var serviceErr *exceptions.ServiceError
+		accountCredentialsDTOs[i], serviceErr = dtos.MapAccountCredentialsToDTO(&accountCredential)
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to map account credentials to DTO", "serviceError", serviceErr)
+			return nil, 0, serviceErr
+		}
+	}
+
 	logger.InfoContext(ctx, "Successfully listed account keys by account id")
-	return utils.MapSlice(accountCredentials, dtos.MapAccountCredentialsToDTO), count, nil
+	return accountCredentialsDTOs, count, nil
 }
 
 func mapAccountCredentialsUpdateTransport(
@@ -588,12 +672,12 @@ func (s *Services) UpdateAccountCredentials(
 	}
 
 	name := strings.TrimSpace(opts.Name)
-	if name != accountCredentialsDTO.Name {
+	if name != accountCredentialsDTO.ClientName {
 		count, err := s.database.CountAccountCredentialsByNameAndAccountID(
 			ctx,
 			database.CountAccountCredentialsByNameAndAccountIDParams{
-				AccountID: accountCredentialsDTO.AccountID(),
-				Name:      name,
+				AccountID:  accountCredentialsDTO.AccountID(),
+				ClientName: name,
 			},
 		)
 		if err != nil {
@@ -624,7 +708,7 @@ func (s *Services) UpdateAccountCredentials(
 	accountCredentials, err := s.database.UpdateAccountCredentials(ctx, database.UpdateAccountCredentialsParams{
 		ID:              accountCredentialsDTO.ID(),
 		Scopes:          scopes,
-		Name:            name,
+		ClientName:      name,
 		Domain:          domain,
 		ClientUri:       opts.ClientURI,
 		RedirectUris:    opts.RedirectURIs,
@@ -640,7 +724,7 @@ func (s *Services) UpdateAccountCredentials(
 		return dtos.AccountCredentialsDTO{}, exceptions.FromDBError(err)
 	}
 
-	return dtos.MapAccountCredentialsToDTO(&accountCredentials), nil
+	return dtos.MapAccountCredentialsToDTO(&accountCredentials)
 }
 
 type DeleteAccountCredentialsOptions struct {
@@ -1382,7 +1466,7 @@ func (s *Services) ListActiveAccountCredentialsKeysWithCache(
 	logger.InfoContext(ctx, "Listing account credentials keys with cache...")
 
 	cacheKey := fmt.Sprintf("%s:%s", accountCredentialsKeysCacheKeyPrefix, opts.AccountPublicID)
-	jwksDTO, etag, err := cache.GetResponse(s.cache, ctx, cache.GetResponseOptions[dtos.JWKsDTO]{
+	jwksDTO, etag, found, err := cache.GetResponse(s.cache, ctx, cache.GetResponseOptions[dtos.JWKsDTO]{
 		RequestID: opts.RequestID,
 		Key:       cacheKey,
 	})
@@ -1390,7 +1474,7 @@ func (s *Services) ListActiveAccountCredentialsKeysWithCache(
 		logger.ErrorContext(ctx, "Failed to get cached account credentials keys", "error", err)
 		return dtos.JWKsDTO{}, "", exceptions.NewInternalServerError()
 	}
-	if etag != "" {
+	if found && etag != "" {
 		logger.InfoContext(ctx, "Found cached account credentials keys", "etag", etag)
 		return jwksDTO, etag, nil
 	}

@@ -9,7 +9,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,45 +21,63 @@ import (
 )
 
 const (
-	accountCredentialsRegistrationDomainsLocation string = "account_credentials_registration_domains"
+	dynamicRegistrationDomainsLocation string = "dynamic_registration_domains"
 
 	domainCodeByteLength int = 32
 )
 
-type CreateAccountCredentialsRegistrationDomainOptions struct {
+func mapDynamicRegistrationDomainUsage(usage string) (database.DynamicRegistrationUsage, *exceptions.ServiceError) {
+	switch utils.Lowered(usage) {
+	case "account":
+		return database.DynamicRegistrationUsageAccount, nil
+	case "app":
+		return database.DynamicRegistrationUsageApp, nil
+	}
+	return "", exceptions.NewValidationError("Invalid usage")
+}
+
+func mapDynamicRegistrationDomainUsages(usages []string) ([]database.DynamicRegistrationUsage, *exceptions.ServiceError) {
+	if len(usages) == 0 {
+		return nil, exceptions.NewValidationError("Usages cannot be empty")
+	}
+
+	dbUsages := make([]database.DynamicRegistrationUsage, 0, len(usages))
+	for _, usage := range usages {
+		usage, serviceErr := mapDynamicRegistrationDomainUsage(usage)
+		if serviceErr != nil {
+			return nil, serviceErr
+		}
+		dbUsages = append(dbUsages, usage)
+	}
+
+	return dbUsages, nil
+}
+
+type CreateDynamicRegistrationDomainOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
 	AccountVersion  int32
 	Domain          string
+	Usages          []string
 }
 
-func (s *Services) CreateAccountCredentialsRegistrationDomain(
+func (s *Services) CreateDynamicRegistrationDomain(
 	ctx context.Context,
-	opts CreateAccountCredentialsRegistrationDomainOptions,
+	opts CreateDynamicRegistrationDomainOptions,
 ) (dtos.DynamicRegistrationDomainDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsRegistrationDomainsLocation, "CreateAccountCredentialsRegistrationDomain").With(
+	logger := s.buildLogger(opts.RequestID, dynamicRegistrationDomainsLocation, "CreateDynamicRegistrationDomain").With(
 		"accountPublicID", opts.AccountPublicID,
 		"domain", opts.Domain,
 	)
 	logger.InfoContext(ctx, "Creating account credentials registration domain...")
 
-	dynamicRegistrationConfig, serviceErr := s.GetAccountDynamicRegistrationConfig(ctx, GetAccountDynamicRegistrationConfigOptions{
-		RequestID:       opts.RequestID,
-		AccountPublicID: opts.AccountPublicID,
-	})
+	usages, serviceErr := mapDynamicRegistrationDomainUsages(opts.Usages)
 	if serviceErr != nil {
-		if serviceErr.Code != exceptions.CodeNotFound {
-			logger.WarnContext(ctx, "Account dynamic registration config not found", "serviceError", serviceErr)
-			return dtos.DynamicRegistrationDomainDTO{}, exceptions.NewNotFoundValidationError("Dynamic registration config not found")
-		}
+		logger.WarnContext(ctx, "Failed to map usages", "serviceError", serviceErr)
 		return dtos.DynamicRegistrationDomainDTO{}, serviceErr
 	}
-	if len(dynamicRegistrationConfig.WhitelistedDomains) > 0 && !slices.Contains(dynamicRegistrationConfig.WhitelistedDomains, opts.Domain) {
-		logger.WarnContext(ctx, "Domain is not whitelisted", "domain", opts.Domain)
-		return dtos.DynamicRegistrationDomainDTO{}, exceptions.NewForbiddenValidationError("Domain is not whitelisted")
-	}
 
-	if _, err := s.database.FindAccountDynamicRegistrationDomainByAccountPublicIDAndDomain(ctx, database.FindAccountDynamicRegistrationDomainByAccountPublicIDAndDomainParams{
+	if _, err := s.database.FindDynamicRegistrationDomainByAccountPublicIDAndDomain(ctx, database.FindDynamicRegistrationDomainByAccountPublicIDAndDomainParams{
 		AccountPublicID: opts.AccountPublicID,
 		Domain:          opts.Domain,
 	}); err != nil {
@@ -94,11 +111,12 @@ func (s *Services) CreateAccountCredentialsRegistrationDomain(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	domain, err := qrs.CreateAccountDynamicRegistrationDomain(ctx, database.CreateAccountDynamicRegistrationDomainParams{
+	domain, err := qrs.CreateDynamicRegistrationDomain(ctx, database.CreateDynamicRegistrationDomainParams{
 		AccountID:          accountDTO.ID(),
 		AccountPublicID:    opts.AccountPublicID,
 		Domain:             opts.Domain,
 		VerificationMethod: database.DomainVerificationMethodDnsTxtRecord,
+		Usages:             usages,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create account dynamic registration domain", "error", err)
@@ -139,30 +157,19 @@ func (s *Services) CreateAccountCredentialsRegistrationDomain(
 			Queries:   qrs,
 		}),
 		StoreHashedDataFN: func(secretID string, hashedData string) *exceptions.ServiceError {
-			codeID, err := qrs.CreateDynamicRegistrationDomainCode(
+			if err := qrs.CreateDynamicRegistrationDomainCode(
 				ctx,
 				database.CreateDynamicRegistrationDomainCodeParams{
-					AccountID:          accountDTO.ID(),
-					VerificationCode:   hashedData,
-					VerificationPrefix: verificationPrefix,
-					VerificationHost:   s.accountDomainVerificationHost,
-					HmacSecretID:       secretID,
-					ExpiresAt:          exp,
-				},
-			)
-			if err != nil {
-				logger.ErrorContext(ctx, "Failed to create account dynamic registration domain code", "error", err)
-				return exceptions.FromDBError(err)
-			}
-			if err := qrs.CreateAccountDynamicRegistrationDomainCode(
-				ctx,
-				database.CreateAccountDynamicRegistrationDomainCodeParams{
-					AccountDynamicRegistrationDomainID: domain.ID,
-					DynamicRegistrationDomainCodeID:    codeID,
-					AccountID:                          accountDTO.ID(),
+					AccountID:                   accountDTO.ID(),
+					VerificationCode:            hashedData,
+					VerificationPrefix:          verificationPrefix,
+					VerificationHost:            s.accountDomainVerificationHost,
+					DynamicRegistrationDomainID: domain.ID,
+					HmacSecretID:                secretID,
+					ExpiresAt:                   exp,
 				},
 			); err != nil {
-				logger.ErrorContext(ctx, "Failed to create account dynamic registration domain code association", "error", err)
+				logger.ErrorContext(ctx, "Failed to create account dynamic registration domain code", "error", err)
 				return exceptions.FromDBError(err)
 			}
 			return nil
@@ -186,13 +193,13 @@ func (s *Services) GetAccountCredentialsRegistrationDomain(
 	ctx context.Context,
 	opts GetAccountCredentialsRegistrationDomainOptions,
 ) (dtos.DynamicRegistrationDomainDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsRegistrationDomainsLocation, "GetAccountCredentialsRegistrationDomain").With(
+	logger := s.buildLogger(opts.RequestID, dynamicRegistrationDomainsLocation, "GetAccountCredentialsRegistrationDomain").With(
 		"accountPublicID", opts.AccountPublicID,
 		"domain", opts.Domain,
 	)
 	logger.InfoContext(ctx, "Getting account credentials registration domain...")
 
-	domainDTO, err := s.database.FindAccountDynamicRegistrationDomainByAccountPublicIDAndDomain(ctx, database.FindAccountDynamicRegistrationDomainByAccountPublicIDAndDomainParams{
+	domainDTO, err := s.database.FindDynamicRegistrationDomainByAccountPublicIDAndDomain(ctx, database.FindDynamicRegistrationDomainByAccountPublicIDAndDomainParams{
 		AccountPublicID: opts.AccountPublicID,
 		Domain:          opts.Domain,
 	})
@@ -223,7 +230,7 @@ func (s *Services) ListAccountCredentialsRegistrationDomains(
 	ctx context.Context,
 	opts ListAccountCredentialsRegistrationDomainsOptions,
 ) ([]dtos.DynamicRegistrationDomainDTO, int64, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsRegistrationDomainsLocation, "ListAccountCredentialsRegistrationDomains").With(
+	logger := s.buildLogger(opts.RequestID, dynamicRegistrationDomainsLocation, "ListAccountCredentialsRegistrationDomains").With(
 		"accountPublicID", opts.AccountPublicID,
 		"offset", opts.Offset,
 		"limit", opts.Limit,
@@ -232,22 +239,22 @@ func (s *Services) ListAccountCredentialsRegistrationDomains(
 	logger.InfoContext(ctx, "Listing account credentials registration domains...")
 
 	order := utils.Lowered(opts.Order)
-	var domains []database.AccountDynamicRegistrationDomain
+	var domains []database.DynamicRegistrationDomain
 	var err error
 	switch order {
 	case "date":
-		domains, err = s.database.FindPaginatedAccountDynamicRegistrationDomainsByAccountPublicIDOrderedByID(
+		domains, err = s.database.FindPaginatedDynamicRegistrationDomainsByAccountPublicIDOrderedByID(
 			ctx,
-			database.FindPaginatedAccountDynamicRegistrationDomainsByAccountPublicIDOrderedByIDParams{
+			database.FindPaginatedDynamicRegistrationDomainsByAccountPublicIDOrderedByIDParams{
 				AccountPublicID: opts.AccountPublicID,
 				Limit:           opts.Limit,
 				Offset:          opts.Offset,
 			},
 		)
 	case "domain":
-		domains, err = s.database.FindPaginatedAccountDynamicRegistrationDomainsByAccountPublicIDOrderedByDomain(
+		domains, err = s.database.FindPaginatedDynamicRegistrationDomainsByAccountPublicIDOrderedByDomain(
 			ctx,
-			database.FindPaginatedAccountDynamicRegistrationDomainsByAccountPublicIDOrderedByDomainParams{
+			database.FindPaginatedDynamicRegistrationDomainsByAccountPublicIDOrderedByDomainParams{
 				AccountPublicID: opts.AccountPublicID,
 				Limit:           opts.Limit,
 				Offset:          opts.Offset,
@@ -262,7 +269,7 @@ func (s *Services) ListAccountCredentialsRegistrationDomains(
 		return nil, 0, exceptions.FromDBError(err)
 	}
 
-	count, err := s.database.CountAccountDynamicRegistrationDomainsByAccountPublicID(ctx, opts.AccountPublicID)
+	count, err := s.database.CountDynamicRegistrationDomainsByAccountPublicID(ctx, opts.AccountPublicID)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count account dynamic registration domains", "error", err)
 		return nil, 0, exceptions.FromDBError(err)
@@ -285,7 +292,7 @@ func (s *Services) FilterAccountCredentialsRegistrationDomains(
 	ctx context.Context,
 	opts FilterAccountCredentialsRegistrationDomainsOptions,
 ) ([]dtos.DynamicRegistrationDomainDTO, int64, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsRegistrationDomainsLocation, "FilterAccountCredentialsRegistrationDomains").With(
+	logger := s.buildLogger(opts.RequestID, dynamicRegistrationDomainsLocation, "FilterAccountCredentialsRegistrationDomains").With(
 		"accountPublicID", opts.AccountPublicID,
 		"search", opts.Search,
 		"offset", opts.Offset,
@@ -296,14 +303,14 @@ func (s *Services) FilterAccountCredentialsRegistrationDomains(
 
 	domainSearch := utils.DbSearch(opts.Search)
 	order := utils.Lowered(opts.Order)
-	var domains []database.AccountDynamicRegistrationDomain
+	var domains []database.DynamicRegistrationDomain
 	var err error
 
 	switch order {
 	case "date":
-		domains, err = s.database.FilterAccountDynamicRegistrationDomainsByAccountPublicIDOrderedByID(
+		domains, err = s.database.FilterDynamicRegistrationDomainsByAccountPublicIDOrderedByID(
 			ctx,
-			database.FilterAccountDynamicRegistrationDomainsByAccountPublicIDOrderedByIDParams{
+			database.FilterDynamicRegistrationDomainsByAccountPublicIDOrderedByIDParams{
 				AccountPublicID: opts.AccountPublicID,
 				Domain:          domainSearch,
 				Limit:           opts.Limit,
@@ -311,9 +318,9 @@ func (s *Services) FilterAccountCredentialsRegistrationDomains(
 			},
 		)
 	case "domain":
-		domains, err = s.database.FilterAccountDynamicRegistrationDomainsByAccountPublicIDOrderedByDomain(
+		domains, err = s.database.FilterDynamicRegistrationDomainsByAccountPublicIDOrderedByDomain(
 			ctx,
-			database.FilterAccountDynamicRegistrationDomainsByAccountPublicIDOrderedByDomainParams{
+			database.FilterDynamicRegistrationDomainsByAccountPublicIDOrderedByDomainParams{
 				AccountPublicID: opts.AccountPublicID,
 				Domain:          domainSearch,
 				Limit:           opts.Limit,
@@ -329,9 +336,9 @@ func (s *Services) FilterAccountCredentialsRegistrationDomains(
 		return nil, 0, exceptions.FromDBError(err)
 	}
 
-	count, err := s.database.CountFilteredAccountDynamicRegistrationDomainsByAccountPublicID(
+	count, err := s.database.CountFilteredDynamicRegistrationDomainsByAccountPublicID(
 		ctx,
-		database.CountFilteredAccountDynamicRegistrationDomainsByAccountPublicIDParams{
+		database.CountFilteredDynamicRegistrationDomainsByAccountPublicIDParams{
 			AccountPublicID: opts.AccountPublicID,
 			Domain:          domainSearch,
 		},
@@ -356,7 +363,7 @@ func (s *Services) DeleteAccountCredentialsRegistrationDomain(
 	ctx context.Context,
 	opts DeleteAccountCredentialsRegistrationDomainOptions,
 ) *exceptions.ServiceError {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsRegistrationDomainsLocation, "DeleteAccountCredentialsRegistrationDomain").With(
+	logger := s.buildLogger(opts.RequestID, dynamicRegistrationDomainsLocation, "DeleteAccountCredentialsRegistrationDomain").With(
 		"accountPublicID", opts.AccountPublicID,
 		"domain", opts.Domain,
 	)
@@ -380,7 +387,7 @@ func (s *Services) DeleteAccountCredentialsRegistrationDomain(
 		logger.WarnContext(ctx, "Failed to get account credentials registration domain", "error", serviceErr)
 		return serviceErr
 	}
-	if err := s.database.DeleteAccountDynamicRegistrationDomain(ctx, domainDTO.ID()); err != nil {
+	if err := s.database.DeleteDynamicRegistrationDomain(ctx, domainDTO.ID()); err != nil {
 		logger.ErrorContext(ctx, "Failed to delete account dynamic registration domain", "error", err)
 		return exceptions.FromDBError(err)
 	}
@@ -401,7 +408,7 @@ func (s *Services) VerifyAccountCredentialsRegistrationDomain(
 	ctx context.Context,
 	opts VerifyAccountCredentialsRegistrationDomainOptions,
 ) (dtos.DynamicRegistrationDomainDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsRegistrationDomainsLocation, "VerifyAccountCredentialsRegistrationDomain").With(
+	logger := s.buildLogger(opts.RequestID, dynamicRegistrationDomainsLocation, "VerifyAccountCredentialsRegistrationDomain").With(
 		"accountPublicID", opts.AccountPublicID,
 		"domain", opts.Domain,
 		"verificationCode", opts.VerificationCode,
@@ -436,7 +443,7 @@ func (s *Services) VerifyAccountCredentialsRegistrationDomain(
 		return dtos.DynamicRegistrationDomainDTO{}, serviceErr
 	}
 
-	code, err := s.database.FindDynamicRegistrationDomainCodeByAccountDynamicRegistrationDomainID(ctx, domainDTO.ID())
+	code, err := s.database.FindDynamicRegistrationDomainCodeByDynamicRegistrationDomainID(ctx, domainDTO.ID())
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -507,9 +514,9 @@ func (s *Services) VerifyAccountCredentialsRegistrationDomain(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	domain, err := qrs.VerifyAccountDynamicRegistrationDomain(
+	domain, err := qrs.VerifyDynamicRegistrationDomain(
 		ctx,
-		database.VerifyAccountDynamicRegistrationDomainParams{
+		database.VerifyDynamicRegistrationDomainParams{
 			ID:                 domainDTO.ID(),
 			VerificationMethod: database.DomainVerificationMethodDnsTxtRecord,
 		},
@@ -539,7 +546,7 @@ func (s *Services) GetAccountCredentialsRegistrationDomainCode(
 	ctx context.Context,
 	opts GetAccountCredentialsRegistrationDomainCodeOptions,
 ) (dtos.DynamicRegistrationDomainCodeDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsRegistrationDomainsLocation, "GetAccountCredentialsRegistrationDomainCode").With(
+	logger := s.buildLogger(opts.RequestID, dynamicRegistrationDomainsLocation, "GetAccountCredentialsRegistrationDomainCode").With(
 		"accountPublicID", opts.AccountPublicID,
 		"domain", opts.Domain,
 	)
@@ -559,7 +566,7 @@ func (s *Services) GetAccountCredentialsRegistrationDomainCode(
 		return dtos.DynamicRegistrationDomainCodeDTO{}, exceptions.NewConflictError("Verification code not available for verified domain")
 	}
 
-	code, err := s.database.FindDynamicRegistrationDomainCodeByAccountDynamicRegistrationDomainID(ctx, domainDTO.ID())
+	code, err := s.database.FindDynamicRegistrationDomainCodeByDynamicRegistrationDomainID(ctx, domainDTO.ID())
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -586,7 +593,7 @@ func (s *Services) SaveAccountCredentialsRegistrationDomainCode(
 	ctx context.Context,
 	opts SaveAccountCredentialsRegistrationDomainCodeOptions,
 ) (dtos.DynamicRegistrationDomainCodeDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsRegistrationDomainsLocation, "SaveAccountCredentialsRegistrationDomainCode").With(
+	logger := s.buildLogger(opts.RequestID, dynamicRegistrationDomainsLocation, "SaveAccountCredentialsRegistrationDomainCode").With(
 		"accountPublicID", opts.AccountPublicID,
 		"domain", opts.Domain,
 	)
@@ -633,7 +640,7 @@ func (s *Services) SaveAccountCredentialsRegistrationDomainCode(
 
 	verificationPrefix := fmt.Sprintf("%s-verification", accountDTO.Username)
 	exp := time.Now().Add(s.accountDomainVerificationTTL)
-	code, err := s.database.FindDynamicRegistrationDomainCodeByAccountDynamicRegistrationDomainID(ctx, domainDTO.ID())
+	code, err := s.database.FindDynamicRegistrationDomainCodeByDynamicRegistrationDomainID(ctx, domainDTO.ID())
 	if err != nil {
 		serviceErr := exceptions.FromDBError(err)
 		if serviceErr.Code != exceptions.CodeNotFound {
@@ -661,19 +668,7 @@ func (s *Services) SaveAccountCredentialsRegistrationDomainCode(
 				AccountID: accountDTO.ID(),
 			}),
 			StoreHashedDataFN: func(secretID string, hashedData string) *exceptions.ServiceError {
-				var serviceErr *exceptions.ServiceError
-				qrs, txn, err := s.database.BeginTx(ctx)
-				if err != nil {
-					logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-					serviceErr = exceptions.FromDBError(err)
-					return serviceErr
-				}
-				defer func() {
-					logger.DebugContext(ctx, "Finalizing transaction")
-					s.database.FinalizeTx(ctx, txn, err, serviceErr)
-				}()
-
-				codeID, err := qrs.CreateDynamicRegistrationDomainCode(
+				if err := s.database.CreateDynamicRegistrationDomainCode(
 					ctx,
 					database.CreateDynamicRegistrationDomainCodeParams{
 						AccountID:          accountDTO.ID(),
@@ -683,21 +678,8 @@ func (s *Services) SaveAccountCredentialsRegistrationDomainCode(
 						HmacSecretID:       secretID,
 						ExpiresAt:          exp,
 					},
-				)
-				if err != nil {
-					logger.ErrorContext(ctx, "Failed to create account dynamic registration domain code", "error", err)
-					serviceErr = exceptions.FromDBError(err)
-					return serviceErr
-				}
-				if err := qrs.CreateAccountDynamicRegistrationDomainCode(
-					ctx,
-					database.CreateAccountDynamicRegistrationDomainCodeParams{
-						AccountDynamicRegistrationDomainID: domainDTO.ID(),
-						DynamicRegistrationDomainCodeID:    codeID,
-						AccountID:                          accountDTO.ID(),
-					},
 				); err != nil {
-					logger.ErrorContext(ctx, "Failed to create account dynamic registration domain code association", "error", err)
+					logger.ErrorContext(ctx, "Failed to create account dynamic registration domain code", "error", err)
 					serviceErr = exceptions.FromDBError(err)
 					return serviceErr
 				}
@@ -778,7 +760,7 @@ func (s *Services) DeleteAccountCredentialsRegistrationDomainCode(
 	ctx context.Context,
 	opts DeleteAccountCredentialsRegistrationDomainCodeOptions,
 ) *exceptions.ServiceError {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsRegistrationDomainsLocation, "DeleteAccountCredentialsRegistrationDomainCode").With(
+	logger := s.buildLogger(opts.RequestID, dynamicRegistrationDomainsLocation, "DeleteAccountCredentialsRegistrationDomainCode").With(
 		"accountPublicID", opts.AccountPublicID,
 		"domain", opts.Domain,
 	)

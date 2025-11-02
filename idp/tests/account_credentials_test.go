@@ -423,7 +423,7 @@ func TestUpdateAccountCredentials(t *testing.T) {
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, _ bodies.UpdateAccountCredentialsBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AccountCredentialsDTO{})
-				AssertEqual(t, resBody.Name, "updated-service-name")
+				AssertEqual(t, resBody.ClientName, "updated-service-name")
 				AssertEqual(t, len(resBody.Scopes), 1)
 				AssertEqual(t, resBody.Scopes[0], "account:users:read")
 				AssertEqual(t, resBody.SoftwareVersion, "2.0.0")
@@ -467,7 +467,7 @@ func TestUpdateAccountCredentials(t *testing.T) {
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, _ bodies.UpdateAccountCredentialsBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AccountCredentialsDTO{})
-				AssertEqual(t, resBody.Name, "updated-mcp-name")
+				AssertEqual(t, resBody.ClientName, "updated-mcp-name")
 				AssertEqual(t, len(resBody.Scopes), 2)
 				AssertEqual(t, resBody.Scopes[0], "account:users:read")
 				AssertEqual(t, resBody.Scopes[1], "account:apps:read")
@@ -785,7 +785,7 @@ func TestGetSingleAccountCredentials(t *testing.T) {
 			AssertFn: func(t *testing.T, _ any, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AccountCredentialsDTO{})
 				AssertNotEmpty(t, resBody.ClientID)
-				AssertNotEmpty(t, resBody.Name)
+				AssertNotEmpty(t, resBody.ClientName)
 				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodClientSecretBasic)
 				AssertEmpty(t, resBody.ClientSecret)
 				AssertEmpty(t, resBody.ClientSecretJWK)

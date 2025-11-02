@@ -17,10 +17,10 @@ import (
 )
 
 type RelatedAppDTO struct {
-	AppType  database.AppType `json:"app_type"`
-	Name     string           `json:"name"`
-	ClientID string           `json:"client_id"`
-	Links    LinksSelfDTO     `json:"links"`
+	AppType    database.AppType `json:"app_type"`
+	ClientName string           `json:"client_name"`
+	ClientID   string           `json:"client_id"`
+	Links      LinksSelfDTO     `json:"links"`
 }
 
 func newRelatedAppDTO(
@@ -29,10 +29,10 @@ func newRelatedAppDTO(
 	route string,
 ) RelatedAppDTO {
 	return RelatedAppDTO{
-		AppType:  app.AppType,
-		Name:     app.Name,
-		ClientID: app.ClientID,
-		Links:    NewLinksSelfDTO(backendDomain, route),
+		AppType:    app.AppType,
+		ClientName: app.ClientName,
+		ClientID:   app.ClientID,
+		Links:      NewLinksSelfDTO(backendDomain, route),
 	}
 }
 
@@ -42,7 +42,7 @@ type AppDTO struct {
 	version   int32
 
 	AppType        database.AppType        `json:"app_type"`
-	Name           string                  `json:"name"`
+	ClientName     string                  `json:"client_name"`
 	ClientID       string                  `json:"client_id"`
 	Domain         string                  `json:"domain"`
 	Transport      database.Transport      `json:"transport"`
@@ -130,7 +130,7 @@ func MapAppToDTO(app *database.App) AppDTO {
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
@@ -139,7 +139,7 @@ func MapAppToDTO(app *database.App) AppDTO {
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,
@@ -161,7 +161,7 @@ func MapWebNativeSPAMCPAppToDTO(app *database.App) AppDTO {
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
@@ -170,7 +170,7 @@ func MapWebNativeSPAMCPAppToDTO(app *database.App) AppDTO {
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,
@@ -197,7 +197,7 @@ func MapWebAppWithSecretToDTO(
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
@@ -206,7 +206,7 @@ func MapWebAppWithSecretToDTO(
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,
@@ -231,7 +231,7 @@ func MapWebAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) AppD
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
@@ -240,7 +240,7 @@ func MapWebAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) AppD
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,
@@ -265,7 +265,7 @@ func MapBackendAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) 
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
@@ -274,7 +274,7 @@ func MapBackendAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) 
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,
@@ -297,7 +297,7 @@ func MapBackendAppWithSecretToDTO(app *database.App, secretID string, secret str
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
@@ -306,7 +306,7 @@ func MapBackendAppWithSecretToDTO(app *database.App, secretID string, secret str
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,
@@ -329,7 +329,7 @@ func MapDeviceAppToDTO(app *database.App, relatedApps []database.App, backendDom
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
 		CreationMethod:          app.CreationMethod,
@@ -338,7 +338,7 @@ func MapDeviceAppToDTO(app *database.App, relatedApps []database.App, backendDom
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,
@@ -366,7 +366,7 @@ func MapServiceAppWithJWKToDTO(
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
@@ -375,7 +375,7 @@ func MapServiceAppWithJWKToDTO(
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,
@@ -407,7 +407,7 @@ func MapServiceAppWithSecretToDTO(
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
@@ -416,7 +416,7 @@ func MapServiceAppWithSecretToDTO(
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,
@@ -442,7 +442,7 @@ func MapBackendAppToDTO(app *database.App) AppDTO {
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
@@ -451,7 +451,7 @@ func MapBackendAppToDTO(app *database.App) AppDTO {
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,
@@ -474,7 +474,7 @@ func MapServiceAppToDTO(
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
@@ -483,7 +483,7 @@ func MapServiceAppToDTO(
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,
@@ -506,7 +506,7 @@ func MapMCPAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) AppD
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
@@ -515,7 +515,7 @@ func MapMCPAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) AppD
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,
@@ -542,7 +542,7 @@ func MapMCPAppWithSecretToDTO(
 		accountID:               app.AccountID,
 		version:                 app.Version,
 		AppType:                 app.AppType,
-		Name:                    app.Name,
+		ClientName:              app.ClientName,
 		ClientID:                app.ClientID,
 		Domain:                  app.Domain,
 		Transport:               app.Transport,
@@ -551,7 +551,7 @@ func MapMCPAppWithSecretToDTO(
 		LogoURI:                 app.LogoUri.String,
 		TosURI:                  app.TosUri.String,
 		PolicyURI:               app.PolicyUri.String,
-		SoftwareID:              app.SoftwareID,
+		SoftwareID:              app.SoftwareID.String,
 		SoftwareVersion:         app.SoftwareVersion.String,
 		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
 		GrantTypes:              app.GrantTypes,

@@ -9,7 +9,6 @@ INSERT INTO "account_dynamic_registration_configs" (
     "account_id",
     "account_public_id",
     "account_credentials_types",
-    "whitelisted_domains",
     "require_software_statement_credential_types",
     "software_statement_verification_methods",
     "require_initial_access_token_credential_types",
@@ -21,18 +20,16 @@ INSERT INTO "account_dynamic_registration_configs" (
     $4, 
     $5, 
     $6, 
-    $7,
-    $8
+    $7
 ) RETURNING *;
 
 -- name: UpdateAccountDynamicRegistrationConfig :one
 UPDATE "account_dynamic_registration_configs" SET
     "account_credentials_types" = $2,
-    "whitelisted_domains" = $3,
-    "require_software_statement_credential_types" = $4,
-    "software_statement_verification_methods" = $5,
-    "require_initial_access_token_credential_types" = $6,
-    "initial_access_token_generation_methods" = $7
+    "require_software_statement_credential_types" = $3,
+    "software_statement_verification_methods" = $4,
+    "require_initial_access_token_credential_types" = $5,
+    "initial_access_token_generation_methods" = $6
 WHERE "id" = $1 
 RETURNING *;
 

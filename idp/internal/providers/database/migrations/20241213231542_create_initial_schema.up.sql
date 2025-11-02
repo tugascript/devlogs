@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-09-06T04:54:24.517Z
+-- Generated at: 2025-11-02T00:22:09.380Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -17,6 +17,21 @@ CREATE TYPE "token_crypto_suite" AS ENUM (
   'RS256',
   'ES256',
   'EdDSA'
+);
+
+CREATE TYPE "token_encryption_algorithm" AS ENUM (
+  'RSA-OAEP-256',
+  'ECDH-ES',
+  'ECDH-ES+A256KW'
+);
+
+CREATE TYPE "token_encryption_encoding" AS ENUM (
+  'A128CBC-HS256',
+  'A192CBC-HS384',
+  'A256CBC-HS512',
+  'A128GCM',
+  'A192GCM',
+  'A256GCM'
 );
 
 CREATE TYPE "token_key_usage" AS ENUM (
@@ -72,7 +87,6 @@ CREATE TYPE "auth_method" AS ENUM (
 
 CREATE TYPE "response_type" AS ENUM (
   'code',
-  'id_token',
   'code id_token'
 );
 
@@ -104,6 +118,11 @@ CREATE TYPE "transport" AS ENUM (
   'https',
   'stdio',
   'streamable_http'
+);
+
+CREATE TYPE "client_subject_type" AS ENUM (
+  'public',
+  'pairwise'
 );
 
 CREATE TYPE "creation_method" AS ENUM (
@@ -182,13 +201,16 @@ CREATE TYPE "initial_access_token_generation_method" AS ENUM (
 
 CREATE TYPE "software_statement_verification_method" AS ENUM (
   'manual',
-  'jwks_uri',
-  'jwk_x5_parameters'
+  'jwks_uri'
+);
+
+CREATE TYPE "dynamic_registration_usage" AS ENUM (
+  'account',
+  'app'
 );
 
 CREATE TYPE "domain_verification_method" AS ENUM (
   'authorization_code',
-  'software_statement',
   'dns_txt_record'
 );
 
@@ -301,6 +323,7 @@ CREATE TABLE "credentials_keys" (
   "public_key" jsonb NOT NULL,
   "crypto_suite" token_crypto_suite NOT NULL,
   "is_revoked" boolean NOT NULL DEFAULT false,
+  "is_external" boolean NOT NULL DEFAULT false,
   "usage" credentials_usage NOT NULL,
   "account_id" integer NOT NULL,
   "expires_at" timestamptz NOT NULL,
@@ -344,24 +367,45 @@ CREATE TABLE "account_credentials" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "account_public_id" uuid NOT NULL,
-  "client_id" varchar(22) NOT NULL,
-  "name" varchar(255) NOT NULL,
   "domain" varchar(250) NOT NULL,
-  "credentials_type" account_credentials_type NOT NULL,
-  "scopes" account_credentials_scope[] NOT NULL,
+  "creation_method" creation_method NOT NULL,
+  "transport" transport NOT NULL,
+  "version" integer NOT NULL DEFAULT 1,
+  "client_id" varchar(22) NOT NULL,
+  "redirect_uris" varchar(2048)[] NOT NULL,
   "token_endpoint_auth_method" auth_method NOT NULL,
   "grant_types" grant_type[] NOT NULL,
-  "version" integer NOT NULL DEFAULT 1,
-  "transport" transport NOT NULL,
-  "creation_method" creation_method NOT NULL,
+  "response_types" response_type[] NOT NULL,
+  "client_name" varchar(255) NOT NULL,
   "client_uri" varchar(512) NOT NULL,
-  "redirect_uris" varchar(2048)[] NOT NULL,
   "logo_uri" varchar(512),
-  "policy_uri" varchar(512),
-  "tos_uri" varchar(512),
-  "software_id" varchar(512) NOT NULL,
-  "software_version" varchar(512),
+  "scopes" account_credentials_scope[] NOT NULL,
   "contacts" varchar(250)[] NOT NULL,
+  "tos_uri" varchar(512),
+  "policy_uri" varchar(512),
+  "jwks_uri" varchar(512),
+  "jwks" jsonb,
+  "software_id" varchar(512),
+  "software_version" varchar(512),
+  "credentials_type" account_credentials_type NOT NULL,
+  "sector_identifier_uri" varchar(512),
+  "subject_type" client_subject_type,
+  "id_token_signed_response_alg" token_crypto_suite NOT NULL,
+  "id_token_encrypted_response_alg" token_encryption_algorithm,
+  "id_token_encrypted_response_enc" token_encryption_encoding,
+  "userinfo_signed_response_alg" token_crypto_suite,
+  "userinfo_encrypted_response_alg" token_encryption_algorithm,
+  "userinfo_encrypted_response_enc" token_encryption_encoding,
+  "request_object_signing_alg" token_crypto_suite,
+  "request_object_encryption_alg" token_encryption_algorithm,
+  "request_object_encryption_enc" token_encryption_encoding,
+  "token_endpoint_auth_signing_alg" token_crypto_suite,
+  "default_max_age" bigint,
+  "require_auth_time" boolean NOT NULL DEFAULT false,
+  "default_acr_values" varchar(100)[],
+  "initiate_login_uri" varchar(512),
+  "request_uris" varchar(2048)[],
+  "access_token_signing_alg" token_crypto_suite NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -499,22 +543,25 @@ CREATE TABLE "apps" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "account_public_id" uuid NOT NULL,
-  "app_type" app_type NOT NULL,
-  "name" varchar(255) NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "version" integer NOT NULL DEFAULT 1,
   "creation_method" creation_method NOT NULL,
+  "redirect_uris" varchar(2048)[] NOT NULL,
+  "token_endpoint_auth_method" auth_method NOT NULL,
+  "grant_types" grant_type[] NOT NULL,
+  "response_types" response_type[] NOT NULL,
+  "client_name" varchar(255) NOT NULL,
   "client_uri" varchar(512) NOT NULL,
   "logo_uri" varchar(512),
-  "tos_uri" varchar(512),
-  "policy_uri" varchar(512),
-  "software_id" varchar(250) NOT NULL,
-  "software_version" varchar(250),
-  "contacts" varchar(250)[] NOT NULL,
-  "token_endpoint_auth_method" auth_method NOT NULL,
   "scopes" scopes[] NOT NULL,
   "custom_scopes" varchar(512)[] NOT NULL,
-  "grant_types" grant_type[] NOT NULL,
+  "contacts" varchar(250)[] NOT NULL,
+  "tos_uri" varchar(512),
+  "policy_uri" varchar(512),
+  "jwks_uri" varchar(512),
+  "jwks" jsonb,
+  "software_id" varchar(512),
+  "software_version" varchar(512),
   "domain" varchar(250) NOT NULL,
   "transport" transport NOT NULL,
   "allow_user_registration" bool NOT NULL,
@@ -522,8 +569,25 @@ CREATE TABLE "apps" (
   "username_column" app_username_column NOT NULL,
   "default_scopes" scopes[] NOT NULL,
   "default_custom_scopes" varchar(512)[] NOT NULL,
-  "redirect_uris" varchar(2048)[] NOT NULL,
-  "response_types" response_type[] NOT NULL,
+  "app_type" app_type NOT NULL,
+  "sector_identifier_uri" varchar(512),
+  "subject_type" client_subject_type,
+  "id_token_signed_response_alg" token_crypto_suite NOT NULL,
+  "id_token_encrypted_response_alg" token_encryption_algorithm,
+  "id_token_encrypted_response_enc" token_encryption_encoding,
+  "userinfo_signed_response_alg" token_crypto_suite,
+  "userinfo_encrypted_response_alg" token_encryption_algorithm,
+  "userinfo_encrypted_response_enc" token_encryption_encoding,
+  "request_object_signing_alg" token_crypto_suite,
+  "request_object_encryption_alg" token_encryption_algorithm,
+  "request_object_encryption_enc" token_encryption_encoding,
+  "token_endpoint_auth_signing_alg" token_crypto_suite,
+  "default_max_age" integer,
+  "require_auth_time" boolean NOT NULL DEFAULT false,
+  "default_acr_values" varchar(100)[],
+  "initiate_login_uri" varchar(512),
+  "request_uris" varchar(2048)[],
+  "access_token_signing_alg" token_crypto_suite NOT NULL,
   "id_token_ttl" integer NOT NULL DEFAULT 300,
   "token_ttl" integer NOT NULL DEFAULT 300,
   "refresh_token_ttl" integer NOT NULL DEFAULT 604800,
@@ -584,53 +648,13 @@ CREATE TABLE "account_dynamic_registration_configs" (
   "account_id" integer NOT NULL,
   "account_public_id" uuid NOT NULL,
   "account_credentials_types" account_credentials_type[] NOT NULL,
-  "whitelisted_domains" varchar(250)[] NOT NULL,
   "require_software_statement_credential_types" account_credentials_type[] NOT NULL,
   "software_statement_verification_methods" software_statement_verification_method[] NOT NULL,
+  "require_verified_domains_credentials_type" account_credentials_type[] NOT NULL,
   "require_initial_access_token_credential_types" account_credentials_type[] NOT NULL,
   "initial_access_token_generation_methods" initial_access_token_generation_method[] NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
-);
-
-CREATE TABLE "account_dynamic_registration_domains" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "account_public_id" uuid NOT NULL,
-  "domain" varchar(250) NOT NULL,
-  "verified_at" timestamptz,
-  "verification_method" domain_verification_method NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now()),
-  "updated_at" timestamptz NOT NULL DEFAULT (now())
-);
-
-CREATE TABLE "dynamic_registration_domain_codes" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "verification_host" varchar(50) NOT NULL,
-  "verification_code" text NOT NULL,
-  "hmac_secret_id" varchar(22) NOT NULL,
-  "verification_prefix" varchar(70) NOT NULL,
-  "expires_at" timestamptz NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now()),
-  "updated_at" timestamptz NOT NULL DEFAULT (now())
-);
-
-CREATE TABLE "account_dynamic_registration_domain_codes" (
-  "account_dynamic_registration_domain_id" integer NOT NULL,
-  "dynamic_registration_domain_code_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now()),
-  PRIMARY KEY ("account_dynamic_registration_domain_id", "dynamic_registration_domain_code_id")
-);
-
-CREATE TABLE "account_dynamic_registration_software_statement_keys" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "account_public_id" uuid NOT NULL,
-  "credentials_key_id" integer NOT NULL,
-  "account_dynamic_registration_domain_id" integer NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "app_dynamic_registration_configs" (
@@ -643,6 +667,7 @@ CREATE TABLE "app_dynamic_registration_configs" (
   "default_username_column" app_username_column NOT NULL,
   "default_allowed_scopes" scopes[] NOT NULL,
   "default_scopes" scopes[] NOT NULL,
+  "require_verified_domains_app_types" app_type[] NOT NULL,
   "require_software_statement_app_types" app_type[] NOT NULL,
   "software_statement_verification_methods" software_statement_verification_method[] NOT NULL,
   "require_initial_access_token_app_types" app_type[] NOT NULL,
@@ -655,6 +680,41 @@ CREATE TABLE "app_dynamic_registration_configs" (
   "max_redirect_uris" int NOT NULL DEFAULT 10,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "dynamic_registration_domains" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "account_public_id" uuid NOT NULL,
+  "domain" varchar(250) NOT NULL,
+  "verified_at" timestamptz,
+  "verification_method" domain_verification_method NOT NULL,
+  "usages" dynamic_registration_usage[] NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "dynamic_registration_domain_codes" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "dynamic_registration_domain_id" integer NOT NULL,
+  "verification_host" varchar(50) NOT NULL,
+  "verification_code" text NOT NULL,
+  "hmac_secret_id" varchar(22) NOT NULL,
+  "verification_prefix" varchar(70) NOT NULL,
+  "expires_at" timestamptz NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "dynamic_registration_software_statement_keys" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "account_public_id" uuid NOT NULL,
+  "credentials_key_id" integer NOT NULL,
+  "credentials_key_kid" varchar(22) NOT NULL,
+  "root_domain" varchar(250) NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "app_profiles" (
@@ -783,7 +843,7 @@ CREATE INDEX "account_credentials_account_public_id_idx" ON "account_credentials
 
 CREATE INDEX "account_credentials_account_public_id_client_id_idx" ON "account_credentials" ("account_public_id", "client_id");
 
-CREATE UNIQUE INDEX "account_credentials_name_account_id_uidx" ON "account_credentials" ("name", "account_id");
+CREATE UNIQUE INDEX "account_credentials_client_name_account_id_uidx" ON "account_credentials" ("client_name", "account_id");
 
 CREATE INDEX "account_credential_secrets_account_id_idx" ON "account_credentials_secrets" ("account_id");
 
@@ -905,9 +965,9 @@ CREATE INDEX "apps_client_id_account_public_id_idx" ON "apps" ("client_id", "acc
 
 CREATE INDEX "apps_account_public_id_idx" ON "apps" ("account_public_id");
 
-CREATE INDEX "apps_name_idx" ON "apps" ("name");
+CREATE INDEX "apps_client_name_idx" ON "apps" ("client_name");
 
-CREATE UNIQUE INDEX "apps_account_id_name_uidx" ON "apps" ("account_id", "name");
+CREATE UNIQUE INDEX "apps_account_id_client_name_uidx" ON "apps" ("account_id", "client_name");
 
 CREATE INDEX "apps_account_id_app_type_idx" ON "apps" ("account_id", "app_type");
 
@@ -947,31 +1007,29 @@ CREATE UNIQUE INDEX "account_dynamic_registration_configs_account_id_uidx" ON "a
 
 CREATE INDEX "account_dynamic_registration_configs_account_public_id_idx" ON "account_dynamic_registration_configs" ("account_public_id");
 
-CREATE INDEX "accounts_totps_account_id_idx" ON "account_dynamic_registration_domains" ("account_id");
-
-CREATE INDEX "account_dynamic_registration_domains_account_public_id_idx" ON "account_dynamic_registration_domains" ("account_public_id");
-
-CREATE INDEX "account_dynamic_registration_domains_domain_idx" ON "account_dynamic_registration_domains" ("domain");
-
-CREATE UNIQUE INDEX "account_dynamic_registration_domains_account_public_id_domain_uidx" ON "account_dynamic_registration_domains" ("account_public_id", "domain");
-
-CREATE INDEX "account_dynamic_registration_domain_codes_account_id_idx" ON "dynamic_registration_domain_codes" ("account_id");
-
-CREATE INDEX "account_dynamic_registration_domain_codes_account_id_idx" ON "account_dynamic_registration_domain_codes" ("account_id");
-
-CREATE UNIQUE INDEX "account_dynamic_registration_domain_codes_account_dynamic_registration_domain_id_uidx" ON "account_dynamic_registration_domain_codes" ("account_dynamic_registration_domain_id");
-
-CREATE UNIQUE INDEX "account_dynamic_registration_domain_codes_dynamic_registration_domain_code_id_uidx" ON "account_dynamic_registration_domain_codes" ("dynamic_registration_domain_code_id");
-
-CREATE INDEX "account_dynamic_registration_software_statement_keys_account_id_idx" ON "account_dynamic_registration_software_statement_keys" ("account_id");
-
-CREATE INDEX "account_dynamic_registration_software_statement_keys_account_public_id_idx" ON "account_dynamic_registration_software_statement_keys" ("account_public_id");
-
-CREATE UNIQUE INDEX "account_dynamic_registration_software_statement_keys_credentials_key_id_uidx" ON "account_dynamic_registration_software_statement_keys" ("credentials_key_id");
-
-CREATE UNIQUE INDEX "account_dynamic_registration_software_statement_keys_account_dynamic_registration_domain_id_uidx" ON "account_dynamic_registration_software_statement_keys" ("account_dynamic_registration_domain_id");
-
 CREATE INDEX "app_dynamic_registration_configs_account_id_idx" ON "app_dynamic_registration_configs" ("account_id");
+
+CREATE INDEX "accounts_totps_account_id_idx" ON "dynamic_registration_domains" ("account_id");
+
+CREATE INDEX "account_dynamic_registration_domains_account_public_id_idx" ON "dynamic_registration_domains" ("account_public_id");
+
+CREATE INDEX "account_dynamic_registration_domains_domain_idx" ON "dynamic_registration_domains" ("domain");
+
+CREATE UNIQUE INDEX "account_dynamic_registration_domains_account_public_id_domain_uidx" ON "dynamic_registration_domains" ("account_public_id", "domain");
+
+CREATE INDEX "dynamic_registration_domain_codes_account_id_idx" ON "dynamic_registration_domain_codes" ("account_id");
+
+CREATE INDEX "dynamic_registration_domain_codes_dynamic_registration_domain_id_idx" ON "dynamic_registration_domain_codes" ("dynamic_registration_domain_id");
+
+CREATE INDEX "drs_statement_keys_account_id_idx" ON "dynamic_registration_software_statement_keys" ("account_id");
+
+CREATE INDEX "drs_statement_keys_account_public_id_idx" ON "dynamic_registration_software_statement_keys" ("account_public_id");
+
+CREATE UNIQUE INDEX "drs_statement_keys_credentials_key_id_uidx" ON "dynamic_registration_software_statement_keys" ("credentials_key_id");
+
+CREATE INDEX "drs_statement_keys_root_domain_account_public_id_idx" ON "dynamic_registration_software_statement_keys" ("root_domain", "account_public_id");
+
+CREATE INDEX "drs_statement_keys_credentials_key_kid_account_public_id_idx" ON "dynamic_registration_software_statement_keys" ("credentials_key_kid", "account_public_id");
 
 CREATE INDEX "user_profiles_app_id_idx" ON "app_profiles" ("app_id");
 
@@ -1113,25 +1171,19 @@ ALTER TABLE "app_designs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON
 
 ALTER TABLE "account_dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "account_dynamic_registration_domains" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "dynamic_registration_domains" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "dynamic_registration_domain_codes" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
+ALTER TABLE "dynamic_registration_domain_codes" ADD FOREIGN KEY ("dynamic_registration_domain_id") REFERENCES "dynamic_registration_domains" ("id") ON DELETE CASCADE;
+
 ALTER TABLE "dynamic_registration_domain_codes" ADD FOREIGN KEY ("hmac_secret_id") REFERENCES "account_hmac_secrets" ("secret_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "dynamic_registration_software_statement_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("account_dynamic_registration_domain_id") REFERENCES "account_dynamic_registration_domains" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "account_dynamic_registration_domain_codes" ADD FOREIGN KEY ("dynamic_registration_domain_code_id") REFERENCES "dynamic_registration_domain_codes" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "account_dynamic_registration_software_statement_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "account_dynamic_registration_software_statement_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "account_dynamic_registration_software_statement_keys" ADD FOREIGN KEY ("account_dynamic_registration_domain_id") REFERENCES "account_dynamic_registration_domains" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "app_dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "dynamic_registration_software_statement_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "app_profiles" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
 

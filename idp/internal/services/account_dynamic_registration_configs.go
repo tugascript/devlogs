@@ -8,13 +8,15 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
-	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const (
@@ -25,7 +27,13 @@ const (
 
 	initialAccessTokenGenerationMethodAuthorizationCode string = "authorization_code"
 	initialAccessTokenGenerationMethodManual            string = "manual"
+
+	accountDynamicRegistrationConfigCacheTTL time.Duration = 24 * time.Hour
 )
+
+func buildAccountDynamicRegistrationConfigCacheKey(accountPublicID uuid.UUID) string {
+	return fmt.Sprintf("%s:%s", accountDynamicRegistrationConfigsLocation, accountPublicID.String())
+}
 
 func mapAccountCredentialsTypes(credentialsTypes []string) ([]database.AccountCredentialsType, *exceptions.ServiceError) {
 	accountCredentialsTypes := make([]database.AccountCredentialsType, 0, len(credentialsTypes))
@@ -98,7 +106,6 @@ type SaveAccountDynamicRegistrationConfigOptions struct {
 	AccountPublicID                          uuid.UUID
 	AccountVersion                           int32
 	AccountCredentialsTypes                  []string
-	WhitelistedDomains                       []string
 	RequireSoftwareStatementCredentialTypes  []string
 	SoftwareStatementVerificationMethods     []string
 	RequireInitialAccessTokenCredentialTypes []string
@@ -170,7 +177,6 @@ func (s *Services) SaveAccountDynamicRegistrationConfig(
 				AccountID:                                accountID,
 				AccountPublicID:                          opts.AccountPublicID,
 				AccountCredentialsTypes:                  credentialsTypes,
-				WhitelistedDomains:                       utils.ToEmptySlice(opts.WhitelistedDomains),
 				RequireSoftwareStatementCredentialTypes:  requireSoftwareStatementCredentialTypes,
 				SoftwareStatementVerificationMethods:     softwareStatementVerificationMethods,
 				RequireInitialAccessTokenCredentialTypes: requireInitialAccessTokenCredentialTypes,
@@ -183,13 +189,11 @@ func (s *Services) SaveAccountDynamicRegistrationConfig(
 		}
 
 		return dtos.MapAccountDynamicRegistrationConfigToDTO(&accountDynamicRegistrationConfig), true, nil
-
 	}
 
 	accountDynamicRegistrationConfig, err = s.database.UpdateAccountDynamicRegistrationConfig(ctx, database.UpdateAccountDynamicRegistrationConfigParams{
 		ID:                                       accountDynamicRegistrationConfig.ID,
 		AccountCredentialsTypes:                  credentialsTypes,
-		WhitelistedDomains:                       utils.ToEmptySlice(opts.WhitelistedDomains),
 		RequireSoftwareStatementCredentialTypes:  requireSoftwareStatementCredentialTypes,
 		SoftwareStatementVerificationMethods:     softwareStatementVerificationMethods,
 		RequireInitialAccessTokenCredentialTypes: requireInitialAccessTokenCredentialTypes,
@@ -198,6 +202,14 @@ func (s *Services) SaveAccountDynamicRegistrationConfig(
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account dynamic registration config", "error", err)
 		return dtos.AccountDynamicRegistrationConfigDTO{}, false, exceptions.FromDBError(err)
+	}
+
+	if err := s.cache.DeleteResponse(ctx, cache.DeleteResponseOptions{
+		RequestID: opts.RequestID,
+		Key:       buildAccountDynamicRegistrationConfigCacheKey(opts.AccountPublicID),
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to delete cached account dynamic registration config", "error", err)
+		return dtos.AccountDynamicRegistrationConfigDTO{}, false, exceptions.NewInternalServerError()
 	}
 
 	return dtos.MapAccountDynamicRegistrationConfigToDTO(&accountDynamicRegistrationConfig), false, nil
@@ -230,6 +242,52 @@ func (s *Services) GetAccountDynamicRegistrationConfig(
 	}
 
 	return dtos.MapAccountDynamicRegistrationConfigToDTO(&accountDynamicRegistrationConfig), nil
+}
+
+type GetAndCacheAccountDynamicRegistrationConfigOptions struct {
+	RequestID       string
+	AccountPublicID uuid.UUID
+}
+
+func (s *Services) GetAndCacheAccountDynamicRegistrationConfig(
+	ctx context.Context,
+	opts GetAndCacheAccountDynamicRegistrationConfigOptions,
+) (dtos.AccountDynamicRegistrationConfigDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountDynamicRegistrationConfigsLocation, "GetAndCacheAccountDynamicRegistrationConfig").With(
+		"accountPublicID", opts.AccountPublicID,
+	)
+	logger.InfoContext(ctx, "Getting and caching account dynamic registration config...")
+
+	accountDRConfigDTO, found, err := cache.GetResponseWithoutETag(s.cache, ctx, cache.GetResponseOptions[dtos.AccountDynamicRegistrationConfigDTO]{
+		RequestID: opts.RequestID,
+		Key:       buildAccountDynamicRegistrationConfigCacheKey(opts.AccountPublicID),
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get cached account dynamic registration config", "error", err)
+		return dtos.AccountDynamicRegistrationConfigDTO{}, exceptions.NewInternalServerError()
+	}
+	if found {
+		logger.InfoContext(ctx, "Account dynamic registration config found in cache")
+		return accountDRConfigDTO, nil
+	}
+
+	accountDRConfigDTO, serviceErr := s.GetAccountDynamicRegistrationConfig(ctx, GetAccountDynamicRegistrationConfigOptions(opts))
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get account dynamic registration config", "serviceError", serviceErr)
+		return dtos.AccountDynamicRegistrationConfigDTO{}, serviceErr
+	}
+
+	if err := cache.SaveResponseWithoutETag(s.cache, ctx, cache.SaveResponseOptions[dtos.AccountDynamicRegistrationConfigDTO]{
+		RequestID: opts.RequestID,
+		Key:       buildAccountDynamicRegistrationConfigCacheKey(opts.AccountPublicID),
+		TTL:       accountDynamicRegistrationConfigCacheTTL,
+		Value:     accountDRConfigDTO,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to save account dynamic registration config to cache", "error", err)
+		return dtos.AccountDynamicRegistrationConfigDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return accountDRConfigDTO, nil
 }
 
 type DeleteAccountDynamicRegistrationConfigOptions struct {

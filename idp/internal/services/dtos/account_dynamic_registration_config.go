@@ -12,8 +12,8 @@ type AccountDynamicRegistrationConfigDTO struct {
 	id int32
 
 	CredentialsTypes                         []database.AccountCredentialsType              `json:"credentials_types"`
-	WhitelistedDomains                       []string                                       `json:"whitelisted_domains"`
 	RequireSoftwareStatementCredentialTypes  []database.AccountCredentialsType              `json:"require_software_statement_credential_types"`
+	RequireVerifiedDomainsCredentialsType    []database.AccountCredentialsType              `json:"require_verified_domains_credentials_type"`
 	SoftwareStatementVerificationMethods     []database.SoftwareStatementVerificationMethod `json:"software_statement_verification_methods"`
 	RequireInitialAccessTokenCredentialTypes []database.AccountCredentialsType              `json:"require_initial_access_token_credential_types"`
 	InitialAccessTokenGenerationMethods      []database.InitialAccessTokenGenerationMethod  `json:"initial_access_token_generation_methods"`
@@ -29,8 +29,8 @@ func MapAccountDynamicRegistrationConfigToDTO(
 	return AccountDynamicRegistrationConfigDTO{
 		id:                                       config.ID,
 		CredentialsTypes:                         config.AccountCredentialsTypes,
-		WhitelistedDomains:                       config.WhitelistedDomains,
 		RequireSoftwareStatementCredentialTypes:  config.RequireSoftwareStatementCredentialTypes,
+		RequireVerifiedDomainsCredentialsType:    config.RequireVerifiedDomainsCredentialsType,
 		SoftwareStatementVerificationMethods:     config.SoftwareStatementVerificationMethods,
 		RequireInitialAccessTokenCredentialTypes: config.RequireInitialAccessTokenCredentialTypes,
 		InitialAccessTokenGenerationMethods:      config.InitialAccessTokenGenerationMethods,

@@ -33,7 +33,7 @@ func (a *DynamicRegistrationDomainDTO) ID() int32 {
 }
 
 func MapAccountCredentialsRegistrationDomainToDTOWithCode(
-	domain *database.AccountDynamicRegistrationDomain,
+	domain *database.DynamicRegistrationDomain,
 	verificationHost string,
 	verificationPrefix string,
 	verificationCode string,
@@ -53,7 +53,7 @@ func MapAccountCredentialsRegistrationDomainToDTOWithCode(
 }
 
 func MapAccountCredentialsRegistrationDomainToDTO(
-	domain *database.AccountDynamicRegistrationDomain,
+	domain *database.DynamicRegistrationDomain,
 ) DynamicRegistrationDomainDTO {
 	verifiedAt := int64(0)
 	if domain.VerifiedAt.Valid {

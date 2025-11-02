@@ -54,10 +54,10 @@ func (q *Queries) DeleteAppRelatedAppsByAppIDAndRelatedAppIDs(ctx context.Contex
 }
 
 const findRelatedAppsByAppID = `-- name: FindRelatedAppsByAppID :many
-SELECT a.id, a.account_id, a.account_public_id, a.app_type, a.name, a.client_id, a.version, a.creation_method, a.client_uri, a.logo_uri, a.tos_uri, a.policy_uri, a.software_id, a.software_version, a.contacts, a.token_endpoint_auth_method, a.scopes, a.custom_scopes, a.grant_types, a.domain, a.transport, a.allow_user_registration, a.auth_providers, a.username_column, a.default_scopes, a.default_custom_scopes, a.redirect_uris, a.response_types, a.id_token_ttl, a.token_ttl, a.refresh_token_ttl, a.created_at, a.updated_at FROM "apps" a
+SELECT a.id, a.account_id, a.account_public_id, a.client_id, a.version, a.creation_method, a.redirect_uris, a.token_endpoint_auth_method, a.grant_types, a.response_types, a.client_name, a.client_uri, a.logo_uri, a.scopes, a.custom_scopes, a.contacts, a.tos_uri, a.policy_uri, a.jwks_uri, a.jwks, a.software_id, a.software_version, a.domain, a.transport, a.allow_user_registration, a.auth_providers, a.username_column, a.default_scopes, a.default_custom_scopes, a.app_type, a.sector_identifier_uri, a.subject_type, a.id_token_signed_response_alg, a.id_token_encrypted_response_alg, a.id_token_encrypted_response_enc, a.userinfo_signed_response_alg, a.userinfo_encrypted_response_alg, a.userinfo_encrypted_response_enc, a.request_object_signing_alg, a.request_object_encryption_alg, a.request_object_encryption_enc, a.token_endpoint_auth_signing_alg, a.default_max_age, a.require_auth_time, a.default_acr_values, a.initiate_login_uri, a.request_uris, a.access_token_signing_alg, a.id_token_ttl, a.token_ttl, a.refresh_token_ttl, a.created_at, a.updated_at FROM "apps" a
 INNER JOIN "app_related_apps" ara ON a.id = ara.related_app_id
 WHERE ara.app_id = $1
-ORDER BY a.name ASC
+ORDER BY a.client_name ASC
 `
 
 func (q *Queries) FindRelatedAppsByAppID(ctx context.Context, appID int32) ([]App, error) {
@@ -73,22 +73,25 @@ func (q *Queries) FindRelatedAppsByAppID(ctx context.Context, appID int32) ([]Ap
 			&i.ID,
 			&i.AccountID,
 			&i.AccountPublicID,
-			&i.AppType,
-			&i.Name,
 			&i.ClientID,
 			&i.Version,
 			&i.CreationMethod,
+			&i.RedirectUris,
+			&i.TokenEndpointAuthMethod,
+			&i.GrantTypes,
+			&i.ResponseTypes,
+			&i.ClientName,
 			&i.ClientUri,
 			&i.LogoUri,
-			&i.TosUri,
-			&i.PolicyUri,
-			&i.SoftwareID,
-			&i.SoftwareVersion,
-			&i.Contacts,
-			&i.TokenEndpointAuthMethod,
 			&i.Scopes,
 			&i.CustomScopes,
-			&i.GrantTypes,
+			&i.Contacts,
+			&i.TosUri,
+			&i.PolicyUri,
+			&i.JwksUri,
+			&i.Jwks,
+			&i.SoftwareID,
+			&i.SoftwareVersion,
 			&i.Domain,
 			&i.Transport,
 			&i.AllowUserRegistration,
@@ -96,8 +99,25 @@ func (q *Queries) FindRelatedAppsByAppID(ctx context.Context, appID int32) ([]Ap
 			&i.UsernameColumn,
 			&i.DefaultScopes,
 			&i.DefaultCustomScopes,
-			&i.RedirectUris,
-			&i.ResponseTypes,
+			&i.AppType,
+			&i.SectorIdentifierUri,
+			&i.SubjectType,
+			&i.IDTokenSignedResponseAlg,
+			&i.IDTokenEncryptedResponseAlg,
+			&i.IDTokenEncryptedResponseEnc,
+			&i.UserinfoSignedResponseAlg,
+			&i.UserinfoEncryptedResponseAlg,
+			&i.UserinfoEncryptedResponseEnc,
+			&i.RequestObjectSigningAlg,
+			&i.RequestObjectEncryptionAlg,
+			&i.RequestObjectEncryptionEnc,
+			&i.TokenEndpointAuthSigningAlg,
+			&i.DefaultMaxAge,
+			&i.RequireAuthTime,
+			&i.DefaultAcrValues,
+			&i.InitiateLoginUri,
+			&i.RequestUris,
+			&i.AccessTokenSigningAlg,
 			&i.IDTokenTtl,
 			&i.TokenTtl,
 			&i.RefreshTokenTtl,

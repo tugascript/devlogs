@@ -42,7 +42,7 @@ func (r *Routes) AccountDynamicRegistrationConfigurationRoutes(app *fiber.App) {
 	domainsRouter.Post(
 		paths.Base,
 		credentialsConfigsWriteScopeMiddleware,
-		r.controllers.CreateAccountCredentialsRegistrationDomain,
+		r.controllers.CreateDynamicRegistrationDomain,
 	)
 	domainsRouter.Get(
 		paths.Base,

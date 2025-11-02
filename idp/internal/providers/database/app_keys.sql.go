@@ -53,7 +53,7 @@ func (q *Queries) CreateAppKey(ctx context.Context, arg CreateAppKeyParams) erro
 }
 
 const findAppKeyByAppIDAndPublicKID = `-- name: FindAppKeyByAppIDAndPublicKID :one
-SELECT ckr.id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.usage, ckr.account_id, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
+SELECT ckr.id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.is_external, ckr.usage, ckr.account_id, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
 LEFT JOIN "app_keys" "ak" ON "ak"."credentials_key_id" = "ckr"."id"
 WHERE 
     "ak"."app_id" = $1 AND 
@@ -75,6 +75,7 @@ func (q *Queries) FindAppKeyByAppIDAndPublicKID(ctx context.Context, arg FindApp
 		&i.PublicKey,
 		&i.CryptoSuite,
 		&i.IsRevoked,
+		&i.IsExternal,
 		&i.Usage,
 		&i.AccountID,
 		&i.ExpiresAt,
@@ -85,7 +86,7 @@ func (q *Queries) FindAppKeyByAppIDAndPublicKID(ctx context.Context, arg FindApp
 }
 
 const findPaginatedAppKeysByAppID = `-- name: FindPaginatedAppKeysByAppID :many
-SELECT ckr.id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.usage, ckr.account_id, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
+SELECT ckr.id, ckr.public_kid, ckr.public_key, ckr.crypto_suite, ckr.is_revoked, ckr.is_external, ckr.usage, ckr.account_id, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
 LEFT JOIN "app_keys" "ak" ON "ak"."credentials_key_id" = "ckr"."id"
 WHERE "ak"."app_id" = $1
 ORDER BY "ckr"."expires_at" DESC
@@ -113,6 +114,7 @@ func (q *Queries) FindPaginatedAppKeysByAppID(ctx context.Context, arg FindPagin
 			&i.PublicKey,
 			&i.CryptoSuite,
 			&i.IsRevoked,
+			&i.IsExternal,
 			&i.Usage,
 			&i.AccountID,
 			&i.ExpiresAt,
