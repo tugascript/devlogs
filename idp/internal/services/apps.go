@@ -272,7 +272,7 @@ func (s *Services) FilterAccountAppsByName(
 		apps, err = s.database.FilterAppsByNameAndByAccountPublicIDOrderedByID(ctx,
 			database.FilterAppsByNameAndByAccountPublicIDOrderedByIDParams{
 				AccountPublicID: opts.AccountPublicID,
-				Name:            name,
+				ClientName:      name,
 				Offset:          opts.Offset,
 				Limit:           opts.Limit,
 			},
@@ -281,7 +281,7 @@ func (s *Services) FilterAccountAppsByName(
 		apps, err = s.database.FilterAppsByNameAndByAccountPublicIDOrderedByName(ctx,
 			database.FilterAppsByNameAndByAccountPublicIDOrderedByNameParams{
 				AccountPublicID: opts.AccountPublicID,
-				Name:            name,
+				ClientName:      name,
 				Offset:          opts.Offset,
 				Limit:           opts.Limit,
 			},
@@ -298,7 +298,7 @@ func (s *Services) FilterAccountAppsByName(
 	count, err := s.database.CountFilteredAppsByNameAndByAccountPublicID(ctx,
 		database.CountFilteredAppsByNameAndByAccountPublicIDParams{
 			AccountPublicID: opts.AccountPublicID,
-			Name:            name,
+			ClientName:      name,
 		},
 	)
 	if err != nil {
@@ -444,7 +444,7 @@ func (s *Services) FilterAccountAppsByNameAndType(
 		apps, err = s.database.FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByID(ctx,
 			database.FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByIDParams{
 				AccountPublicID: opts.AccountPublicID,
-				Name:            name,
+				ClientName:      name,
 				Offset:          opts.Offset,
 				Limit:           opts.Limit,
 				AppType:         appType,
@@ -454,7 +454,7 @@ func (s *Services) FilterAccountAppsByNameAndType(
 		apps, err = s.database.FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByName(ctx,
 			database.FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByNameParams{
 				AccountPublicID: opts.AccountPublicID,
-				Name:            name,
+				ClientName:      name,
 				Offset:          opts.Offset,
 				Limit:           opts.Limit,
 				AppType:         appType,
@@ -472,7 +472,7 @@ func (s *Services) FilterAccountAppsByNameAndType(
 	count, err := s.database.CountFilteredAppsByNameAndTypeAndByAccountPublicID(ctx,
 		database.CountFilteredAppsByNameAndTypeAndByAccountPublicIDParams{
 			AccountPublicID: opts.AccountPublicID,
-			Name:            name,
+			ClientName:      name,
 			AppType:         appType,
 		},
 	)
@@ -605,8 +605,8 @@ func (s *Services) checkForDuplicateApps(
 	logger.InfoContext(ctx, "Checking for duplicate apps...")
 
 	count, err := s.database.CountAppsByAccountIDAndName(ctx, database.CountAppsByAccountIDAndNameParams{
-		AccountID: opts.accountID,
-		Name:      opts.name,
+		AccountID:  opts.accountID,
+		ClientName: opts.name,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count apps by name", "error", err)
@@ -693,7 +693,7 @@ func (s *Services) createApp(
 		AccountPublicID:         opts.accountPublicID,
 		CreationMethod:          opts.creationMethod,
 		AppType:                 opts.appType,
-		Name:                    opts.name,
+		ClientName:              opts.name,
 		ClientID:                clientID,
 		ClientUri:               utils.ProcessURL(opts.clientURI),
 		AllowUserRegistration:   opts.allowUserRegistration,
@@ -703,7 +703,7 @@ func (s *Services) createApp(
 		LogoUri:                 mapEmptyURL(opts.logoURI),
 		TosUri:                  mapEmptyURL(opts.tosURI),
 		PolicyUri:               mapEmptyURL(opts.policyURI),
-		SoftwareID:              opts.softwareID,
+		SoftwareID:              mapEmptyString(opts.softwareID),
 		SoftwareVersion:         mapEmptyString(opts.softwareVersion),
 		Scopes:                  stdScopes,
 		DefaultScopes:           defaultStdScopes,
@@ -773,7 +773,7 @@ func (s *Services) createSingleApp(
 		AccountPublicID:         opts.accountPublicID,
 		CreationMethod:          opts.creationMethod,
 		AppType:                 opts.appType,
-		Name:                    opts.name,
+		ClientName:              opts.name,
 		ClientID:                clientID,
 		ClientUri:               utils.ProcessURL(opts.clientURI),
 		AllowUserRegistration:   opts.allowUserRegistration,
@@ -783,7 +783,7 @@ func (s *Services) createSingleApp(
 		LogoUri:                 mapEmptyURL(opts.logoURI),
 		TosUri:                  mapEmptyURL(opts.tosURI),
 		PolicyUri:               mapEmptyURL(opts.policyURI),
-		SoftwareID:              opts.softwareID,
+		SoftwareID:              mapEmptyString(opts.softwareID),
 		SoftwareVersion:         mapEmptyString(opts.softwareVersion),
 		Scopes:                  stdScopes,
 		DefaultScopes:           defaultStdScopes,
@@ -860,7 +860,7 @@ func (s *Services) CreateWebApp(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	responseTypes, serviceErr := mapResponseTypes(opts.ResponseTypes)
+	responseTypes, serviceErr := mapResponseTypesWithDefault(opts.ResponseTypes)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
@@ -1040,7 +1040,7 @@ func (s *Services) CreateSPANativeApp(
 	)
 	logger.InfoContext(ctx, "Creating SPA or Native app...")
 
-	responseTypes, serviceErr := mapResponseTypes(opts.ResponseTypes)
+	responseTypes, serviceErr := mapResponseTypesWithDefault(opts.ResponseTypes)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
@@ -2026,7 +2026,7 @@ func (s *Services) updateApp(
 ) (database.App, error) {
 	logger := s.buildLogger(opts.requestID, appsLocation, "updateApp").With(
 		"appID", appDTO.ID(),
-		"appName", appDTO.Name,
+		"appClientName", appDTO.ClientName,
 	)
 	logger.InfoContext(ctx, "Updating base app...")
 
@@ -2058,7 +2058,7 @@ func (s *Services) updateApp(
 
 	app, err := qrs.UpdateApp(ctx, database.UpdateAppParams{
 		ID:                    appDTO.ID(),
-		Name:                  opts.name,
+		ClientName:            opts.name,
 		UsernameColumn:        usernameColumn,
 		ClientUri:             opts.clientURI,
 		LogoUri:               mapEmptyURL(opts.logoURI),
@@ -2093,7 +2093,7 @@ func (s *Services) updateSingleApp(
 ) (database.App, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, appsLocation, "updateApp").With(
 		"appID", appDTO.ID(),
-		"appName", appDTO.Name,
+		"appClientName", appDTO.ClientName,
 	)
 	logger.InfoContext(ctx, "Updating base app...")
 
@@ -2125,7 +2125,7 @@ func (s *Services) updateSingleApp(
 
 	app, err := s.database.UpdateApp(ctx, database.UpdateAppParams{
 		ID:                    appDTO.ID(),
-		Name:                  opts.name,
+		ClientName:            opts.name,
 		UsernameColumn:        usernameColumn,
 		ClientUri:             opts.clientURI,
 		LogoUri:               mapEmptyURL(opts.logoURI),
@@ -2177,8 +2177,6 @@ func mapResponseTypesUpdate(
 		switch utils.Lowered(rt) {
 		case ResponseTypeCode:
 			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeCode)
-		case ResponseTypeIdToken:
-			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeIDToken)
 		case ResponseTypeCodeIdToken:
 			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeCodeidToken)
 		default:
@@ -2216,7 +2214,7 @@ func (s *Services) UpdateWebSPANativeApp(
 ) (dtos.AppDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "UpdateWebSPANativeApp").With(
 		"appID", appDTO.ID(),
-		"appName", appDTO.Name,
+		"appClientName", appDTO.ClientName,
 		"appType", appDTO.AppType,
 	)
 	logger.InfoContext(ctx, "Updating web or SPA or native app...")
@@ -2228,7 +2226,7 @@ func (s *Services) UpdateWebSPANativeApp(
 	}
 
 	name := strings.TrimSpace(opts.Name)
-	if appDTO.Name != name {
+	if appDTO.ClientName != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 			requestID: opts.RequestID,
 			accountID: opts.AccountID,
@@ -2296,12 +2294,12 @@ func (s *Services) UpdateBackendApp(
 ) (dtos.AppDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "UpdateBackendApp").With(
 		"appID", appDTO.ID(),
-		"appName", appDTO.Name,
+		"appClientName", appDTO.ClientName,
 	)
 	logger.InfoContext(ctx, "Updating backend app...")
 
 	name := strings.TrimSpace(opts.Name)
-	if appDTO.Name != name {
+	if appDTO.ClientName != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 			requestID: opts.RequestID,
 			accountID: opts.AccountID,
@@ -2378,12 +2376,12 @@ func (s *Services) UpdateDeviceApp(
 ) (dtos.AppDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "UpdateDeviceApp").With(
 		"appID", appDTO.ID(),
-		"appName", appDTO.Name,
+		"appClientName", appDTO.ClientName,
 	)
 	logger.InfoContext(ctx, "Updating device app...")
 
 	name := strings.TrimSpace(opts.Name)
-	if appDTO.Name != name {
+	if appDTO.ClientName != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 			requestID: opts.RequestID,
 			accountID: opts.AccountID,
@@ -2546,12 +2544,12 @@ func (s *Services) UpdateServiceApp(
 ) (dtos.AppDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "UpdateServiceApp").With(
 		"appID", appDTO.ID(),
-		"appName", appDTO.Name,
+		"appClientName", appDTO.ClientName,
 	)
 	logger.InfoContext(ctx, "Updating service app...")
 
 	name := strings.TrimSpace(opts.Name)
-	if appDTO.Name != name {
+	if appDTO.ClientName != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 			requestID: opts.RequestID,
 			accountID: opts.AccountID,
@@ -2636,12 +2634,12 @@ func (s *Services) UpdateMCPApp(
 ) (dtos.AppDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, appsLocation, "UpdateMCPApp").With(
 		"appID", appDTO.ID(),
-		"appName", appDTO.Name,
+		"appClientName", appDTO.ClientName,
 	)
 	logger.InfoContext(ctx, "Updating MCP app...")
 
 	name := strings.TrimSpace(opts.Name)
-	if appDTO.Name != name {
+	if appDTO.ClientName != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
 			requestID: opts.RequestID,
 			accountID: opts.AccountID,

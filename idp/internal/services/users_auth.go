@@ -283,7 +283,7 @@ func (s *Services) RegisterUser(
 		accountUsername: opts.AccountUsername,
 		appVersion:      appDTO.Version(),
 		appClientID:     appDTO.ClientID,
-		appName:         appDTO.Name,
+		appName:         appDTO.ClientName,
 		// TODO: add from app type appConfirmationURI: appDTO.ConfirmationURI,
 	}); serviceErr != nil {
 		return dtos.MessageDTO{}, serviceErr
@@ -632,7 +632,7 @@ func (s *Services) LoginUser(
 			accountUsername: opts.AccountUsername,
 			appVersion:      appDTO.Version(),
 			appClientID:     appDTO.ClientID,
-			appName:         appDTO.Name,
+			appName:         appDTO.ClientName,
 			// TODO: add from app type appConfirmationURI: appDTO.ConfirmationURI,
 		}); serviceErr != nil {
 			return dtos.AuthDTO{}, serviceErr
@@ -1045,7 +1045,7 @@ func (s *Services) ForgotUserPassword(
 
 	if err := s.mail.PublishUserResetEmail(ctx, mailer.UserResetEmailOptions{
 		RequestID:  opts.RequestID,
-		AppName:    appDTO.Name,
+		AppName:    appDTO.ClientName,
 		Email:      userDTO.Email,
 		ResetToken: signedResetToken,
 		// TODO: add from app type ResetURI: appDTO.ResetURI,

@@ -20,9 +20,9 @@ const (
 	accountCredentialsRegistrationDomainsLocation string = "account_credentials_registration_domains"
 )
 
-func (c *Controllers) CreateAccountCredentialsRegistrationDomain(ctx *fiber.Ctx) error {
+func (c *Controllers) CreateDynamicRegistrationDomain(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, accountCredentialsRegistrationDomainsLocation, "CreateAccountDynamicRegistrationDomain")
+	logger := c.buildLogger(requestID, accountCredentialsRegistrationDomainsLocation, "CreateDynamicRegistrationDomain")
 	logRequest(logger, ctx)
 
 	accountClaims, serviceErr := getAccountClaims(ctx)
@@ -38,9 +38,9 @@ func (c *Controllers) CreateAccountCredentialsRegistrationDomain(ctx *fiber.Ctx)
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	domainDTO, serviceErr := c.services.CreateAccountCredentialsRegistrationDomain(
+	domainDTO, serviceErr := c.services.CreateDynamicRegistrationDomain(
 		ctx.UserContext(),
-		services.CreateAccountCredentialsRegistrationDomainOptions{
+		services.CreateDynamicRegistrationDomainOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
 			AccountVersion:  accountClaims.AccountVersion,

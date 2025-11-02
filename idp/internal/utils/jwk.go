@@ -27,6 +27,7 @@ const (
 	SupportedCryptoSuiteEd25519 SupportedCryptoSuite = "EdDSA"
 	SupportedCryptoSuiteES256   SupportedCryptoSuite = "ES256"
 	SupportedCryptoSuiteHS256   SupportedCryptoSuite = "HS256"
+	SupportedCryptoSuiteRS256   SupportedCryptoSuite = "RS256"
 )
 
 func GetSupportedCryptoSuite(cryptoSuite string) (SupportedCryptoSuite, error) {
@@ -46,6 +47,7 @@ type JWK interface {
 	ToUsableKey() (any, error)
 	MarshalJSON() ([]byte, error)
 	ToPrivateKey() (any, error)
+	ComparePublicKey(other JWK) bool
 }
 
 type Ed25519JWK struct {
@@ -77,6 +79,15 @@ func (j *Ed25519JWK) MarshalJSON() ([]byte, error) {
 
 func (j *Ed25519JWK) ToPrivateKey() (any, error) {
 	return DecodeEd25519JwkPrivate(j)
+}
+
+func (j *Ed25519JWK) ComparePublicKey(other JWK) bool {
+	otherEdJwk, ok := other.(*Ed25519JWK)
+	if !ok {
+		return false
+	}
+
+	return otherEdJwk.X == j.X && otherEdJwk.Kty == j.Kty && otherEdJwk.Crv == j.Crv && otherEdJwk.Alg == j.Alg
 }
 
 type ES256JWK struct {
@@ -111,6 +122,16 @@ func (j *ES256JWK) ToPrivateKey() (any, error) {
 	return DecodeP256JwkPrivate(j)
 }
 
+func (j *ES256JWK) ComparePublicKey(other JWK) bool {
+	otherESJwk, ok := other.(*ES256JWK)
+	if !ok {
+		return false
+	}
+
+	return otherESJwk.X == j.X && otherESJwk.Y == j.Y && otherESJwk.Kty == j.Kty &&
+		otherESJwk.Crv == j.Crv && otherESJwk.Alg == j.Alg
+}
+
 type RS256JWK struct {
 	Kty    string   `json:"kty"`
 	Kid    string   `json:"kid"`
@@ -119,6 +140,35 @@ type RS256JWK struct {
 	N      string   `json:"n"`
 	E      string   `json:"e"`
 	KeyOps []string `json:"key_ops,omitempty"`
+}
+
+func (j *RS256JWK) ComparePublicKey(other JWK) bool {
+	otherRSJwk, ok := other.(*RS256JWK)
+	if !ok {
+		return false
+	}
+
+	return otherRSJwk.N == j.N && otherRSJwk.E == j.E && otherRSJwk.Kty == j.Kty && otherRSJwk.Alg == j.Alg
+}
+
+func (j *RS256JWK) GetKeyType() string {
+	return j.Kty
+}
+
+func (j *RS256JWK) GetKeyID() string {
+	return j.Kid
+}
+
+func (j *RS256JWK) ToUsableKey() (any, error) {
+	return DecodeRS256Jwk(j)
+}
+
+func (j *RS256JWK) MarshalJSON() ([]byte, error) {
+	return json.Marshal(*j)
+}
+
+func (j *RS256JWK) ToPrivateKey() (any, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 const (
@@ -132,6 +182,8 @@ const (
 	alg    string = "EdDSA"
 	verify string = "verify"
 	sign   string = "sign"
+
+	rsaKty string = "RSA"
 )
 
 func bigIntToPaddedBytes(n *big.Int, length int) []byte {
@@ -338,6 +390,12 @@ func JsonToJWK(jsonBytes []byte) (JWK, error) {
 		return &jwk, nil
 	case okpKty:
 		var jwk Ed25519JWK
+		if err := json.Unmarshal(jsonBytes, &jwk); err != nil {
+			return nil, err
+		}
+		return &jwk, nil
+	case rsaKty:
+		var jwk RS256JWK
 		if err := json.Unmarshal(jsonBytes, &jwk); err != nil {
 			return nil, err
 		}

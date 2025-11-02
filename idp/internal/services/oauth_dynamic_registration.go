@@ -151,7 +151,7 @@ func (s *Services) oauthDynamicRegistrationIATAuth(
 
 	var count int64
 	if tldOneDomain != opts.domain {
-		count, err = s.database.CountVerifiedAccountDynamicRegistrationDomainsByDomains(
+		count, err = s.database.CountVerifiedDynamicRegistrationDomainsByDomains(
 			ctx,
 			[]string{opts.domain, tldOneDomain},
 		)
@@ -164,7 +164,7 @@ func (s *Services) oauthDynamicRegistrationIATAuth(
 			return "", exceptions.NewForbiddenError()
 		}
 	} else {
-		count, err = s.database.CountVerifiedAccountDynamicRegistrationDomainsByDomain(ctx, opts.domain)
+		count, err = s.database.CountVerifiedDynamicRegistrationDomainsByDomain(ctx, opts.domain)
 	}
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count account dynamic registration domains by domains", "error", err)
@@ -1157,17 +1157,17 @@ func (s *Services) VerifyOAuthDynamicRegistrationIATCode(
 
 	var count int64
 	if tldOneDomain != data.Domain {
-		count, err = s.database.CountVerifiedAccountDynamicRegistrationDomainsByDomainsAndAccountPublicID(
+		count, err = s.database.CountVerifiedDynamicRegistrationDomainsByDomainsAndAccountPublicID(
 			ctx,
-			database.CountVerifiedAccountDynamicRegistrationDomainsByDomainsAndAccountPublicIDParams{
+			database.CountVerifiedDynamicRegistrationDomainsByDomainsAndAccountPublicIDParams{
 				AccountPublicID: accountDTO.PublicID,
 				Domains:         []string{data.Domain, tldOneDomain},
 			},
 		)
 	} else {
-		count, err = s.database.CountVerifiedAccountDynamicRegistrationDomainsByDomainAndAccountPublicID(
+		count, err = s.database.CountVerifiedDynamicRegistrationDomainsByDomainAndAccountPublicID(
 			ctx,
-			database.CountVerifiedAccountDynamicRegistrationDomainsByDomainAndAccountPublicIDParams{
+			database.CountVerifiedDynamicRegistrationDomainsByDomainAndAccountPublicIDParams{
 				AccountPublicID: accountDTO.PublicID,
 				Domain:          data.Domain,
 			},

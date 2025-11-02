@@ -437,6 +437,48 @@ func (ns NullClaims) Value() (driver.Value, error) {
 	return string(ns.Claims), nil
 }
 
+type ClientSubjectType string
+
+const (
+	ClientSubjectTypePublic   ClientSubjectType = "public"
+	ClientSubjectTypePairwise ClientSubjectType = "pairwise"
+)
+
+func (e *ClientSubjectType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ClientSubjectType(s)
+	case string:
+		*e = ClientSubjectType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ClientSubjectType: %T", src)
+	}
+	return nil
+}
+
+type NullClientSubjectType struct {
+	ClientSubjectType ClientSubjectType
+	Valid             bool // Valid is true if ClientSubjectType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullClientSubjectType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ClientSubjectType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ClientSubjectType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullClientSubjectType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ClientSubjectType), nil
+}
+
 type CreationMethod string
 
 const (
@@ -569,7 +611,6 @@ type DomainVerificationMethod string
 
 const (
 	DomainVerificationMethodAuthorizationCode DomainVerificationMethod = "authorization_code"
-	DomainVerificationMethodSoftwareStatement DomainVerificationMethod = "software_statement"
 	DomainVerificationMethodDnsTxtRecord      DomainVerificationMethod = "dns_txt_record"
 )
 
@@ -606,6 +647,48 @@ func (ns NullDomainVerificationMethod) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.DomainVerificationMethod), nil
+}
+
+type DynamicRegistrationUsage string
+
+const (
+	DynamicRegistrationUsageAccount DynamicRegistrationUsage = "account"
+	DynamicRegistrationUsageApp     DynamicRegistrationUsage = "app"
+)
+
+func (e *DynamicRegistrationUsage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DynamicRegistrationUsage(s)
+	case string:
+		*e = DynamicRegistrationUsage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DynamicRegistrationUsage: %T", src)
+	}
+	return nil
+}
+
+type NullDynamicRegistrationUsage struct {
+	DynamicRegistrationUsage DynamicRegistrationUsage
+	Valid                    bool // Valid is true if DynamicRegistrationUsage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDynamicRegistrationUsage) Scan(value interface{}) error {
+	if value == nil {
+		ns.DynamicRegistrationUsage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DynamicRegistrationUsage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDynamicRegistrationUsage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DynamicRegistrationUsage), nil
 }
 
 type GrantType string
@@ -741,7 +824,6 @@ type ResponseType string
 
 const (
 	ResponseTypeCode        ResponseType = "code"
-	ResponseTypeIDToken     ResponseType = "id_token"
 	ResponseTypeCodeidToken ResponseType = "code id_token"
 )
 
@@ -870,9 +952,8 @@ func (ns NullSecretStorageMode) Value() (driver.Value, error) {
 type SoftwareStatementVerificationMethod string
 
 const (
-	SoftwareStatementVerificationMethodManual          SoftwareStatementVerificationMethod = "manual"
-	SoftwareStatementVerificationMethodJwksUri         SoftwareStatementVerificationMethod = "jwks_uri"
-	SoftwareStatementVerificationMethodJwkX5Parameters SoftwareStatementVerificationMethod = "jwk_x5_parameters"
+	SoftwareStatementVerificationMethodManual  SoftwareStatementVerificationMethod = "manual"
+	SoftwareStatementVerificationMethodJwksUri SoftwareStatementVerificationMethod = "jwks_uri"
 )
 
 func (e *SoftwareStatementVerificationMethod) Scan(src interface{}) error {
@@ -951,6 +1032,95 @@ func (ns NullTokenCryptoSuite) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.TokenCryptoSuite), nil
+}
+
+type TokenEncryptionAlgorithm string
+
+const (
+	TokenEncryptionAlgorithmRSAOAEP256   TokenEncryptionAlgorithm = "RSA-OAEP-256"
+	TokenEncryptionAlgorithmECDHES       TokenEncryptionAlgorithm = "ECDH-ES"
+	TokenEncryptionAlgorithmECDHESA256KW TokenEncryptionAlgorithm = "ECDH-ES+A256KW"
+)
+
+func (e *TokenEncryptionAlgorithm) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TokenEncryptionAlgorithm(s)
+	case string:
+		*e = TokenEncryptionAlgorithm(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TokenEncryptionAlgorithm: %T", src)
+	}
+	return nil
+}
+
+type NullTokenEncryptionAlgorithm struct {
+	TokenEncryptionAlgorithm TokenEncryptionAlgorithm
+	Valid                    bool // Valid is true if TokenEncryptionAlgorithm is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTokenEncryptionAlgorithm) Scan(value interface{}) error {
+	if value == nil {
+		ns.TokenEncryptionAlgorithm, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TokenEncryptionAlgorithm.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTokenEncryptionAlgorithm) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TokenEncryptionAlgorithm), nil
+}
+
+type TokenEncryptionEncoding string
+
+const (
+	TokenEncryptionEncodingA128CBCHS256 TokenEncryptionEncoding = "A128CBC-HS256"
+	TokenEncryptionEncodingA192CBCHS384 TokenEncryptionEncoding = "A192CBC-HS384"
+	TokenEncryptionEncodingA256CBCHS512 TokenEncryptionEncoding = "A256CBC-HS512"
+	TokenEncryptionEncodingA128GCM      TokenEncryptionEncoding = "A128GCM"
+	TokenEncryptionEncodingA192GCM      TokenEncryptionEncoding = "A192GCM"
+	TokenEncryptionEncodingA256GCM      TokenEncryptionEncoding = "A256GCM"
+)
+
+func (e *TokenEncryptionEncoding) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TokenEncryptionEncoding(s)
+	case string:
+		*e = TokenEncryptionEncoding(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TokenEncryptionEncoding: %T", src)
+	}
+	return nil
+}
+
+type NullTokenEncryptionEncoding struct {
+	TokenEncryptionEncoding TokenEncryptionEncoding
+	Valid                   bool // Valid is true if TokenEncryptionEncoding is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTokenEncryptionEncoding) Scan(value interface{}) error {
+	if value == nil {
+		ns.TokenEncryptionEncoding, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TokenEncryptionEncoding.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTokenEncryptionEncoding) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TokenEncryptionEncoding), nil
 }
 
 type TokenKeyType string
@@ -1250,29 +1420,50 @@ type AccountAuthProvider struct {
 }
 
 type AccountCredential struct {
-	ID                      int32
-	AccountID               int32
-	AccountPublicID         uuid.UUID
-	ClientID                string
-	Name                    string
-	Domain                  string
-	CredentialsType         AccountCredentialsType
-	Scopes                  []AccountCredentialsScope
-	TokenEndpointAuthMethod AuthMethod
-	GrantTypes              []GrantType
-	Version                 int32
-	Transport               Transport
-	CreationMethod          CreationMethod
-	ClientUri               string
-	RedirectUris            []string
-	LogoUri                 pgtype.Text
-	PolicyUri               pgtype.Text
-	TosUri                  pgtype.Text
-	SoftwareID              string
-	SoftwareVersion         pgtype.Text
-	Contacts                []string
-	CreatedAt               time.Time
-	UpdatedAt               time.Time
+	ID                           int32
+	AccountID                    int32
+	AccountPublicID              uuid.UUID
+	Domain                       string
+	CreationMethod               CreationMethod
+	Transport                    Transport
+	Version                      int32
+	ClientID                     string
+	RedirectUris                 []string
+	TokenEndpointAuthMethod      AuthMethod
+	GrantTypes                   []GrantType
+	ResponseTypes                []ResponseType
+	ClientName                   string
+	ClientUri                    string
+	LogoUri                      pgtype.Text
+	Scopes                       []AccountCredentialsScope
+	Contacts                     []string
+	TosUri                       pgtype.Text
+	PolicyUri                    pgtype.Text
+	JwksUri                      pgtype.Text
+	Jwks                         []byte
+	SoftwareID                   pgtype.Text
+	SoftwareVersion              pgtype.Text
+	CredentialsType              AccountCredentialsType
+	SectorIdentifierUri          pgtype.Text
+	SubjectType                  NullClientSubjectType
+	IDTokenSignedResponseAlg     TokenCryptoSuite
+	IDTokenEncryptedResponseAlg  NullTokenEncryptionAlgorithm
+	IDTokenEncryptedResponseEnc  NullTokenEncryptionEncoding
+	UserinfoSignedResponseAlg    NullTokenCryptoSuite
+	UserinfoEncryptedResponseAlg NullTokenEncryptionAlgorithm
+	UserinfoEncryptedResponseEnc NullTokenEncryptionEncoding
+	RequestObjectSigningAlg      NullTokenCryptoSuite
+	RequestObjectEncryptionAlg   NullTokenEncryptionAlgorithm
+	RequestObjectEncryptionEnc   NullTokenEncryptionEncoding
+	TokenEndpointAuthSigningAlg  NullTokenCryptoSuite
+	DefaultMaxAge                pgtype.Int8
+	RequireAuthTime              bool
+	DefaultAcrValues             []string
+	InitiateLoginUri             pgtype.Text
+	RequestUris                  []string
+	AccessTokenSigningAlg        TokenCryptoSuite
+	CreatedAt                    time.Time
+	UpdatedAt                    time.Time
 }
 
 type AccountCredentialsKey struct {
@@ -1304,40 +1495,13 @@ type AccountDynamicRegistrationConfig struct {
 	AccountID                                int32
 	AccountPublicID                          uuid.UUID
 	AccountCredentialsTypes                  []AccountCredentialsType
-	WhitelistedDomains                       []string
 	RequireSoftwareStatementCredentialTypes  []AccountCredentialsType
 	SoftwareStatementVerificationMethods     []SoftwareStatementVerificationMethod
+	RequireVerifiedDomainsCredentialsType    []AccountCredentialsType
 	RequireInitialAccessTokenCredentialTypes []AccountCredentialsType
 	InitialAccessTokenGenerationMethods      []InitialAccessTokenGenerationMethod
 	CreatedAt                                time.Time
 	UpdatedAt                                time.Time
-}
-
-type AccountDynamicRegistrationDomain struct {
-	ID                 int32
-	AccountID          int32
-	AccountPublicID    uuid.UUID
-	Domain             string
-	VerifiedAt         pgtype.Timestamptz
-	VerificationMethod DomainVerificationMethod
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-}
-
-type AccountDynamicRegistrationDomainCode struct {
-	AccountDynamicRegistrationDomainID int32
-	DynamicRegistrationDomainCodeID    int32
-	AccountID                          int32
-	CreatedAt                          time.Time
-}
-
-type AccountDynamicRegistrationSoftwareStatementKey struct {
-	ID                                 int32
-	AccountID                          int32
-	AccountPublicID                    uuid.UUID
-	CredentialsKeyID                   int32
-	AccountDynamicRegistrationDomainID int32
-	CreatedAt                          time.Time
 }
 
 type AccountHmacSecret struct {
@@ -1370,39 +1534,59 @@ type AccountTotp struct {
 }
 
 type App struct {
-	ID                      int32
-	AccountID               int32
-	AccountPublicID         uuid.UUID
-	AppType                 AppType
-	Name                    string
-	ClientID                string
-	Version                 int32
-	CreationMethod          CreationMethod
-	ClientUri               string
-	LogoUri                 pgtype.Text
-	TosUri                  pgtype.Text
-	PolicyUri               pgtype.Text
-	SoftwareID              string
-	SoftwareVersion         pgtype.Text
-	Contacts                []string
-	TokenEndpointAuthMethod AuthMethod
-	Scopes                  []Scopes
-	CustomScopes            []string
-	GrantTypes              []GrantType
-	Domain                  string
-	Transport               Transport
-	AllowUserRegistration   bool
-	AuthProviders           []AuthProvider
-	UsernameColumn          AppUsernameColumn
-	DefaultScopes           []Scopes
-	DefaultCustomScopes     []string
-	RedirectUris            []string
-	ResponseTypes           []ResponseType
-	IDTokenTtl              int32
-	TokenTtl                int32
-	RefreshTokenTtl         int32
-	CreatedAt               time.Time
-	UpdatedAt               time.Time
+	ID                           int32
+	AccountID                    int32
+	AccountPublicID              uuid.UUID
+	ClientID                     string
+	Version                      int32
+	CreationMethod               CreationMethod
+	RedirectUris                 []string
+	TokenEndpointAuthMethod      AuthMethod
+	GrantTypes                   []GrantType
+	ResponseTypes                []ResponseType
+	ClientName                   string
+	ClientUri                    string
+	LogoUri                      pgtype.Text
+	Scopes                       []Scopes
+	CustomScopes                 []string
+	Contacts                     []string
+	TosUri                       pgtype.Text
+	PolicyUri                    pgtype.Text
+	JwksUri                      pgtype.Text
+	Jwks                         []byte
+	SoftwareID                   pgtype.Text
+	SoftwareVersion              pgtype.Text
+	Domain                       string
+	Transport                    Transport
+	AllowUserRegistration        bool
+	AuthProviders                []AuthProvider
+	UsernameColumn               AppUsernameColumn
+	DefaultScopes                []Scopes
+	DefaultCustomScopes          []string
+	AppType                      AppType
+	SectorIdentifierUri          pgtype.Text
+	SubjectType                  NullClientSubjectType
+	IDTokenSignedResponseAlg     TokenCryptoSuite
+	IDTokenEncryptedResponseAlg  NullTokenEncryptionAlgorithm
+	IDTokenEncryptedResponseEnc  NullTokenEncryptionEncoding
+	UserinfoSignedResponseAlg    NullTokenCryptoSuite
+	UserinfoEncryptedResponseAlg NullTokenEncryptionAlgorithm
+	UserinfoEncryptedResponseEnc NullTokenEncryptionEncoding
+	RequestObjectSigningAlg      NullTokenCryptoSuite
+	RequestObjectEncryptionAlg   NullTokenEncryptionAlgorithm
+	RequestObjectEncryptionEnc   NullTokenEncryptionEncoding
+	TokenEndpointAuthSigningAlg  NullTokenCryptoSuite
+	DefaultMaxAge                pgtype.Int4
+	RequireAuthTime              bool
+	DefaultAcrValues             []string
+	InitiateLoginUri             pgtype.Text
+	RequestUris                  []string
+	AccessTokenSigningAlg        TokenCryptoSuite
+	IDTokenTtl                   int32
+	TokenTtl                     int32
+	RefreshTokenTtl              int32
+	CreatedAt                    time.Time
+	UpdatedAt                    time.Time
 }
 
 type AppDesign struct {
@@ -1427,6 +1611,7 @@ type AppDynamicRegistrationConfig struct {
 	DefaultUsernameColumn                AppUsernameColumn
 	DefaultAllowedScopes                 []Scopes
 	DefaultScopes                        []Scopes
+	RequireVerifiedDomainsAppTypes       []AppType
 	RequireSoftwareStatementAppTypes     []AppType
 	SoftwareStatementVerificationMethods []SoftwareStatementVerificationMethod
 	RequireInitialAccessTokenAppTypes    []AppType
@@ -1488,6 +1673,7 @@ type CredentialsKey struct {
 	PublicKey   []byte
 	CryptoSuite TokenCryptoSuite
 	IsRevoked   bool
+	IsExternal  bool
 	Usage       CredentialsUsage
 	AccountID   int32
 	ExpiresAt   time.Time
@@ -1521,16 +1707,39 @@ type DataEncryptionKey struct {
 	UpdatedAt time.Time
 }
 
-type DynamicRegistrationDomainCode struct {
+type DynamicRegistrationDomain struct {
 	ID                 int32
 	AccountID          int32
-	VerificationHost   string
-	VerificationCode   string
-	HmacSecretID       string
-	VerificationPrefix string
-	ExpiresAt          time.Time
+	AccountPublicID    uuid.UUID
+	Domain             string
+	VerifiedAt         pgtype.Timestamptz
+	VerificationMethod DomainVerificationMethod
+	Usages             []DynamicRegistrationUsage
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+}
+
+type DynamicRegistrationDomainCode struct {
+	ID                          int32
+	AccountID                   int32
+	DynamicRegistrationDomainID int32
+	VerificationHost            string
+	VerificationCode            string
+	HmacSecretID                string
+	VerificationPrefix          string
+	ExpiresAt                   time.Time
+	CreatedAt                   time.Time
+	UpdatedAt                   time.Time
+}
+
+type DynamicRegistrationSoftwareStatementKey struct {
+	ID                int32
+	AccountID         int32
+	AccountPublicID   uuid.UUID
+	CredentialsKeyID  int32
+	CredentialsKeyKid string
+	RootDomain        string
+	CreatedAt         time.Time
 }
 
 type KeyEncryptionKey struct {

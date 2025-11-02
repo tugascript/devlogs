@@ -26,7 +26,7 @@ INSERT INTO "credentials_keys" (
     $4,
     $5,
     $6
-) RETURNING id, public_kid, public_key, crypto_suite, is_revoked, usage, account_id, expires_at, created_at, updated_at
+) RETURNING id, public_kid, public_key, crypto_suite, is_revoked, is_external, usage, account_id, expires_at, created_at, updated_at
 `
 
 type CreateCredentialsKeyParams struct {
@@ -59,6 +59,7 @@ func (q *Queries) CreateCredentialsKey(ctx context.Context, arg CreateCredential
 		&i.PublicKey,
 		&i.CryptoSuite,
 		&i.IsRevoked,
+		&i.IsExternal,
 		&i.Usage,
 		&i.AccountID,
 		&i.ExpiresAt,
@@ -75,6 +76,31 @@ DELETE FROM "credentials_keys"
 func (q *Queries) DeleteAllCredentialsKeys(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, deleteAllCredentialsKeys)
 	return err
+}
+
+const findCredentialsKeyByID = `-- name: FindCredentialsKeyByID :one
+SELECT id, public_kid, public_key, crypto_suite, is_revoked, is_external, usage, account_id, expires_at, created_at, updated_at FROM "credentials_keys"
+WHERE "id" = $1
+LIMIT 1
+`
+
+func (q *Queries) FindCredentialsKeyByID(ctx context.Context, id int32) (CredentialsKey, error) {
+	row := q.db.QueryRow(ctx, findCredentialsKeyByID, id)
+	var i CredentialsKey
+	err := row.Scan(
+		&i.ID,
+		&i.PublicKid,
+		&i.PublicKey,
+		&i.CryptoSuite,
+		&i.IsRevoked,
+		&i.IsExternal,
+		&i.Usage,
+		&i.AccountID,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const findCredentialsKeyPublicKeyByPublicKIDCryptoSuiteAndUsage = `-- name: FindCredentialsKeyPublicKeyByPublicKIDCryptoSuiteAndUsage :one
@@ -106,7 +132,7 @@ UPDATE "credentials_keys" SET
     "is_revoked" = true,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, public_kid, public_key, crypto_suite, is_revoked, usage, account_id, expires_at, created_at, updated_at
+RETURNING id, public_kid, public_key, crypto_suite, is_revoked, is_external, usage, account_id, expires_at, created_at, updated_at
 `
 
 func (q *Queries) RevokeCredentialsKey(ctx context.Context, id int32) (CredentialsKey, error) {
@@ -118,6 +144,7 @@ func (q *Queries) RevokeCredentialsKey(ctx context.Context, id int32) (Credentia
 		&i.PublicKey,
 		&i.CryptoSuite,
 		&i.IsRevoked,
+		&i.IsExternal,
 		&i.Usage,
 		&i.AccountID,
 		&i.ExpiresAt,

@@ -17,7 +17,6 @@ INSERT INTO "account_dynamic_registration_configs" (
     "account_id",
     "account_public_id",
     "account_credentials_types",
-    "whitelisted_domains",
     "require_software_statement_credential_types",
     "software_statement_verification_methods",
     "require_initial_access_token_credential_types",
@@ -29,16 +28,14 @@ INSERT INTO "account_dynamic_registration_configs" (
     $4, 
     $5, 
     $6, 
-    $7,
-    $8
-) RETURNING id, account_id, account_public_id, account_credentials_types, whitelisted_domains, require_software_statement_credential_types, software_statement_verification_methods, require_initial_access_token_credential_types, initial_access_token_generation_methods, created_at, updated_at
+    $7
+) RETURNING id, account_id, account_public_id, account_credentials_types, require_software_statement_credential_types, software_statement_verification_methods, require_verified_domains_credentials_type, require_initial_access_token_credential_types, initial_access_token_generation_methods, created_at, updated_at
 `
 
 type CreateAccountDynamicRegistrationConfigParams struct {
 	AccountID                                int32
 	AccountPublicID                          uuid.UUID
 	AccountCredentialsTypes                  []AccountCredentialsType
-	WhitelistedDomains                       []string
 	RequireSoftwareStatementCredentialTypes  []AccountCredentialsType
 	SoftwareStatementVerificationMethods     []SoftwareStatementVerificationMethod
 	RequireInitialAccessTokenCredentialTypes []AccountCredentialsType
@@ -55,7 +52,6 @@ func (q *Queries) CreateAccountDynamicRegistrationConfig(ctx context.Context, ar
 		arg.AccountID,
 		arg.AccountPublicID,
 		arg.AccountCredentialsTypes,
-		arg.WhitelistedDomains,
 		arg.RequireSoftwareStatementCredentialTypes,
 		arg.SoftwareStatementVerificationMethods,
 		arg.RequireInitialAccessTokenCredentialTypes,
@@ -67,9 +63,9 @@ func (q *Queries) CreateAccountDynamicRegistrationConfig(ctx context.Context, ar
 		&i.AccountID,
 		&i.AccountPublicID,
 		&i.AccountCredentialsTypes,
-		&i.WhitelistedDomains,
 		&i.RequireSoftwareStatementCredentialTypes,
 		&i.SoftwareStatementVerificationMethods,
+		&i.RequireVerifiedDomainsCredentialsType,
 		&i.RequireInitialAccessTokenCredentialTypes,
 		&i.InitialAccessTokenGenerationMethods,
 		&i.CreatedAt,
@@ -88,7 +84,7 @@ func (q *Queries) DeleteAccountDynamicRegistrationConfig(ctx context.Context, id
 }
 
 const findAccountDynamicRegistrationConfigByAccountID = `-- name: FindAccountDynamicRegistrationConfigByAccountID :one
-SELECT id, account_id, account_public_id, account_credentials_types, whitelisted_domains, require_software_statement_credential_types, software_statement_verification_methods, require_initial_access_token_credential_types, initial_access_token_generation_methods, created_at, updated_at FROM "account_dynamic_registration_configs" 
+SELECT id, account_id, account_public_id, account_credentials_types, require_software_statement_credential_types, software_statement_verification_methods, require_verified_domains_credentials_type, require_initial_access_token_credential_types, initial_access_token_generation_methods, created_at, updated_at FROM "account_dynamic_registration_configs" 
 WHERE "account_id" = $1 LIMIT 1
 `
 
@@ -100,9 +96,9 @@ func (q *Queries) FindAccountDynamicRegistrationConfigByAccountID(ctx context.Co
 		&i.AccountID,
 		&i.AccountPublicID,
 		&i.AccountCredentialsTypes,
-		&i.WhitelistedDomains,
 		&i.RequireSoftwareStatementCredentialTypes,
 		&i.SoftwareStatementVerificationMethods,
+		&i.RequireVerifiedDomainsCredentialsType,
 		&i.RequireInitialAccessTokenCredentialTypes,
 		&i.InitialAccessTokenGenerationMethods,
 		&i.CreatedAt,
@@ -112,7 +108,7 @@ func (q *Queries) FindAccountDynamicRegistrationConfigByAccountID(ctx context.Co
 }
 
 const findAccountDynamicRegistrationConfigByAccountPublicID = `-- name: FindAccountDynamicRegistrationConfigByAccountPublicID :one
-SELECT id, account_id, account_public_id, account_credentials_types, whitelisted_domains, require_software_statement_credential_types, software_statement_verification_methods, require_initial_access_token_credential_types, initial_access_token_generation_methods, created_at, updated_at FROM "account_dynamic_registration_configs"
+SELECT id, account_id, account_public_id, account_credentials_types, require_software_statement_credential_types, software_statement_verification_methods, require_verified_domains_credentials_type, require_initial_access_token_credential_types, initial_access_token_generation_methods, created_at, updated_at FROM "account_dynamic_registration_configs"
 WHERE "account_public_id" = $1 LIMIT 1
 `
 
@@ -124,9 +120,9 @@ func (q *Queries) FindAccountDynamicRegistrationConfigByAccountPublicID(ctx cont
 		&i.AccountID,
 		&i.AccountPublicID,
 		&i.AccountCredentialsTypes,
-		&i.WhitelistedDomains,
 		&i.RequireSoftwareStatementCredentialTypes,
 		&i.SoftwareStatementVerificationMethods,
+		&i.RequireVerifiedDomainsCredentialsType,
 		&i.RequireInitialAccessTokenCredentialTypes,
 		&i.InitialAccessTokenGenerationMethods,
 		&i.CreatedAt,
@@ -138,19 +134,17 @@ func (q *Queries) FindAccountDynamicRegistrationConfigByAccountPublicID(ctx cont
 const updateAccountDynamicRegistrationConfig = `-- name: UpdateAccountDynamicRegistrationConfig :one
 UPDATE "account_dynamic_registration_configs" SET
     "account_credentials_types" = $2,
-    "whitelisted_domains" = $3,
-    "require_software_statement_credential_types" = $4,
-    "software_statement_verification_methods" = $5,
-    "require_initial_access_token_credential_types" = $6,
-    "initial_access_token_generation_methods" = $7
+    "require_software_statement_credential_types" = $3,
+    "software_statement_verification_methods" = $4,
+    "require_initial_access_token_credential_types" = $5,
+    "initial_access_token_generation_methods" = $6
 WHERE "id" = $1 
-RETURNING id, account_id, account_public_id, account_credentials_types, whitelisted_domains, require_software_statement_credential_types, software_statement_verification_methods, require_initial_access_token_credential_types, initial_access_token_generation_methods, created_at, updated_at
+RETURNING id, account_id, account_public_id, account_credentials_types, require_software_statement_credential_types, software_statement_verification_methods, require_verified_domains_credentials_type, require_initial_access_token_credential_types, initial_access_token_generation_methods, created_at, updated_at
 `
 
 type UpdateAccountDynamicRegistrationConfigParams struct {
 	ID                                       int32
 	AccountCredentialsTypes                  []AccountCredentialsType
-	WhitelistedDomains                       []string
 	RequireSoftwareStatementCredentialTypes  []AccountCredentialsType
 	SoftwareStatementVerificationMethods     []SoftwareStatementVerificationMethod
 	RequireInitialAccessTokenCredentialTypes []AccountCredentialsType
@@ -161,7 +155,6 @@ func (q *Queries) UpdateAccountDynamicRegistrationConfig(ctx context.Context, ar
 	row := q.db.QueryRow(ctx, updateAccountDynamicRegistrationConfig,
 		arg.ID,
 		arg.AccountCredentialsTypes,
-		arg.WhitelistedDomains,
 		arg.RequireSoftwareStatementCredentialTypes,
 		arg.SoftwareStatementVerificationMethods,
 		arg.RequireInitialAccessTokenCredentialTypes,
@@ -173,9 +166,9 @@ func (q *Queries) UpdateAccountDynamicRegistrationConfig(ctx context.Context, ar
 		&i.AccountID,
 		&i.AccountPublicID,
 		&i.AccountCredentialsTypes,
-		&i.WhitelistedDomains,
 		&i.RequireSoftwareStatementCredentialTypes,
 		&i.SoftwareStatementVerificationMethods,
+		&i.RequireVerifiedDomainsCredentialsType,
 		&i.RequireInitialAccessTokenCredentialTypes,
 		&i.InitialAccessTokenGenerationMethods,
 		&i.CreatedAt,

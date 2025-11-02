@@ -19,7 +19,7 @@ INSERT INTO "app_related_apps" (
 SELECT a.* FROM "apps" a
 INNER JOIN "app_related_apps" ara ON a.id = ara.related_app_id
 WHERE ara.app_id = $1
-ORDER BY a.name ASC;
+ORDER BY a.client_name ASC;
 
 -- name: DeleteAppRelatedAppsByAppIDAndRelatedAppIDs :exec
 DELETE FROM "app_related_apps"

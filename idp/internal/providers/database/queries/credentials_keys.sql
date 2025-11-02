@@ -47,3 +47,8 @@ LIMIT 1;
 
 -- name: DeleteAllCredentialsKeys :exec
 DELETE FROM "credentials_keys";
+
+-- name: FindCredentialsKeyByID :one
+SELECT * FROM "credentials_keys"
+WHERE "id" = $1
+LIMIT 1;

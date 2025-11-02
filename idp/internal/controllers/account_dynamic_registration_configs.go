@@ -46,7 +46,6 @@ func (c *Controllers) UpsertAccountDynamicRegistrationConfig(ctx *fiber.Ctx) err
 			AccountPublicID:                          accountClaims.AccountID,
 			AccountVersion:                           accountClaims.AccountVersion,
 			AccountCredentialsTypes:                  body.AccountCredentialsTypes,
-			WhitelistedDomains:                       body.WhitelistedDomains,
 			RequireSoftwareStatementCredentialTypes:  body.RequireSoftwareStatementCredentialTypes,
 			SoftwareStatementVerificationMethods:     body.SoftwareStatementVerificationMethods,
 			RequireInitialAccessTokenCredentialTypes: body.RequireInitialAccessTokenCredentialTypes,

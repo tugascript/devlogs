@@ -19,7 +19,7 @@ const responseLocation string = "response"
 type SaveResponseOptions[T any] struct {
 	RequestID string
 	Key       string
-	TTL       int
+	TTL       time.Duration
 	Value     T
 }
 
@@ -41,13 +41,40 @@ func SaveResponse[T any](
 		return "", err
 	}
 
-	if err := c.storage.SetWithContext(ctx, opts.Key, responseBytes, time.Duration(opts.TTL)*time.Second); err != nil {
+	if err := c.storage.SetWithContext(ctx, opts.Key, responseBytes, opts.TTL); err != nil {
 		logger.ErrorContext(ctx, "Error saving response", "error", err)
 		return "", err
 	}
 
 	logger.DebugContext(ctx, "Response saved successfully")
 	return utils.GenerateETag(responseBytes), nil
+}
+
+func SaveResponseWithoutETag[T any](
+	c *Cache,
+	ctx context.Context,
+	opts SaveResponseOptions[T],
+) error {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  responseLocation,
+		Method:    "SaveResponseWithoutETag",
+		RequestID: opts.RequestID,
+	}).With("key", opts.Key)
+	logger.DebugContext(ctx, "Saving response without ETag...")
+
+	responseBytes, err := json.Marshal(opts.Value)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error marshalling response", "error", err)
+		return err
+	}
+
+	if err := c.storage.SetWithContext(ctx, opts.Key, responseBytes, opts.TTL); err != nil {
+		logger.ErrorContext(ctx, "Error saving response", "error", err)
+		return err
+	}
+
+	logger.DebugContext(ctx, "Response saved successfully")
+	return nil
 }
 
 type GetResponseOptions[T any] struct {
@@ -59,7 +86,7 @@ func GetResponse[T any](
 	c *Cache,
 	ctx context.Context,
 	opts GetResponseOptions[T],
-) (T, string, error) {
+) (T, string, bool, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  responseLocation,
 		Method:    "GetResponse",
@@ -71,17 +98,73 @@ func GetResponse[T any](
 	responseBytes, err := c.storage.GetWithContext(ctx, opts.Key)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error getting cached response", "error", err)
-		return response, "", err
+		return response, "", false, err
 	}
 	if responseBytes == nil {
 		logger.DebugContext(ctx, "No cached response found")
-		return response, "", nil
+		return response, "", false, nil
 	}
 
 	if err := json.Unmarshal(responseBytes, &response); err != nil {
 		logger.ErrorContext(ctx, "Error unmarshalling response", "error", err)
-		return response, "", err
+		return response, "", false, err
 	}
 
-	return response, utils.GenerateETag(responseBytes), nil
+	return response, utils.GenerateETag(responseBytes), true, nil
+}
+
+func GetResponseWithoutETag[T any](
+	c *Cache,
+	ctx context.Context,
+	opts GetResponseOptions[T],
+) (T, bool, error) {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  responseLocation,
+		Method:    "GetResponseWithoutETag",
+		RequestID: opts.RequestID,
+	}).With("key", opts.Key)
+	logger.DebugContext(ctx, "Getting cached response without ETag...")
+
+	var response T
+	responseBytes, err := c.storage.GetWithContext(ctx, opts.Key)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error getting cached response", "error", err)
+		return response, false, err
+	}
+	if responseBytes == nil {
+		logger.DebugContext(ctx, "No cached response found")
+		return response, false, nil
+	}
+
+	if err := json.Unmarshal(responseBytes, &response); err != nil {
+		logger.ErrorContext(ctx, "Error unmarshalling response", "error", err)
+		return response, false, err
+	}
+
+	return response, true, nil
+}
+
+type DeleteResponseOptions struct {
+	RequestID string
+	Key       string
+}
+
+func (c *Cache) DeleteResponse(
+	ctx context.Context,
+	opts DeleteResponseOptions,
+) error {
+	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
+		Location:  responseLocation,
+		Method:    "DeleteResponse",
+		RequestID: opts.RequestID,
+	}).With("key", opts.Key)
+	logger.DebugContext(ctx, "Deleting cached response...")
+
+	if err := c.storage.DeleteWithContext(ctx, opts.Key); err != nil {
+		logger.ErrorContext(ctx, "Error deleting cached response", "error", err)
+		return err
+	}
+
+	logger.DebugContext(ctx, "Cached response deleted successfully")
+	return nil
 }

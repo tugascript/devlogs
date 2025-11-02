@@ -4,18 +4,28 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-package bodies
+package tokens
 
-type OAuthDynamicClientRegistrationBody struct {
+import (
+	"context"
+
+	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/tugascript/devlogs/idp/internal/utils"
+)
+
+const dynamicRegistrationSoftwareStatementsLocation = "dynamic_registration_software_statements"
+
+type SoftwareStatementClaims struct {
 	RedirectURIs                 []string `json:"redirect_uris,omitempty" validate:"omitempty,min=1,dive,uri"`
 	TokenEndpointAuthMethod      string   `json:"token_endpoint_auth_method,omitempty" validate:"omitempty,oneof=none client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
-	ResponseTypes                []string `json:"response_types,omitempty" validate:"omitempty,dive,oneof=code 'code id_token'"`
 	GrantTypes                   []string `json:"grant_types,omitempty" validate:"omitempty,min=1,dive,oneof=authorization_code refresh_token client_credentials urn:ietf:params:oauth:grant-type:jwt-bearer"`
-	ApplicationType              string   `json:"application_type" validate:"required,oneof=native service mcp"`
-	ClientName                   string   `json:"client_name" validate:"required,min=1,max=255"`
-	ClientURI                    string   `json:"client_uri" validate:"required,url"`
+	ResponseTypes                []string `json:"response_types,omitempty" validate:"omitempty,dive,oneof=none code 'code id_token'"`
+	ApplicationType              string   `json:"application_type,omitempty" validate:"omitempty,oneof=native service mcp"`
+	ClientName                   string   `json:"client_name,omitempty" validate:"omitempty,min=1,max=255"`
+	ClientURI                    string   `json:"client_uri,omitempty" validate:"omitempty,url"`
 	LogoURI                      string   `json:"logo_uri,omitempty" validate:"omitempty,url"`
-	Scope                        string   `json:"scope" validate:"required,multiple_scope"`
+	Scope                        string   `json:"scope,omitempty" validate:"omitempty,multiple_scope"`
 	Contacts                     []string `json:"contacts,omitempty" validate:"omitempty,unique,dive,email"`
 	TOSURI                       string   `json:"tos_uri,omitempty" validate:"omitempty,url"`
 	PolicyURI                    string   `json:"policy_uri,omitempty" validate:"omitempty,url"`
@@ -41,32 +51,51 @@ type OAuthDynamicClientRegistrationBody struct {
 	RequestObjectEncryptionEnc   string   `json:"request_object_encryption_enc,omitempty" validate:"omitempty,oneof=A128CBC-HS256 A192CBC-HS384 A256CBC-HS512 A128GCM A192GCM A256GCM"`
 	TokenEndpointAuthSigningAlg  string   `json:"token_endpoint_auth_signing_alg,omitempty" validate:"omitempty,oneof=RS256 ES256 EdDSA"`
 	AccessTokenSigningAlg        string   `json:"access_token_signing_alg,omitempty" validate:"omitempty,oneof=RS256 ES256 EdDSA"`
-	SoftwareStatement            string   `json:"software_statement,omitempty" validate:"omitempty,jwt"`
 }
 
-type OAuthDynamicRegistrationIATAuthHiddenFieldsBody struct {
-	CSRFToken           string `json:"csrf_token" validate:"required,min=21,base64rawurl"`
-	ClientID            string `json:"client_id" validate:"required,fqdn"`
-	ResponseType        string `json:"response_type" validate:"required,oneof=code"`
-	CodeChallenge       string `json:"code_challenge" validate:"required,min=1"`
-	CodeChallengeMethod string `json:"code_challenge_method" validate:"omitempty,oneof=plain s256 S256"`
-	State               string `json:"state" validate:"required,min=1"`
-	RedirectURI         string `json:"redirect_uri" validate:"required,uri"`
+type GetUnknownPublicJWK = func(kid string) (utils.JWK, error)
+
+type softwareStatementJWTClaims struct {
+	SoftwareStatementClaims
+	jwt.RegisteredClaims
 }
 
-type OAuthDynamicRegistrationIATTokenBody struct {
-	ClientID     string `json:"client_id" validate:"required,fqdn"`
-	GrantType    string `json:"grant_type" validate:"required,eq=authorization_code"`
-	Code         string `json:"code" validate:"required,min=1"`
-	CodeVerifier string `json:"code_verifier" validate:"required,min=1"`
+type VerifySoftwareStatementOptions struct {
+	RequestID         string
+	SoftwareStatement string
+	GetPublicJWK      GetUnknownPublicJWK
 }
 
-type OAuthDynamicRegistrationIATExtAppleUserBody struct {
-	Email string `json:"email" validate:"required,email"`
-}
+func (t *Tokens) VerifySoftwareStatement(
+	ctx context.Context,
+	opts VerifySoftwareStatementOptions,
+) (SoftwareStatementClaims, jwt.RegisteredClaims, error) {
+	logger := utils.BuildLogger(t.logger, utils.LoggerOptions{
+		Location:  dynamicRegistrationSoftwareStatementsLocation,
+		Method:    "VerifySoftwareStatementToken",
+		RequestID: opts.RequestID,
+	})
+	logger.DebugContext(ctx, "Verifying software statement token")
 
-type OAuthDynamicRegistrationIATExtAppleBody struct {
-	Code  string `json:"code" validate:"required,min=1"`
-	State string `json:"state" validate:"required,min=1"`
-	User  string `json:"user" validate:"required,json"`
+	var claims softwareStatementJWTClaims
+	if _, err := jwt.ParseWithClaims(opts.SoftwareStatement, &claims, func(token *jwt.Token) (interface{}, error) {
+		kid, err := extractTokenKID(token)
+		if err != nil {
+			logger.DebugContext(ctx, "Failed to extract KID from software statement token", "error", err)
+			return nil, err
+		}
+
+		jwk, err := opts.GetPublicJWK(kid)
+		if err != nil {
+			logger.WarnContext(ctx, "Failed to get public JWK for software statement token", "error", err, "kid", kid)
+			return nil, err
+		}
+
+		return jwk.ToUsableKey()
+	}); err != nil {
+		logger.WarnContext(ctx, "Failed to verify software statement token", "error", err)
+		return SoftwareStatementClaims{}, jwt.RegisteredClaims{}, err
+	}
+
+	return claims.SoftwareStatementClaims, claims.RegisteredClaims, nil
 }

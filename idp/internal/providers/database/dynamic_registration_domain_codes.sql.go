@@ -10,10 +10,11 @@ import (
 	"time"
 )
 
-const createDynamicRegistrationDomainCode = `-- name: CreateDynamicRegistrationDomainCode :one
+const createDynamicRegistrationDomainCode = `-- name: CreateDynamicRegistrationDomainCode :exec
 
 INSERT INTO "dynamic_registration_domain_codes" (
     "account_id",
+    "dynamic_registration_domain_id",
     "verification_host",
     "verification_code",
     "verification_prefix",
@@ -25,17 +26,19 @@ INSERT INTO "dynamic_registration_domain_codes" (
     $3,
     $4,
     $5,
-    $6
-) RETURNING "id"
+    $6,
+    $7
+)
 `
 
 type CreateDynamicRegistrationDomainCodeParams struct {
-	AccountID          int32
-	VerificationHost   string
-	VerificationCode   string
-	VerificationPrefix string
-	HmacSecretID       string
-	ExpiresAt          time.Time
+	AccountID                   int32
+	DynamicRegistrationDomainID int32
+	VerificationHost            string
+	VerificationCode            string
+	VerificationPrefix          string
+	HmacSecretID                string
+	ExpiresAt                   time.Time
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -43,18 +46,17 @@ type CreateDynamicRegistrationDomainCodeParams struct {
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) CreateDynamicRegistrationDomainCode(ctx context.Context, arg CreateDynamicRegistrationDomainCodeParams) (int32, error) {
-	row := q.db.QueryRow(ctx, createDynamicRegistrationDomainCode,
+func (q *Queries) CreateDynamicRegistrationDomainCode(ctx context.Context, arg CreateDynamicRegistrationDomainCodeParams) error {
+	_, err := q.db.Exec(ctx, createDynamicRegistrationDomainCode,
 		arg.AccountID,
+		arg.DynamicRegistrationDomainID,
 		arg.VerificationHost,
 		arg.VerificationCode,
 		arg.VerificationPrefix,
 		arg.HmacSecretID,
 		arg.ExpiresAt,
 	)
-	var id int32
-	err := row.Scan(&id)
-	return id, err
+	return err
 }
 
 const deleteDynamicRegistrationDomainCode = `-- name: DeleteDynamicRegistrationDomainCode :exec
@@ -65,6 +67,29 @@ WHERE "id" = $1
 func (q *Queries) DeleteDynamicRegistrationDomainCode(ctx context.Context, id int32) error {
 	_, err := q.db.Exec(ctx, deleteDynamicRegistrationDomainCode, id)
 	return err
+}
+
+const findDynamicRegistrationDomainCodeByDynamicRegistrationDomainID = `-- name: FindDynamicRegistrationDomainCodeByDynamicRegistrationDomainID :one
+SELECT id, account_id, dynamic_registration_domain_id, verification_host, verification_code, hmac_secret_id, verification_prefix, expires_at, created_at, updated_at FROM "dynamic_registration_domain_codes"
+WHERE "dynamic_registration_domain_id" = $1
+`
+
+func (q *Queries) FindDynamicRegistrationDomainCodeByDynamicRegistrationDomainID(ctx context.Context, dynamicRegistrationDomainID int32) (DynamicRegistrationDomainCode, error) {
+	row := q.db.QueryRow(ctx, findDynamicRegistrationDomainCodeByDynamicRegistrationDomainID, dynamicRegistrationDomainID)
+	var i DynamicRegistrationDomainCode
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.DynamicRegistrationDomainID,
+		&i.VerificationHost,
+		&i.VerificationCode,
+		&i.HmacSecretID,
+		&i.VerificationPrefix,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updateDynamicRegistrationDomainCode = `-- name: UpdateDynamicRegistrationDomainCode :exec

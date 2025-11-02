@@ -4,9 +4,10 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
--- name: CreateDynamicRegistrationDomainCode :one
+-- name: CreateDynamicRegistrationDomainCode :exec
 INSERT INTO "dynamic_registration_domain_codes" (
     "account_id",
+    "dynamic_registration_domain_id",
     "verification_host",
     "verification_code",
     "verification_prefix",
@@ -18,8 +19,9 @@ INSERT INTO "dynamic_registration_domain_codes" (
     $3,
     $4,
     $5,
-    $6
-) RETURNING "id";
+    $6,
+    $7
+);
 
 -- name: UpdateDynamicRegistrationDomainCode :exec
 UPDATE "dynamic_registration_domain_codes" SET
@@ -33,3 +35,7 @@ WHERE "id" = $1;
 -- name: DeleteDynamicRegistrationDomainCode :exec
 DELETE FROM "dynamic_registration_domain_codes"
 WHERE "id" = $1;
+
+-- name: FindDynamicRegistrationDomainCodeByDynamicRegistrationDomainID :one
+SELECT * FROM "dynamic_registration_domain_codes"
+WHERE "dynamic_registration_domain_id" = $1;

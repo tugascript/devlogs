@@ -11,14 +11,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 type AccountCredentialsDTO struct {
 	ClientID                string                             `json:"client_id"`
-	Type                    database.AccountCredentialsType    `json:"type"`
-	Name                    string                             `json:"name"`
+	Type                    database.AccountCredentialsType    `json:"application_type"`
+	ClientName              string                             `json:"client_name"`
 	Domain                  string                             `json:"domain"`
 	Scopes                  []database.AccountCredentialsScope `json:"scopes"`
 	TokenEndpointAuthMethod database.AuthMethod                `json:"token_endpoint_auth_method"`
@@ -32,10 +33,32 @@ type AccountCredentialsDTO struct {
 	SoftwareID              string                             `json:"software_id"`
 	SoftwareVersion         string                             `json:"software_version,omitempty"`
 	Contacts                []string                           `json:"contacts,omitempty"`
-	ClientSecretID          string                             `json:"client_secret_id,omitempty"`
-	ClientSecret            string                             `json:"client_secret,omitempty"`
-	ClientSecretJWK         utils.JWK                          `json:"client_secret_jwk,omitempty"`
-	ClientSecretExp         int64                              `json:"client_secret_exp,omitempty"`
+	JWKsURI                 string                             `json:"jwks_uri,omitempty"`
+	JWKs                    []utils.JWK                        `json:"jwks,omitempty"`
+
+	SectorIdentifierURI          string                            `json:"sector_identifier_uri,omitempty"`
+	SubjectType                  database.ClientSubjectType        `json:"subject_type,omitempty"`
+	IDTokenSignedResponseAlg     database.TokenCryptoSuite         `json:"id_token_signed_response_alg"`
+	IDTokenEncryptedResponseAlg  database.TokenEncryptionAlgorithm `json:"id_token_encrypted_response_alg,omitempty"`
+	IDTokenEncryptedResponseEnc  database.TokenEncryptionEncoding  `json:"id_token_encrypted_response_enc,omitempty"`
+	UserInfoSignedResponseAlg    database.TokenCryptoSuite         `json:"userinfo_signed_response_alg,omitempty"`
+	UserInfoEncryptedResponseAlg database.TokenEncryptionAlgorithm `json:"userinfo_encrypted_response_alg,omitempty"`
+	UserInfoEncryptedResponseEnc database.TokenEncryptionEncoding  `json:"userinfo_encrypted_response_enc,omitempty"`
+	RequestObjectSigningAlg      database.TokenCryptoSuite         `json:"request_object_signing_alg,omitempty"`
+	RequestObjectEncryptionAlg   database.TokenEncryptionAlgorithm `json:"request_object_encryption_alg,omitempty"`
+	RequestObjectEncryptionEnc   database.TokenEncryptionEncoding  `json:"request_object_encryption_enc,omitempty"`
+	TokenEndpointAuthSigningAlg  database.TokenCryptoSuite         `json:"token_endpoint_auth_signing_alg,omitempty"`
+	AccessTokenSigningAlg        database.TokenCryptoSuite         `json:"access_token_signing_alg"`
+	DefaultMaxAge                int64                             `json:"default_max_age,omitempty"`
+	RequireAuthTime              bool                              `json:"require_auth_time,omitempty"`
+	DefaultACRValues             []string                          `json:"default_acr_values,omitempty"`
+	InitiateLoginURI             string                            `json:"initiate_login_uri,omitempty"`
+	RequestURIs                  []string                          `json:"request_uris,omitempty"`
+
+	ClientSecretID  string    `json:"client_secret_id,omitempty"`
+	ClientSecret    string    `json:"client_secret,omitempty"`
+	ClientSecretJWK utils.JWK `json:"client_secret_jwk,omitempty"`
+	ClientSecretExp int64     `json:"client_secret_exp,omitempty"`
 
 	id        int32
 	accountId int32
@@ -52,7 +75,8 @@ func (ak *AccountCredentialsDTO) ID() int32 {
 func (ak *AccountCredentialsDTO) UnmarshalJSON(data []byte) error {
 	type Alias AccountCredentialsDTO
 	aux := &struct {
-		ClientSecretJWK json.RawMessage `json:"client_secret_jwk"`
+		ClientSecretJWK json.RawMessage   `json:"client_secret_jwk"`
+		JWKs            []json.RawMessage `json:"jwks"`
 		*Alias
 	}{
 		Alias: (*Alias)(ak),
@@ -70,12 +94,24 @@ func (ak *AccountCredentialsDTO) UnmarshalJSON(data []byte) error {
 		ak.ClientSecretJWK = jwk
 	}
 
+	if aux.JWKs != nil {
+		jwks := make([]utils.JWK, 0, len(aux.JWKs))
+		for _, raw := range aux.JWKs {
+			jwk, err := utils.JsonToJWK(raw)
+			if err != nil {
+				return err
+			}
+			jwks = append(jwks, jwk)
+		}
+		ak.JWKs = jwks
+	}
+
 	return nil
 }
 
 func MapAccountCredentialsToDTO(
 	accountCredential *database.AccountCredential,
-) AccountCredentialsDTO {
+) (AccountCredentialsDTO, *exceptions.ServiceError) {
 	var redirectURIs []string
 	if len(accountCredential.RedirectUris) > 0 {
 		redirectURIs = accountCredential.RedirectUris
@@ -86,94 +122,199 @@ func MapAccountCredentialsToDTO(
 		contacts = accountCredential.Contacts
 	}
 
-	return AccountCredentialsDTO{
-		id:                      accountCredential.ID,
-		ClientID:                accountCredential.ClientID,
-		Type:                    accountCredential.CredentialsType,
-		Name:                    accountCredential.Name,
-		Domain:                  accountCredential.Domain,
-		ClientURI:               accountCredential.ClientUri,
-		RedirectURIs:            redirectURIs,
-		LogoURI:                 accountCredential.LogoUri.String,
-		TOSURI:                  accountCredential.TosUri.String,
-		PolicyURI:               accountCredential.PolicyUri.String,
-		SoftwareID:              accountCredential.SoftwareID,
-		SoftwareVersion:         accountCredential.SoftwareVersion.String,
-		Contacts:                contacts,
-		CreationMethod:          accountCredential.CreationMethod,
-		Transport:               accountCredential.Transport,
-		TokenEndpointAuthMethod: accountCredential.TokenEndpointAuthMethod,
-		accountId:               accountCredential.AccountID,
+	jwks := make([]utils.JWK, 0)
+	if accountCredential.Jwks != nil {
+		var rawJwks []json.RawMessage
+		if err := json.Unmarshal(accountCredential.Jwks, &rawJwks); err != nil {
+			return AccountCredentialsDTO{}, exceptions.NewInternalServerError()
+		}
+		for _, raw := range rawJwks {
+			jwk, err := utils.JsonToJWK(raw)
+			if err != nil {
+				return AccountCredentialsDTO{}, exceptions.NewInternalServerError()
+			}
+			jwks = append(jwks, jwk)
+		}
 	}
+
+	return AccountCredentialsDTO{
+		id:                           accountCredential.ID,
+		ClientID:                     accountCredential.ClientID,
+		Type:                         accountCredential.CredentialsType,
+		ClientName:                   accountCredential.ClientName,
+		Domain:                       accountCredential.Domain,
+		ClientURI:                    accountCredential.ClientUri,
+		RedirectURIs:                 redirectURIs,
+		LogoURI:                      accountCredential.LogoUri.String,
+		TOSURI:                       accountCredential.TosUri.String,
+		PolicyURI:                    accountCredential.PolicyUri.String,
+		SoftwareID:                   accountCredential.SoftwareID.String,
+		SoftwareVersion:              accountCredential.SoftwareVersion.String,
+		Contacts:                     contacts,
+		CreationMethod:               accountCredential.CreationMethod,
+		Transport:                    accountCredential.Transport,
+		TokenEndpointAuthMethod:      accountCredential.TokenEndpointAuthMethod,
+		accountId:                    accountCredential.AccountID,
+		JWKsURI:                      accountCredential.JwksUri.String,
+		JWKs:                         jwks,
+		SectorIdentifierURI:          accountCredential.SectorIdentifierUri.String,
+		SubjectType:                  accountCredential.SubjectType.ClientSubjectType,
+		IDTokenSignedResponseAlg:     accountCredential.IDTokenSignedResponseAlg,
+		IDTokenEncryptedResponseAlg:  accountCredential.IDTokenEncryptedResponseAlg.TokenEncryptionAlgorithm,
+		IDTokenEncryptedResponseEnc:  accountCredential.IDTokenEncryptedResponseEnc.TokenEncryptionEncoding,
+		UserInfoSignedResponseAlg:    accountCredential.UserinfoSignedResponseAlg.TokenCryptoSuite,
+		UserInfoEncryptedResponseAlg: accountCredential.UserinfoEncryptedResponseAlg.TokenEncryptionAlgorithm,
+		UserInfoEncryptedResponseEnc: accountCredential.UserinfoEncryptedResponseEnc.TokenEncryptionEncoding,
+		RequestObjectSigningAlg:      accountCredential.RequestObjectSigningAlg.TokenCryptoSuite,
+		RequestObjectEncryptionAlg:   accountCredential.RequestObjectEncryptionAlg.TokenEncryptionAlgorithm,
+		RequestObjectEncryptionEnc:   accountCredential.RequestObjectEncryptionEnc.TokenEncryptionEncoding,
+		TokenEndpointAuthSigningAlg:  accountCredential.TokenEndpointAuthSigningAlg.TokenCryptoSuite,
+		AccessTokenSigningAlg:        accountCredential.AccessTokenSigningAlg,
+		DefaultMaxAge:                accountCredential.DefaultMaxAge.Int64,
+		RequireAuthTime:              accountCredential.RequireAuthTime,
+		DefaultACRValues:             accountCredential.DefaultAcrValues,
+		InitiateLoginURI:             accountCredential.InitiateLoginUri.String,
+		RequestURIs:                  accountCredential.RequestUris,
+	}, nil
 }
 
 func MapAccountCredentialsToDTOWithJWK(
-	accountKeys *database.AccountCredential,
+	accountCredential *database.AccountCredential,
 	jwk utils.JWK,
 	exp time.Time,
-) AccountCredentialsDTO {
+) (AccountCredentialsDTO, *exceptions.ServiceError) {
 	var contacts []string
-	if len(accountKeys.Contacts) > 0 {
-		contacts = accountKeys.Contacts
+	if len(accountCredential.Contacts) > 0 {
+		contacts = accountCredential.Contacts
+	}
+
+	jwks := make([]utils.JWK, 0)
+	if accountCredential.Jwks != nil {
+		var rawJwks []json.RawMessage
+		if err := json.Unmarshal(accountCredential.Jwks, &rawJwks); err != nil {
+			return AccountCredentialsDTO{}, exceptions.NewInternalServerError()
+		}
+		for _, raw := range rawJwks {
+			jwk, err := utils.JsonToJWK(raw)
+			if err != nil {
+				return AccountCredentialsDTO{}, exceptions.NewInternalServerError()
+			}
+			jwks = append(jwks, jwk)
+		}
 	}
 
 	return AccountCredentialsDTO{
-		id:                      accountKeys.ID,
-		Type:                    accountKeys.CredentialsType,
-		Name:                    accountKeys.Name,
-		Domain:                  accountKeys.Domain,
-		ClientURI:               accountKeys.ClientUri,
-		RedirectURIs:            accountKeys.RedirectUris,
-		LogoURI:                 accountKeys.LogoUri.String,
-		TOSURI:                  accountKeys.TosUri.String,
-		PolicyURI:               accountKeys.PolicyUri.String,
-		SoftwareID:              accountKeys.SoftwareID,
-		SoftwareVersion:         accountKeys.SoftwareVersion.String,
-		Contacts:                contacts,
-		CreationMethod:          accountKeys.CreationMethod,
-		Transport:               accountKeys.Transport,
-		TokenEndpointAuthMethod: accountKeys.TokenEndpointAuthMethod,
-		accountId:               accountKeys.AccountID,
-		ClientID:                accountKeys.ClientID,
-		ClientSecretID:          jwk.GetKeyID(),
-		ClientSecretJWK:         jwk,
-		ClientSecretExp:         exp.Unix(),
-		Scopes:                  accountKeys.Scopes,
-	}
+		id:                           accountCredential.ID,
+		Type:                         accountCredential.CredentialsType,
+		ClientName:                   accountCredential.ClientName,
+		Domain:                       accountCredential.Domain,
+		ClientURI:                    accountCredential.ClientUri,
+		RedirectURIs:                 accountCredential.RedirectUris,
+		LogoURI:                      accountCredential.LogoUri.String,
+		TOSURI:                       accountCredential.TosUri.String,
+		PolicyURI:                    accountCredential.PolicyUri.String,
+		SoftwareID:                   accountCredential.SoftwareID.String,
+		SoftwareVersion:              accountCredential.SoftwareVersion.String,
+		Contacts:                     contacts,
+		CreationMethod:               accountCredential.CreationMethod,
+		Transport:                    accountCredential.Transport,
+		TokenEndpointAuthMethod:      accountCredential.TokenEndpointAuthMethod,
+		accountId:                    accountCredential.AccountID,
+		ClientID:                     accountCredential.ClientID,
+		ClientSecretID:               jwk.GetKeyID(),
+		ClientSecretJWK:              jwk,
+		ClientSecretExp:              exp.Unix(),
+		Scopes:                       accountCredential.Scopes,
+		JWKsURI:                      accountCredential.JwksUri.String,
+		JWKs:                         jwks,
+		SectorIdentifierURI:          accountCredential.SectorIdentifierUri.String,
+		SubjectType:                  accountCredential.SubjectType.ClientSubjectType,
+		IDTokenSignedResponseAlg:     accountCredential.IDTokenSignedResponseAlg,
+		IDTokenEncryptedResponseAlg:  accountCredential.IDTokenEncryptedResponseAlg.TokenEncryptionAlgorithm,
+		IDTokenEncryptedResponseEnc:  accountCredential.IDTokenEncryptedResponseEnc.TokenEncryptionEncoding,
+		UserInfoSignedResponseAlg:    accountCredential.UserinfoSignedResponseAlg.TokenCryptoSuite,
+		UserInfoEncryptedResponseAlg: accountCredential.UserinfoEncryptedResponseAlg.TokenEncryptionAlgorithm,
+		UserInfoEncryptedResponseEnc: accountCredential.UserinfoEncryptedResponseEnc.TokenEncryptionEncoding,
+		RequestObjectSigningAlg:      accountCredential.RequestObjectSigningAlg.TokenCryptoSuite,
+		RequestObjectEncryptionAlg:   accountCredential.RequestObjectEncryptionAlg.TokenEncryptionAlgorithm,
+		RequestObjectEncryptionEnc:   accountCredential.RequestObjectEncryptionEnc.TokenEncryptionEncoding,
+		TokenEndpointAuthSigningAlg:  accountCredential.TokenEndpointAuthSigningAlg.TokenCryptoSuite,
+		AccessTokenSigningAlg:        accountCredential.AccessTokenSigningAlg,
+		DefaultMaxAge:                accountCredential.DefaultMaxAge.Int64,
+		RequireAuthTime:              accountCredential.RequireAuthTime,
+		DefaultACRValues:             accountCredential.DefaultAcrValues,
+		InitiateLoginURI:             accountCredential.InitiateLoginUri.String,
+		RequestURIs:                  accountCredential.RequestUris,
+	}, nil
 }
 
 func MapAccountCredentialsToDTOWithSecret(
-	accountKeys *database.AccountCredential,
+	accountCredential *database.AccountCredential,
 	secretID,
 	secret string,
 	exp time.Time,
-) AccountCredentialsDTO {
+) (AccountCredentialsDTO, *exceptions.ServiceError) {
 	var contacts []string
-	if len(accountKeys.Contacts) > 0 {
-		contacts = accountKeys.Contacts
+	if len(accountCredential.Contacts) > 0 {
+		contacts = accountCredential.Contacts
+	}
+
+	jwks := make([]utils.JWK, 0)
+	if accountCredential.Jwks != nil {
+		var rawJwks []json.RawMessage
+		if err := json.Unmarshal(accountCredential.Jwks, &rawJwks); err != nil {
+			return AccountCredentialsDTO{}, exceptions.NewInternalServerError()
+		}
+		for _, raw := range rawJwks {
+			jwk, err := utils.JsonToJWK(raw)
+			if err != nil {
+				return AccountCredentialsDTO{}, exceptions.NewInternalServerError()
+			}
+			jwks = append(jwks, jwk)
+		}
 	}
 
 	return AccountCredentialsDTO{
-		id:                      accountKeys.ID,
-		Type:                    accountKeys.CredentialsType,
-		Name:                    accountKeys.Name,
-		Domain:                  accountKeys.Domain,
-		ClientURI:               accountKeys.ClientUri,
-		RedirectURIs:            accountKeys.RedirectUris,
-		LogoURI:                 accountKeys.LogoUri.String,
-		TOSURI:                  accountKeys.TosUri.String,
-		PolicyURI:               accountKeys.PolicyUri.String,
-		SoftwareID:              accountKeys.SoftwareID,
-		SoftwareVersion:         accountKeys.SoftwareVersion.String,
-		Contacts:                contacts,
-		CreationMethod:          accountKeys.CreationMethod,
-		Transport:               accountKeys.Transport,
-		TokenEndpointAuthMethod: accountKeys.TokenEndpointAuthMethod,
-		accountId:               accountKeys.AccountID,
-		ClientID:                accountKeys.ClientID,
-		ClientSecretID:          secretID,
-		ClientSecret:            fmt.Sprintf("%s.%s", secretID, secret),
-		ClientSecretExp:         exp.Unix(),
-		Scopes:                  accountKeys.Scopes,
-	}
+		id:                           accountCredential.ID,
+		Type:                         accountCredential.CredentialsType,
+		ClientName:                   accountCredential.ClientName,
+		Domain:                       accountCredential.Domain,
+		ClientURI:                    accountCredential.ClientUri,
+		RedirectURIs:                 accountCredential.RedirectUris,
+		LogoURI:                      accountCredential.LogoUri.String,
+		TOSURI:                       accountCredential.TosUri.String,
+		PolicyURI:                    accountCredential.PolicyUri.String,
+		SoftwareID:                   accountCredential.SoftwareID.String,
+		SoftwareVersion:              accountCredential.SoftwareVersion.String,
+		Contacts:                     contacts,
+		CreationMethod:               accountCredential.CreationMethod,
+		Transport:                    accountCredential.Transport,
+		TokenEndpointAuthMethod:      accountCredential.TokenEndpointAuthMethod,
+		accountId:                    accountCredential.AccountID,
+		ClientID:                     accountCredential.ClientID,
+		ClientSecretID:               secretID,
+		ClientSecret:                 fmt.Sprintf("%s.%s", secretID, secret),
+		ClientSecretExp:              exp.Unix(),
+		Scopes:                       accountCredential.Scopes,
+		JWKsURI:                      accountCredential.JwksUri.String,
+		JWKs:                         jwks,
+		SectorIdentifierURI:          accountCredential.SectorIdentifierUri.String,
+		SubjectType:                  accountCredential.SubjectType.ClientSubjectType,
+		IDTokenSignedResponseAlg:     accountCredential.IDTokenSignedResponseAlg,
+		IDTokenEncryptedResponseAlg:  accountCredential.IDTokenEncryptedResponseAlg.TokenEncryptionAlgorithm,
+		IDTokenEncryptedResponseEnc:  accountCredential.IDTokenEncryptedResponseEnc.TokenEncryptionEncoding,
+		UserInfoSignedResponseAlg:    accountCredential.UserinfoSignedResponseAlg.TokenCryptoSuite,
+		UserInfoEncryptedResponseAlg: accountCredential.UserinfoEncryptedResponseAlg.TokenEncryptionAlgorithm,
+		UserInfoEncryptedResponseEnc: accountCredential.UserinfoEncryptedResponseEnc.TokenEncryptionEncoding,
+		RequestObjectSigningAlg:      accountCredential.RequestObjectSigningAlg.TokenCryptoSuite,
+		RequestObjectEncryptionAlg:   accountCredential.RequestObjectEncryptionAlg.TokenEncryptionAlgorithm,
+		RequestObjectEncryptionEnc:   accountCredential.RequestObjectEncryptionEnc.TokenEncryptionEncoding,
+		TokenEndpointAuthSigningAlg:  accountCredential.TokenEndpointAuthSigningAlg.TokenCryptoSuite,
+		AccessTokenSigningAlg:        accountCredential.AccessTokenSigningAlg,
+		DefaultMaxAge:                accountCredential.DefaultMaxAge.Int64,
+		RequireAuthTime:              accountCredential.RequireAuthTime,
+		DefaultACRValues:             accountCredential.DefaultAcrValues,
+		InitiateLoginURI:             accountCredential.InitiateLoginUri.String,
+		RequestURIs:                  accountCredential.RequestUris,
+	}, nil
 }
