@@ -23,4 +23,11 @@ func (r *Routes) OAuthRoutes(app *fiber.App) {
 	// OAuth2 Callbacks
 	router.Post(paths.OAuthAppleCallback, r.controllers.AccountAppleCallback)
 	router.Get(paths.OAuthCallback, r.controllers.AccountOAuthCallback)
+
+	// Register
+	router.Post(
+		paths.AccountsBase+paths.AccountsSingle+paths.OAuthRegister,
+		r.controllers.AccountCredentialsDRIATMiddleware,
+		r.controllers.OAuthDynamicRegistration,
+	)
 }

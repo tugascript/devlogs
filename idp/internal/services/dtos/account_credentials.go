@@ -17,7 +17,9 @@ import (
 )
 
 type AccountCredentialsDTO struct {
-	ClientID                string                             `json:"client_id"`
+	ClientID    string `json:"client_id"`
+	ClientIDIAT int64  `json:"client_idiat"`
+
 	Type                    database.AccountCredentialsType    `json:"application_type"`
 	ClientName              string                             `json:"client_name"`
 	Domain                  string                             `json:"domain"`
@@ -58,7 +60,7 @@ type AccountCredentialsDTO struct {
 	ClientSecretID  string    `json:"client_secret_id,omitempty"`
 	ClientSecret    string    `json:"client_secret,omitempty"`
 	ClientSecretJWK utils.JWK `json:"client_secret_jwk,omitempty"`
-	ClientSecretExp int64     `json:"client_secret_exp,omitempty"`
+	ClientSecretExp int64     `json:"client_secret_expires_at,omitempty"`
 
 	id        int32
 	accountId int32
@@ -140,6 +142,7 @@ func MapAccountCredentialsToDTO(
 	return AccountCredentialsDTO{
 		id:                           accountCredential.ID,
 		ClientID:                     accountCredential.ClientID,
+		ClientIDIAT:                  accountCredential.CreatedAt.Unix(),
 		Type:                         accountCredential.CredentialsType,
 		ClientName:                   accountCredential.ClientName,
 		Domain:                       accountCredential.Domain,
@@ -221,6 +224,7 @@ func MapAccountCredentialsToDTOWithJWK(
 		TokenEndpointAuthMethod:      accountCredential.TokenEndpointAuthMethod,
 		accountId:                    accountCredential.AccountID,
 		ClientID:                     accountCredential.ClientID,
+		ClientIDIAT:                  accountCredential.CreatedAt.Unix(),
 		ClientSecretID:               jwk.GetKeyID(),
 		ClientSecretJWK:              jwk,
 		ClientSecretExp:              exp.Unix(),
@@ -292,6 +296,7 @@ func MapAccountCredentialsToDTOWithSecret(
 		TokenEndpointAuthMethod:      accountCredential.TokenEndpointAuthMethod,
 		accountId:                    accountCredential.AccountID,
 		ClientID:                     accountCredential.ClientID,
+		ClientIDIAT:                  accountCredential.CreatedAt.Unix(),
 		ClientSecretID:               secretID,
 		ClientSecret:                 fmt.Sprintf("%s.%s", secretID, secret),
 		ClientSecretExp:              exp.Unix(),

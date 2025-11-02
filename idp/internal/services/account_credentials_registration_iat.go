@@ -91,3 +91,41 @@ func (s *Services) CreateAccountCredentialsRegistrationIAT(
 	logger.InfoContext(ctx, "Created account credentials registration IAT successfully")
 	return signedToken, nil
 }
+
+type ProcessAccountCredentialsRegistrationIATAuthOptions struct {
+	RequestID  string
+	AuthHeader string
+}
+
+func (s *Services) ProcessAccountCredentialsRegistrationIATAuth(
+	ctx context.Context,
+	opts ProcessAccountCredentialsRegistrationIATAuthOptions,
+) (string, tokens.AccountClaims, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, accountCredentialsRegistrationIATLocation, "ProcessAccountCredentialsRegistrationIATAuth")
+	logger.InfoContext(ctx, "Processing account credentials registration IAT auth...")
+
+	token, serviceErr := extractAuthHeaderToken(opts.AuthHeader)
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to extract token from auth header", "serviceError", serviceErr)
+		return "", tokens.AccountClaims{}, serviceErr
+	}
+
+	domain, accountClaims, err := s.jwt.VerifyAccountCredentialsDynamicRegistrationToken(
+		ctx,
+		tokens.VerifyAccountCredentialsDynamicRegistrationTokenOptions{
+			RequestID: opts.RequestID,
+			IAT:       token,
+			GetPublicJWK: s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
+				RequestID: opts.RequestID,
+				KeyType:   database.TokenKeyTypeDynamicRegistration,
+			}),
+		},
+	)
+	if err != nil {
+		logger.WarnContext(ctx, "Failed to verify account credentials registration IAT", "error", err)
+		return "", tokens.AccountClaims{}, exceptions.NewUnauthorizedError()
+	}
+
+	logger.InfoContext(ctx, "Processed account credentials registration IAT auth successfully")
+	return domain, accountClaims, nil
+}
