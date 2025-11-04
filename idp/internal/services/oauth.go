@@ -477,12 +477,12 @@ func (s *Services) OAuthLoginAccount(
 	)
 }
 
-func (s *Services) GetAccountPublicJWKs(
+func (s *Services) GetGlobalPublicJWKs(
 	ctx context.Context,
 	requestID string,
 ) (string, dtos.JWKsDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(requestID, oauthLocation, "GetAccountPublicKeys")
-	logger.InfoContext(ctx, "Getting account public JWKs...")
+	logger := s.buildLogger(requestID, oauthLocation, "GetGlobalPublicJWKs")
+	logger.InfoContext(ctx, "Getting global public JWKs...")
 
 	etag, jwks, serviceErr := s.GetAndCacheGlobalDistributedJWK(ctx, requestID)
 	if serviceErr != nil {
@@ -490,7 +490,7 @@ func (s *Services) GetAccountPublicJWKs(
 		return "", dtos.JWKsDTO{}, serviceErr
 	}
 
-	logger.InfoContext(ctx, "Got account public JWKs successfully")
+	logger.InfoContext(ctx, "Got global public JWKs successfully")
 	return etag, dtos.NewJWKsDTO(jwks), nil
 }
 

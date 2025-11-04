@@ -589,9 +589,10 @@ func mapAuthProviders(authProviders []string) ([]database.AuthProvider, *excepti
 }
 
 type checkForDuplicateAppsOptions struct {
-	requestID string
-	accountID int32
-	name      string
+	requestID  string
+	accountID  int32
+	name       string
+	softwareID string
 }
 
 func (s *Services) checkForDuplicateApps(
@@ -604,10 +605,21 @@ func (s *Services) checkForDuplicateApps(
 	)
 	logger.InfoContext(ctx, "Checking for duplicate apps...")
 
-	count, err := s.database.CountAppsByAccountIDAndName(ctx, database.CountAppsByAccountIDAndNameParams{
-		AccountID:  opts.accountID,
-		ClientName: opts.name,
-	})
+	var count int64
+	var err error
+	if opts.softwareID != "" {
+		count, err = s.database.CountAppsByAccountIDAndCliantNameOrSoftwareID(ctx, database.CountAppsByAccountIDAndCliantNameOrSoftwareIDParams{
+			AccountID:  opts.accountID,
+			ClientName: opts.name,
+			SoftwareID: pgtype.Text{String: opts.softwareID, Valid: true},
+		})
+	} else {
+		count, err = s.database.CountAppsByAccountIDAndName(ctx, database.CountAppsByAccountIDAndNameParams{
+			AccountID:  opts.accountID,
+			ClientName: opts.name,
+		})
+	}
+
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to count apps by name", "error", err)
 		return exceptions.FromDBError(err)
@@ -878,9 +890,10 @@ func (s *Services) CreateWebApp(
 
 	name := strings.TrimSpace(opts.Name)
 	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
-		requestID: opts.RequestID,
-		accountID: accountID,
-		name:      name,
+		requestID:  opts.RequestID,
+		accountID:  accountID,
+		name:       name,
+		softwareID: opts.SoftwareID,
 	}); serviceErr != nil {
 		logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
@@ -1058,9 +1071,10 @@ func (s *Services) CreateSPANativeApp(
 
 	name := strings.TrimSpace(opts.Name)
 	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
-		requestID: opts.RequestID,
-		accountID: accountID,
-		name:      name,
+		requestID:  opts.RequestID,
+		accountID:  accountID,
+		name:       name,
+		softwareID: opts.SoftwareID,
 	}); serviceErr != nil {
 		logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
@@ -1160,9 +1174,10 @@ func (s *Services) CreateBackendApp(
 
 	name := strings.TrimSpace(opts.Name)
 	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
-		requestID: opts.RequestID,
-		accountID: accountID,
-		name:      name,
+		requestID:  opts.RequestID,
+		accountID:  accountID,
+		name:       name,
+		softwareID: opts.SoftwareID,
 	}); serviceErr != nil {
 		logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
@@ -1333,9 +1348,10 @@ func (s *Services) CreateDeviceApp(
 
 	name := strings.TrimSpace(opts.Name)
 	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
-		requestID: opts.RequestID,
-		accountID: accountID,
-		name:      name,
+		requestID:  opts.RequestID,
+		accountID:  accountID,
+		name:       name,
+		softwareID: opts.SoftwareID,
 	}); serviceErr != nil {
 		logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
@@ -1553,9 +1569,10 @@ func (s *Services) CreateServiceApp(
 
 	name := strings.TrimSpace(opts.Name)
 	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
-		requestID: opts.RequestID,
-		accountID: accountID,
-		name:      name,
+		requestID:  opts.RequestID,
+		accountID:  accountID,
+		name:       name,
+		softwareID: opts.SoftwareID,
 	}); serviceErr != nil {
 		logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
@@ -1810,9 +1827,10 @@ func (s *Services) CreateMCPApp(
 
 	name := strings.TrimSpace(opts.Name)
 	if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
-		requestID: opts.RequestID,
-		accountID: accountID,
-		name:      name,
+		requestID:  opts.RequestID,
+		accountID:  accountID,
+		name:       name,
+		softwareID: opts.SoftwareID,
 	}); serviceErr != nil {
 		logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
@@ -2228,9 +2246,10 @@ func (s *Services) UpdateWebSPANativeApp(
 	name := strings.TrimSpace(opts.Name)
 	if appDTO.ClientName != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			name:      name,
+			requestID:  opts.RequestID,
+			accountID:  opts.AccountID,
+			name:       name,
+			softwareID: opts.SoftwareID,
 		}); serviceErr != nil {
 			logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
 		}
@@ -2301,9 +2320,10 @@ func (s *Services) UpdateBackendApp(
 	name := strings.TrimSpace(opts.Name)
 	if appDTO.ClientName != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			name:      name,
+			requestID:  opts.RequestID,
+			accountID:  opts.AccountID,
+			name:       name,
+			softwareID: opts.SoftwareID,
 		}); serviceErr != nil {
 			logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
 		}
@@ -2383,9 +2403,10 @@ func (s *Services) UpdateDeviceApp(
 	name := strings.TrimSpace(opts.Name)
 	if appDTO.ClientName != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			name:      name,
+			requestID:  opts.RequestID,
+			accountID:  opts.AccountID,
+			name:       name,
+			softwareID: opts.SoftwareID,
 		}); serviceErr != nil {
 			logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
 		}
@@ -2551,9 +2572,10 @@ func (s *Services) UpdateServiceApp(
 	name := strings.TrimSpace(opts.Name)
 	if appDTO.ClientName != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			name:      name,
+			requestID:  opts.RequestID,
+			accountID:  opts.AccountID,
+			name:       name,
+			softwareID: opts.SoftwareID,
 		}); serviceErr != nil {
 			logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
 		}
@@ -2641,9 +2663,10 @@ func (s *Services) UpdateMCPApp(
 	name := strings.TrimSpace(opts.Name)
 	if appDTO.ClientName != name {
 		if serviceErr := s.checkForDuplicateApps(ctx, checkForDuplicateAppsOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			name:      name,
+			requestID:  opts.RequestID,
+			accountID:  opts.AccountID,
+			name:       name,
+			softwareID: opts.SoftwareID,
 		}); serviceErr != nil {
 			logger.ErrorContext(ctx, "Duplicate app found", "serviceError", serviceErr)
 		}

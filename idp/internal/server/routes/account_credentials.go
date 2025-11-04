@@ -14,7 +14,7 @@ import (
 )
 
 func (r *Routes) AccountCredentialsRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.AccountsBase + paths.CredentialsBase)
+	router := V1PathRouter(app).Group(paths.AccountsBase+paths.CredentialsBase, r.controllers.NoHostMiddleware)
 
 	credentialsWriteScopeMiddleware := r.controllers.ScopeMiddleware(tokens.AccountScopeCredentialsWrite)
 	credentialsReadScopeMiddleware := r.controllers.ScopeMiddleware(tokens.AccountScopeCredentialsRead)
@@ -52,7 +52,7 @@ func (r *Routes) AccountCredentialsRoutes(app *fiber.App) {
 }
 
 func (r *Routes) AccountCredentialsSecretsRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.AccountsBase + paths.CredentialsBase)
+	router := V1PathRouter(app).Group(paths.AccountsBase + paths.CredentialsBase)
 
 	credentialsWriteScopeMiddleware := r.controllers.ScopeMiddleware(tokens.AccountScopeCredentialsWrite)
 	credentialsReadScopeMiddleware := r.controllers.ScopeMiddleware(tokens.AccountScopeCredentialsRead)
@@ -84,7 +84,7 @@ func (r *Routes) AccountCredentialsSecretsRoutes(app *fiber.App) {
 }
 
 func (r *Routes) AccountKeysRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.AccountsBase)
+	router := V1PathRouter(app).Group(paths.AccountsBase)
 
 	router.Get(paths.AccountsSingle+paths.Keys, r.controllers.ListAccountCredentialsKeys)
 }

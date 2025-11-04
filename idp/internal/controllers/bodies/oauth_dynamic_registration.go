@@ -11,7 +11,7 @@ type OAuthDynamicClientRegistrationBody struct {
 	TokenEndpointAuthMethod      string   `json:"token_endpoint_auth_method,omitempty" validate:"omitempty,oneof=none client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
 	ResponseTypes                []string `json:"response_types,omitempty" validate:"omitempty,dive,oneof=code 'code id_token'"`
 	GrantTypes                   []string `json:"grant_types,omitempty" validate:"omitempty,min=1,dive,oneof=authorization_code refresh_token client_credentials urn:ietf:params:oauth:grant-type:jwt-bearer"`
-	ApplicationType              string   `json:"application_type" validate:"required,oneof=native service mcp"`
+	ApplicationType              string   `json:"application_type" validate:"required,oneof=native service mcp web spa backend device"`
 	ClientName                   string   `json:"client_name" validate:"required,min=1,max=255"`
 	ClientURI                    string   `json:"client_uri" validate:"required,url"`
 	LogoURI                      string   `json:"logo_uri,omitempty" validate:"omitempty,url"`

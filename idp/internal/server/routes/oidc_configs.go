@@ -13,7 +13,7 @@ import (
 )
 
 func (r *Routes) OIDCConfigsRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.OIDCConfigBase, r.controllers.AccountAccessClaimsMiddleware)
+	router := V1PathRouter(app).Group(paths.OIDCConfigBase, r.controllers.AccountAccessClaimsMiddleware)
 
 	router.Get(paths.Base, r.controllers.GetOIDCConfig)
 	router.Post(paths.Base, r.controllers.AdminScopeMiddleware, r.controllers.CreateOIDCConfig)

@@ -67,6 +67,11 @@ SELECT COUNT(*) FROM "apps"
 WHERE "account_id" = $1 AND "client_name" = $2
 LIMIT 1;
 
+-- name: CountAppsByAccountIDAndCliantNameOrSoftwareID :one
+SELECT COUNT(*) FROM "apps"
+WHERE "account_id" = $1 AND ("client_name" = $2 OR "software_id" = $3)
+LIMIT 1;
+
 -- name: FindAppByClientID :one
 SELECT * FROM "apps"
 WHERE "client_id" = $1 LIMIT 1;

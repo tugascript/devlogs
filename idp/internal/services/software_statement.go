@@ -8,17 +8,23 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
+
+const softwareStatementLocation = "software_statement"
 
 type ApplicationRegistrationData struct {
 	RedirectURIs                 []string
@@ -70,7 +76,7 @@ func (s *Services) verifySoftwareStatementSTDClaims(
 	ctx context.Context,
 	opts verifySoftwareStatementSTDClaimsOptions,
 ) *exceptions.ServiceError {
-	logger := s.buildLogger(opts.requestID, accountCredentialsRegistrationLocation, "verifySoftwareStatementSTDClaims").With(
+	logger := s.buildLogger(opts.requestID, softwareStatementLocation, "verifySoftwareStatementSTDClaims").With(
 		"domain", opts.domain,
 		"baseDomain", opts.baseDomain,
 	)
@@ -114,95 +120,6 @@ func (s *Services) verifySoftwareStatementSTDClaims(
 	return nil
 }
 
-type verifySoftwareStatementClaimsOptions struct {
-	requestID       string
-	clientName      string
-	clientURI       string
-	logoURI         string
-	tosURI          string
-	policyURI       string
-	contacts        []string
-	softwareID      string
-	softwareVersion string
-	jwksURI         string
-	jwks            []string
-	claims          *tokens.SoftwareStatementClaims
-}
-
-func (s *Services) verifySoftwareStatementClaims(
-	ctx context.Context,
-	opts verifySoftwareStatementClaimsOptions,
-) error {
-	logger := s.buildLogger(
-		opts.requestID,
-		accountCredentialsRegistrationLocation,
-		"verifySoftwareStatementClaims",
-	)
-
-	if opts.claims.ClientName != opts.clientName {
-		logger.WarnContext(ctx, "Client name in software statement does not match",
-			"expected", opts.clientName, "got", opts.claims.ClientName,
-		)
-		return exceptions.NewUnauthorizedError()
-	}
-	if opts.claims.ClientURI != opts.clientURI {
-		logger.WarnContext(ctx, "Client URI in software statement does not match",
-			"expected", opts.clientURI, "got", opts.claims.ClientURI,
-		)
-		return exceptions.NewUnauthorizedError()
-	}
-
-	if opts.claims.LogoURI != "" && opts.logoURI != "" && opts.claims.LogoURI != opts.logoURI {
-		logger.WarnContext(ctx, "Logo URI in software statement does not match",
-			"expected", opts.logoURI, "got", opts.claims.LogoURI,
-		)
-		return exceptions.NewUnauthorizedError()
-	}
-	if opts.claims.TOSURI != "" && opts.tosURI != "" && opts.claims.TOSURI != opts.tosURI {
-		logger.WarnContext(ctx, "Terms of Service URI in software statement does not match",
-			"expected", opts.tosURI, "got", opts.claims.TOSURI,
-		)
-		return exceptions.NewUnauthorizedError()
-	}
-	if opts.claims.PolicyURI != "" && opts.policyURI != "" && opts.claims.PolicyURI != opts.policyURI {
-		logger.WarnContext(ctx, "Policy URI in software statement does not match",
-			"expected", opts.policyURI, "got", opts.claims.PolicyURI,
-		)
-		return exceptions.NewUnauthorizedError()
-	}
-	if opts.claims.SoftwareID != "" && opts.softwareID != "" && opts.claims.SoftwareID != opts.softwareID {
-		logger.WarnContext(ctx, "Software id in software statement does not match",
-			"expected", opts.softwareID, "got", opts.claims.SoftwareID,
-		)
-		return exceptions.NewUnauthorizedError()
-	}
-	if opts.claims.SoftwareVersion != "" && opts.softwareVersion != "" && opts.claims.SoftwareVersion != opts.softwareVersion {
-		logger.WarnContext(ctx, "Software version in software statement does not match",
-			"expected", opts.softwareVersion, "got", opts.claims.SoftwareVersion,
-		)
-		return exceptions.NewUnauthorizedError()
-	}
-	if opts.claims.JWKsURI != "" && opts.jwksURI != "" && opts.claims.JWKsURI != opts.jwksURI {
-		logger.WarnContext(ctx, "JWKs URI in software statement does not match", "expected",
-			opts.jwksURI, "got", opts.claims.JWKsURI,
-		)
-		return exceptions.NewUnauthorizedError()
-	}
-
-	if len(opts.claims.Contacts) > 0 && len(opts.contacts) > 0 {
-		claimsSet := utils.SliceToHashSet(opts.claims.Contacts)
-		for _, c := range opts.contacts {
-			if !claimsSet.Contains(c) {
-				logger.WarnContext(ctx, "Contact in registration not present in software statement", "contact", c)
-				return exceptions.NewUnauthorizedError()
-			}
-		}
-	}
-
-	logger.InfoContext(ctx, "Verified software statement registration claims")
-	return nil
-}
-
 // validateEncryptionAlgorithmPair validates that encryption algorithm and encoding are both set or both unset
 func validateEncryptionAlgorithmPair(alg, enc string) bool {
 	if enc != "" && alg == "" {
@@ -225,7 +142,7 @@ func (s *Services) validateSoftwareStatementClaims(
 ) *exceptions.ServiceError {
 	logger := s.buildLogger(
 		opts.requestID,
-		accountCredentialsRegistrationLocation,
+		softwareStatementLocation,
 		"validateSoftwareStatementClaims",
 	)
 	logger.InfoContext(ctx, "Validating software statement claims")
@@ -431,7 +348,7 @@ func (s *Services) validateSoftwareStatementClaims(
 		logger.WarnContext(ctx, "Default max age mismatch", "expected", opts.data.DefaultMaxAge, "got", opts.claims.DefaultMaxAge)
 		return exceptions.NewValidationError("default max age mismatch")
 	}
-	if opts.claims.RequireAuthTime != false && opts.data.RequireAuthTime != false && opts.claims.RequireAuthTime != opts.data.RequireAuthTime {
+	if !opts.claims.RequireAuthTime && opts.claims.RequireAuthTime != opts.data.RequireAuthTime {
 		logger.WarnContext(ctx, "Require auth time mismatch", "expected", opts.data.RequireAuthTime, "got", opts.claims.RequireAuthTime)
 		return exceptions.NewValidationError("require auth time mismatch")
 	}
@@ -521,4 +438,167 @@ func (s *Services) validateSoftwareStatementClaims(
 
 	logger.InfoContext(ctx, "Validated software statement claims")
 	return nil
+}
+
+type buildDynamicRegistrationSoftwareStatementFuncOptions struct {
+	requestID           string
+	accountPublicID     uuid.UUID
+	verificationMethods []database.SoftwareStatementVerificationMethod
+	jwksURI             string
+	jwks                []string
+	domain              string
+	baseDomain          string
+}
+
+func (s *Services) buildDynamicRegistrationSoftwareStatementFunc(
+	ctx context.Context,
+	opts buildDynamicRegistrationSoftwareStatementFuncOptions,
+) tokens.GetUnknownPublicJWK {
+	logger := s.buildLogger(opts.requestID, softwareStatementLocation, "buildDynamicRegistrationSoftwareStatementFunc").With(
+		"accountPublicID", opts.accountPublicID,
+	)
+	logger.InfoContext(ctx, "Checking dynamic registration software statement validity")
+
+	if slices.Contains(opts.verificationMethods, database.SoftwareStatementVerificationMethodJwksUri) && opts.jwksURI != "" {
+		return func(kid string) (utils.JWK, error) {
+			parsedURI, err := url.Parse(opts.jwksURI)
+			if err != nil {
+				logger.ErrorContext(ctx, "Failed to parse JWKs URI", "error", err)
+				return nil, errors.New("invalid JWKs URI")
+			}
+			if parsedURI.Host != opts.baseDomain || !strings.Contains(parsedURI.Host, "."+opts.baseDomain) {
+				logger.WarnContext(ctx, "JWKs URI parsedURI does not match client URI parsedURI")
+				return nil, errors.New("JWKs URI parsedURI does not match client URI parsedURI")
+			}
+
+			jwks, err := s.jwt.GetPublicJWKs(ctx, tokens.GetPublicJWKsOptions{
+				RequestID: opts.requestID,
+				URL:       opts.jwksURI,
+			})
+			if err != nil {
+				logger.WarnContext(ctx, "Failed to get public JWKs from JWKs URI", "error", err)
+				return nil, errors.New("failed to get public JWKs from JWKs URI")
+			}
+
+			jwkIdx := slices.IndexFunc(jwks.Keys, func(jwk utils.JWK) bool {
+				return jwk.GetKeyID() == kid
+			})
+			if jwkIdx == -1 {
+				logger.WarnContext(ctx, "No matching JWK found for KID in JWKs URI", "kid", kid)
+				return nil, errors.New("no matching JWK found for KID in JWKs URI")
+			}
+
+			return jwks.Keys[jwkIdx], nil
+		}
+	}
+	if slices.Contains(opts.verificationMethods, database.SoftwareStatementVerificationMethodManual) {
+		if len(opts.jwks) > 0 {
+			return func(kid string) (utils.JWK, error) {
+				jwks := make([]utils.JWK, 0, len(opts.jwks))
+				for _, rawJWK := range opts.jwks {
+					jwk, err := utils.JsonToJWK([]byte(rawJWK))
+					if err != nil {
+						logger.ErrorContext(ctx, "Failed to parse manual JWK", "error", err)
+						return nil, errors.New("failed to parse manual JWK")
+					}
+					jwks = append(jwks, jwk)
+				}
+
+				jwkIdx := slices.IndexFunc(jwks, func(jwk utils.JWK) bool {
+					return jwk.GetKeyID() == kid
+				})
+				if jwkIdx == -1 {
+					logger.WarnContext(ctx, "No matching manual JWK found for KID", "kid", kid)
+					return nil, errors.New("no matching manual JWK found for KID")
+				}
+
+				sliceJWK := jwks[jwkIdx]
+				jwkRefEnt, err := s.database.FindDynamicRegistrationSoftwareStatementKeysByCredentialsKeyKIDAndAccountPublicID(
+					ctx,
+					database.FindDynamicRegistrationSoftwareStatementKeysByCredentialsKeyKIDAndAccountPublicIDParams{
+						CredentialsKeyKid: kid,
+						AccountPublicID:   opts.accountPublicID,
+					},
+				)
+				if err != nil {
+					serviceErr := exceptions.FromDBError(err)
+					if serviceErr.Code == exceptions.CodeNotFound {
+						logger.WarnContext(ctx, "No database entry found for manual JWK", "kid", kid, "error", err)
+						return nil, errors.New("no database entry found for manual JWK")
+					}
+
+					logger.ErrorContext(ctx, "Failed to find database entry for manual JWK", "kid", kid, "error", err)
+					return nil, errors.New("failed to find database entry for manual JWK")
+				}
+				if jwkRefEnt.RootDomain != opts.baseDomain {
+					logger.WarnContext(ctx, "Manual JWK root domain does not match client URI base domain",
+						"kid", kid, "jwkRootDomain", jwkRefEnt.RootDomain, "baseDomain", opts.baseDomain,
+					)
+					return nil, errors.New("manual JWK root domain does not match client URI base domain")
+				}
+
+				jwkEnt, err := s.database.FindCredentialsKeyByID(ctx, jwkRefEnt.CredentialsKeyID)
+				if err != nil {
+					serviceErr := exceptions.FromDBError(err)
+					if serviceErr.Code == exceptions.CodeNotFound {
+						logger.WarnContext(ctx, "No credentials key found for manual JWK", "kid", kid, "error", err)
+						return nil, errors.New("no credentials key found for manual JWK")
+					}
+
+					logger.ErrorContext(ctx, "Failed to find credentials key for manual JWK", "kid", kid, "error", err)
+					return nil, errors.New("failed to find credentials key for manual JWK")
+				}
+
+				entJWK, err := utils.JsonToJWK(jwkEnt.PublicKey)
+				if err != nil {
+					logger.ErrorContext(ctx, "Failed to parse manual JWK", "error", err)
+					return nil, errors.New("failed to parse manual JWK")
+				}
+				if !entJWK.ComparePublicKey(sliceJWK) {
+					logger.WarnContext(ctx, "Manual JWK does not match database credentials key", "kid", kid)
+					return nil, errors.New("manual JWK does not match database credentials key")
+				}
+
+				return sliceJWK, nil
+			}
+		}
+
+		return func(kid string) (utils.JWK, error) {
+			jwkEntity, err := s.database.FindDynamicRegistrationSoftwareStatementKeysByRootDomainAndAccountPublicID(
+				ctx,
+				database.FindDynamicRegistrationSoftwareStatementKeysByRootDomainAndAccountPublicIDParams{
+					RootDomain:      opts.baseDomain,
+					AccountPublicID: opts.accountPublicID,
+				},
+			)
+			if err != nil {
+				if exceptions.FromDBError(err).Code == exceptions.CodeNotFound {
+					logger.WarnContext(ctx, "No manual JWKs found for software statement", "error", err)
+					return nil, errors.New("no manual JWKs found for software statement")
+				}
+
+				logger.ErrorContext(ctx, "Failed to find manual JWKs for software statement", "error", err)
+				return nil, errors.New("failed to find manual JWKs for software statement")
+			}
+			if jwkEntity.PublicKid != kid {
+				logger.WarnContext(ctx, "No matching manual JWK found for KID",
+					"kid", kid, "publicKID", jwkEntity.PublicKid,
+				)
+				return nil, errors.New("no matching manual JWK found for KID")
+			}
+
+			jwk, err := utils.JsonToJWK(jwkEntity.PublicKey)
+			if err != nil {
+				logger.ErrorContext(ctx, "Failed to parse manual JWK for software statement", "error", err)
+				return nil, errors.New("failed to parse manual JWK for software statement")
+			}
+
+			return jwk, nil
+		}
+	}
+
+	return func(kid string) (utils.JWK, error) {
+		logger.WarnContext(ctx, "No verification method available for software statement")
+		return nil, errors.New("no verification method available")
+	}
 }

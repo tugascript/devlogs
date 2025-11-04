@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-11-02T00:22:09.380Z
+-- Generated at: 2025-11-04T08:56:30.229Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -257,7 +257,7 @@ CREATE TABLE "token_signing_keys" (
   "dek_kid" varchar(22) NOT NULL,
   "crypto_suite" token_crypto_suite NOT NULL,
   "expires_at" timestamptz NOT NULL,
-  "usage" token_key_usage NOT NULL DEFAULT 'account',
+  "usage" token_key_usage NOT NULL,
   "is_distributed" boolean NOT NULL DEFAULT false,
   "is_revoked" boolean NOT NULL DEFAULT false,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
@@ -660,8 +660,8 @@ CREATE TABLE "account_dynamic_registration_configs" (
 CREATE TABLE "app_dynamic_registration_configs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
+  "account_public_id" uuid NOT NULL,
   "allowed_app_types" app_type[] NOT NULL,
-  "whitelisted_domains" varchar(250)[] NOT NULL,
   "default_allow_user_registration" boolean NOT NULL,
   "default_auth_providers" auth_provider[] NOT NULL,
   "default_username_column" app_username_column NOT NULL,
@@ -675,7 +675,7 @@ CREATE TABLE "app_dynamic_registration_configs" (
   "initial_access_token_ttl" integer NOT NULL DEFAULT 3600,
   "initial_access_token_max_uses" int NOT NULL DEFAULT 1,
   "allowed_grant_types" grant_type[] NOT NULL DEFAULT '{ "authorization_code", "refresh_token", "client_credentials", "urn:ietf:params:oauth:grant-type:device_code", "urn:ietf:params:oauth:grant-type:jwt-bearer" }',
-  "allowed_response_types" response_type[] NOT NULL DEFAULT '{ "code", "id_token", "code id_token" }',
+  "allowed_response_types" response_type[] NOT NULL DEFAULT '{ "code", "code id_token" }',
   "allowed_token_endpoint_auth_methods" auth_method[] NOT NULL DEFAULT '{ "none", "client_secret_post", "client_secret_basic", "client_secret_jwt", "private_key_jwt" }',
   "max_redirect_uris" int NOT NULL DEFAULT 10,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
@@ -756,8 +756,6 @@ CREATE INDEX "data_encryption_keys_kek_kid_idx" ON "data_encryption_keys" ("kek_
 CREATE UNIQUE INDEX "token_signing_keys_kid_uidx" ON "token_signing_keys" ("kid");
 
 CREATE INDEX "token_signing_keys_expires_at_idx" ON "token_signing_keys" ("expires_at");
-
-CREATE INDEX "token_signing_keys_is_distributed_is_revoked_expires_at_idx" ON "token_signing_keys" ("is_distributed", "is_revoked", "expires_at");
 
 CREATE INDEX "token_signing_keys_key_type_usage_is_revoked_expires_at_idx" ON "token_signing_keys" ("key_type", "usage", "is_revoked", "expires_at");
 
@@ -1009,13 +1007,19 @@ CREATE INDEX "account_dynamic_registration_configs_account_public_id_idx" ON "ac
 
 CREATE INDEX "app_dynamic_registration_configs_account_id_idx" ON "app_dynamic_registration_configs" ("account_id");
 
+CREATE INDEX "app_dynamic_registration_configs_account_public_id_idx" ON "app_dynamic_registration_configs" ("account_public_id");
+
 CREATE INDEX "accounts_totps_account_id_idx" ON "dynamic_registration_domains" ("account_id");
 
 CREATE INDEX "account_dynamic_registration_domains_account_public_id_idx" ON "dynamic_registration_domains" ("account_public_id");
 
-CREATE INDEX "account_dynamic_registration_domains_domain_idx" ON "dynamic_registration_domains" ("domain");
-
 CREATE UNIQUE INDEX "account_dynamic_registration_domains_account_public_id_domain_uidx" ON "dynamic_registration_domains" ("account_public_id", "domain");
+
+CREATE INDEX "account_dynamic_registration_domains_account_public_id_domain_verified_at_idx" ON "dynamic_registration_domains" ("account_public_id", "domain", "verified_at");
+
+CREATE INDEX "account_dynamic_registration_domains_account_public_id_domain_usages_idx" ON "dynamic_registration_domains" ("account_public_id", "domain", "usages");
+
+CREATE INDEX "account_dynamic_registration_domains_account_public_id_domain_usages_verified_at_idx" ON "dynamic_registration_domains" ("account_public_id", "domain", "usages", "verified_at");
 
 CREATE INDEX "dynamic_registration_domain_codes_account_id_idx" ON "dynamic_registration_domain_codes" ("account_id");
 

@@ -1047,12 +1047,11 @@ func (s *Services) OAuthDynamicRegistrationIATVerify2FACode(
 		return "", "", serviceErr
 	}
 
-	domainDTO, serviceErr := s.GetAccountCredentialsRegistrationDomain(ctx, GetAccountCredentialsRegistrationDomainOptions{
+	if _, serviceErr := s.GetAccountCredentialsRegistrationDomain(ctx, GetAccountCredentialsRegistrationDomainOptions{
 		RequestID:       opts.RequestID,
 		AccountPublicID: accountDTO.PublicID,
 		Domain:          data.Domain,
-	})
-	if serviceErr != nil {
+	}); serviceErr != nil {
 		if serviceErr.Code != exceptions.CodeNotFound {
 			logger.ErrorContext(ctx, "Failed to get account credentials registration domain", "serviceError", serviceErr)
 			return "", "", serviceErr
@@ -1070,10 +1069,6 @@ func (s *Services) OAuthDynamicRegistrationIATVerify2FACode(
 		}
 
 		logger.WarnContext(ctx, "Account credentials registration domain not found")
-		return "", "", exceptions.NewForbiddenError()
-	}
-	if !domainDTO.Verified {
-		logger.ErrorContext(ctx, "Account credentials registration domain is not verified")
 		return "", "", exceptions.NewForbiddenError()
 	}
 
@@ -1185,7 +1180,7 @@ func (s *Services) VerifyOAuthDynamicRegistrationIATCode(
 	tokenTTL := s.jwt.GetDynamicRegistrationTTL()
 	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: opts.RequestID,
-		Token: s.jwt.CreateAccountCredentialsDynamicRegistrationToken(tokens.AccountCredentialsDynamicRegistrationTokenOptions{
+		Token: s.jwt.DynamicRegistrationIAT(tokens.DynamicRegistrationIATOptions{
 			AccountPublicID: accountDTO.PublicID,
 			AccountVersion:  accountDTO.Version(),
 			Domain:          data.Domain,

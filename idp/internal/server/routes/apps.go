@@ -14,7 +14,7 @@ import (
 )
 
 func (r *Routes) AppsRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.AppsBase)
+	router := V1PathRouter(app).Group(paths.AppsBase)
 
 	appsWriteScope := r.controllers.ScopeMiddleware(tokens.AccountScopeAppsWrite)
 	appsReadScope := r.controllers.ScopeMiddleware(tokens.AccountScopeAppsRead)
@@ -52,7 +52,7 @@ func (r *Routes) AppsRoutes(app *fiber.App) {
 }
 
 func (r *Routes) AppSecretsRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.AppsBase)
+	router := V1PathRouter(app).Group(paths.AppsBase)
 
 	appsWriteScope := r.controllers.ScopeMiddleware(tokens.AccountScopeAppsWrite)
 	appsReadScope := r.controllers.ScopeMiddleware(tokens.AccountScopeAppsRead)
@@ -80,5 +80,31 @@ func (r *Routes) AppSecretsRoutes(app *fiber.App) {
 		r.controllers.AccountAccessClaimsMiddleware,
 		appsWriteScope,
 		r.controllers.RevokeAppSecret,
+	)
+}
+
+func (r *Routes) AppDynamicRegistrationConfigRoutes(app *fiber.App) {
+	router := V1PathRouter(app).Group(paths.AppsBase + paths.DynamicRegistrationBase + paths.Config)
+
+	appsConfigsWriteScope := r.controllers.ScopeMiddleware(tokens.AccountScopeAppsConfigsWrite)
+	appsConfigsReadScope := r.controllers.ScopeMiddleware(tokens.AccountScopeAppsConfigsRead)
+
+	router.Get(
+		paths.Base,
+		r.controllers.AccountAccessClaimsMiddleware,
+		appsConfigsReadScope,
+		r.controllers.GetAppDynamicRegistrationConfig,
+	)
+	router.Put(
+		paths.Base,
+		r.controllers.AccountAccessClaimsMiddleware,
+		appsConfigsWriteScope,
+		r.controllers.UpsertAppDynamicRegistrationConfig,
+	)
+	router.Delete(
+		paths.Base,
+		r.controllers.AccountAccessClaimsMiddleware,
+		appsConfigsWriteScope,
+		r.controllers.DeleteAppDynamicRegistrationConfig,
 	)
 }

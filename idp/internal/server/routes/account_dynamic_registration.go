@@ -14,7 +14,7 @@ import (
 )
 
 func (r *Routes) AccountDynamicRegistrationConfigurationRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.AccountsBase + paths.CredentialsBase + paths.DynamicRegistrationBase)
+	router := V1PathRouter(app).Group(paths.AccountsBase+paths.CredentialsBase+paths.DynamicRegistrationBase, r.controllers.NoHostMiddleware)
 
 	credentialsConfigsWriteScopeMiddleware := r.controllers.ScopeMiddleware(tokens.AccountScopeCredentialsConfigsWrite)
 	credentialsConfigsReadScopeMiddleware := r.controllers.ScopeMiddleware(tokens.AccountScopeCredentialsConfigsRead)
@@ -80,27 +80,4 @@ func (r *Routes) AccountDynamicRegistrationConfigurationRoutes(app *fiber.App) {
 		credentialsConfigsWriteScopeMiddleware,
 		r.controllers.DeleteAccountCredentialsRegistrationDomainCode,
 	)
-
-	// Initial Access Token (IAT) routes
-	iatRouter := router.Group(paths.InitialAccessToken)
-
-	// Dynamic Registration IAT Code Exchange flow
-	iatRouter.Get(paths.OAuthAuth, r.controllers.OAuthDynamicRegistrationIATAuth)
-	iatRouter.Post(paths.OAuthToken, r.controllers.OAuthDynamicRegistrationIATToken)
-
-	// Dynamic Registration IAT Login flow
-	const loginRoute = paths.InitialAccessTokenSingle + paths.AuthLogin
-	iatRouter.Get(loginRoute, r.controllers.OAuthDynamicRegistrationIATLoginGet)
-	iatRouter.Post(loginRoute, r.controllers.OAuthDynamicRegistrationIATLoginPost)
-
-	// Dynamic Registration IAT 2FA flow
-	const twoFAAuthRoute = loginRoute + paths.Auth2FA
-	iatRouter.Get(twoFAAuthRoute, r.controllers.OAuthDynamicRegistrationIAT2FAGet)
-	iatRouter.Post(twoFAAuthRoute, r.controllers.OAuthDynamicRegistrationIAT2FAPost)
-
-	// Dynamic Registration IAT External Auth flow
-	const extAuthRoute = paths.InitialAccessTokenSingle + paths.OAuthAuth + paths.InitialAccessTokenAuthEXT
-	iatRouter.Get(extAuthRoute+paths.InitialAccessTokenProvider, r.controllers.OAuthDynamicRegistrationIATExtAuthGet)
-	iatRouter.Post(extAuthRoute+paths.OAuthAppleCallback, r.controllers.OAuthDynamicRegistrationIATExtAppleCB)
-	iatRouter.Get(extAuthRoute+paths.OAuthCallback, r.controllers.OAuthDynamicRegistrationIATExtCB)
 }

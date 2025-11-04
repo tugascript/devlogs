@@ -24,7 +24,7 @@ import (
 )
 
 func (r *Routes) UsersRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.UsersBase, r.controllers.AccountAccessClaimsMiddleware)
+	router := V1PathRouter(app).Group(paths.UsersBase, r.controllers.AccountAccessClaimsMiddleware)
 	usersReadScope := r.controllers.ScopeMiddleware(tokens.AccountScopeUsersRead)
 	usersWriteScope := r.controllers.ScopeMiddleware(tokens.AccountScopeUsersWrite)
 

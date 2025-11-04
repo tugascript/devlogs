@@ -8,6 +8,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 
@@ -18,9 +19,9 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const accountCredentialsRegistrationIATLocation = "account_credentials_registration_iat"
+const appDynamicRegistrationIATLocation = "app_credentials_registration_iat"
 
-type CreateAccountCredentialsRegistrationIATOptions struct {
+type CreateAppCredentialsRegistrationIATOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
 	AccountVersion  int32
@@ -28,79 +29,85 @@ type CreateAccountCredentialsRegistrationIATOptions struct {
 	BackendDomain   string
 }
 
-func (s *Services) CreateAccountCredentialsRegistrationIAT(
+func (s *Services) CreateAppCredentialsRegistrationIAT(
 	ctx context.Context,
-	opts CreateAccountCredentialsRegistrationIATOptions,
+	opts CreateAppCredentialsRegistrationIATOptions,
 ) (string, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsRegistrationIATLocation, "CreateAccountCredentialsRegistrationIAT").With(
+	logger := s.buildLogger(opts.RequestID, appDynamicRegistrationIATLocation, "CreateAppCredentialsRegistrationIAT").With(
 		"accountPublicId", opts.AccountPublicID,
 		"domain", opts.Domain,
 	)
-	logger.InfoContext(ctx, "Creating account credentials registration IAT...")
+	logger.InfoContext(ctx, "Creating app credentials registration IAT...")
 
-	if _, serviceErr := s.GetAccountCredentialsRegistrationDomain(ctx, GetAccountCredentialsRegistrationDomainOptions{
+	if _, serviceErr := s.GetAppCredentialsRegistrationDomain(ctx, GetAppCredentialsRegistrationDomainOptions{
 		RequestID:       opts.RequestID,
 		AccountPublicID: opts.AccountPublicID,
 		Domain:          opts.Domain,
 	}); serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get account credentials registration domain", "serviceError", serviceErr)
+		logger.ErrorContext(ctx, "Failed to get app credentials registration domain", "serviceError", serviceErr)
 		return "", serviceErr
 	}
 
-	if _, serviceErr := s.GetAccountIDByPublicIDAndVersion(ctx, GetAccountIDByPublicIDAndVersionOptions{
+	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
 		RequestID: opts.RequestID,
 		PublicID:  opts.AccountPublicID,
 		Version:   opts.AccountVersion,
-	}); serviceErr != nil {
+	})
+	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to get account", "serviceError", serviceErr)
 		return "", serviceErr
 	}
 
+	accountID := accountDTO.ID()
 	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: opts.RequestID,
 		Token: s.jwt.DynamicRegistrationIAT(tokens.DynamicRegistrationIATOptions{
 			AccountPublicID: opts.AccountPublicID,
 			AccountVersion:  opts.AccountVersion,
-			IssuerDomain:    opts.BackendDomain,
+			IssuerDomain:    fmt.Sprintf("%s.%s", accountDTO.Username, opts.BackendDomain),
 			Domain:          opts.Domain,
 			ClientID:        utils.Base62UUID(),
 		}),
-		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
+		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, BuildGetEncryptedAccountJWKFnOptions{
 			RequestID: opts.RequestID,
 			KeyType:   database.TokenKeyTypeDynamicRegistration,
-			TTL:       s.jwt.GetDynamicRegistrationTTL(),
+			AccountID: accountID,
 		}),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+		GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
 			RequestID: opts.RequestID,
+			AccountID: accountID,
 		}),
-		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+		GetEncryptDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
 			RequestID: opts.RequestID,
+			AccountID: accountID,
 		}),
 		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
 			RequestID: opts.RequestID,
 		}),
 	})
 	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to sign account credentials registration IAT", "serviceError", serviceErr)
+		logger.ErrorContext(ctx, "Failed to sign app credentials registration IAT", "serviceError", serviceErr)
 		return "", serviceErr
 	}
 
-	logger.InfoContext(ctx, "Created account credentials registration IAT successfully")
+	logger.InfoContext(ctx, "Created app credentials registration IAT successfully")
 	return signedToken, nil
 }
 
-type ProcessAccountCredentialsRegistrationIATAuthOptions struct {
-	RequestID     string
-	AuthHeader    string
-	BackendDomain string
+type ProcessAppCredentialsRegistrationIATAuthOptions struct {
+	RequestID       string
+	AuthHeader      string
+	AccountUsername string
+	AccountID       int32
+	BackendDomain   string
 }
 
-func (s *Services) ProcessAccountCredentialsRegistrationIATAuth(
+func (s *Services) ProcessAppCredentialsRegistrationIATAuth(
 	ctx context.Context,
-	opts ProcessAccountCredentialsRegistrationIATAuthOptions,
+	opts ProcessAppCredentialsRegistrationIATAuthOptions,
 ) (string, tokens.AccountClaims, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, accountCredentialsRegistrationIATLocation, "ProcessAccountCredentialsRegistrationIATAuth")
-	logger.InfoContext(ctx, "Processing account credentials registration IAT auth...")
+	logger := s.buildLogger(opts.RequestID, appDynamicRegistrationIATLocation, "ProcessAppCredentialsRegistrationIATAuth")
+	logger.InfoContext(ctx, "Processing app credentials registration IAT auth...")
 
 	token, serviceErr := extractAuthHeaderToken(opts.AuthHeader)
 	if serviceErr != nil {
@@ -113,18 +120,19 @@ func (s *Services) ProcessAccountCredentialsRegistrationIATAuth(
 		tokens.VerifyDynamicRegistrationIATOptions{
 			RequestID:    opts.RequestID,
 			IAT:          token,
-			IssuerDomain: opts.BackendDomain,
-			GetPublicJWK: s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
-				RequestID: opts.RequestID,
-				KeyType:   database.TokenKeyTypeDynamicRegistration,
+			IssuerDomain: fmt.Sprintf("%s.%s", opts.AccountUsername, opts.BackendDomain),
+			GetPublicJWK: s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
+				requestID: opts.RequestID,
+				accountID: opts.AccountID,
+				keyType:   database.TokenKeyTypeDynamicRegistration,
 			}),
 		},
 	)
 	if err != nil {
-		logger.WarnContext(ctx, "Failed to verify account credentials registration IAT", "error", err)
+		logger.WarnContext(ctx, "Failed to verify app credentials registration IAT", "error", err)
 		return "", tokens.AccountClaims{}, exceptions.NewUnauthorizedError()
 	}
 
-	logger.InfoContext(ctx, "Processed account credentials registration IAT auth successfully")
+	logger.InfoContext(ctx, "Processed app credentials registration IAT auth successfully")
 	return domain, accountClaims, nil
 }

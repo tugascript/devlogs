@@ -96,6 +96,15 @@ WHERE
     "verified_at" IS NOT NULL
 LIMIT 1;
 
+-- name: CountVerifiedDynamicRegistrationDomainsByDomainsAccountPublicIDAndUsages :one
+SELECT COUNT(*) FROM "dynamic_registration_domains"
+WHERE
+    "account_public_id" = $1 AND
+    "usages" @> $2 AND
+    "domain" IN (sqlc.slice('domains')) AND
+    "verified_at" IS NOT NULL
+LIMIT 1;
+
 -- name: CountVerifiedDynamicRegistrationDomainsByDomainAndAccountPublicID :one
 SELECT COUNT(*) FROM "dynamic_registration_domains"
 WHERE
@@ -104,18 +113,29 @@ WHERE
     "verified_at" IS NOT NULL
 LIMIT 1;
 
--- name: CountDynamicRegistrationDomainsByDomainsAndAccountPublicID :one
+-- name: CountVerifiedDynamicRegistrationDomainsByDomainAccountPublicIDAndUsages :one
 SELECT COUNT(*) FROM "dynamic_registration_domains"
 WHERE
     "account_public_id" = $1 AND
+    "domain" = $2 AND
+    "usages" @> $3 AND
+    "verified_at" IS NOT NULL
+LIMIT 1;
+
+-- name: CountDynamicRegistrationDomainsByDomainsAccountPublicIDAndUsages :one
+SELECT COUNT(*) FROM "dynamic_registration_domains"
+WHERE
+    "account_public_id" = $1 AND
+    "usages" @> $2 AND
     "domain" IN (sqlc.slice('domains'))
 LIMIT 1;
 
--- name: CountDynamicRegistrationDomainsByDomainAndAccountPublicID :one
+-- name: CountDynamicRegistrationDomainsByDomainAndAccountPublicIDAndUsages :one
 SELECT COUNT(*) FROM "dynamic_registration_domains"
 WHERE
     "account_public_id" = $1 AND
-    "domain" = $2
+    "domain" = $2 AND
+    "usages" @> $3
 LIMIT 1;
 
 -- name: DeleteDynamicRegistrationDomain :exec
