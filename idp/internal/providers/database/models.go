@@ -1604,8 +1604,8 @@ type AppDesign struct {
 type AppDynamicRegistrationConfig struct {
 	ID                                   int32
 	AccountID                            int32
+	AccountPublicID                      uuid.UUID
 	AllowedAppTypes                      []AppType
-	WhitelistedDomains                   []string
 	DefaultAllowUserRegistration         bool
 	DefaultAuthProviders                 []AuthProvider
 	DefaultUsernameColumn                AppUsernameColumn

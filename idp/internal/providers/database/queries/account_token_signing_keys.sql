@@ -29,6 +29,7 @@ LIMIT 1;
 SELECT "t"."public_key" FROM "token_signing_keys" AS "t"
 LEFT JOIN "account_token_signing_keys" AS "atsk" ON "t"."id" = "atsk"."token_signing_key_id"
 WHERE "atsk"."account_id" = $1 AND
+      "t"."usage" = 'account' AND
       "t"."is_distributed" = true AND
       "t"."is_revoked" = false AND
       "t"."expires_at" > NOW()

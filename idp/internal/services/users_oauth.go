@@ -4,14 +4,4 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-package paths
-
-const (
-	Base       string = "/"
-	V1         string = "/v1"
-	AccountsV1 string = "/v1/a"
-	Keys       string = "/keys"
-	Confirm    string = "/confirm"
-	Recover    string = "/recover"
-	Config     string = "/config"
-)
+package services

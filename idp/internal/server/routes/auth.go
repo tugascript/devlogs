@@ -14,14 +14,22 @@ import (
 )
 
 func (r *Routes) AuthRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.AuthBase)
-
+	router := V1PathRouter(app).Group(paths.AuthBase)
 	authProvsReaderMW := r.controllers.ScopeMiddleware(tokens.AccountScopeAuthProvidersRead)
 
 	// Custom auth paths
-	router.Post(paths.AuthRegister, r.controllers.RegisterAccount)
-	router.Post(paths.AuthConfirmEmail, r.controllers.ConfirmAccount)
-	router.Post(paths.AuthLogin, r.controllers.LoginAccount)
+	router.Post(paths.AuthRegister, r.controllers.HostMiddleware, HostAwareRoute(
+		[]fiber.Handler{r.controllers.RegisterAccount},
+		[]fiber.Handler{r.controllers.AppAccessClaimsMiddleware, r.controllers.RegisterUser},
+	))
+	router.Post(paths.AuthConfirmEmail, r.controllers.HostMiddleware, HostAwareRoute(
+		[]fiber.Handler{r.controllers.ConfirmAccount},
+		[]fiber.Handler{r.controllers.AppAccessClaimsMiddleware, r.controllers.ConfirmUser},
+	))
+	router.Post(paths.AuthLogin, r.controllers.HostMiddleware, HostAwareRoute(
+		[]fiber.Handler{r.controllers.LoginAccount},
+		[]fiber.Handler{r.controllers.AppAccessClaimsMiddleware, r.controllers.LoginUser},
+	))
 	router.Post(
 		paths.AuthLogin+paths.Auth2FA,
 		r.controllers.TwoFAAccessClaimsMiddleware,
@@ -32,10 +40,22 @@ func (r *Routes) AuthRoutes(app *fiber.App) {
 		r.controllers.TwoFAAccessClaimsMiddleware,
 		r.controllers.RecoverAccount,
 	)
-	router.Post(paths.AuthRefresh, r.controllers.RefreshAccount)
-	router.Post(paths.AuthLogout, r.controllers.AccountAccessClaimsMiddleware, r.controllers.LogoutAccount)
-	router.Post(paths.AuthForgotPassword, r.controllers.ForgotAccountPassword)
-	router.Post(paths.AuthResetPassword, r.controllers.ResetAccountPassword)
+	router.Post(paths.AuthRefresh, r.controllers.HostMiddleware, HostAwareRoute(
+		[]fiber.Handler{r.controllers.RefreshAccount},
+		[]fiber.Handler{r.controllers.AppAccessClaimsMiddleware, r.controllers.RefreshUser},
+	))
+	router.Post(paths.AuthLogout, r.controllers.HostMiddleware, HostAwareRoute(
+		[]fiber.Handler{r.controllers.AccountAccessClaimsMiddleware, r.controllers.LogoutAccount},
+		[]fiber.Handler{r.controllers.UserAccessClaimsMiddleware, r.controllers.LogoutUser},
+	))
+	router.Post(paths.AuthForgotPassword, r.controllers.HostMiddleware, HostAwareRoute(
+		[]fiber.Handler{r.controllers.ForgotAccountPassword},
+		[]fiber.Handler{r.controllers.AppAccessClaimsMiddleware, r.controllers.ForgotUserPassword},
+	))
+	router.Post(paths.AuthResetPassword, r.controllers.HostMiddleware, HostAwareRoute(
+		[]fiber.Handler{r.controllers.ResetAccountPassword},
+		[]fiber.Handler{r.controllers.AppAccessClaimsMiddleware, r.controllers.ResetUserPassword},
+	))
 	router.Get(
 		paths.AuthProviders,
 		r.controllers.AccountAccessClaimsMiddleware,

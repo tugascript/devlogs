@@ -8,14 +8,12 @@ package services
 
 import (
 	"context"
-	"errors"
 	"net/url"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/net/publicsuffix"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -45,249 +43,8 @@ var allowedAccountCredentialsScopes []string = []string{
 	string(database.AccountCredentialsScopeAccountAuthProvidersRead),
 }
 
-type checkAccountCRDomainOptions struct {
-	requestID              string
-	accountPublicID        uuid.UUID
-	domain                 string
-	iatDomain              string
-	requireVerifiedDomains bool
-}
-
-func (s *Services) checkAccountCRDomain(
-	ctx context.Context,
-	opts checkAccountCRDomainOptions,
-) (string, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.requestID, dynamicRegistrationDomainsLocation, "checkAccountCRDomain").With(
-		"domain", opts.domain,
-	)
-	logger.InfoContext(ctx, "Checking account credential domain validity")
-
-	baseDomain, err := publicsuffix.EffectiveTLDPlusOne(opts.domain)
-	if err != nil {
-		logger.WarnContext(ctx, "Failed to parse base domain", "error", err)
-		return "", exceptions.NewValidationError("invalid client URI")
-	}
-	if opts.iatDomain != "" && opts.domain != opts.iatDomain && baseDomain != opts.iatDomain {
-		logger.WarnContext(ctx, "Client URI base domain does not match IAT domain",
-			"baseDomain", baseDomain,
-			"iatDomain", opts.iatDomain,
-		)
-		return "", exceptions.NewUnauthorizedError()
-	}
-
-	var count int64
-	if baseDomain != opts.domain {
-		if opts.requireVerifiedDomains {
-			count, err = s.database.CountVerifiedDynamicRegistrationDomainsByDomainsAndAccountPublicID(
-				ctx,
-				database.CountVerifiedDynamicRegistrationDomainsByDomainsAndAccountPublicIDParams{
-					AccountPublicID: opts.accountPublicID,
-					Domains:         []string{opts.domain, baseDomain},
-				},
-			)
-		} else {
-			count, err = s.database.CountDynamicRegistrationDomainsByDomainsAndAccountPublicID(
-				ctx,
-				database.CountDynamicRegistrationDomainsByDomainsAndAccountPublicIDParams{
-					AccountPublicID: opts.accountPublicID,
-					Domains:         []string{opts.domain, baseDomain},
-				},
-			)
-		}
-	} else {
-		if opts.requireVerifiedDomains {
-			count, err = s.database.CountVerifiedDynamicRegistrationDomainsByDomainAndAccountPublicID(
-				ctx,
-				database.CountVerifiedDynamicRegistrationDomainsByDomainAndAccountPublicIDParams{
-					AccountPublicID: opts.accountPublicID,
-					Domain:          opts.domain,
-				},
-			)
-		} else {
-			count, err = s.database.CountDynamicRegistrationDomainsByDomainAndAccountPublicID(
-				ctx,
-				database.CountDynamicRegistrationDomainsByDomainAndAccountPublicIDParams{
-					AccountPublicID: opts.accountPublicID,
-					Domain:          opts.domain,
-				},
-			)
-		}
-	}
-
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to count verified account dynamic registration domains", "error", err)
-		return "", exceptions.FromDBError(err)
-	}
-	if count > 0 {
-		logger.InfoContext(ctx, "Account credential domain is whitelisted")
-		return baseDomain, nil
-	}
-
-	logger.InfoContext(ctx, "Account credential domain is not whitelisted or verified")
-	return "", exceptions.NewUnauthorizedError()
-}
-
-type buildAccountCRSoftwareStatementFuncOptions struct {
-	requestID           string
-	accountPublicID     uuid.UUID
-	verificationMethods []database.SoftwareStatementVerificationMethod
-	jwksURI             string
-	jwks                []string
-	domain              string
-	baseDomain          string
-}
-
-func (s *Services) buildAccountCRSoftwareStatementFunc(
-	ctx context.Context,
-	opts buildAccountCRSoftwareStatementFuncOptions,
-) tokens.GetUnknownPublicJWK {
-	logger := s.buildLogger(opts.requestID, accountCredentialsRegistrationLocation, "buildAccountCRSoftwareStatementFunc").With(
-		"accountPublicID", opts.accountPublicID,
-	)
-	logger.InfoContext(ctx, "Checking account credential software statement validity")
-
-	if slices.Contains(opts.verificationMethods, database.SoftwareStatementVerificationMethodJwksUri) && opts.jwksURI != "" {
-		return func(kid string) (utils.JWK, error) {
-			parsedURI, err := url.Parse(opts.jwksURI)
-			if err != nil {
-				logger.ErrorContext(ctx, "Failed to parse JWKs URI", "error", err)
-				return nil, errors.New("invalid JWKs URI")
-			}
-			if parsedURI.Host != opts.baseDomain || !strings.Contains(parsedURI.Host, "."+opts.baseDomain) {
-				logger.WarnContext(ctx, "JWKs URI parsedURI does not match client URI parsedURI")
-				return nil, errors.New("JWKs URI parsedURI does not match client URI parsedURI")
-			}
-
-			jwks, err := s.jwt.GetPublicJWKs(ctx, tokens.GetPublicJWKsOptions{
-				RequestID: opts.requestID,
-				URL:       opts.jwksURI,
-			})
-			if err != nil {
-				logger.WarnContext(ctx, "Failed to get public JWKs from JWKs URI", "error", err)
-				return nil, errors.New("failed to get public JWKs from JWKs URI")
-			}
-
-			jwkIdx := slices.IndexFunc(jwks.Keys, func(jwk utils.JWK) bool {
-				return jwk.GetKeyID() == kid
-			})
-			if jwkIdx == -1 {
-				logger.WarnContext(ctx, "No matching JWK found for KID in JWKs URI", "kid", kid)
-				return nil, errors.New("no matching JWK found for KID in JWKs URI")
-			}
-
-			return jwks.Keys[jwkIdx], nil
-		}
-	}
-	if slices.Contains(opts.verificationMethods, database.SoftwareStatementVerificationMethodManual) {
-		if len(opts.jwks) > 0 {
-			return func(kid string) (utils.JWK, error) {
-				jwks := make([]utils.JWK, 0, len(opts.jwks))
-				for _, rawJWK := range opts.jwks {
-					jwk, err := utils.JsonToJWK([]byte(rawJWK))
-					if err != nil {
-						logger.ErrorContext(ctx, "Failed to parse manual JWK", "error", err)
-						return nil, errors.New("failed to parse manual JWK")
-					}
-					jwks = append(jwks, jwk)
-				}
-
-				jwkIdx := slices.IndexFunc(jwks, func(jwk utils.JWK) bool {
-					return jwk.GetKeyID() == kid
-				})
-				if jwkIdx == -1 {
-					logger.WarnContext(ctx, "No matching manual JWK found for KID", "kid", kid)
-					return nil, errors.New("no matching manual JWK found for KID")
-				}
-
-				sliceJWK := jwks[jwkIdx]
-				jwkRefEnt, err := s.database.FindDynamicRegistrationSoftwareStatementKeysByCredentialsKeyKIDAndAccountPublicID(
-					ctx,
-					database.FindDynamicRegistrationSoftwareStatementKeysByCredentialsKeyKIDAndAccountPublicIDParams{
-						CredentialsKeyKid: kid,
-						AccountPublicID:   opts.accountPublicID,
-					},
-				)
-				if err != nil {
-					serviceErr := exceptions.FromDBError(err)
-					if serviceErr.Code == exceptions.CodeNotFound {
-						logger.WarnContext(ctx, "No database entry found for manual JWK", "kid", kid, "error", err)
-						return nil, errors.New("no database entry found for manual JWK")
-					}
-
-					logger.ErrorContext(ctx, "Failed to find database entry for manual JWK", "kid", kid, "error", err)
-					return nil, errors.New("failed to find database entry for manual JWK")
-				}
-				if jwkRefEnt.RootDomain != opts.baseDomain {
-					logger.WarnContext(ctx, "Manual JWK root domain does not match client URI base domain",
-						"kid", kid, "jwkRootDomain", jwkRefEnt.RootDomain, "baseDomain", opts.baseDomain,
-					)
-					return nil, errors.New("manual JWK root domain does not match client URI base domain")
-				}
-
-				jwkEnt, err := s.database.FindCredentialsKeyByID(ctx, jwkRefEnt.CredentialsKeyID)
-				if err != nil {
-					serviceErr := exceptions.FromDBError(err)
-					if serviceErr.Code == exceptions.CodeNotFound {
-						logger.WarnContext(ctx, "No credentials key found for manual JWK", "kid", kid, "error", err)
-						return nil, errors.New("no credentials key found for manual JWK")
-					}
-
-					logger.ErrorContext(ctx, "Failed to find credentials key for manual JWK", "kid", kid, "error", err)
-					return nil, errors.New("failed to find credentials key for manual JWK")
-				}
-
-				entJWK, err := utils.JsonToJWK(jwkEnt.PublicKey)
-				if err != nil {
-					logger.ErrorContext(ctx, "Failed to parse manual JWK", "error", err)
-					return nil, errors.New("failed to parse manual JWK")
-				}
-				if !entJWK.ComparePublicKey(sliceJWK) {
-					logger.WarnContext(ctx, "Manual JWK does not match database credentials key", "kid", kid)
-					return nil, errors.New("manual JWK does not match database credentials key")
-				}
-
-				return sliceJWK, nil
-			}
-		}
-
-		return func(kid string) (utils.JWK, error) {
-			jwkEntity, err := s.database.FindDynamicRegistrationSoftwareStatementKeysByRootDomainAndAccountPublicID(
-				ctx,
-				database.FindDynamicRegistrationSoftwareStatementKeysByRootDomainAndAccountPublicIDParams{
-					RootDomain:      opts.baseDomain,
-					AccountPublicID: opts.accountPublicID,
-				},
-			)
-			if err != nil {
-				if exceptions.FromDBError(err).Code == exceptions.CodeNotFound {
-					logger.WarnContext(ctx, "No manual JWKs found for software statement", "error", err)
-					return nil, errors.New("no manual JWKs found for software statement")
-				}
-
-				logger.ErrorContext(ctx, "Failed to find manual JWKs for software statement", "error", err)
-				return nil, errors.New("failed to find manual JWKs for software statement")
-			}
-			if jwkEntity.PublicKid != kid {
-				logger.WarnContext(ctx, "No matching manual JWK found for KID",
-					"kid", kid, "publicKID", jwkEntity.PublicKid,
-				)
-				return nil, errors.New("no matching manual JWK found for KID")
-			}
-
-			jwk, err := utils.JsonToJWK(jwkEntity.PublicKey)
-			if err != nil {
-				logger.ErrorContext(ctx, "Failed to parse manual JWK for software statement", "error", err)
-				return nil, errors.New("failed to parse manual JWK for software statement")
-			}
-
-			return jwk, nil
-		}
-	}
-
-	return func(kid string) (utils.JWK, error) {
-		logger.WarnContext(ctx, "No verification method available for software statement")
-		return nil, errors.New("no verification method available")
-	}
+var accountCredentialsRegistrationUsages []database.DynamicRegistrationUsage = []database.DynamicRegistrationUsage{
+	database.DynamicRegistrationUsageAccount,
 }
 
 func mapAccountCredentialsDRTransport(applicationType database.AccountCredentialsType) database.Transport {
@@ -735,11 +492,12 @@ func (s *Services) CreateAccountCredentialsRegistration(
 	}
 
 	domain := parsedClientURI.Hostname()
-	baseDomain, serviceErr := s.checkAccountCRDomain(ctx, checkAccountCRDomainOptions{
+	baseDomain, serviceErr := s.checkClientRegistrationDomain(ctx, checkClientRegistrationDomainOptions{
 		requestID:              opts.RequestID,
 		accountPublicID:        opts.AccountPublicID,
 		iatDomain:              opts.IATDomain,
 		domain:                 domain,
+		usages:                 accountCredentialsRegistrationUsages,
 		requireVerifiedDomains: slices.Contains(accountDRConfigDTO.RequireVerifiedDomainsCredentialsType, applicationType),
 	})
 	if serviceErr != nil {
@@ -788,7 +546,7 @@ func (s *Services) CreateAccountCredentialsRegistration(
 		ssClaims, stdClaims, err := s.jwt.VerifySoftwareStatement(ctx, tokens.VerifySoftwareStatementOptions{
 			RequestID:         opts.RequestID,
 			SoftwareStatement: opts.SoftwareStatement,
-			GetPublicJWK: s.buildAccountCRSoftwareStatementFunc(ctx, buildAccountCRSoftwareStatementFuncOptions{
+			GetPublicJWK: s.buildDynamicRegistrationSoftwareStatementFunc(ctx, buildDynamicRegistrationSoftwareStatementFuncOptions{
 				requestID:           opts.RequestID,
 				accountPublicID:     opts.AccountPublicID,
 				verificationMethods: accountDRConfigDTO.SoftwareStatementVerificationMethods,

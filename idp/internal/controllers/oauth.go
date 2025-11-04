@@ -422,12 +422,12 @@ func (c *Controllers) AccountOAuthToken(ctx *fiber.Ctx) error {
 	}
 }
 
-func (c *Controllers) AccountOAuthPublicJWKs(ctx *fiber.Ctx) error {
+func (c *Controllers) GlobalOAuthPublicJWKs(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, oauthLocation, "AccountOAuthPublicJWKs")
+	logger := c.buildLogger(requestID, oauthLocation, "GlobalOAuthPublicJWKs")
 	logRequest(logger, ctx)
 
-	etag, jwksDTO, serviceErr := c.services.GetAccountPublicJWKs(ctx.UserContext(), requestID)
+	etag, jwksDTO, serviceErr := c.services.GetGlobalPublicJWKs(ctx.UserContext(), requestID)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}

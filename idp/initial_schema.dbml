@@ -106,7 +106,7 @@ Table token_signing_keys as TS {
     crypto_suite token_crypto_suite [not null]
 
     expires_at timestamptz [not null]
-    usage token_key_usage [not null, default: 'account']
+    usage token_key_usage [not null]
     is_distributed boolean [not null, default: false]
     is_revoked boolean [not null, default: false]
 
@@ -116,7 +116,6 @@ Table token_signing_keys as TS {
     Indexes {
         (kid) [unique, name: 'token_signing_keys_kid_uidx']
         (expires_at) [name: 'token_signing_keys_expires_at_idx']
-        (is_distributed, is_revoked, expires_at) [name: 'token_signing_keys_is_distributed_is_revoked_expires_at_idx']
         (key_type, usage, is_revoked, expires_at) [name: 'token_signing_keys_key_type_usage_is_revoked_expires_at_idx']
         (usage, is_distributed, is_revoked, expires_at) [name: 'token_signing_keys_usage_is_distributed_is_revoked_expires_at_idx']
         (kid, is_revoked) [name: 'token_signing_keys_kid_is_revoked_idx']
@@ -1039,9 +1038,9 @@ Table app_dynamic_registration_configs as APDRC {
     id serial [pk]
 
     account_id integer [not null]
+    account_public_id uuid [not null]
 
     allowed_app_types "app_type[]" [not null]
-    whitelisted_domains "varchar(250)[]" [not null]
     default_allow_user_registration boolean [not null]
     default_auth_providers "auth_provider[]" [not null]
     default_username_column app_username_column [not null]
@@ -1059,7 +1058,7 @@ Table app_dynamic_registration_configs as APDRC {
     initial_access_token_max_uses int [not null, default: 1]
 
     allowed_grant_types "grant_type[]" [not null, default: '{ "authorization_code", "refresh_token", "client_credentials", "urn:ietf:params:oauth:grant-type:device_code", "urn:ietf:params:oauth:grant-type:jwt-bearer" }']
-    allowed_response_types "response_type[]" [not null, default: '{ "code", "id_token", "code id_token" }']
+    allowed_response_types "response_type[]" [not null, default: '{ "code", "code id_token" }']
     allowed_token_endpoint_auth_methods "auth_method[]" [not null, default: '{ "none", "client_secret_post", "client_secret_basic", "client_secret_jwt", "private_key_jwt" }']
     max_redirect_uris int [not null, default: 10]
 
@@ -1068,6 +1067,7 @@ Table app_dynamic_registration_configs as APDRC {
 
     Indexes {
         (account_id) [name: 'app_dynamic_registration_configs_account_id_idx']
+        (account_public_id) [name: 'app_dynamic_registration_configs_account_public_id_idx']
     }
 }
 Ref: APDRC.account_id > A.id [delete: cascade]
@@ -1099,8 +1099,10 @@ Table dynamic_registration_domains as ADRD {
     Indexes {
         (account_id) [name: 'accounts_totps_account_id_idx']
         (account_public_id) [name: 'account_dynamic_registration_domains_account_public_id_idx']
-        (domain) [name: 'account_dynamic_registration_domains_domain_idx']
         (account_public_id, domain) [unique, name: 'account_dynamic_registration_domains_account_public_id_domain_uidx']
+        (account_public_id, domain, verified_at) [name: 'account_dynamic_registration_domains_account_public_id_domain_verified_at_idx']
+        (account_public_id, domain, usages) [name: 'account_dynamic_registration_domains_account_public_id_domain_usages_idx']
+        (account_public_id, domain, usages, verified_at) [name: 'account_dynamic_registration_domains_account_public_id_domain_usages_verified_at_idx']
     }
 }
 Ref: ADRD.account_id > A.id [delete: cascade]

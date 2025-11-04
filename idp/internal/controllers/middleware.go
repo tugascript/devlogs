@@ -178,8 +178,9 @@ func (c *Controllers) AccountCredentialsDRIATMiddleware(ctx *fiber.Ctx) error {
 	domain, accountClaims, serviceErr := c.services.ProcessAccountCredentialsRegistrationIATAuth(
 		ctx.UserContext(),
 		services.ProcessAccountCredentialsRegistrationIATAuthOptions{
-			RequestID:  requestID,
-			AuthHeader: authHeader,
+			RequestID:     requestID,
+			AuthHeader:    authHeader,
+			BackendDomain: c.backendDomain,
 		},
 	)
 	if serviceErr != nil {
@@ -245,13 +246,14 @@ func processHost(backendDomain string, host string) (string, error) {
 	return username, nil
 }
 
-func (c *Controllers) AccountHostMiddleware(ctx *fiber.Ctx) error {
+func (c *Controllers) HostMiddleware(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, middlewareLocation, "AccountHostMiddleware")
+	logger := c.buildLogger(requestID, middlewareLocation, "HostMiddleware")
 	host := ctx.Hostname()
-	if host == "" {
-		logger.DebugContext(ctx.UserContext(), "no host found")
-		return serviceErrorResponse(logger, ctx, exceptions.NewNotFoundError())
+	if host == "" || host == c.backendDomain {
+		logger.InfoContext(ctx.UserContext(), "Base url found")
+		ctx.Locals("hasAccountHost", false)
+		return ctx.Next()
 	}
 
 	username, err := processHost(c.backendDomain, host)
@@ -275,9 +277,20 @@ func (c *Controllers) AccountHostMiddleware(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
+	ctx.Locals("hasAccountHost", true)
 	ctx.Locals("accountUsername", username)
 	ctx.Locals("accountID", accountID)
 	return ctx.Next()
+}
+
+func (c *Controllers) NoHostMiddleware(ctx *fiber.Ctx) error {
+	logger := c.buildLogger(getRequestID(ctx), middlewareLocation, "NoHostMiddleware")
+	host := ctx.Hostname()
+	if host == "" || host == c.backendDomain {
+		return ctx.Next()
+	}
+
+	return serviceErrorResponse(logger, ctx, exceptions.NewNotFoundError())
 }
 
 func getAccountClaims(ctx *fiber.Ctx) (tokens.AccountClaims, *exceptions.ServiceError) {

@@ -13,7 +13,7 @@ import (
 )
 
 func (r *Routes) AccountsRoutes(app *fiber.App) {
-	router := v1PathRouter(app).Group(paths.AccountsBase)
+	router := V1PathRouter(app).Group(paths.AccountsBase)
 
 	router.Get(paths.AccountUserInfo, r.controllers.AccountAccessClaimsMiddleware, r.controllers.GetCurrentAccount)
 	router.Put(

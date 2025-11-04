@@ -33,41 +33,6 @@ const (
 	resetMessage  string = "Password reset successfully"
 )
 
-type processPurposeAuthHeaderOptions struct {
-	requestID    string
-	authHeader   string
-	tokenPurpose tokens.TokenPurpose
-	tokenKeyType database.TokenKeyType
-}
-
-func (s *Services) processPurposeAuthHeader(
-	ctx context.Context,
-	opts processPurposeAuthHeaderOptions,
-) (tokens.AccountClaims, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.requestID, authLocation, "processPurposeAuthHeader")
-	logger.InfoContext(ctx, "Processing purpose auth header...")
-
-	token, serviceErr := extractAuthHeaderToken(opts.authHeader)
-	if serviceErr != nil {
-		return tokens.AccountClaims{}, serviceErr
-	}
-
-	accountClaims, err := s.jwt.VerifyPurposeToken(
-		token,
-		opts.tokenPurpose,
-		s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
-			RequestID: opts.requestID,
-			KeyType:   opts.tokenKeyType,
-		}),
-	)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to verify purpose token", "error", err)
-		return tokens.AccountClaims{}, exceptions.NewUnauthorizedError()
-	}
-
-	return accountClaims, nil
-}
-
 type ProcessAuthHeaderOptions struct {
 	RequestID  string
 	AuthHeader string

@@ -12,27 +12,25 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/services"
 )
 
-const (
-	wellKnownLocation         string = "well_known"
-	wellKnownOIDCCacheControl string = "public, max-age=3600, must-revalidate"
-)
+const usersOAuthLocation string = "users_oauth"
 
-func (c *Controllers) WellKnownOIDCConfiguration(ctx *fiber.Ctx) error {
+func (c *Controllers) AccountDistributedOAuthPublicJWKs(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, wellKnownLocation, "WellKnownOIDCConfiguration")
+	logger := c.buildLogger(requestID, usersOAuthLocation, "AccountDistributedOAuthPublicJWKs")
 	logRequest(logger, ctx)
 
-	accountUsername, accountID, serviceErr := getHostAccount(ctx)
+	_, accountID, serviceErr := getHostAccount(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	configDTO, etag, serviceErr := c.services.WellKnownOIDCConfigurationWithCache(ctx.UserContext(), services.WellKnownOIDCConfigurationWithCacheOptions{
-		RequestID:       requestID,
-		AccountID:       accountID,
-		BackendDomain:   c.backendDomain,
-		AccountUsername: accountUsername,
-	})
+	etag, jwksDTO, serviceErr := c.services.GetAndCacheAccountDistributedJWK(
+		ctx.UserContext(),
+		services.GetAndCacheAccountDistributedJWKOptions{
+			RequestID: requestID,
+			AccountID: accountID,
+		},
+	)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
@@ -42,8 +40,8 @@ func (c *Controllers) WellKnownOIDCConfiguration(ctx *fiber.Ctx) error {
 		return ctx.SendStatus(fiber.StatusNotModified)
 	}
 
-	ctx.Set(fiber.HeaderCacheControl, wellKnownOIDCCacheControl)
+	ctx.Set(fiber.HeaderCacheControl, publicJWKsCacheControl)
 	ctx.Set(fiber.HeaderETag, etag)
 	logResponse(logger, ctx, fiber.StatusOK)
-	return ctx.Status(fiber.StatusOK).JSON(&configDTO)
+	return ctx.Status(fiber.StatusOK).JSON(&jwksDTO)
 }

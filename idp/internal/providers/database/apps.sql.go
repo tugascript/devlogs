@@ -12,6 +12,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countAppsByAccountIDAndCliantNameOrSoftwareID = `-- name: CountAppsByAccountIDAndCliantNameOrSoftwareID :one
+SELECT COUNT(*) FROM "apps"
+WHERE "account_id" = $1 AND ("client_name" = $2 OR "software_id" = $3)
+LIMIT 1
+`
+
+type CountAppsByAccountIDAndCliantNameOrSoftwareIDParams struct {
+	AccountID  int32
+	ClientName string
+	SoftwareID pgtype.Text
+}
+
+func (q *Queries) CountAppsByAccountIDAndCliantNameOrSoftwareID(ctx context.Context, arg CountAppsByAccountIDAndCliantNameOrSoftwareIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAppsByAccountIDAndCliantNameOrSoftwareID, arg.AccountID, arg.ClientName, arg.SoftwareID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countAppsByAccountIDAndName = `-- name: CountAppsByAccountIDAndName :one
 SELECT COUNT(*) FROM "apps"
 WHERE "account_id" = $1 AND "client_name" = $2

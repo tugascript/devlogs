@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/net/publicsuffix"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
@@ -216,6 +217,54 @@ func (s *Services) GetAccountCredentialsRegistrationDomain(
 
 	logger.InfoContext(ctx, "Found account dynamic registration domain", "domain", opts.Domain)
 	return dtos.MapAccountCredentialsRegistrationDomainToDTO(&domainDTO), nil
+}
+
+type GetAppCredentialsRegistrationDomainOptions struct {
+	RequestID       string
+	AccountPublicID uuid.UUID
+	Domain          string
+}
+
+func (s *Services) GetAppCredentialsRegistrationDomain(
+	ctx context.Context,
+	opts GetAppCredentialsRegistrationDomainOptions,
+) (dtos.DynamicRegistrationDomainDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, dynamicRegistrationDomainsLocation, "GetAppCredentialsRegistrationDomain").With(
+		"accountPublicID", opts.AccountPublicID,
+		"domain", opts.Domain,
+	)
+	logger.InfoContext(ctx, "Getting app credentials registration domain...")
+
+	domain, err := s.database.FindDynamicRegistrationDomainByAccountPublicIDAndDomain(ctx, database.FindDynamicRegistrationDomainByAccountPublicIDAndDomainParams{
+		AccountPublicID: opts.AccountPublicID,
+		Domain:          opts.Domain,
+	})
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to find app dynamic registration domain", "error", err)
+			return dtos.DynamicRegistrationDomainDTO{}, serviceErr
+		}
+
+		logger.WarnContext(ctx, "App dynamic registration domain not found", "domain", opts.Domain)
+		return dtos.DynamicRegistrationDomainDTO{}, serviceErr
+	}
+
+	// Verify that the domain has App usage
+	hasAppUsage := false
+	for _, usage := range domain.Usages {
+		if usage == database.DynamicRegistrationUsageApp {
+			hasAppUsage = true
+			break
+		}
+	}
+	if !hasAppUsage {
+		logger.WarnContext(ctx, "Domain does not have app credentials registration usage", "domain", opts.Domain)
+		return dtos.DynamicRegistrationDomainDTO{}, exceptions.NewNotFoundValidationError("App dynamic registration domain not found")
+	}
+
+	logger.InfoContext(ctx, "Found app dynamic registration domain", "domain", opts.Domain)
+	return dtos.MapAccountCredentialsRegistrationDomainToDTO(&domain), nil
 }
 
 type ListAccountCredentialsRegistrationDomainsOptions struct {
@@ -794,4 +843,91 @@ func (s *Services) DeleteAccountCredentialsRegistrationDomainCode(
 
 	logger.InfoContext(ctx, "Deleted account credentials registration domain successfully")
 	return nil
+}
+
+type checkClientRegistrationDomainOptions struct {
+	requestID              string
+	accountPublicID        uuid.UUID
+	usages                 []database.DynamicRegistrationUsage
+	domain                 string
+	iatDomain              string
+	requireVerifiedDomains bool
+}
+
+func (s *Services) checkClientRegistrationDomain(
+	ctx context.Context,
+	opts checkClientRegistrationDomainOptions,
+) (string, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, dynamicRegistrationDomainsLocation, "checkClientRegistrationDomain").With(
+		"domain", opts.domain,
+	)
+	logger.InfoContext(ctx, "Checking client registrationdomain validity")
+
+	baseDomain, err := publicsuffix.EffectiveTLDPlusOne(opts.domain)
+	if err != nil {
+		logger.WarnContext(ctx, "Failed to parse base domain", "error", err)
+		return "", exceptions.NewValidationError("invalid client URI")
+	}
+	if opts.iatDomain != "" && opts.domain != opts.iatDomain && baseDomain != opts.iatDomain {
+		logger.WarnContext(ctx, "Client URI base domain does not match IAT domain",
+			"baseDomain", baseDomain,
+			"iatDomain", opts.iatDomain,
+		)
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	var count int64
+	if baseDomain != opts.domain {
+		if opts.requireVerifiedDomains {
+			count, err = s.database.CountVerifiedDynamicRegistrationDomainsByDomainsAccountPublicIDAndUsages(
+				ctx,
+				database.CountVerifiedDynamicRegistrationDomainsByDomainsAccountPublicIDAndUsagesParams{
+					AccountPublicID: opts.accountPublicID,
+					Usages:          opts.usages,
+					Domains:         []string{opts.domain, baseDomain},
+				},
+			)
+		} else {
+			count, err = s.database.CountDynamicRegistrationDomainsByDomainsAccountPublicIDAndUsages(
+				ctx,
+				database.CountDynamicRegistrationDomainsByDomainsAccountPublicIDAndUsagesParams{
+					AccountPublicID: opts.accountPublicID,
+					Usages:          opts.usages,
+					Domains:         []string{opts.domain, baseDomain},
+				},
+			)
+		}
+	} else {
+		if opts.requireVerifiedDomains {
+			count, err = s.database.CountVerifiedDynamicRegistrationDomainsByDomainAccountPublicIDAndUsages(
+				ctx,
+				database.CountVerifiedDynamicRegistrationDomainsByDomainAccountPublicIDAndUsagesParams{
+					AccountPublicID: opts.accountPublicID,
+					Domain:          opts.domain,
+					Usages:          opts.usages,
+				},
+			)
+		} else {
+			count, err = s.database.CountDynamicRegistrationDomainsByDomainAndAccountPublicIDAndUsages(
+				ctx,
+				database.CountDynamicRegistrationDomainsByDomainAndAccountPublicIDAndUsagesParams{
+					AccountPublicID: opts.accountPublicID,
+					Domain:          opts.domain,
+					Usages:          appDynamicRegistrationUsages,
+				},
+			)
+		}
+	}
+
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count verified dynamic registration domains", "error", err)
+		return "", exceptions.FromDBError(err)
+	}
+	if count > 0 {
+		logger.InfoContext(ctx, "Credential domain is whitelisted")
+		return baseDomain, nil
+	}
+
+	logger.InfoContext(ctx, "Domain is not whitelisted or verified")
+	return "", exceptions.NewUnauthorizedError()
 }
