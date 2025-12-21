@@ -79,7 +79,6 @@ func mapAppGrantTypes(
 func mapAppTokenEndpointAuthMethod(
 	authMethod string,
 	appType database.AppType,
-	transport database.Transport,
 ) (database.AuthMethod, *exceptions.ServiceError) {
 	if authMethod == "" {
 		switch appType {
@@ -319,7 +318,6 @@ func (s *Services) CreateAppCredentialsRegistration(
 	tokenEndpointAuthMethod, serviceErr := mapAppTokenEndpointAuthMethod(
 		opts.TokenEndpointAuthMethod,
 		appType,
-		transport,
 	)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map token endpoint auth method", "serviceError", serviceErr)

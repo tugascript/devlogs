@@ -13,7 +13,7 @@ import (
 )
 
 func (r *Routes) WellKnownRoutes(app *fiber.App) {
-	router := V1PathRouter(app).Group(paths.WellKnownBase, r.controllers.HostMiddleware)
+	router := app.Group(paths.WellKnownBase, r.controllers.HostMiddleware)
 
 	router.Get(paths.WellKnownJWKs, HostAwareRoute(
 		[]fiber.Handler{r.controllers.GlobalOAuthPublicJWKs},

@@ -9,6 +9,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -843,6 +844,18 @@ func (s *Services) DeleteAccountCredentialsRegistrationDomainCode(
 
 	logger.InfoContext(ctx, "Deleted account credentials registration domain successfully")
 	return nil
+}
+
+func breakDomainIntoAllSubdomains(domain string) []string {
+	strSlices := strings.Split(domain, ".")
+	size := len(strSlices) - 1
+	subdomains := make([]string, size)
+
+	for i := 0; i < size; i++ {
+		subdomains[i] = strings.Join(strSlices[i:], ".")
+	}
+
+	return subdomains
 }
 
 type checkClientRegistrationDomainOptions struct {

@@ -134,7 +134,7 @@ func encodeKeyPemToJson(logger *slog.Logger, block *pem.Block) string {
 
 func generateSecret(logger *slog.Logger) string {
 	logger.Debug("Generating base64 encoded 32 byte secret")
-	bytes := make([]byte, 32)
+	bytes := make([]byte, 64)
 
 	_, err := rand.Read(bytes)
 	if err != nil {

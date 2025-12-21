@@ -8,6 +8,7 @@ package controllers
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -164,9 +165,21 @@ func (c *Controllers) AppAccessClaimsMiddleware(ctx *fiber.Ctx) error {
 	return ctx.Next()
 }
 
-func (c *Controllers) AccountCredentialsDRIATMiddleware(ctx *fiber.Ctx) error {
+func processIATIssuerDomain(ctx *fiber.Ctx, backendDomain string) (string, *exceptions.ServiceError) {
+	hasAccountHost, ok := ctx.Locals("hasAccountHost").(bool)
+	if ok && hasAccountHost {
+		username, _, serviceErr := getHostAccount(ctx)
+		if serviceErr != nil {
+			return "", serviceErr
+		}
+		return fmt.Sprintf("%s.%s", username, backendDomain), nil
+	}
+	return backendDomain, nil
+}
+
+func (c *Controllers) DynamicRegistrationIATMiddleware(ctx *fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, middlewareLocation, "AccountCredentialsDRIATMiddleware")
+	logger := c.buildLogger(requestID, middlewareLocation, "DynamicRegistrationIATMiddleware")
 	authHeader := ctx.Get("Authorization")
 
 	if authHeader == "" {
@@ -175,17 +188,21 @@ func (c *Controllers) AccountCredentialsDRIATMiddleware(ctx *fiber.Ctx) error {
 		return ctx.Next()
 	}
 
+	issDomain, serviceErr := processIATIssuerDomain(ctx, c.backendDomain)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
 	domain, accountClaims, serviceErr := c.services.ProcessAccountCredentialsRegistrationIATAuth(
 		ctx.UserContext(),
 		services.ProcessAccountCredentialsRegistrationIATAuthOptions{
-			RequestID:     requestID,
-			AuthHeader:    authHeader,
-			BackendDomain: c.backendDomain,
+			RequestID:    requestID,
+			AuthHeader:   authHeader,
+			IssuerDomain: issDomain,
 		},
 	)
 	if serviceErr != nil {
-		ctx.Set(fiber.HeaderWWWAuthenticate, "Bearer realm=\"accounts\", error=\"invalid_token\"")
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
 	}
 
 	ctx.Locals("account", accountClaims)
