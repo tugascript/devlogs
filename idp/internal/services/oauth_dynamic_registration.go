@@ -30,7 +30,7 @@ import (
 const oauthDynamicRegistrationLocation string = "oauth_dynamic_registration"
 
 const (
-	oauthDynamicRegistrationIATPath     string = paths.V1 + paths.AccountsBase + paths.CredentialsBase + paths.DynamicRegistrationBase + paths.InitialAccessToken
+	oauthDynamicRegistrationIATPath     string = paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken
 	oauthDynamicRegistrationIATAuthPath string = oauthDynamicRegistrationIATPath + paths.OAuthAuth
 )
 
@@ -120,6 +120,62 @@ func (s *Services) generateOAuthDynamicRegistrationIATCallback(
 	}), nil
 }
 
+func mapDomainUsageFromHostExistence(host string) database.DynamicRegistrationUsage {
+	if host != "" {
+		return database.DynamicRegistrationUsageApp
+	}
+
+	return database.DynamicRegistrationUsageAccount
+}
+
+type checkDynamicClientRegistrationDomainUsabilityOptions struct {
+	requestID       string
+	accountUsername string
+	domain          string
+}
+
+func (s *Services) checkDynamicRegistrationDomainUsability(
+	ctx context.Context,
+	opts checkDynamicClientRegistrationDomainUsabilityOptions,
+) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.requestID, dynamicRegistrationDomainsLocation, "checkDynamicRegistrationDomainUsability").With(
+		"accountUsername", opts.accountUsername,
+	)
+	logger.InfoContext(ctx, "Checking dynamic registration domain usability")
+
+	usage := mapDomainUsageFromHostExistence(opts.accountUsername)
+	domains := breakDomainIntoAllSubdomains(opts.domain)
+	var count int64
+	var err error
+	if len(domains) > 1 {
+		count, err = s.database.CountDynamicRegistrationDomainsByDomainsAndUsages(
+			ctx,
+			database.CountDynamicRegistrationDomainsByDomainsAndUsagesParams{
+				Domains: domains,
+				Usages:  []database.DynamicRegistrationUsage{usage},
+			},
+		)
+	} else {
+		count, err = s.database.CountDynamicRegistrationDomainsByDomainAndUsages(
+			ctx,
+			database.CountDynamicRegistrationDomainsByDomainAndUsagesParams{
+				Domain: opts.domain,
+				Usages: []database.DynamicRegistrationUsage{usage},
+			},
+		)
+	}
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to count dynamic registration domains by domain and usages", "error", err)
+		return exceptions.FromDBError(err)
+	}
+	if count == 0 {
+		logger.WarnContext(ctx, "Domain not registered for dynamic registration")
+		return exceptions.NewForbiddenError()
+	}
+
+	return nil
+}
+
 type oauthDynamicRegistrationIATAuthOptions struct {
 	requestID       string
 	challenge       string
@@ -127,6 +183,7 @@ type oauthDynamicRegistrationIATAuthOptions struct {
 	domain          string
 	redirectURI     string
 	state           string
+	hostUsername    string
 }
 
 func (s *Services) oauthDynamicRegistrationIATAuth(
@@ -140,39 +197,19 @@ func (s *Services) oauthDynamicRegistrationIATAuth(
 	).With(
 		"domain", opts.domain,
 		"redirectUri", opts.redirectURI,
+		"hostUsername", opts.hostUsername,
 	)
 	logger.InfoContext(ctx, "Handling OAuth dynamic registration IAT auth...")
 
-	tldOneDomain, err := publicsuffix.EffectiveTLDPlusOne(opts.domain)
-	if err != nil {
-		logger.WarnContext(ctx, "Invalid domain", "error", err)
-		return "", exceptions.NewValidationError("invalid client_id")
-	}
-
-	var count int64
-	if tldOneDomain != opts.domain {
-		count, err = s.database.CountVerifiedDynamicRegistrationDomainsByDomains(
-			ctx,
-			[]string{opts.domain, tldOneDomain},
-		)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to count account dynamic registration domains by domains", "error", err)
-			return "", exceptions.NewInternalServerError()
-		}
-		if count == 0 {
-			logger.WarnContext(ctx, "Domain not registered for dynamic registration")
-			return "", exceptions.NewForbiddenError()
-		}
-	} else {
-		count, err = s.database.CountVerifiedDynamicRegistrationDomainsByDomain(ctx, opts.domain)
-	}
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to count account dynamic registration domains by domains", "error", err)
-		return "", exceptions.NewInternalServerError()
-	}
-	if count == 0 {
-		logger.WarnContext(ctx, "Domain not registered for dynamic registration")
-		return "", exceptions.NewForbiddenError()
+	if serviceErr := s.checkDynamicRegistrationDomainUsability(
+		ctx,
+		checkDynamicClientRegistrationDomainUsabilityOptions{
+			requestID:       opts.requestID,
+			accountUsername: opts.hostUsername,
+		},
+	); serviceErr != nil {
+		logger.InfoContext(ctx, "Dynamic registration domain not usable", "serviceError", serviceErr)
+		return "", serviceErr
 	}
 
 	hashedChallenge, serviceErr := hashChallenge(opts.challenge, opts.challengeMethod)
@@ -189,6 +226,7 @@ func (s *Services) oauthDynamicRegistrationIATAuth(
 			State:       opts.state,
 			RedirectURI: opts.redirectURI,
 			Challenge:   hashedChallenge,
+			Username:    opts.hostUsername,
 		},
 	)
 	if err != nil {
@@ -339,6 +377,7 @@ type InitiateOAuthDynamicRegistrationIATAuthOptions struct {
 	ChallengeMethod string
 	RedirectURI     string
 	BackendDomain   string
+	HostUsername    string
 }
 
 func (s *Services) InitiateOAuthDynamicRegistrationIATAuth(
@@ -364,6 +403,7 @@ func (s *Services) InitiateOAuthDynamicRegistrationIATAuth(
 				domain:          opts.Domain,
 				redirectURI:     opts.RedirectURI,
 				state:           opts.State,
+				hostUsername:    opts.HostUsername,
 			})
 		}
 

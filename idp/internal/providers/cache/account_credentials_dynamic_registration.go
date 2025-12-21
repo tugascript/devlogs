@@ -36,6 +36,7 @@ type AccountCredentialsDynamicRegistrationIATAuthData struct {
 	Domain      string `json:"domain"`
 	State       string `json:"state"`
 	Challenge   string `json:"challenge"`
+	Username    string `json:"username,omitempty"`
 }
 
 type SaveAccountCredentialsDynamicRegistrationIATAuthOptions struct {
@@ -44,6 +45,7 @@ type SaveAccountCredentialsDynamicRegistrationIATAuthOptions struct {
 	State       string
 	RedirectURI string
 	Challenge   string
+	Username    string
 }
 
 func (c *Cache) SaveAccountCredentialsDynamicRegistrationIATAuth(
@@ -64,6 +66,7 @@ func (c *Cache) SaveAccountCredentialsDynamicRegistrationIATAuth(
 		Domain:      opts.Domain,
 		RedirectURI: opts.RedirectURI,
 		Challenge:   opts.Challenge,
+		Username:    opts.Username,
 	}
 	dataBytes, err := json.Marshal(data)
 	if err != nil {

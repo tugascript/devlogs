@@ -30,10 +30,12 @@
 - Add OAuth Dynamic Registration for:
   - accounts
   - apps
+- Add support for multiple 2FA types
 
 ### IDP Todo
 
 - Account key generation
+- Add Passkey (WebAuthn) support
 - Dynamic OIDC configs
 - User authentication for each app type:
   - web

@@ -28,19 +28,18 @@ func (r *Routes) OAuthRoutes(app *fiber.App) {
 	router.Get(paths.OAuthCallback, r.controllers.AccountOAuthCallback)
 
 	// Register
-	router.Post(paths.OAuthRegister, r.controllers.HostMiddleware, HostAwareRoute(
-		[]fiber.Handler{
-			r.controllers.AccountCredentialsDRIATMiddleware,
-			r.controllers.OAuthDynamicRegistration,
-		},
-		[]fiber.Handler{
-			// TODO: add app claims for DR
-			r.controllers.OAuthDynamicRegistration,
-		},
-	))
+	router.Post(
+		paths.OAuthRegister,
+		r.controllers.HostMiddleware,
+		r.controllers.DynamicRegistrationIATMiddleware,
+		HostAwareRoute(
+			[]fiber.Handler{r.controllers.OAuthDynamicRegistration},
+			[]fiber.Handler{r.controllers.OAuthAppDynamicRegistration},
+		),
+	)
 
 	// Initial Access Token (IAT) routes
-	iatRouter := router.Group(paths.InitialAccessToken)
+	iatRouter := router.Group(paths.InitialAccessToken, r.controllers.HostMiddleware)
 
 	// Dynamic Registration IAT Code Exchange flow
 	iatRouter.Get(paths.OAuthAuth, r.controllers.OAuthDynamicRegistrationIATAuth)
@@ -57,7 +56,7 @@ func (r *Routes) OAuthRoutes(app *fiber.App) {
 	iatRouter.Post(twoFAAuthRoute, r.controllers.OAuthDynamicRegistrationIAT2FAPost)
 
 	// Dynamic Registration IAT External Auth flow
-	const extAuthRoute = paths.InitialAccessTokenSingle + paths.OAuthAuth + paths.InitialAccessTokenAuthEXT
+	const extAuthRoute = paths.InitialAccessTokenSingle + paths.InitialAccessTokenAuthEXT
 	iatRouter.Get(extAuthRoute+paths.InitialAccessTokenProvider, r.controllers.OAuthDynamicRegistrationIATExtAuthGet)
 	iatRouter.Post(extAuthRoute+paths.OAuthAppleCallback, r.controllers.OAuthDynamicRegistrationIATExtAppleCB)
 	iatRouter.Get(extAuthRoute+paths.OAuthCallback, r.controllers.OAuthDynamicRegistrationIATExtCB)

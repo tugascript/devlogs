@@ -90,9 +90,9 @@ func (s *Services) CreateAccountCredentialsRegistrationIAT(
 }
 
 type ProcessAccountCredentialsRegistrationIATAuthOptions struct {
-	RequestID     string
-	AuthHeader    string
-	BackendDomain string
+	RequestID    string
+	AuthHeader   string
+	IssuerDomain string
 }
 
 func (s *Services) ProcessAccountCredentialsRegistrationIATAuth(
@@ -113,7 +113,7 @@ func (s *Services) ProcessAccountCredentialsRegistrationIATAuth(
 		tokens.VerifyDynamicRegistrationIATOptions{
 			RequestID:    opts.RequestID,
 			IAT:          token,
-			IssuerDomain: opts.BackendDomain,
+			IssuerDomain: opts.IssuerDomain,
 			GetPublicJWK: s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
 				RequestID: opts.RequestID,
 				KeyType:   database.TokenKeyTypeDynamicRegistration,
