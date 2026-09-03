@@ -12,7 +12,7 @@ import (
 	"log/slog"
 	"net/url"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
@@ -31,7 +31,7 @@ func formatAccountRedirectURL(backendDomain, provider string) string {
 	return fmt.Sprintf("https://%s/v1/auth/oauth2/%s/callback", backendDomain, provider)
 }
 
-func (c *Controllers) errorCallback(logger *slog.Logger, ctx *fiber.Ctx, state string, errStr string) error {
+func (c *Controllers) errorCallback(logger *slog.Logger, ctx fiber.Ctx, state string, errStr string) error {
 	qPrams := make(url.Values)
 	qPrams.Add("error", errStr)
 	if state != "" {
@@ -41,15 +41,14 @@ func (c *Controllers) errorCallback(logger *slog.Logger, ctx *fiber.Ctx, state s
 	qPrams.Add("iss", fmt.Sprintf("https://%s", c.backendDomain))
 	ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)
 	logResponse(logger, ctx, fiber.StatusFound)
-	return ctx.Redirect(
+	return ctx.Redirect().Status(fiber.StatusFound).To(
 		fmt.Sprintf("https://%s/auth/callback?error=%s", c.frontendDomain, qPrams.Encode()),
-		fiber.StatusFound,
 	)
 }
 
 func (c *Controllers) serviceErrorCallback(
 	logger *slog.Logger,
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	state string,
 	serviceErr *exceptions.ServiceError,
 ) error {
@@ -63,7 +62,7 @@ func (c *Controllers) serviceErrorCallback(
 	}
 }
 
-func (c *Controllers) AccountOAuthURL(ctx *fiber.Ctx) error {
+func (c *Controllers) AccountOAuthURL(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthLocation, "AccountOAuthURL")
 	logRequest(logger, ctx)
@@ -75,11 +74,11 @@ func (c *Controllers) AccountOAuthURL(ctx *fiber.Ctx) error {
 		ChallengeMethod: ctx.Query("code_challenge_method"),
 		State:           ctx.Query("state"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), qPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), qPrms); err != nil {
 		return c.errorCallback(logger, ctx, qPrms.State, exceptions.OAuthErrorInvalidRequest)
 	}
 
-	oAuthURL, serviceErr := c.services.AccountOAuthURL(ctx.UserContext(), services.AccountOAuthURLOptions{
+	oAuthURL, serviceErr := c.services.AccountOAuthURL(ctx.Context(), services.AccountOAuthURLOptions{
 		RequestID:       requestID,
 		Provider:        qPrms.ClientID,
 		RedirectURL:     formatAccountRedirectURL(c.backendDomain, qPrms.ClientID),
@@ -92,25 +91,24 @@ func (c *Controllers) AccountOAuthURL(ctx *fiber.Ctx) error {
 	}
 
 	logResponse(logger, ctx, fiber.StatusFound)
-	return ctx.Redirect(oAuthURL, fiber.StatusFound)
+	return ctx.Redirect().Status(fiber.StatusFound).To(oAuthURL)
 }
 
-func (c *Controllers) acceptCallback(logger *slog.Logger, ctx *fiber.Ctx, oauthParams string) error {
+func (c *Controllers) acceptCallback(logger *slog.Logger, ctx fiber.Ctx, oauthParams string) error {
 	ctx.Set(fiber.HeaderCacheControl, cacheControlNoStore)
 	logResponse(logger, ctx, fiber.StatusFound)
-	return ctx.Redirect(
+	return ctx.Redirect().Status(fiber.StatusFound).To(
 		fmt.Sprintf("https://%s/auth/callback?%s", c.frontendDomain, oauthParams),
-		fiber.StatusFound,
 	)
 }
 
-func (c *Controllers) AccountOAuthCallback(ctx *fiber.Ctx) error {
+func (c *Controllers) AccountOAuthCallback(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthLocation, "AccountOAuthCallback")
 	logRequest(logger, ctx)
 
 	urlParams := params.OAuthURLParams{Provider: ctx.Params("provider")}
-	if err := c.validate.StructCtx(ctx.UserContext(), urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
@@ -118,7 +116,7 @@ func (c *Controllers) AccountOAuthCallback(ctx *fiber.Ctx) error {
 		Code:  ctx.Query("code"),
 		State: ctx.Query("state"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &qPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &qPrms); err != nil {
 		errQuery := ctx.Query("error")
 		if errQuery != "" {
 			return c.errorCallback(logger, ctx, qPrms.State, errQuery)
@@ -127,7 +125,7 @@ func (c *Controllers) AccountOAuthCallback(ctx *fiber.Ctx) error {
 		return c.errorCallback(logger, ctx, qPrms.State, exceptions.OAuthErrorInvalidRequest)
 	}
 
-	oauthParams, serviceErr := c.services.ExtLoginAccount(ctx.UserContext(), services.ExtLoginAccountOptions{
+	oauthParams, serviceErr := c.services.ExtLoginAccount(ctx.Context(), services.ExtLoginAccountOptions{
 		RequestID:   requestID,
 		Provider:    urlParams.Provider,
 		Code:        qPrms.Code,
@@ -141,7 +139,7 @@ func (c *Controllers) AccountOAuthCallback(ctx *fiber.Ctx) error {
 	return c.acceptCallback(logger, ctx, oauthParams)
 }
 
-func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
+func (c *Controllers) AccountAppleCallback(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthLocation, "AccountAppleCallback")
 	logRequest(logger, ctx)
@@ -151,10 +149,10 @@ func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.AppleLoginBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return c.errorCallback(logger, ctx, body.State, exceptions.OAuthErrorInvalidRequest)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return c.errorCallback(logger, ctx, body.State, exceptions.OAuthErrorInvalidRequest)
 	}
 
@@ -162,12 +160,12 @@ func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
 	if err := json.Unmarshal([]byte(body.User), user); err != nil {
 		return c.errorCallback(logger, ctx, body.State, exceptions.OAuthErrorInvalidScope)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), user); err != nil {
-		logger.WarnContext(ctx.UserContext(), "Failed to parse apple user data")
+	if err := c.validate.StructCtx(ctx.Context(), user); err != nil {
+		logger.WarnContext(ctx.Context(), "Failed to parse apple user data")
 		return c.errorCallback(logger, ctx, body.State, exceptions.OAuthErrorInvalidScope)
 	}
 
-	oauthParams, serviceErr := c.services.AppleLoginAccount(ctx.UserContext(), services.AppleLoginAccountOptions{
+	oauthParams, serviceErr := c.services.AppleLoginAccount(ctx.Context(), services.AppleLoginAccountOptions{
 		RequestID: requestID,
 		FirstName: user.Name.FirstName,
 		LastName:  user.Name.LastName,
@@ -182,7 +180,7 @@ func (c *Controllers) AccountAppleCallback(ctx *fiber.Ctx) error {
 	return c.acceptCallback(logger, ctx, oauthParams)
 }
 
-func oauthErrorResponseMapper(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *exceptions.ServiceError) error {
+func oauthErrorResponseMapper(logger *slog.Logger, ctx fiber.Ctx, serviceErr *exceptions.ServiceError) error {
 	switch serviceErr.Code {
 	case exceptions.CodeUnauthorized:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
@@ -195,7 +193,7 @@ func oauthErrorResponseMapper(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *e
 	}
 }
 
-func oauthClientCredentialsErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *exceptions.ServiceError) error {
+func oauthClientCredentialsErrorResponse(logger *slog.Logger, ctx fiber.Ctx, serviceErr *exceptions.ServiceError) error {
 	switch serviceErr.Code {
 	case exceptions.CodeUnauthorized:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
@@ -208,7 +206,7 @@ func oauthClientCredentialsErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, se
 	}
 }
 
-func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID string) error {
+func (c *Controllers) accountAuthorizationCodeToken(ctx fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, oauthLocation, "accountAuthorizationCodeToken")
 
 	body := bodies.OAuthCodeLoginBody{
@@ -217,11 +215,11 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 		Code:         ctx.FormValue("code"),
 		CodeVerifier: ctx.FormValue("code_verifier"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &body); err != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
-	authDTO, serviceErr := c.services.OAuthLoginAccount(ctx.UserContext(), services.OAuthLoginAccountOptions{
+	authDTO, serviceErr := c.services.OAuthLoginAccount(ctx.Context(), services.OAuthLoginAccountOptions{
 		RequestID:         requestID,
 		Code:              body.Code,
 		ChallengeVerifier: body.CodeVerifier,
@@ -240,18 +238,18 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx *fiber.Ctx, requestID st
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) accountRefreshToken(ctx *fiber.Ctx, requestID string) error {
+func (c *Controllers) accountRefreshToken(ctx fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, oauthLocation, "accountRefreshToken")
 
 	body := bodies.GrantRefreshTokenBody{
 		GrantType:    ctx.FormValue("grant_type"),
 		RefreshToken: ctx.FormValue("refresh_token"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &body); err != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
-	authDTO, serviceErr := c.services.RefreshTokenAccount(ctx.UserContext(), services.RefreshTokenAccountOptions{
+	authDTO, serviceErr := c.services.RefreshTokenAccount(ctx.Context(), services.RefreshTokenAccountOptions{
 		RequestID:    requestID,
 		RefreshToken: body.RefreshToken,
 	})
@@ -265,7 +263,7 @@ func (c *Controllers) accountRefreshToken(ctx *fiber.Ctx, requestID string) erro
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) accountJWTBearer(ctx *fiber.Ctx, requestID string) error {
+func (c *Controllers) accountJWTBearer(ctx fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, oauthLocation, "accountJWTBearer")
 
 	body := bodies.JWTGrantBody{
@@ -273,12 +271,12 @@ func (c *Controllers) accountJWTBearer(ctx *fiber.Ctx, requestID string) error {
 		Scope:     ctx.FormValue("scope"),
 		Assertion: ctx.FormValue("assertion"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &body); err != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
 	scopes, serviceErr := c.services.ProcessAccountCredentialsScope(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.ProcessAccountCredentialsScopeOptions{
 			RequestID: requestID,
 			Scope:     body.Scope,
@@ -288,7 +286,7 @@ func (c *Controllers) accountJWTBearer(ctx *fiber.Ctx, requestID string) error {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidScope)
 	}
 
-	authDTO, serviceErr := c.services.JWTBearerAccountLogin(ctx.UserContext(), services.JWTBearerAccountLoginOptions{
+	authDTO, serviceErr := c.services.JWTBearerAccountLogin(ctx.Context(), services.JWTBearerAccountLoginOptions{
 		RequestID:     requestID,
 		Token:         body.Assertion,
 		Scopes:        scopes,
@@ -303,19 +301,19 @@ func (c *Controllers) accountJWTBearer(ctx *fiber.Ctx, requestID string) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string) error {
+func (c *Controllers) accountClientCredentials(ctx fiber.Ctx, requestID string) error {
 	logger := c.buildLogger(requestID, oauthLocation, "accountClientCredentials")
 
 	baseBody := bodies.ClientCredentialsBaseBody{
 		GrantType: ctx.FormValue("grant_type"),
 		Scope:     ctx.FormValue("scope"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &baseBody); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &baseBody); err != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
 	scopes, serviceErr := c.services.ProcessAccountCredentialsScope(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.ProcessAccountCredentialsScopeOptions{
 			RequestID: requestID,
 			Scope:     baseBody.Scope,
@@ -332,11 +330,11 @@ func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string)
 			ClientAssertionType: clientAssertionType,
 		}
 
-		if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
+		if err := c.validate.StructCtx(ctx.Context(), &body); err != nil {
 			return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 		}
 
-		authDTO, serviceErr := c.services.JWTBearerAccountLogin(ctx.UserContext(), services.JWTBearerAccountLoginOptions{
+		authDTO, serviceErr := c.services.JWTBearerAccountLogin(ctx.Context(), services.JWTBearerAccountLoginOptions{
 			RequestID:     requestID,
 			Token:         body.ClientAssertion,
 			Scopes:        scopes,
@@ -356,7 +354,7 @@ func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string)
 		ClientID:     ctx.FormValue("client_id"),
 		ClientSecret: ctx.FormValue("client_secret"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &body); err != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 	if body.Audience != "" &&
@@ -366,7 +364,7 @@ func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string)
 	}
 
 	clientID, clientSecret, authMethod, serviceErr := c.services.ProcessClientCredentialsLoginData(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.ProcessClientCredentialsLoginDataOptions{
 			RequestID:    requestID,
 			ClientID:     body.ClientID,
@@ -379,7 +377,7 @@ func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string)
 	}
 
 	authDTO, serviceErr := c.services.ClientCredentialsAccountLogin(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.ClientCredentialsAccountLoginOptions{
 			RequestID:    requestID,
 			ClientID:     clientID,
@@ -397,7 +395,7 @@ func (c *Controllers) accountClientCredentials(ctx *fiber.Ctx, requestID string)
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) AccountOAuthToken(ctx *fiber.Ctx) error {
+func (c *Controllers) AccountOAuthToken(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthLocation, "AccountOAuthToken")
 	logRequest(logger, ctx)
@@ -417,17 +415,17 @@ func (c *Controllers) AccountOAuthToken(ctx *fiber.Ctx) error {
 	case grantTypeClientCredentials:
 		return c.accountClientCredentials(ctx, requestID)
 	default:
-		logger.WarnContext(ctx.UserContext(), "Unsupported grant_type", "grantType", grantType)
+		logger.WarnContext(ctx.Context(), "Unsupported grant_type", "grantType", grantType)
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnsupportedGrantType)
 	}
 }
 
-func (c *Controllers) GlobalOAuthPublicJWKs(ctx *fiber.Ctx) error {
+func (c *Controllers) GlobalOAuthPublicJWKs(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthLocation, "GlobalOAuthPublicJWKs")
 	logRequest(logger, ctx)
 
-	etag, jwksDTO, serviceErr := c.services.GetGlobalPublicJWKs(ctx.UserContext(), requestID)
+	etag, jwksDTO, serviceErr := c.services.GetGlobalPublicJWKs(ctx.Context(), requestID)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}

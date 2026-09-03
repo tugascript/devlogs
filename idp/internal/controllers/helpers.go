@@ -13,7 +13,7 @@ import (
 	"net/url"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/tugascript/devlogs/idp/internal/services/templates"
 
@@ -44,20 +44,20 @@ func (c *Controllers) buildLogger(
 	})
 }
 
-func logRequest(logger *slog.Logger, ctx *fiber.Ctx) {
+func logRequest(logger *slog.Logger, ctx fiber.Ctx) {
 	logger.InfoContext(
-		ctx.UserContext(),
+		ctx.Context(),
 		fmt.Sprintf("Request: %s %s", ctx.Method(), ctx.Path()),
 	)
 }
 
-func getRequestID(ctx *fiber.Ctx) string {
+func getRequestID(ctx fiber.Ctx) string {
 	return ctx.Get("requestid", uuid.NewString())
 }
 
-func logResponse(logger *slog.Logger, ctx *fiber.Ctx, status int) {
+func logResponse(logger *slog.Logger, ctx fiber.Ctx, status int) {
 	logger.InfoContext(
-		ctx.UserContext(),
+		ctx.Context(),
 		fmt.Sprintf("Response: %s %s", ctx.Method(), ctx.Path()),
 		"status", status,
 	)
@@ -73,34 +73,34 @@ func validationErrorException(location string, err error) *exceptions.Validation
 	return exceptions.ValidationErrorResponseFromErr(&errs, location)
 }
 
-func validateErrorJSONResponse(logger *slog.Logger, ctx *fiber.Ctx, location string, err error) error {
-	logger.WarnContext(ctx.UserContext(), "Failed to validate request", "error", err)
+func validateErrorJSONResponse(logger *slog.Logger, ctx fiber.Ctx, location string, err error) error {
+	logger.WarnContext(ctx.Context(), "Failed to validate request", "error", err)
 	logResponse(logger, ctx, fiber.StatusBadRequest)
 	return ctx.
 		Status(fiber.StatusBadRequest).
 		JSON(validationErrorException(location, err))
 }
 
-func validateBodyErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err error) error {
+func validateBodyErrorResponse(logger *slog.Logger, ctx fiber.Ctx, err error) error {
 	return validateErrorJSONResponse(logger, ctx, exceptions.ValidationResponseLocationBody, err)
 }
 
-func validateURLParamsErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err error) error {
+func validateURLParamsErrorResponse(logger *slog.Logger, ctx fiber.Ctx, err error) error {
 	return validateErrorJSONResponse(logger, ctx, exceptions.ValidationResponseLocationParams, err)
 }
 
-func validateQueryParamsErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err error) error {
+func validateQueryParamsErrorResponse(logger *slog.Logger, ctx fiber.Ctx, err error) error {
 	return validateErrorJSONResponse(logger, ctx, exceptions.ValidationResponseLocationQuery, err)
 }
 
-func serviceErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *exceptions.ServiceError) error {
+func serviceErrorResponse(logger *slog.Logger, ctx fiber.Ctx, serviceErr *exceptions.ServiceError) error {
 	status := exceptions.NewRequestErrorStatus(serviceErr.Code)
 	resErr := exceptions.NewErrorResponse(serviceErr)
 	logResponse(logger, ctx, status)
 	return ctx.Status(status).JSON(&resErr)
 }
 
-func serviceErrorWithFieldsResponse(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *exceptions.ServicErrorWithFields) error {
+func serviceErrorWithFieldsResponse(logger *slog.Logger, ctx fiber.Ctx, serviceErr *exceptions.ServicErrorWithFields) error {
 	logResponse(logger, ctx, fiber.StatusBadRequest)
 	return ctx.Status(fiber.StatusBadRequest).JSON(exceptions.NewValidationErrorResponse(
 		exceptions.ValidationResponseLocationBody,
@@ -108,7 +108,7 @@ func serviceErrorWithFieldsResponse(logger *slog.Logger, ctx *fiber.Ctx, service
 	))
 }
 
-func serviceErrorHTMLResponse(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *exceptions.ServiceError) error {
+func serviceErrorHTMLResponse(logger *slog.Logger, ctx fiber.Ctx, serviceErr *exceptions.ServiceError) error {
 	status := exceptions.NewRequestErrorStatus(serviceErr.Code)
 	errHtml, err := templates.BuildErrorTemplate(
 		templates.ErrorTemplateOptions{
@@ -118,7 +118,7 @@ func serviceErrorHTMLResponse(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *e
 		},
 	)
 	if err != nil {
-		logger.ErrorContext(ctx.UserContext(), "Failed to build error template", "error", err)
+		logger.ErrorContext(ctx.Context(), "Failed to build error template", "error", err)
 		logResponse(logger, ctx, fiber.StatusInternalServerError)
 		return ctx.Status(fiber.StatusInternalServerError).
 			Type("html").
@@ -129,7 +129,7 @@ func serviceErrorHTMLResponse(logger *slog.Logger, ctx *fiber.Ctx, serviceErr *e
 	return ctx.Status(status).Type("html").SendString(errHtml)
 }
 
-func oauthErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, message string) error {
+func oauthErrorResponse(logger *slog.Logger, ctx fiber.Ctx, message string) error {
 	resErr := exceptions.NewOAuthError(message)
 
 	switch message {
@@ -153,8 +153,8 @@ func oauthErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, message string) err
 	}
 }
 
-func parseRequestErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err error) error {
-	logger.WarnContext(ctx.UserContext(), "Failed to parse request", "error", err)
+func parseRequestErrorResponse(logger *slog.Logger, ctx fiber.Ctx, err error) error {
+	logger.WarnContext(ctx.Context(), "Failed to parse request", "error", err)
 	logResponse(logger, ctx, fiber.StatusBadRequest)
 	return ctx.
 		Status(fiber.StatusBadRequest).
@@ -163,7 +163,7 @@ func parseRequestErrorResponse(logger *slog.Logger, ctx *fiber.Ctx, err error) e
 
 func (c *Controllers) redirectErrorCallback(
 	logger *slog.Logger,
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	redirectURI string,
 	state string,
 	errMsg string,
@@ -175,12 +175,12 @@ func (c *Controllers) redirectErrorCallback(
 	}
 	qPrams.Add("iss", fmt.Sprintf("https://%s", c.backendDomain))
 	logResponse(logger, ctx, fiber.StatusFound)
-	return ctx.Redirect(redirectURI+"?"+qPrams.Encode(), fiber.StatusFound)
+	return ctx.Redirect().Status(fiber.StatusFound).To(redirectURI + "?" + qPrams.Encode())
 }
 
 func (c *Controllers) redirectServiceErrorCallback(
 	logger *slog.Logger,
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	redirectURI string,
 	state string,
 	serviceErr *exceptions.ServiceError,
@@ -197,7 +197,7 @@ func (c *Controllers) redirectServiceErrorCallback(
 
 func dynamicRegistrationServiceError(
 	logger *slog.Logger,
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	serviceErr *exceptions.ServiceError,
 ) error {
 	switch serviceErr.Code {

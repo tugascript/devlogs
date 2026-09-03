@@ -7,14 +7,14 @@
 package controllers
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/services"
 )
 
 const usersOAuthLocation string = "users_oauth"
 
-func (c *Controllers) AccountDistributedOAuthPublicJWKs(ctx *fiber.Ctx) error {
+func (c *Controllers) AccountDistributedOAuthPublicJWKs(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, usersOAuthLocation, "AccountDistributedOAuthPublicJWKs")
 	logRequest(logger, ctx)
@@ -25,7 +25,7 @@ func (c *Controllers) AccountDistributedOAuthPublicJWKs(ctx *fiber.Ctx) error {
 	}
 
 	etag, jwksDTO, serviceErr := c.services.GetAndCacheAccountDistributedJWK(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAndCacheAccountDistributedJWKOptions{
 			RequestID: requestID,
 			AccountID: accountID,

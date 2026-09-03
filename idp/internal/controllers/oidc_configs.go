@@ -7,7 +7,7 @@
 package controllers
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/services"
@@ -17,7 +17,7 @@ const (
 	oidcConfigsLocation string = "oidc_configs"
 )
 
-func (c *Controllers) CreateOIDCConfig(ctx *fiber.Ctx) error {
+func (c *Controllers) CreateOIDCConfig(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oidcConfigsLocation, "CreateOIDCConfig")
 	logRequest(logger, ctx)
@@ -28,14 +28,14 @@ func (c *Controllers) CreateOIDCConfig(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.OIDCConfigBody)
-	if err := ctx.BodyParser(&body); err != nil {
+	if err := ctx.Bind().Body(&body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	oidcConfigDTO, serviceErr := c.services.CreateOIDCConfig(ctx.UserContext(), services.CreateOIDCConfigOptions{
+	oidcConfigDTO, serviceErr := c.services.CreateOIDCConfig(ctx.Context(), services.CreateOIDCConfigOptions{
 		RequestID:       requestID,
 		AccountPublicID: accountClaims.AccountID,
 		Claims:          body.Claims,
@@ -49,7 +49,7 @@ func (c *Controllers) CreateOIDCConfig(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusCreated).JSON(&oidcConfigDTO)
 }
 
-func (c *Controllers) GetOIDCConfig(ctx *fiber.Ctx) error {
+func (c *Controllers) GetOIDCConfig(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oidcConfigsLocation, "GetUserSchema")
 	logRequest(logger, ctx)
@@ -60,7 +60,7 @@ func (c *Controllers) GetOIDCConfig(ctx *fiber.Ctx) error {
 	}
 
 	oidcConfigDTO, serviceErr := c.services.GetOrCreateOIDCConfigByPublicID(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetOrCreateOIDCConfigByPublicIDOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -74,7 +74,7 @@ func (c *Controllers) GetOIDCConfig(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&oidcConfigDTO)
 }
 
-func (c *Controllers) UpdateOIDCConfig(ctx *fiber.Ctx) error {
+func (c *Controllers) UpdateOIDCConfig(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oidcConfigsLocation, "UpdateOIDCConfig")
 	logRequest(logger, ctx)
@@ -85,14 +85,14 @@ func (c *Controllers) UpdateOIDCConfig(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.OIDCConfigBody)
-	if err := ctx.BodyParser(&body); err != nil {
+	if err := ctx.Bind().Body(&body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	oidcConfigDTO, serviceErr := c.services.UpdateOIDCConfig(ctx.UserContext(), services.UpdateOIDCConfigOptions{
+	oidcConfigDTO, serviceErr := c.services.UpdateOIDCConfig(ctx.Context(), services.UpdateOIDCConfigOptions{
 		RequestID:       requestID,
 		AccountPublicID: accountClaims.AccountID,
 		Claims:          body.Claims,

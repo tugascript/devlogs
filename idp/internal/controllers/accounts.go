@@ -7,7 +7,7 @@
 package controllers
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/services"
@@ -15,7 +15,7 @@ import (
 
 const accountsLocation string = "accounts"
 
-func (c *Controllers) GetCurrentAccount(ctx *fiber.Ctx) error {
+func (c *Controllers) GetCurrentAccount(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountsLocation, "GetCurrentAccount")
 	logRequest(logger, ctx)
@@ -25,7 +25,7 @@ func (c *Controllers) GetCurrentAccount(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	accountDTO, serviceErr := c.services.GetAccountByPublicIDAndVersion(ctx.UserContext(), services.GetAccountByPublicIDAndVersionOptions{
+	accountDTO, serviceErr := c.services.GetAccountByPublicIDAndVersion(ctx.Context(), services.GetAccountByPublicIDAndVersionOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
 		Version:   accountClaims.AccountVersion,
@@ -38,7 +38,7 @@ func (c *Controllers) GetCurrentAccount(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&accountDTO)
 }
 
-func (c *Controllers) UpdateAccountPassword(ctx *fiber.Ctx) error {
+func (c *Controllers) UpdateAccountPassword(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountsLocation, "UpdateAccountPassword")
 	logRequest(logger, ctx)
@@ -49,14 +49,14 @@ func (c *Controllers) UpdateAccountPassword(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.UpdatePasswordBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.UpdateAccountPassword(ctx.UserContext(), services.UpdateAccountPasswordOptions{
+	authDTO, serviceErr := c.services.UpdateAccountPassword(ctx.Context(), services.UpdateAccountPasswordOptions{
 		RequestID:   requestID,
 		PublicID:    accountClaims.AccountID,
 		Version:     accountClaims.AccountVersion,
@@ -75,7 +75,7 @@ func (c *Controllers) UpdateAccountPassword(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) ConfirmUpdateAccountPassword(ctx *fiber.Ctx) error {
+func (c *Controllers) ConfirmUpdateAccountPassword(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountsLocation, "ConfirmUpdateAccountPassword")
 	logRequest(logger, ctx)
@@ -86,14 +86,14 @@ func (c *Controllers) ConfirmUpdateAccountPassword(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.TwoFactorLoginBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.ConfirmUpdateAccountPassword(ctx.UserContext(), services.ConfirmUpdateAccountPasswordOptions{
+	authDTO, serviceErr := c.services.ConfirmUpdateAccountPassword(ctx.Context(), services.ConfirmUpdateAccountPasswordOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
 		Version:   accountClaims.AccountVersion,
@@ -108,7 +108,7 @@ func (c *Controllers) ConfirmUpdateAccountPassword(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) CreateAccountPassword(ctx *fiber.Ctx) error {
+func (c *Controllers) CreateAccountPassword(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountsLocation, "CreateAccountPassword")
 	logRequest(logger, ctx)
@@ -119,14 +119,14 @@ func (c *Controllers) CreateAccountPassword(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.CreatePasswordBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.CreateAccountPassword(ctx.UserContext(), services.CreateAccountPasswordOptions{
+	authDTO, serviceErr := c.services.CreateAccountPassword(ctx.Context(), services.CreateAccountPasswordOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
 		Version:   accountClaims.AccountVersion,
@@ -141,7 +141,7 @@ func (c *Controllers) CreateAccountPassword(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) UpdateAccountEmail(ctx *fiber.Ctx) error {
+func (c *Controllers) UpdateAccountEmail(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountsLocation, "UpdateAccountEmail")
 	logRequest(logger, ctx)
@@ -152,14 +152,14 @@ func (c *Controllers) UpdateAccountEmail(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.UpdateEmailBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.UpdateAccountEmail(ctx.UserContext(), services.UpdateAccountEmailOptions{
+	authDTO, serviceErr := c.services.UpdateAccountEmail(ctx.Context(), services.UpdateAccountEmailOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
 		Version:   accountClaims.AccountVersion,
@@ -178,7 +178,7 @@ func (c *Controllers) UpdateAccountEmail(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) ConfirmUpdateAccountEmail(ctx *fiber.Ctx) error {
+func (c *Controllers) ConfirmUpdateAccountEmail(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountsLocation, "ConfirmUpdateAccountEmail")
 	logRequest(logger, ctx)
@@ -189,14 +189,14 @@ func (c *Controllers) ConfirmUpdateAccountEmail(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.TwoFactorLoginBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.ConfirmUpdateAccountEmail(ctx.UserContext(), services.ConfirmUpdateAccountEmailOptions{
+	authDTO, serviceErr := c.services.ConfirmUpdateAccountEmail(ctx.Context(), services.ConfirmUpdateAccountEmailOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
 		Version:   accountClaims.AccountVersion,
@@ -211,7 +211,7 @@ func (c *Controllers) ConfirmUpdateAccountEmail(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) UpdateAccount(ctx *fiber.Ctx) error {
+func (c *Controllers) UpdateAccount(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountsLocation, "UpdateAccount")
 	logRequest(logger, ctx)
@@ -222,14 +222,14 @@ func (c *Controllers) UpdateAccount(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.UpdateAccountBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	accountDTO, serviceErr := c.services.UpdateAccount(ctx.UserContext(), services.UpdateAccountOptions{
+	accountDTO, serviceErr := c.services.UpdateAccount(ctx.Context(), services.UpdateAccountOptions{
 		RequestID:  requestID,
 		PublicID:   accountClaims.AccountID,
 		Version:    accountClaims.AccountVersion,
@@ -244,7 +244,7 @@ func (c *Controllers) UpdateAccount(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&accountDTO)
 }
 
-func (c *Controllers) DeleteAccount(ctx *fiber.Ctx) error {
+func (c *Controllers) DeleteAccount(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountsLocation, "DeleteAccount")
 	logRequest(logger, ctx)
@@ -255,14 +255,14 @@ func (c *Controllers) DeleteAccount(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.DeleteWithPasswordBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	deleted, authDTO, serviceErr := c.services.DeleteAccount(ctx.UserContext(), services.DeleteAccountOptions{
+	deleted, authDTO, serviceErr := c.services.DeleteAccount(ctx.Context(), services.DeleteAccountOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
 		Version:   accountClaims.AccountVersion,
@@ -282,7 +282,7 @@ func (c *Controllers) DeleteAccount(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
-func (c *Controllers) ConfirmDeleteAccount(ctx *fiber.Ctx) error {
+func (c *Controllers) ConfirmDeleteAccount(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountsLocation, "ConfirmDeleteAccount")
 	logRequest(logger, ctx)
@@ -293,14 +293,14 @@ func (c *Controllers) ConfirmDeleteAccount(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.TwoFactorLoginBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	serviceErr = c.services.ConfirmDeleteAccount(ctx.UserContext(), services.ConfirmDeleteAccountOptions{
+	serviceErr = c.services.ConfirmDeleteAccount(ctx.Context(), services.ConfirmDeleteAccountOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
 		Version:   accountClaims.AccountVersion,
@@ -315,7 +315,7 @@ func (c *Controllers) ConfirmDeleteAccount(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
-func (c *Controllers) UpdateAccountUsername(ctx *fiber.Ctx) error {
+func (c *Controllers) UpdateAccountUsername(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountsLocation, "UpdateAccountUsername")
 	logRequest(logger, ctx)
@@ -326,14 +326,14 @@ func (c *Controllers) UpdateAccountUsername(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.UpdateAccountUsernameBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.UpdateAccountUsername(ctx.UserContext(), services.UpdateAccountUsernameOptions{
+	authDTO, serviceErr := c.services.UpdateAccountUsername(ctx.Context(), services.UpdateAccountUsernameOptions{
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
 		Version:   accountClaims.AccountVersion,
@@ -352,7 +352,7 @@ func (c *Controllers) UpdateAccountUsername(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) ConfirmUpdateAccountUsername(ctx *fiber.Ctx) error {
+func (c *Controllers) ConfirmUpdateAccountUsername(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountsLocation, "ConfirmUpdateAccountUsername")
 	logRequest(logger, ctx)
@@ -363,15 +363,15 @@ func (c *Controllers) ConfirmUpdateAccountUsername(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.TwoFactorLoginBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	authDTO, serviceErr := c.services.ConfirmUpdateAccountUsername(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.ConfirmUpdateAccountUsernameOptions{
 			RequestID: requestID,
 			PublicID:  accountClaims.AccountID,

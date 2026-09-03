@@ -7,7 +7,7 @@
 package controllers
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/services"
@@ -15,7 +15,7 @@ import (
 
 const usersAuthLocation string = "users_auth"
 
-func (c *Controllers) RegisterUser(ctx *fiber.Ctx) error {
+func (c *Controllers) RegisterUser(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, usersAuthLocation, "RegisterUser")
 	logRequest(logger, ctx)
@@ -31,14 +31,14 @@ func (c *Controllers) RegisterUser(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.RegisterUserBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	userSchema, serviceErr := c.services.GetOIDCConfigUserStruct(ctx.UserContext(), services.GetOIDCConfigUserStructOptions{
+	userSchema, serviceErr := c.services.GetOIDCConfigUserStruct(ctx.Context(), services.GetOIDCConfigUserStructOptions{
 		RequestID: requestID,
 		AccountID: accountID,
 	})
@@ -46,7 +46,7 @@ func (c *Controllers) RegisterUser(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	userValue, serviceErrWithFields := c.services.UnmarshalSchemaBody(ctx.UserContext(), services.UnmarshalSchemaBodyOptions{
+	userValue, serviceErrWithFields := c.services.UnmarshalSchemaBody(ctx.Context(), services.UnmarshalSchemaBodyOptions{
 		RequestID:  requestID,
 		SchemaType: userSchema,
 		Data:       body.UserData,
@@ -55,7 +55,7 @@ func (c *Controllers) RegisterUser(ctx *fiber.Ctx) error {
 		return serviceErrorWithFieldsResponse(logger, ctx, serviceErrWithFields)
 	}
 
-	messageDTO, serviceErr := c.services.RegisterUser(ctx.UserContext(), services.RegisterUserOptions{
+	messageDTO, serviceErr := c.services.RegisterUser(ctx.Context(), services.RegisterUserOptions{
 		RequestID:       requestID,
 		AccountID:       accountID,
 		AccountUsername: accountUsername,
@@ -74,7 +74,7 @@ func (c *Controllers) RegisterUser(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusCreated).JSON(&messageDTO)
 }
 
-func (c *Controllers) ConfirmUser(ctx *fiber.Ctx) error {
+func (c *Controllers) ConfirmUser(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, usersAuthLocation, "ConfirmUser")
 	logRequest(logger, ctx)
@@ -90,14 +90,14 @@ func (c *Controllers) ConfirmUser(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.ConfirmationTokenBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.ConfirmAuthUser(ctx.UserContext(), services.ConfirmAuthUserOptions{
+	authDTO, serviceErr := c.services.ConfirmAuthUser(ctx.Context(), services.ConfirmAuthUserOptions{
 		RequestID:         requestID,
 		AccountID:         accountID,
 		AccountUsername:   accountUsername,
@@ -113,7 +113,7 @@ func (c *Controllers) ConfirmUser(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) LoginUser(ctx *fiber.Ctx) error {
+func (c *Controllers) LoginUser(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, usersAuthLocation, "LoginUser")
 	logRequest(logger, ctx)
@@ -129,14 +129,14 @@ func (c *Controllers) LoginUser(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.LoginUserBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.LoginUser(ctx.UserContext(), services.LoginUserOptions{
+	authDTO, serviceErr := c.services.LoginUser(ctx.Context(), services.LoginUserOptions{
 		RequestID:       requestID,
 		AccountID:       accountID,
 		AccountUsername: accountUsername,
@@ -154,7 +154,7 @@ func (c *Controllers) LoginUser(ctx *fiber.Ctx) error {
 
 // TODO: Add 2FA Login
 
-func (c *Controllers) LogoutUser(ctx *fiber.Ctx) error {
+func (c *Controllers) LogoutUser(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, usersAuthLocation, "LogoutUser")
 	logRequest(logger, ctx)
@@ -165,14 +165,14 @@ func (c *Controllers) LogoutUser(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.RefreshTokenBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	if serviceErr := c.services.LogoutUser(ctx.UserContext(), services.LogoutUserOptions{
+	if serviceErr := c.services.LogoutUser(ctx.Context(), services.LogoutUserOptions{
 		RequestID:    requestID,
 		UserPublicID: userClaims.UserID,
 		AppClientID:  appClaims.ClientID,
@@ -185,7 +185,7 @@ func (c *Controllers) LogoutUser(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
-func (c *Controllers) RefreshUser(ctx *fiber.Ctx) error {
+func (c *Controllers) RefreshUser(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, usersAuthLocation, "RefreshUser")
 	logRequest(logger, ctx)
@@ -201,14 +201,14 @@ func (c *Controllers) RefreshUser(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.RefreshTokenBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.RefreshUserAccess(ctx.UserContext(), services.RefreshUserAccessOptions{
+	authDTO, serviceErr := c.services.RefreshUserAccess(ctx.Context(), services.RefreshUserAccessOptions{
 		RequestID:       requestID,
 		AccountID:       accountID,
 		AccountUsername: accountUsername,
@@ -224,7 +224,7 @@ func (c *Controllers) RefreshUser(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) ForgotUserPassword(ctx *fiber.Ctx) error {
+func (c *Controllers) ForgotUserPassword(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, usersAuthLocation, "ForgotUserPassword")
 	logRequest(logger, ctx)
@@ -240,14 +240,14 @@ func (c *Controllers) ForgotUserPassword(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.ForgotPasswordBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	messageDTO, serviceErr := c.services.ForgotUserPassword(ctx.UserContext(), services.ForgotUserPasswordOptions{
+	messageDTO, serviceErr := c.services.ForgotUserPassword(ctx.Context(), services.ForgotUserPasswordOptions{
 		RequestID:       requestID,
 		AccountID:       accountID,
 		AccountUsername: accountUsername,
@@ -263,7 +263,7 @@ func (c *Controllers) ForgotUserPassword(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&messageDTO)
 }
 
-func (c *Controllers) ResetUserPassword(ctx *fiber.Ctx) error {
+func (c *Controllers) ResetUserPassword(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, usersAuthLocation, "ResetUserPassword")
 	logRequest(logger, ctx)
@@ -279,14 +279,14 @@ func (c *Controllers) ResetUserPassword(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.ResetPasswordBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	messageDTO, serviceErr := c.services.ResetUserPassword(ctx.UserContext(), services.ResetUserPasswordOptions{
+	messageDTO, serviceErr := c.services.ResetUserPassword(ctx.Context(), services.ResetUserPasswordOptions{
 		RequestID:   requestID,
 		AccountID:   accountID,
 		AppClientID: appClaims.ClientID,

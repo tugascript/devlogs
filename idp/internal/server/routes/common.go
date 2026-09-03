@@ -7,7 +7,7 @@
 package routes
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
@@ -26,7 +26,7 @@ func HostAwareRoute(
 	normalHandlers []fiber.Handler,
 	hostHandlers []fiber.Handler,
 ) fiber.Handler {
-	return func(ctx *fiber.Ctx) error {
+	return func(ctx fiber.Ctx) error {
 		hasAccountHost, ok := ctx.Locals("hasAccountHost").(bool)
 
 		if !ok || !hasAccountHost {
