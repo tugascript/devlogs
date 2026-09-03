@@ -7,6 +7,8 @@
 package dtos
 
 import (
+	"encoding/json"
+
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 )
 
@@ -36,6 +38,75 @@ type Account2FAConfigDTO struct {
 
 	// Email & TOTP Deletion 2FA
 	*Account2FACodeConfigDTO
+}
+
+func (a Account2FAConfigDTO) MarshalJSON() ([]byte, error) {
+	type base struct {
+		TwoFactorType database.TwoFactorType `json:"two_factor_type"`
+		IsDefault     bool                   `json:"is_default"`
+		CreatedAt     int64                  `json:"created_at"`
+	}
+	common := base{
+		TwoFactorType: a.TwoFactorType,
+		IsDefault:     a.IsDefault,
+		CreatedAt:     a.CreatedAt,
+	}
+
+	if a.Account2FATOTPConfigDTO != nil {
+		return json.Marshal(struct {
+			base
+			*Account2FATOTPConfigDTO
+		}{base: common, Account2FATOTPConfigDTO: a.Account2FATOTPConfigDTO})
+	}
+	if a.Account2FACodeConfigDTO != nil {
+		return json.Marshal(struct {
+			base
+			*Account2FACodeConfigDTO
+		}{base: common, Account2FACodeConfigDTO: a.Account2FACodeConfigDTO})
+	}
+
+	return json.Marshal(common)
+}
+
+func (a *Account2FAConfigDTO) UnmarshalJSON(data []byte) error {
+	var value struct {
+		TwoFactorType database.TwoFactorType `json:"two_factor_type"`
+		IsDefault     bool                   `json:"is_default"`
+		CreatedAt     int64                  `json:"created_at"`
+		AccessToken   string                 `json:"access_token"`
+		Image         string                 `json:"image"`
+		RecoveryKeys  string                 `json:"recovery_keys"`
+		ExpiresIn     int64                  `json:"expires_in"`
+		Message       string                 `json:"message"`
+	}
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+
+	a.TwoFactorType = value.TwoFactorType
+	a.IsDefault = value.IsDefault
+	a.CreatedAt = value.CreatedAt
+	if value.AccessToken == "" && value.ExpiresIn == 0 && value.Message == "" && value.Image == "" && value.RecoveryKeys == "" {
+		return nil
+	}
+
+	if value.TwoFactorType == database.TwoFactorTypeTotp {
+		a.Account2FATOTPConfigDTO = &Account2FATOTPConfigDTO{
+			AccessToken:  value.AccessToken,
+			Image:        value.Image,
+			RecoveryKeys: value.RecoveryKeys,
+			ExpiresIn:    value.ExpiresIn,
+			Message:      value.Message,
+		}
+		return nil
+	}
+
+	a.Account2FACodeConfigDTO = &Account2FACodeConfigDTO{
+		AccessToken: value.AccessToken,
+		ExpiresIn:   value.ExpiresIn,
+		Message:     value.Message,
+	}
+	return nil
 }
 
 func (a *Account2FAConfigDTO) ID() int32 {

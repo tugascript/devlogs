@@ -23,6 +23,14 @@ import (
 
 const middlewareLocation string = "middleware"
 
+func continueMiddleware(ctx fiber.Ctx) error {
+	if hostAware, ok := ctx.Locals("hostAwareRoute").(bool); ok && hostAware {
+		return nil
+	}
+
+	return ctx.Next()
+}
+
 func (c *Controllers) UserAccessClaimsMiddleware(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, middlewareLocation, "UserAccessClaimsMiddleware")
@@ -53,7 +61,7 @@ func (c *Controllers) UserAccessClaimsMiddleware(ctx fiber.Ctx) error {
 	ctx.Locals("user", userClaims)
 	ctx.Locals("app", appClaims)
 	ctx.Locals("userScopes", userScopes)
-	return ctx.Next()
+	return continueMiddleware(ctx)
 }
 
 func (c *Controllers) User2FAClaimsMiddleware(ctx fiber.Ctx) error {
@@ -85,7 +93,7 @@ func (c *Controllers) User2FAClaimsMiddleware(ctx fiber.Ctx) error {
 
 	ctx.Locals("user", userClaims)
 	ctx.Locals("app", appClaims)
-	return ctx.Next()
+	return continueMiddleware(ctx)
 }
 
 func (c *Controllers) AccountAccessClaimsMiddleware(ctx fiber.Ctx) error {
@@ -108,7 +116,7 @@ func (c *Controllers) AccountAccessClaimsMiddleware(ctx fiber.Ctx) error {
 
 	ctx.Locals("account", accountClaims)
 	ctx.Locals("scopes", scopes)
-	return ctx.Next()
+	return continueMiddleware(ctx)
 }
 
 func (c *Controllers) TwoFAAccessClaimsMiddleware(ctx fiber.Ctx) error {
@@ -132,7 +140,7 @@ func (c *Controllers) TwoFAAccessClaimsMiddleware(ctx fiber.Ctx) error {
 
 	ctx.Locals("account", accountClaims)
 	ctx.Locals("twoFAType", twoFAType)
-	return ctx.Next()
+	return continueMiddleware(ctx)
 }
 
 func (c *Controllers) AppAccessClaimsMiddleware(ctx fiber.Ctx) error {
@@ -162,7 +170,7 @@ func (c *Controllers) AppAccessClaimsMiddleware(ctx fiber.Ctx) error {
 	}
 
 	ctx.Locals("app", appClaims)
-	return ctx.Next()
+	return continueMiddleware(ctx)
 }
 
 func processIATIssuerDomain(ctx fiber.Ctx, backendDomain string) (string, *exceptions.ServiceError) {

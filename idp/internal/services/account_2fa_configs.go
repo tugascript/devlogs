@@ -263,8 +263,9 @@ func (s *Services) createTOTPAccount2FAConfig(
 	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: opts.requestID,
 		Token: s.jwt.Create2FAToken(tokens.Account2FATokenOptions{
-			PublicID: account.PublicID,
-			Version:  account.Version,
+			PublicID:  account.PublicID,
+			Version:   account.Version,
+			TwoFAType: tokens.TwoFATypeTOTP,
 		}),
 		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
 			RequestID: opts.requestID,
@@ -384,8 +385,9 @@ func (s *Services) createEmailAccount2FAConfig(
 	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: opts.requestID,
 		Token: s.jwt.Create2FAToken(tokens.Account2FATokenOptions{
-			PublicID: account.PublicID,
-			Version:  account.Version,
+			PublicID:  account.PublicID,
+			Version:   account.Version,
+			TwoFAType: tokens.TwoFATypeEmail,
 		}),
 		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
 			RequestID: opts.requestID,
@@ -652,8 +654,9 @@ func (s *Services) DeleteAccount2FAConfig(
 	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: opts.RequestID,
 		Token: s.jwt.Create2FAToken(tokens.Account2FATokenOptions{
-			PublicID: accountDTO.PublicID,
-			Version:  accountDTO.Version(),
+			PublicID:  accountDTO.PublicID,
+			Version:   accountDTO.Version(),
+			TwoFAType: tokens.TwoFAType(twoFAType),
 		}),
 		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
 			RequestID: opts.RequestID,

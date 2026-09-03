@@ -219,7 +219,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 			},
 		},
 		{
-			Name: "Should create MCP credentials with stdio transport",
+			Name: "Should create MCP credentials with stdio transport without client auth",
 			ReqFn: func(t *testing.T) (bodies.CreateAccountCredentialsBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
@@ -227,23 +227,22 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Type:                    "mcp",
 					Name:                    "mcp-stdio",
 					Scopes:                  []string{"account:admin"},
-					TokenEndpointAuthMethod: "private_key_jwt",
+					TokenEndpointAuthMethod: "none",
 					Transport:               "stdio",
 					ClientURI:               "https://mcp-stdio.example.com",
 					SoftwareID:              "mcp-stdio",
 					SoftwareVersion:         "1.0.0",
-					Algorithm:               "ES256",
 				}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
 			AssertFn: func(t *testing.T, _ bodies.CreateAccountCredentialsBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AccountCredentialsDTO{})
 				AssertNotEmpty(t, resBody.ClientID)
-				AssertNotEmpty(t, resBody.ClientSecretID)
+				AssertEmpty(t, resBody.ClientSecretID)
 				AssertEmpty(t, resBody.ClientSecret)
-				AssertNotEmpty(t, resBody.ClientSecretExp)
-				AssertNotEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodPrivateKeyJwt)
+				AssertEmpty(t, resBody.ClientSecretExp)
+				AssertEmpty(t, resBody.ClientSecretJWK)
+				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodNone)
 				AssertEqual(t, resBody.Type, database.AccountCredentialsTypeMcp)
 				AssertEqual(t, resBody.Transport, database.TransportStdio)
 			},
@@ -650,14 +649,16 @@ func TestListAccountCredentials(t *testing.T) {
 		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 		accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsRead, tokens.AccountScopeCredentialsWrite})
 
-		types := []string{"service", "mcp"}
 		authMethods := []string{"client_secret_basic", "client_secret_post", "client_secret_jwt", "private_key_jwt"}
-		transports := []string{"https", "streamable_http", "stdio"}
 
 		for i := 0; i < n; i++ {
-			credType := types[i%len(types)]
+			credType := "service"
 			authMethod := authMethods[i%len(authMethods)]
-			transport := transports[i%len(transports)]
+			transport := "https"
+			if i%2 == 1 {
+				credType = "mcp"
+				transport = "streamable_http"
+			}
 			name := "cred-" + uuid.NewString()
 
 			_, err := GetTestServices(t).CreateAccountCredentials(context.Background(), services.CreateAccountCredentialsOptions{
@@ -1283,7 +1284,7 @@ func TestGetAccountCredentialsSecret(t *testing.T) {
 				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
 				AssertEqual(t, resBody.PublicID, secretID)
 				AssertEqual(t, resBody.Status, "active")
-				AssertNotEmpty(t, resBody.ClientSecretJWK)
+				AssertNotEmpty(t, resBody.ClientSecretPublicJWK)
 			},
 			PathFn: pathFN,
 		},

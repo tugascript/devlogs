@@ -1164,7 +1164,7 @@ func (s *Services) VerifyOAuthDynamicRegistrationIATCode(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	ok, err := utils.CompareShaBase64(data.Challenge, opts.CodeVerifier)
+	ok, err := utils.CompareShaBase64(opts.CodeVerifier, data.Challenge)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare challenge", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewInternalServerError()

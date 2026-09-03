@@ -146,6 +146,7 @@ func MapAccountCredentialsToDTO(
 		Type:                         accountCredential.CredentialsType,
 		ClientName:                   accountCredential.ClientName,
 		Domain:                       accountCredential.Domain,
+		Scopes:                       accountCredential.Scopes,
 		ClientURI:                    accountCredential.ClientUri,
 		RedirectURIs:                 redirectURIs,
 		LogoURI:                      accountCredential.LogoUri.String,

@@ -656,6 +656,7 @@ func TestAppleCallback(t *testing.T) {
 			form.Add("user", data.User)
 
 			req := httptest.NewRequest(http.MethodPost, appleOAuth2Path, strings.NewReader(form.Encode()))
+			req.Host = GetTestConfig(t).BackendDomain()
 			if contentType != "" {
 				req.Header.Set("Content-Type", contentType)
 			} else {
@@ -728,7 +729,9 @@ func TestOAuthToken(t *testing.T) {
 				KeyType:   database.TokenKeyTypeRefresh,
 				TTL:       testTokens.GetRefreshTTL(),
 			}),
-			GetDecryptDEKfn: testServices.BuildGetGlobalDecDEKFn(ctx, requestID),
+			GetDecryptDEKfn: testServices.BuildGetGlobalDecDEKFn(ctx, services.BuildGetGlobalDEKFnOptions{
+				RequestID: requestID,
+			}),
 		})
 		if serviceErr != nil {
 			t.Fatal("Failed to sign refresh token", serviceErr)
@@ -1046,8 +1049,12 @@ func TestOAuthToken(t *testing.T) {
 								TTL:       testTokens.GetRefreshTTL(),
 							},
 						),
-						GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(context.Background(), requestID),
-						GetEncryptDEKfn: testS.BuildGetEncGlobalDEKFn(context.Background(), requestID),
+						GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(context.Background(), services.BuildGetGlobalDEKFnOptions{
+							RequestID: requestID,
+						}),
+						GetEncryptDEKfn: testS.BuildGetEncGlobalDEKFn(context.Background(), services.BuildGetGlobalDEKFnOptions{
+							RequestID: requestID,
+						}),
 					},
 				)
 				if serviceErr != nil {
