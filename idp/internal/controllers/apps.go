@@ -9,7 +9,7 @@ package controllers
 import (
 	"fmt"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
@@ -36,7 +36,7 @@ const (
 )
 
 func (c *Controllers) createWebApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	baseBody *bodies.CreateAppBodyBase,
@@ -45,14 +45,14 @@ func (c *Controllers) createWebApp(
 	logRequest(logger, ctx)
 
 	body := new(bodies.CreateAppBodyWeb)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	appDTO, serviceErr := c.services.CreateWebApp(ctx.UserContext(), services.CreateWebAppOptions{
+	appDTO, serviceErr := c.services.CreateWebApp(ctx.Context(), services.CreateWebAppOptions{
 		RequestID:             requestID,
 		AccountPublicID:       accountClaims.AccountID,
 		AccountVersion:        accountClaims.AccountVersion,
@@ -86,7 +86,7 @@ func (c *Controllers) createWebApp(
 }
 
 func (c *Controllers) createSPAApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	baseBody *bodies.CreateAppBodyBase,
@@ -94,14 +94,14 @@ func (c *Controllers) createSPAApp(
 	logger := c.buildLogger(requestID, appsLocation, "createSPAOrSpaApp")
 
 	body := new(bodies.CreateAppBodySPA)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	appDTO, serviceErr := c.services.CreateSPANativeApp(ctx.UserContext(), services.CreateSPANativeAppOptions{
+	appDTO, serviceErr := c.services.CreateSPANativeApp(ctx.Context(), services.CreateSPANativeAppOptions{
 		RequestID:             requestID,
 		AccountPublicID:       accountClaims.AccountID,
 		AccountVersion:        accountClaims.AccountVersion,
@@ -134,7 +134,7 @@ func (c *Controllers) createSPAApp(
 }
 
 func (c *Controllers) createNativeApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	baseBody *bodies.CreateAppBodyBase,
@@ -142,14 +142,14 @@ func (c *Controllers) createNativeApp(
 	logger := c.buildLogger(requestID, appsLocation, "createNativeOrSpaApp")
 
 	body := new(bodies.CreateAppBodyNative)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	appDTO, serviceErr := c.services.CreateSPANativeApp(ctx.UserContext(), services.CreateSPANativeAppOptions{
+	appDTO, serviceErr := c.services.CreateSPANativeApp(ctx.Context(), services.CreateSPANativeAppOptions{
 		RequestID:             requestID,
 		AccountPublicID:       accountClaims.AccountID,
 		AccountVersion:        accountClaims.AccountVersion,
@@ -182,7 +182,7 @@ func (c *Controllers) createNativeApp(
 }
 
 func (c *Controllers) createBackendApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	baseBody *bodies.CreateAppBodyBase,
@@ -190,14 +190,14 @@ func (c *Controllers) createBackendApp(
 	logger := c.buildLogger(requestID, appsLocation, "createBackendApp")
 
 	body := new(bodies.CreateAppBodyBackend)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	appDTO, serviceErr := c.services.CreateBackendApp(ctx.UserContext(), services.CreateBackendAppOptions{
+	appDTO, serviceErr := c.services.CreateBackendApp(ctx.Context(), services.CreateBackendAppOptions{
 		RequestID:             requestID,
 		AccountPublicID:       accountClaims.AccountID,
 		AccountVersion:        accountClaims.AccountVersion,
@@ -229,7 +229,7 @@ func (c *Controllers) createBackendApp(
 }
 
 func (c *Controllers) createDeviceApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	baseBody *bodies.CreateAppBodyBase,
@@ -237,14 +237,14 @@ func (c *Controllers) createDeviceApp(
 	logger := c.buildLogger(requestID, appsLocation, "createDeviceOrSpaApp")
 
 	body := new(bodies.CreateAppBodyDevice)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	appDTO, serviceErr := c.services.CreateDeviceApp(ctx.UserContext(), services.CreateDeviceAppOptions{
+	appDTO, serviceErr := c.services.CreateDeviceApp(ctx.Context(), services.CreateDeviceAppOptions{
 		RequestID:             requestID,
 		AccountPublicID:       accountClaims.AccountID,
 		AccountVersion:        accountClaims.AccountVersion,
@@ -276,7 +276,7 @@ func (c *Controllers) createDeviceApp(
 }
 
 func (c *Controllers) createServiceApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	baseBody *bodies.CreateAppBodyBase,
@@ -284,14 +284,14 @@ func (c *Controllers) createServiceApp(
 	logger := c.buildLogger(requestID, appsLocation, "createServiceApp")
 
 	body := new(bodies.CreateAppBodyService)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	appDTO, serviceErr := c.services.CreateServiceApp(ctx.UserContext(), services.CreateServiceAppOptions{
+	appDTO, serviceErr := c.services.CreateServiceApp(ctx.Context(), services.CreateServiceAppOptions{
 		RequestID:             requestID,
 		AccountPublicID:       accountClaims.AccountID,
 		Name:                  baseBody.Name,
@@ -324,7 +324,7 @@ func (c *Controllers) createServiceApp(
 }
 
 func (c *Controllers) createMCPApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	baseBody *bodies.CreateAppBodyBase,
@@ -332,14 +332,14 @@ func (c *Controllers) createMCPApp(
 	logger := c.buildLogger(requestID, appsLocation, "createMCPApp")
 
 	body := new(bodies.CreateAppBodyMCP)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	appDTO, serviceErr := c.services.CreateMCPApp(ctx.UserContext(), services.CreateMCPAppOptions{
+	appDTO, serviceErr := c.services.CreateMCPApp(ctx.Context(), services.CreateMCPAppOptions{
 		RequestID:             requestID,
 		AccountPublicID:       accountClaims.AccountID,
 		AccountVersion:        accountClaims.AccountVersion,
@@ -372,7 +372,7 @@ func (c *Controllers) createMCPApp(
 	return ctx.Status(fiber.StatusCreated).JSON(&appDTO)
 }
 
-func (c *Controllers) CreateApp(ctx *fiber.Ctx) error {
+func (c *Controllers) CreateApp(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appsLocation, "CreateApp")
 	logRequest(logger, ctx)
@@ -383,10 +383,10 @@ func (c *Controllers) CreateApp(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.CreateAppBodyBase)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
@@ -406,7 +406,7 @@ func (c *Controllers) CreateApp(ctx *fiber.Ctx) error {
 	case appTypeMCP:
 		return c.createMCPApp(ctx, requestID, &accountClaims, body)
 	default:
-		logger.WarnContext(ctx.UserContext(), "Invalid app type", "appType", body.Type)
+		logger.WarnContext(ctx.Context(), "Invalid app type", "appType", body.Type)
 		logResponse(logger, ctx, fiber.StatusBadRequest)
 		return ctx.Status(fiber.StatusBadRequest).JSON(exceptions.NewValidationErrorResponse(
 			exceptions.ValidationResponseLocationBody,
@@ -417,7 +417,7 @@ func (c *Controllers) CreateApp(ctx *fiber.Ctx) error {
 	}
 }
 
-func (c *Controllers) DeleteApp(ctx *fiber.Ctx) error {
+func (c *Controllers) DeleteApp(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appsLocation, "DeleteApp")
 	logRequest(logger, ctx)
@@ -428,11 +428,11 @@ func (c *Controllers) DeleteApp(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	serviceErr = c.services.DeleteApp(ctx.UserContext(), services.DeleteAppOptions{
+	serviceErr = c.services.DeleteApp(ctx.Context(), services.DeleteAppOptions{
 		RequestID:       requestID,
 		AccountPublicID: accountClaims.AccountID,
 		ClientID:        urlParams.ClientID,
@@ -445,7 +445,7 @@ func (c *Controllers) DeleteApp(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
-func (c *Controllers) ListApps(ctx *fiber.Ctx) error {
+func (c *Controllers) ListApps(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appsLocation, "ListApps")
 	logRequest(logger, ctx)
@@ -456,13 +456,13 @@ func (c *Controllers) ListApps(ctx *fiber.Ctx) error {
 	}
 
 	queryParams := params.GetAppsQueryParams{
-		Limit:  ctx.QueryInt("limit", 10),
-		Offset: ctx.QueryInt("offset", 0),
+		Limit:  fiber.Query[int](ctx, "limit", 10),
+		Offset: fiber.Query[int](ctx, "offset", 0),
 		Name:   ctx.Query("name"),
 		Order:  ctx.Query("order", "date"),
 		Type:   ctx.Query("type"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &queryParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &queryParams); err != nil {
 		return validateQueryParamsErrorResponse(logger, ctx, err)
 	}
 
@@ -470,7 +470,7 @@ func (c *Controllers) ListApps(ctx *fiber.Ctx) error {
 	var count int64
 
 	if queryParams.Name != "" && queryParams.Type != "" {
-		apps, count, serviceErr = c.services.FilterAccountAppsByNameAndType(ctx.UserContext(), services.FilterAccountAppsByNameAndTypeOptions{
+		apps, count, serviceErr = c.services.FilterAccountAppsByNameAndType(ctx.Context(), services.FilterAccountAppsByNameAndTypeOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
 			Offset:          int32(queryParams.Offset),
@@ -479,7 +479,7 @@ func (c *Controllers) ListApps(ctx *fiber.Ctx) error {
 			Name:            queryParams.Name,
 		})
 	} else if queryParams.Name != "" {
-		apps, count, serviceErr = c.services.FilterAccountAppsByName(ctx.UserContext(), services.FilterAccountAppsByNameOptions{
+		apps, count, serviceErr = c.services.FilterAccountAppsByName(ctx.Context(), services.FilterAccountAppsByNameOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
 			Offset:          int32(queryParams.Offset),
@@ -488,7 +488,7 @@ func (c *Controllers) ListApps(ctx *fiber.Ctx) error {
 			Name:            queryParams.Name,
 		})
 	} else if queryParams.Type != "" {
-		apps, count, serviceErr = c.services.FilterAccountAppsByType(ctx.UserContext(), services.FilterAccountAppsByTypeOptions{
+		apps, count, serviceErr = c.services.FilterAccountAppsByType(ctx.Context(), services.FilterAccountAppsByTypeOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
 			Offset:          int32(queryParams.Offset),
@@ -497,7 +497,7 @@ func (c *Controllers) ListApps(ctx *fiber.Ctx) error {
 			Type:            queryParams.Type,
 		})
 	} else {
-		apps, count, serviceErr = c.services.ListAccountApps(ctx.UserContext(), services.ListAccountAppsOptions{
+		apps, count, serviceErr = c.services.ListAccountApps(ctx.Context(), services.ListAccountAppsOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
 			Offset:          int32(queryParams.Offset),
@@ -523,7 +523,7 @@ func (c *Controllers) ListApps(ctx *fiber.Ctx) error {
 }
 
 func (c *Controllers) updateWebApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	appDTO *dtos.AppDTO,
@@ -532,15 +532,15 @@ func (c *Controllers) updateWebApp(
 	logger := c.buildLogger(requestID, appsLocation, "updateWebApp")
 
 	body := new(bodies.UpdateAppBodyWeb)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAccountIDByPublicIDAndVersionOptions{
 			RequestID: requestID,
 			PublicID:  accountClaims.AccountID,
@@ -552,7 +552,7 @@ func (c *Controllers) updateWebApp(
 	}
 
 	completeAppDTO, serviceErr := c.services.UpdateWebSPANativeApp(
-		ctx.UserContext(),
+		ctx.Context(),
 		appDTO,
 		services.UpdateWebSPANativeAppOptions{
 			RequestID:             requestID,
@@ -583,7 +583,7 @@ func (c *Controllers) updateWebApp(
 }
 
 func (c *Controllers) updateSPAApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	appDTO *dtos.AppDTO,
@@ -592,15 +592,15 @@ func (c *Controllers) updateSPAApp(
 	logger := c.buildLogger(requestID, appsLocation, "updateSPAApp")
 
 	body := new(bodies.UpdateAppBodySPA)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAccountIDByPublicIDAndVersionOptions{
 			RequestID: requestID,
 			PublicID:  accountClaims.AccountID,
@@ -612,7 +612,7 @@ func (c *Controllers) updateSPAApp(
 	}
 
 	completeAppDTO, serviceErr := c.services.UpdateWebSPANativeApp(
-		ctx.UserContext(),
+		ctx.Context(),
 		appDTO,
 		services.UpdateWebSPANativeAppOptions{
 			RequestID:             requestID,
@@ -643,7 +643,7 @@ func (c *Controllers) updateSPAApp(
 }
 
 func (c *Controllers) updateNativeApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	appDTO *dtos.AppDTO,
@@ -652,15 +652,15 @@ func (c *Controllers) updateNativeApp(
 	logger := c.buildLogger(requestID, appsLocation, "updateNativeApp")
 
 	body := new(bodies.UpdateAppBodyNative)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAccountIDByPublicIDAndVersionOptions{
 			RequestID: requestID,
 			PublicID:  accountClaims.AccountID,
@@ -672,7 +672,7 @@ func (c *Controllers) updateNativeApp(
 	}
 
 	completeAppDTO, serviceErr := c.services.UpdateWebSPANativeApp(
-		ctx.UserContext(),
+		ctx.Context(),
 		appDTO,
 		services.UpdateWebSPANativeAppOptions{
 			RequestID:             requestID,
@@ -703,7 +703,7 @@ func (c *Controllers) updateNativeApp(
 }
 
 func (c *Controllers) updateServiceApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	appDTO *dtos.AppDTO,
@@ -712,15 +712,15 @@ func (c *Controllers) updateServiceApp(
 	logger := c.buildLogger(requestID, appsLocation, "updateServiceApp")
 
 	body := new(bodies.UpdateAppBodyService)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAccountIDByPublicIDAndVersionOptions{
 			RequestID: requestID,
 			PublicID:  accountClaims.AccountID,
@@ -732,7 +732,7 @@ func (c *Controllers) updateServiceApp(
 	}
 
 	completeAppDTO, serviceErr := c.services.UpdateServiceApp(
-		ctx.UserContext(),
+		ctx.Context(),
 		appDTO,
 		services.UpdateServiceAppOptions{
 			RequestID:             requestID,
@@ -761,7 +761,7 @@ func (c *Controllers) updateServiceApp(
 }
 
 func (c *Controllers) updateBackendApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	appDTO *dtos.AppDTO,
@@ -770,15 +770,15 @@ func (c *Controllers) updateBackendApp(
 	logger := c.buildLogger(requestID, appsLocation, "updateBackendApp")
 
 	body := new(bodies.UpdateAppBodyBackend)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAccountIDByPublicIDAndVersionOptions{
 			RequestID: requestID,
 			PublicID:  accountClaims.AccountID,
@@ -790,7 +790,7 @@ func (c *Controllers) updateBackendApp(
 	}
 
 	completeAppDTO, serviceErr := c.services.UpdateBackendApp(
-		ctx.UserContext(),
+		ctx.Context(),
 		appDTO,
 		services.UpdateBackendAppOptions{
 			RequestID:             requestID,
@@ -819,7 +819,7 @@ func (c *Controllers) updateBackendApp(
 }
 
 func (c *Controllers) updateDeviceApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	appDTO *dtos.AppDTO,
@@ -828,15 +828,15 @@ func (c *Controllers) updateDeviceApp(
 	logger := c.buildLogger(requestID, appsLocation, "updateDeviceApp")
 
 	body := new(bodies.UpdateAppBodyDevice)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAccountIDByPublicIDAndVersionOptions{
 			RequestID: requestID,
 			PublicID:  accountClaims.AccountID,
@@ -848,7 +848,7 @@ func (c *Controllers) updateDeviceApp(
 	}
 
 	completeAppDTO, serviceErr := c.services.UpdateDeviceApp(
-		ctx.UserContext(),
+		ctx.Context(),
 		appDTO,
 		services.UpdateDeviceAppOptions{
 			RequestID:             requestID,
@@ -879,7 +879,7 @@ func (c *Controllers) updateDeviceApp(
 }
 
 func (c *Controllers) updateMCPApp(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	requestID string,
 	accountClaims *tokens.AccountClaims,
 	appDTO *dtos.AppDTO,
@@ -888,15 +888,15 @@ func (c *Controllers) updateMCPApp(
 	logger := c.buildLogger(requestID, appsLocation, "updateMCPApp")
 
 	body := new(bodies.UpdateAppBodyMCP)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAccountIDByPublicIDAndVersionOptions{
 			RequestID: requestID,
 			PublicID:  accountClaims.AccountID,
@@ -908,7 +908,7 @@ func (c *Controllers) updateMCPApp(
 	}
 
 	completeAppDTO, serviceErr := c.services.UpdateMCPApp(
-		ctx.UserContext(),
+		ctx.Context(),
 		appDTO,
 		services.UpdateMCPAppOptions{
 			RequestID:             requestID,
@@ -937,7 +937,7 @@ func (c *Controllers) updateMCPApp(
 	return ctx.Status(fiber.StatusOK).JSON(&completeAppDTO)
 }
 
-func (c *Controllers) UpdateApp(ctx *fiber.Ctx) error {
+func (c *Controllers) UpdateApp(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appsLocation, "UpdateApp")
 	logRequest(logger, ctx)
@@ -948,19 +948,19 @@ func (c *Controllers) UpdateApp(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.UpdateAppBodyBase)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	appDTO, serviceErr := c.services.GetAppByClientIDAndAccountPublicID(ctx.UserContext(), services.GetAppByClientIDAndAccountPublicIDOptions{
+	appDTO, serviceErr := c.services.GetAppByClientIDAndAccountPublicID(ctx.Context(), services.GetAppByClientIDAndAccountPublicIDOptions{
 		RequestID:       requestID,
 		AccountPublicID: accountClaims.AccountID,
 		ClientID:        urlParams.ClientID,
@@ -985,12 +985,12 @@ func (c *Controllers) UpdateApp(ctx *fiber.Ctx) error {
 	case database.AppTypeMcp:
 		return c.updateMCPApp(ctx, requestID, &accountClaims, &appDTO, body)
 	default:
-		logger.ErrorContext(ctx.UserContext(), "Invalid app type", "appType", appDTO.AppType)
+		logger.ErrorContext(ctx.Context(), "Invalid app type", "appType", appDTO.AppType)
 		return serviceErrorResponse(logger, ctx, exceptions.NewInternalServerError())
 	}
 }
 
-func (c *Controllers) GetAppWithRelatedConfigs(ctx *fiber.Ctx) error {
+func (c *Controllers) GetAppWithRelatedConfigs(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appsLocation, "GetAppWithRelatedConfigs")
 	logRequest(logger, ctx)
@@ -1001,11 +1001,11 @@ func (c *Controllers) GetAppWithRelatedConfigs(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	appDTO, serviceErr := c.services.GetAppWithRelatedConfigs(ctx.UserContext(), services.GetAppWithRelatedConfigsOptions{
+	appDTO, serviceErr := c.services.GetAppWithRelatedConfigs(ctx.Context(), services.GetAppWithRelatedConfigsOptions{
 		RequestID:       requestID,
 		AppClientID:     urlParams.ClientID,
 		AccountPublicID: accountClaims.AccountID,
@@ -1019,7 +1019,7 @@ func (c *Controllers) GetAppWithRelatedConfigs(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&appDTO)
 }
 
-func (c *Controllers) ListAppSecrets(ctx *fiber.Ctx) error {
+func (c *Controllers) ListAppSecrets(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appsLocation, "ListAppSecrets")
 	logRequest(logger, ctx)
@@ -1030,20 +1030,20 @@ func (c *Controllers) ListAppSecrets(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	queryParams := params.PaginationQueryParams{
-		Offset: ctx.QueryInt("offset", 0),
-		Limit:  ctx.QueryInt("limit", 20),
+		Offset: fiber.Query[int](ctx, "offset", 0),
+		Limit:  fiber.Query[int](ctx, "limit", 20),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), queryParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), queryParams); err != nil {
 		return validateQueryParamsErrorResponse(logger, ctx, err)
 	}
 
 	secretsOrKeys, count, serviceErr := c.services.ListAppCredentialsSecretsOrKeys(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.ListAppCredentialsSecretsOrKeysOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -1068,7 +1068,7 @@ func (c *Controllers) ListAppSecrets(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&paginationDTO)
 }
 
-func (c *Controllers) GetAppSecret(ctx *fiber.Ctx) error {
+func (c *Controllers) GetAppSecret(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appsLocation, "GetAppSecret")
 	logRequest(logger, ctx)
@@ -1079,11 +1079,11 @@ func (c *Controllers) GetAppSecret(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	secretDTO, serviceErr := c.services.GetAppCredentialsSecretOrKey(ctx.UserContext(), services.GetAppCredentialsSecretOrKeyOptions{
+	secretDTO, serviceErr := c.services.GetAppCredentialsSecretOrKey(ctx.Context(), services.GetAppCredentialsSecretOrKeyOptions{
 		RequestID:       requestID,
 		AccountPublicID: accountClaims.AccountID,
 		AppClientID:     urlParams.ClientID,
@@ -1097,7 +1097,7 @@ func (c *Controllers) GetAppSecret(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&secretDTO)
 }
 
-func (c *Controllers) RevokeAppSecret(ctx *fiber.Ctx) error {
+func (c *Controllers) RevokeAppSecret(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appsLocation, "RevokeAppSecret")
 	logRequest(logger, ctx)
@@ -1111,11 +1111,11 @@ func (c *Controllers) RevokeAppSecret(ctx *fiber.Ctx) error {
 		ClientID: ctx.Params("clientID"),
 		SecretID: ctx.Params("secretID"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	secretDTO, serviceErr := c.services.RevokeAppCredentialsSecretOrKey(ctx.UserContext(), services.RevokeAppCredentialsSecretOrKeyOptions{
+	secretDTO, serviceErr := c.services.RevokeAppCredentialsSecretOrKey(ctx.Context(), services.RevokeAppCredentialsSecretOrKeyOptions{
 		RequestID:       requestID,
 		AccountPublicID: accountClaims.AccountID,
 		AppClientID:     urlParams.ClientID,
@@ -1129,7 +1129,7 @@ func (c *Controllers) RevokeAppSecret(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&secretDTO)
 }
 
-func (c *Controllers) CreateAppSecret(ctx *fiber.Ctx) error {
+func (c *Controllers) CreateAppSecret(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appsLocation, "CreateAppSecret")
 	logRequest(logger, ctx)
@@ -1142,20 +1142,20 @@ func (c *Controllers) CreateAppSecret(ctx *fiber.Ctx) error {
 	urlParams := params.CredentialsURLParams{
 		ClientID: ctx.Params("clientID"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	body := new(bodies.CreateCredentialsSecretBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	secretDTO, serviceErr := c.services.RotateAppCredentialsSecretOrKey(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.RotateAppCredentialsSecretOrKeyOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,

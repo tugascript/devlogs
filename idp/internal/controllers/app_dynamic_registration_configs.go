@@ -7,7 +7,7 @@
 package controllers
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/services"
@@ -17,7 +17,7 @@ const (
 	appDynamicRegistrationConfigsLocation string = "app_dynamic_registration_configs"
 )
 
-func (c *Controllers) UpsertAppDynamicRegistrationConfig(ctx *fiber.Ctx) error {
+func (c *Controllers) UpsertAppDynamicRegistrationConfig(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(
 		requestID,
@@ -32,15 +32,15 @@ func (c *Controllers) UpsertAppDynamicRegistrationConfig(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.AppDynamicRegistrationConfigBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	dto, created, serviceErr := c.services.SaveAppDynamicRegistrationConfig(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.SaveAppDynamicRegistrationConfigOptions{
 			RequestID:                            requestID,
 			AccountPublicID:                      accountClaims.AccountID,
@@ -77,7 +77,7 @@ func (c *Controllers) UpsertAppDynamicRegistrationConfig(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&dto)
 }
 
-func (c *Controllers) GetAppDynamicRegistrationConfig(ctx *fiber.Ctx) error {
+func (c *Controllers) GetAppDynamicRegistrationConfig(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(
 		requestID,
@@ -92,7 +92,7 @@ func (c *Controllers) GetAppDynamicRegistrationConfig(ctx *fiber.Ctx) error {
 	}
 
 	dto, serviceErr := c.services.GetAppDynamicRegistrationConfig(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAppDynamicRegistrationConfigOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -106,7 +106,7 @@ func (c *Controllers) GetAppDynamicRegistrationConfig(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&dto)
 }
 
-func (c *Controllers) DeleteAppDynamicRegistrationConfig(ctx *fiber.Ctx) error {
+func (c *Controllers) DeleteAppDynamicRegistrationConfig(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(
 		requestID,
@@ -121,7 +121,7 @@ func (c *Controllers) DeleteAppDynamicRegistrationConfig(ctx *fiber.Ctx) error {
 	}
 
 	serviceErr = c.services.DeleteAppDynamicRegistrationConfig(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.DeleteAppDynamicRegistrationConfigOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,

@@ -7,7 +7,7 @@
 package controllers
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
@@ -20,7 +20,7 @@ const (
 	accountCredentialsRegistrationDomainsLocation string = "account_credentials_registration_domains"
 )
 
-func (c *Controllers) CreateDynamicRegistrationDomain(ctx *fiber.Ctx) error {
+func (c *Controllers) CreateDynamicRegistrationDomain(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsRegistrationDomainsLocation, "CreateDynamicRegistrationDomain")
 	logRequest(logger, ctx)
@@ -31,15 +31,15 @@ func (c *Controllers) CreateDynamicRegistrationDomain(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.CreateDynamicRegistrationDomainBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	domainDTO, serviceErr := c.services.CreateDynamicRegistrationDomain(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.CreateDynamicRegistrationDomainOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -55,7 +55,7 @@ func (c *Controllers) CreateDynamicRegistrationDomain(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusCreated).JSON(domainDTO)
 }
 
-func (c *Controllers) ListAccountCredentialsRegistrationDomains(ctx *fiber.Ctx) error {
+func (c *Controllers) ListAccountCredentialsRegistrationDomains(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsRegistrationDomainsLocation, "ListAccountCredentialsRegistrationDomains")
 	logRequest(logger, ctx)
@@ -66,12 +66,12 @@ func (c *Controllers) ListAccountCredentialsRegistrationDomains(ctx *fiber.Ctx) 
 	}
 
 	queryParams := params.DynamicRegistrationDomainQueryParams{
-		Limit:  ctx.QueryInt("limit", 10),
-		Offset: ctx.QueryInt("offset", 0),
+		Limit:  fiber.Query[int](ctx, "limit", 10),
+		Offset: fiber.Query[int](ctx, "offset", 0),
 		Order:  ctx.Query("order", "date"),
 		Search: ctx.Query("search"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &queryParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &queryParams); err != nil {
 		return validateQueryParamsErrorResponse(logger, ctx, err)
 	}
 
@@ -79,7 +79,7 @@ func (c *Controllers) ListAccountCredentialsRegistrationDomains(ctx *fiber.Ctx) 
 	var count int64
 	if queryParams.Search != "" {
 		domains, count, serviceErr = c.services.FilterAccountCredentialsRegistrationDomains(
-			ctx.UserContext(),
+			ctx.Context(),
 			services.FilterAccountCredentialsRegistrationDomainsOptions{
 				RequestID:       requestID,
 				AccountPublicID: accountClaims.AccountID,
@@ -91,7 +91,7 @@ func (c *Controllers) ListAccountCredentialsRegistrationDomains(ctx *fiber.Ctx) 
 		)
 	} else {
 		domains, count, serviceErr = c.services.ListAccountCredentialsRegistrationDomains(
-			ctx.UserContext(),
+			ctx.Context(),
 			services.ListAccountCredentialsRegistrationDomainsOptions{
 				RequestID:       requestID,
 				AccountPublicID: accountClaims.AccountID,
@@ -117,7 +117,7 @@ func (c *Controllers) ListAccountCredentialsRegistrationDomains(ctx *fiber.Ctx) 
 	))
 }
 
-func (c *Controllers) GetAccountCredentialsRegistrationDomain(ctx *fiber.Ctx) error {
+func (c *Controllers) GetAccountCredentialsRegistrationDomain(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsRegistrationDomainsLocation, "GetAccountCredentialsRegistrationDomain")
 	logRequest(logger, ctx)
@@ -128,12 +128,12 @@ func (c *Controllers) GetAccountCredentialsRegistrationDomain(ctx *fiber.Ctx) er
 	}
 
 	urlParams := params.DynamicRegistrationDomainURLParams{Domain: ctx.Params("domain")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	domainDTO, serviceErr := c.services.GetAccountCredentialsRegistrationDomain(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAccountCredentialsRegistrationDomainOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -148,7 +148,7 @@ func (c *Controllers) GetAccountCredentialsRegistrationDomain(ctx *fiber.Ctx) er
 	return ctx.Status(fiber.StatusOK).JSON(domainDTO)
 }
 
-func (c *Controllers) DeleteAccountCredentialsRegistrationDomain(ctx *fiber.Ctx) error {
+func (c *Controllers) DeleteAccountCredentialsRegistrationDomain(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsRegistrationDomainsLocation, "DeleteAccountCredentialsRegistrationDomain")
 	logRequest(logger, ctx)
@@ -159,12 +159,12 @@ func (c *Controllers) DeleteAccountCredentialsRegistrationDomain(ctx *fiber.Ctx)
 	}
 
 	urlParams := params.DynamicRegistrationDomainURLParams{Domain: ctx.Params("domain")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	if serviceErr := c.services.DeleteAccountCredentialsRegistrationDomain(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.DeleteAccountCredentialsRegistrationDomainOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -178,7 +178,7 @@ func (c *Controllers) DeleteAccountCredentialsRegistrationDomain(ctx *fiber.Ctx)
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
-func (c *Controllers) VerifyAccountCredentialsRegistrationDomain(ctx *fiber.Ctx) error {
+func (c *Controllers) VerifyAccountCredentialsRegistrationDomain(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsRegistrationDomainsLocation, "VerifyAccountCredentialsRegistrationDomain")
 	logRequest(logger, ctx)
@@ -189,12 +189,12 @@ func (c *Controllers) VerifyAccountCredentialsRegistrationDomain(ctx *fiber.Ctx)
 	}
 
 	urlParams := params.DynamicRegistrationDomainURLParams{Domain: ctx.Params("domain")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	domainDTO, serviceErr := c.services.VerifyAccountCredentialsRegistrationDomain(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.VerifyAccountCredentialsRegistrationDomainOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -209,7 +209,7 @@ func (c *Controllers) VerifyAccountCredentialsRegistrationDomain(ctx *fiber.Ctx)
 	return ctx.Status(fiber.StatusOK).JSON(domainDTO)
 }
 
-func (c *Controllers) UpsertAccountCredentialsRegistrationDomainCode(ctx *fiber.Ctx) error {
+func (c *Controllers) UpsertAccountCredentialsRegistrationDomainCode(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsRegistrationDomainsLocation, "UpsertAccountCredentialsRegistrationDomain")
 	logRequest(logger, ctx)
@@ -220,15 +220,15 @@ func (c *Controllers) UpsertAccountCredentialsRegistrationDomainCode(ctx *fiber.
 	}
 
 	body := new(bodies.CreateDynamicRegistrationDomainBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	domainDTO, serviceErr := c.services.SaveAccountCredentialsRegistrationDomainCode(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.SaveAccountCredentialsRegistrationDomainCodeOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -244,7 +244,7 @@ func (c *Controllers) UpsertAccountCredentialsRegistrationDomainCode(ctx *fiber.
 	return ctx.Status(fiber.StatusOK).JSON(domainDTO)
 }
 
-func (c *Controllers) GetAccountCredentialsRegistrationDomainCode(ctx *fiber.Ctx) error {
+func (c *Controllers) GetAccountCredentialsRegistrationDomainCode(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsRegistrationDomainsLocation, "GetAccountCredentialsRegistrationDomainCode")
 	logRequest(logger, ctx)
@@ -255,12 +255,12 @@ func (c *Controllers) GetAccountCredentialsRegistrationDomainCode(ctx *fiber.Ctx
 	}
 
 	urlParams := params.DynamicRegistrationDomainURLParams{Domain: ctx.Params("domain")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	codeDTO, serviceErr := c.services.GetAccountCredentialsRegistrationDomainCode(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAccountCredentialsRegistrationDomainCodeOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -275,7 +275,7 @@ func (c *Controllers) GetAccountCredentialsRegistrationDomainCode(ctx *fiber.Ctx
 	return ctx.Status(fiber.StatusOK).JSON(codeDTO)
 }
 
-func (c *Controllers) DeleteAccountCredentialsRegistrationDomainCode(ctx *fiber.Ctx) error {
+func (c *Controllers) DeleteAccountCredentialsRegistrationDomainCode(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsRegistrationDomainsLocation, "DeleteAccountCredentialsRegistrationDomainCode")
 	logRequest(logger, ctx)
@@ -286,12 +286,12 @@ func (c *Controllers) DeleteAccountCredentialsRegistrationDomainCode(ctx *fiber.
 	}
 
 	urlParams := params.DynamicRegistrationDomainURLParams{Domain: ctx.Params("domain")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	if serviceErr := c.services.DeleteAccountCredentialsRegistrationDomainCode(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.DeleteAccountCredentialsRegistrationDomainCodeOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,

@@ -7,7 +7,7 @@
 package controllers
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
@@ -16,7 +16,7 @@ import (
 
 const appDesignsLocation string = "app_designs"
 
-func (c *Controllers) CreateAppDesign(ctx *fiber.Ctx) error {
+func (c *Controllers) CreateAppDesign(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appDesignsLocation, "CreateAppDesign")
 	logRequest(logger, ctx)
@@ -27,20 +27,20 @@ func (c *Controllers) CreateAppDesign(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.AppDesignBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	appDesignDTO, serviceErr := c.services.CreateAppDesign(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.AppDesignOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -70,7 +70,7 @@ func (c *Controllers) CreateAppDesign(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusCreated).JSON(&appDesignDTO)
 }
 
-func (c *Controllers) GetAppDesign(ctx *fiber.Ctx) error {
+func (c *Controllers) GetAppDesign(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appDesignsLocation, "GetAppDesign")
 	logRequest(logger, ctx)
@@ -81,12 +81,12 @@ func (c *Controllers) GetAppDesign(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	appDesignDTO, serviceErr := c.services.GetAppDesign(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAppDesignByAppClientIDOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -101,7 +101,7 @@ func (c *Controllers) GetAppDesign(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&appDesignDTO)
 }
 
-func (c *Controllers) UpdateAppDesign(ctx *fiber.Ctx) error {
+func (c *Controllers) UpdateAppDesign(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appDesignsLocation, "UpdateAppDesign")
 	logRequest(logger, ctx)
@@ -112,20 +112,20 @@ func (c *Controllers) UpdateAppDesign(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.AppDesignBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	appDesignDTO, serviceErr := c.services.UpdateAppDesign(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.AppDesignOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -155,7 +155,7 @@ func (c *Controllers) UpdateAppDesign(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&appDesignDTO)
 }
 
-func (c *Controllers) DeleteAppDesign(ctx *fiber.Ctx) error {
+func (c *Controllers) DeleteAppDesign(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, appDesignsLocation, "DeleteAppDesign")
 	logRequest(logger, ctx)
@@ -166,12 +166,12 @@ func (c *Controllers) DeleteAppDesign(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	serviceErr = c.services.DeleteAppDesign(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.DeleteAppDesignOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,

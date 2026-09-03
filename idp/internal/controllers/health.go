@@ -6,14 +6,14 @@
 
 package controllers
 
-import "github.com/gofiber/fiber/v2"
+import "github.com/gofiber/fiber/v3"
 
-func (c *Controllers) HealthCheck(ctx *fiber.Ctx) error {
+func (c *Controllers) HealthCheck(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, "health", "HealthCheck")
 	logRequest(logger, ctx)
 
-	if serviceErr := c.services.HealthCheck(ctx.UserContext(), requestID); serviceErr != nil {
+	if serviceErr := c.services.HealthCheck(ctx.Context(), requestID); serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 

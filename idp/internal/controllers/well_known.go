@@ -7,7 +7,7 @@
 package controllers
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/services"
 )
@@ -17,7 +17,7 @@ const (
 	wellKnownOIDCCacheControl string = "public, max-age=3600, must-revalidate"
 )
 
-func (c *Controllers) WellKnownOIDCConfiguration(ctx *fiber.Ctx) error {
+func (c *Controllers) WellKnownOIDCConfiguration(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, wellKnownLocation, "WellKnownOIDCConfiguration")
 	logRequest(logger, ctx)
@@ -27,7 +27,7 @@ func (c *Controllers) WellKnownOIDCConfiguration(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	configDTO, etag, serviceErr := c.services.WellKnownOIDCConfigurationWithCache(ctx.UserContext(), services.WellKnownOIDCConfigurationWithCacheOptions{
+	configDTO, etag, serviceErr := c.services.WellKnownOIDCConfigurationWithCache(ctx.Context(), services.WellKnownOIDCConfigurationWithCacheOptions{
 		RequestID:       requestID,
 		AccountID:       accountID,
 		BackendDomain:   c.backendDomain,

@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
@@ -27,7 +27,7 @@ const (
 	accountsIAT2FACookieSuffix string = "_acc_iat_2fa"
 )
 
-func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx *fiber.Ctx) error {
+func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistrationIAT, "OAuthDynamicRegistrationIATAuth")
 	logRequest(logger, ctx)
@@ -36,7 +36,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx *fiber.Ctx) error {
 		ClientID:    ctx.Query("client_id"),
 		RedirectURI: ctx.Query("redirect_uri"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), baseQPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), baseQPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
 
@@ -52,7 +52,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx *fiber.Ctx) error {
 		ChallengeMethod: ctx.Query("code_challenge_method"),
 		State:           state,
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), qPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), qPrms); err != nil {
 		return c.redirectErrorCallback(logger, ctx, baseQPrms.RedirectURI, state, exceptions.OAuthErrorInvalidRequest)
 	}
 
@@ -63,7 +63,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx *fiber.Ctx) error {
 	}
 
 	redirectURL, serviceErr := c.services.InitiateOAuthDynamicRegistrationIATAuth(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.InitiateOAuthDynamicRegistrationIATAuthOptions{
 			RequestID:       requestID,
 			Domain:          baseQPrms.ClientID,
@@ -81,10 +81,10 @@ func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx *fiber.Ctx) error {
 	}
 
 	logResponse(logger, ctx, fiber.StatusFound)
-	return ctx.Redirect(redirectURL, fiber.StatusFound)
+	return ctx.Redirect().Status(fiber.StatusFound).To(redirectURL)
 }
 
-func (c *Controllers) OAuthDynamicRegistrationIATLoginGet(ctx *fiber.Ctx) error {
+func (c *Controllers) OAuthDynamicRegistrationIATLoginGet(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistrationIAT, "OAuthDynamicRegistrationIATLoginGet")
 	logRequest(logger, ctx)
@@ -92,7 +92,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginGet(ctx *fiber.Ctx) error 
 	uPrms := params.OAuthDynamicRegistrationIATAuthURLParams{
 		ACCClientID: ctx.Params("accClientID"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &uPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &uPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewNotFoundError())
 	}
 
@@ -100,7 +100,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginGet(ctx *fiber.Ctx) error 
 		ClientID:    ctx.Query("client_id"),
 		RedirectURI: ctx.Query("redirect_uri"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), baseQPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), baseQPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
 
@@ -110,12 +110,12 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginGet(ctx *fiber.Ctx) error 
 		ChallengeMethod: ctx.Query("code_challenge_method"),
 		State:           ctx.Query("state"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), qPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), qPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
 
 	loginHTML, serviceErr := c.services.OAuthDynamicRegistrationIATAuthRender(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.OAuthDynamicRegistrationIATAuthRenderOptions{
 			RequestID:           requestID,
 			ACCClientID:         uPrms.ACCClientID,
@@ -135,7 +135,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginGet(ctx *fiber.Ctx) error 
 }
 
 func (c *Controllers) saveAccountIATCookie(
-	ctx *fiber.Ctx,
+	ctx fiber.Ctx,
 	sessionKey string,
 ) {
 	ctx.Cookie(&fiber.Cookie{
@@ -149,7 +149,7 @@ func (c *Controllers) saveAccountIATCookie(
 	})
 }
 
-func (c *Controllers) removeAccountIATCookie(ctx *fiber.Ctx) {
+func (c *Controllers) removeAccountIATCookie(ctx fiber.Ctx) {
 	ctx.Cookie(&fiber.Cookie{
 		Name:     c.cookieName + accountsIATCookieSuffix,
 		Value:    "",
@@ -161,7 +161,7 @@ func (c *Controllers) removeAccountIATCookie(ctx *fiber.Ctx) {
 	})
 }
 
-func (c *Controllers) saveAccountIAT2FACookie(ctx *fiber.Ctx, sessionID, clientID string) {
+func (c *Controllers) saveAccountIAT2FACookie(ctx fiber.Ctx, sessionID, clientID string) {
 	ctx.Cookie(&fiber.Cookie{
 		Name:     c.cookieName + accountsIAT2FACookieSuffix,
 		Value:    sessionID,
@@ -173,7 +173,7 @@ func (c *Controllers) saveAccountIAT2FACookie(ctx *fiber.Ctx, sessionID, clientI
 	})
 }
 
-func (c *Controllers) removeAccountIAT2FACookie(ctx *fiber.Ctx, clientID string) {
+func (c *Controllers) removeAccountIAT2FACookie(ctx fiber.Ctx, clientID string) {
 	ctx.Cookie(&fiber.Cookie{
 		Name:     c.cookieName + accountsIAT2FACookieSuffix,
 		Value:    "",
@@ -185,7 +185,7 @@ func (c *Controllers) removeAccountIAT2FACookie(ctx *fiber.Ctx, clientID string)
 	})
 }
 
-func (c *Controllers) OAuthDynamicRegistrationIATLoginPost(ctx *fiber.Ctx) error {
+func (c *Controllers) OAuthDynamicRegistrationIATLoginPost(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistrationIAT, "OAuthDynamicRegistrationIATLoginPost")
 	logRequest(logger, ctx)
@@ -193,7 +193,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginPost(ctx *fiber.Ctx) error
 	uPrms := params.OAuthDynamicRegistrationIATAuthURLParams{
 		ACCClientID: ctx.Params("accClientID"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &uPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &uPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewNotFoundError())
 	}
 
@@ -210,7 +210,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginPost(ctx *fiber.Ctx) error
 		State:               ctx.FormValue("state"),
 		RedirectURI:         ctx.FormValue("redirect_uri"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &hiddenFields); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &hiddenFields); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
 
@@ -218,10 +218,10 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginPost(ctx *fiber.Ctx) error
 		Email:    ctx.FormValue("email"),
 		Password: ctx.FormValue("password"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &loginBody); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &loginBody); err != nil {
 		valErr := validationErrorException(exceptions.ValidationResponseLocationBody, err)
 		loginHTML, serviceErr := c.services.OAuthDynamicRegistrationIATAuthReRender(
-			ctx.UserContext(),
+			ctx.Context(),
 			services.OAuthDynamicRegistrationIATAuthReRenderOptions{
 				RequestID: requestID,
 				Errors: utils.MapSlice(valErr.Fields, func(t *exceptions.FieldError) string {
@@ -248,7 +248,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginPost(ctx *fiber.Ctx) error
 	}
 
 	redirectURL, sessionKey, loggedIn, serviceErr := c.services.OAuthDynamicRegistrationIATLogin(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.OAuthDynamicRegistrationIATLoginOptions{
 			RequestID:           requestID,
 			ACCClientID:         uPrms.ACCClientID,
@@ -266,7 +266,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginPost(ctx *fiber.Ctx) error
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeUnauthorized {
 			loginHTML, serviceErr := c.services.OAuthDynamicRegistrationIATAuthReRender(
-				ctx.UserContext(),
+				ctx.Context(),
 				services.OAuthDynamicRegistrationIATAuthReRenderOptions{
 					RequestID:           requestID,
 					Errors:              []string{"Invalid credentials"},
@@ -296,15 +296,15 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginPost(ctx *fiber.Ctx) error
 	if loggedIn {
 		c.saveAccountIAT2FACookie(ctx, sessionKey, uPrms.ACCClientID)
 		logResponse(logger, ctx, fiber.StatusSeeOther)
-		return ctx.Redirect(redirectURL, fiber.StatusSeeOther)
+		return ctx.Redirect().Status(fiber.StatusSeeOther).To(redirectURL)
 	}
 
 	c.saveAccountIATCookie(ctx, sessionKey)
 	logResponse(logger, ctx, fiber.StatusSeeOther)
-	return ctx.Redirect(redirectURL, fiber.StatusSeeOther)
+	return ctx.Redirect().Status(fiber.StatusSeeOther).To(redirectURL)
 }
 
-func (c *Controllers) OAuthDynamicRegistrationIAT2FAGet(ctx *fiber.Ctx) error {
+func (c *Controllers) OAuthDynamicRegistrationIAT2FAGet(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistrationIAT, "OAuthDynamicRegistrationIAT2FAGet")
 	logRequest(logger, ctx)
@@ -312,7 +312,7 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAGet(ctx *fiber.Ctx) error {
 	uPrms := params.OAuthDynamicRegistrationIATAuthURLParams{
 		ACCClientID: ctx.Params("accClientID"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &uPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &uPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewNotFoundError())
 	}
 
@@ -320,7 +320,7 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAGet(ctx *fiber.Ctx) error {
 		ClientID:    ctx.Query("client_id"),
 		RedirectURI: ctx.Query("redirect_uri"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), baseQPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), baseQPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
 
@@ -330,7 +330,7 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAGet(ctx *fiber.Ctx) error {
 		ChallengeMethod: ctx.Query("code_challenge_method"),
 		State:           ctx.Query("state"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), qPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), qPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
 
@@ -340,7 +340,7 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAGet(ctx *fiber.Ctx) error {
 	}
 
 	twoFAHTML, serviceErr := c.services.OAuthDynamicRegistrationIAT2FARender(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.OAuthDynamicRegistrationIAT2FARenderOptions{
 			RequestID:       requestID,
 			Domain:          baseQPrms.ClientID,
@@ -360,7 +360,7 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAGet(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).Type("html").SendString(twoFAHTML)
 }
 
-func (c *Controllers) OAuthDynamicRegistrationIAT2FAPost(ctx *fiber.Ctx) error {
+func (c *Controllers) OAuthDynamicRegistrationIAT2FAPost(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistrationIAT, "OAuthDynamicRegistrationIAT2FAPost")
 	logRequest(logger, ctx)
@@ -368,7 +368,7 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAPost(ctx *fiber.Ctx) error {
 	uPrms := params.OAuthDynamicRegistrationIATAuthURLParams{
 		ACCClientID: ctx.Params("accClientID"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &uPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &uPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewNotFoundError())
 	}
 
@@ -390,17 +390,17 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAPost(ctx *fiber.Ctx) error {
 		State:               ctx.FormValue("state"),
 		RedirectURI:         ctx.FormValue("redirect_uri"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &hiddenFields); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &hiddenFields); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
 
 	twoFABody := bodies.TwoFactorLoginBody{
 		Code: ctx.FormValue("code"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &twoFABody); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &twoFABody); err != nil {
 		valErr := validationErrorException(exceptions.ValidationResponseLocationBody, err)
 		twoFAHTML, serviceErr := c.services.OAuthDynamicRegistrationIAT2FAReRender(
-			ctx.UserContext(),
+			ctx.Context(),
 			services.OAuthDynamicRegistrationIAT2FAReRenderOptions{
 				RequestID:   requestID,
 				Domain:      hiddenFields.ClientID,
@@ -428,7 +428,7 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAPost(ctx *fiber.Ctx) error {
 	}
 
 	redirectURL, sessionKey, serviceErr := c.services.OAuthDynamicRegistrationIATVerify2FACode(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.OAuthDynamicRegistrationIATVerify2FACodeOptions{
 			RequestID:     requestID,
 			ACCClientID:   uPrms.ACCClientID,
@@ -442,7 +442,7 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAPost(ctx *fiber.Ctx) error {
 	if serviceErr != nil {
 		if serviceErr.Code == exceptions.CodeUnauthorized {
 			twoFAHTML, serviceErr := c.services.OAuthDynamicRegistrationIAT2FAReRender(
-				ctx.UserContext(),
+				ctx.Context(),
 				services.OAuthDynamicRegistrationIAT2FAReRenderOptions{
 					RequestID:       requestID,
 					Domain:          hiddenFields.ClientID,
@@ -473,10 +473,10 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAPost(ctx *fiber.Ctx) error {
 	c.removeAccountIAT2FACookie(ctx, uPrms.ACCClientID)
 	c.saveAccountIATCookie(ctx, sessionKey)
 	logResponse(logger, ctx, fiber.StatusSeeOther)
-	return ctx.Redirect(redirectURL, fiber.StatusSeeOther)
+	return ctx.Redirect().Status(fiber.StatusSeeOther).To(redirectURL)
 }
 
-func (c *Controllers) OAuthDynamicRegistrationIATExtAuthGet(ctx *fiber.Ctx) error {
+func (c *Controllers) OAuthDynamicRegistrationIATExtAuthGet(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistrationIAT, "OAuthDynamicRegistrationIATExtAuthGet")
 	logRequest(logger, ctx)
@@ -485,7 +485,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtAuthGet(ctx *fiber.Ctx) erro
 		ACCClientID: ctx.Params("accClientID"),
 		Provider:    ctx.Params("provider"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &uPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &uPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewNotFoundError())
 	}
 
@@ -493,7 +493,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtAuthGet(ctx *fiber.Ctx) erro
 		ClientID:    ctx.Query("client_id"),
 		RedirectURI: ctx.Query("redirect_uri"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), baseQPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), baseQPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
 
@@ -509,12 +509,12 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtAuthGet(ctx *fiber.Ctx) erro
 		ChallengeMethod: ctx.Query("code_challenge_method"),
 		State:           state,
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), qPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), qPrms); err != nil {
 		return c.redirectErrorCallback(logger, ctx, baseQPrms.RedirectURI, state, exceptions.OAuthErrorInvalidRequest)
 	}
 
 	authURL, serviceErr := c.services.OAuthDynamicRegistrationIATExtGet(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.OAuthDynamicRegistrationIATExtGetOptions{
 			RequestID:     requestID,
 			ACCClientID:   uPrms.ACCClientID,
@@ -531,10 +531,10 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtAuthGet(ctx *fiber.Ctx) erro
 	}
 
 	logResponse(logger, ctx, fiber.StatusFound)
-	return ctx.Redirect(authURL, fiber.StatusFound)
+	return ctx.Redirect().Status(fiber.StatusFound).To(authURL)
 }
 
-func (c *Controllers) OAuthDynamicRegistrationIATExtCB(ctx *fiber.Ctx) error {
+func (c *Controllers) OAuthDynamicRegistrationIATExtCB(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistrationIAT, "OAuthDynamicRegistrationIATExtCB")
 	logRequest(logger, ctx)
@@ -543,7 +543,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtCB(ctx *fiber.Ctx) error {
 		ACCClientID: ctx.Params("accClientID"),
 		Provider:    ctx.Params("provider"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &uPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &uPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewNotFoundError())
 	}
 
@@ -551,12 +551,12 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtCB(ctx *fiber.Ctx) error {
 		Code:  ctx.Query("code"),
 		State: ctx.Query("state"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &qPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &qPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
 
 	cbURL, serviceErr := c.services.OAuthDynamicRegistrationIATExtCB(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.OAuthDynamicRegistrationIATExtCBOptions{
 			RequestID:   requestID,
 			ACCClientID: uPrms.ACCClientID,
@@ -575,10 +575,10 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtCB(ctx *fiber.Ctx) error {
 	}
 
 	logResponse(logger, ctx, fiber.StatusFound)
-	return ctx.Redirect(cbURL, fiber.StatusFound)
+	return ctx.Redirect().Status(fiber.StatusFound).To(cbURL)
 }
 
-func (c *Controllers) OAuthDynamicRegistrationIATExtAppleCB(ctx *fiber.Ctx) error {
+func (c *Controllers) OAuthDynamicRegistrationIATExtAppleCB(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistrationIAT, "OAuthDynamicRegistrationIATExtAppleCB")
 	logRequest(logger, ctx)
@@ -586,7 +586,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtAppleCB(ctx *fiber.Ctx) erro
 	uPrms := params.OAuthDynamicRegistrationIATExtAppleURLParams{
 		ACCClientID: ctx.Params("accClientID"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &uPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &uPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewNotFoundError())
 	}
 
@@ -599,7 +599,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtAppleCB(ctx *fiber.Ctx) erro
 		State: ctx.FormValue("state"),
 		User:  ctx.FormValue("user"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &qPrms); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &qPrms); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
 
@@ -607,12 +607,12 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtAppleCB(ctx *fiber.Ctx) erro
 	if err := json.Unmarshal([]byte(qPrms.User), user); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), user); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), user); err != nil {
 		return serviceErrorHTMLResponse(logger, ctx, exceptions.NewForbiddenError())
 	}
 
 	cbURL, serviceErr := c.services.OAuthDynamicRegistrationIATExtAppleCB(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.OAuthDynamicRegistrationIATExtAppleCBOptions{
 			RequestID:   requestID,
 			ACCClientID: uPrms.ACCClientID,
@@ -631,10 +631,10 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtAppleCB(ctx *fiber.Ctx) erro
 	}
 
 	logResponse(logger, ctx, fiber.StatusFound)
-	return ctx.Redirect(cbURL, fiber.StatusFound)
+	return ctx.Redirect().Status(fiber.StatusFound).To(cbURL)
 }
 
-func (c *Controllers) OAuthDynamicRegistrationIATToken(ctx *fiber.Ctx) error {
+func (c *Controllers) OAuthDynamicRegistrationIATToken(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistrationIAT, "OAuthDynamicRegistrationIATToken")
 	logRequest(logger, ctx)
@@ -654,12 +654,12 @@ func (c *Controllers) OAuthDynamicRegistrationIATToken(ctx *fiber.Ctx) error {
 		ClientID:     ctx.FormValue("client_id"),
 		CodeVerifier: ctx.FormValue("code_verifier"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &body); err != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
 	authDTO, serviceErr := c.services.VerifyOAuthDynamicRegistrationIATCode(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.VerifyOAuthDynamicRegistrationIATCodeOptions{
 			RequestID:    requestID,
 			Code:         body.Code,

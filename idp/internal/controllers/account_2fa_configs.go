@@ -7,7 +7,7 @@
 package controllers
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
@@ -17,7 +17,7 @@ import (
 
 const account2FAConfigsLocation = "account_2fa_configs"
 
-func (c *Controllers) GetDefaultAccount2FAConfig(ctx *fiber.Ctx) error {
+func (c *Controllers) GetDefaultAccount2FAConfig(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, account2FAConfigsLocation, "GetDefaultAccount2FAConfig")
 	logRequest(logger, ctx)
@@ -27,7 +27,7 @@ func (c *Controllers) GetDefaultAccount2FAConfig(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	account2FAConfigDTO, serviceErr := c.services.GetDefaultAccount2FAConfig(ctx.UserContext(), services.GetDefaultAccount2FAConfigOptions{
+	account2FAConfigDTO, serviceErr := c.services.GetDefaultAccount2FAConfig(ctx.Context(), services.GetDefaultAccount2FAConfigOptions{
 		RequestID:       requestID,
 		AccountPublicID: accountClaims.AccountID,
 	})
@@ -39,7 +39,7 @@ func (c *Controllers) GetDefaultAccount2FAConfig(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&account2FAConfigDTO)
 }
 
-func (c *Controllers) GetAccount2FAConfig(ctx *fiber.Ctx) error {
+func (c *Controllers) GetAccount2FAConfig(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, account2FAConfigsLocation, "GetAccount2FAConfig")
 	logRequest(logger, ctx)
@@ -50,7 +50,7 @@ func (c *Controllers) GetAccount2FAConfig(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.GetAccount2FAConfigURLParams{TwoFAType: ctx.Params("twoFAType")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
@@ -59,7 +59,7 @@ func (c *Controllers) GetAccount2FAConfig(ctx *fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	account2FAConfigDTO, serviceErr := c.services.GetAccount2FAConfig(ctx.UserContext(), services.GetAccount2FAConfigOptions{
+	account2FAConfigDTO, serviceErr := c.services.GetAccount2FAConfig(ctx.Context(), services.GetAccount2FAConfigOptions{
 		RequestID:       requestID,
 		AccountPublicID: accountClaims.AccountID,
 		TwoFAType:       twoFAType,
@@ -72,7 +72,7 @@ func (c *Controllers) GetAccount2FAConfig(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&account2FAConfigDTO)
 }
 
-func (c *Controllers) CreateAccount2FAConfig(ctx *fiber.Ctx) error {
+func (c *Controllers) CreateAccount2FAConfig(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, account2FAConfigsLocation, "CreateAccount2FAConfig")
 	logRequest(logger, ctx)
@@ -83,15 +83,15 @@ func (c *Controllers) CreateAccount2FAConfig(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.Account2FAConfigBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	account2FAConfigDTO, serviceErr := c.services.CreateAccount2FAConfig(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.CreateAccount2FAConfigOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -107,7 +107,7 @@ func (c *Controllers) CreateAccount2FAConfig(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusCreated).JSON(&account2FAConfigDTO)
 }
 
-func (c *Controllers) SetAccount2FAConfigDefault(ctx *fiber.Ctx) error {
+func (c *Controllers) SetAccount2FAConfigDefault(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, account2FAConfigsLocation, "SetAccount2FAConfigDefault")
 	logRequest(logger, ctx)
@@ -118,12 +118,12 @@ func (c *Controllers) SetAccount2FAConfigDefault(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.GetAccount2FAConfigURLParams{TwoFAType: ctx.Params("twoFAType")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	account2FAConfigDTO, serviceErr := c.services.SetAccount2FAConfigDefault(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.SetAccount2FAConfigDefaultOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -139,7 +139,7 @@ func (c *Controllers) SetAccount2FAConfigDefault(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&account2FAConfigDTO)
 }
 
-func (c *Controllers) DeleteAccount2FAConfig(ctx *fiber.Ctx) error {
+func (c *Controllers) DeleteAccount2FAConfig(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, account2FAConfigsLocation, "DeleteAccount2FAConfig")
 	logRequest(logger, ctx)
@@ -150,11 +150,11 @@ func (c *Controllers) DeleteAccount2FAConfig(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.GetAccount2FAConfigURLParams{TwoFAType: ctx.Params("twoFAType")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	account2FAConfigDTO, serviceErr := c.services.DeleteAccount2FAConfig(ctx.UserContext(), services.DeleteAccount2FAConfigOptions{
+	account2FAConfigDTO, serviceErr := c.services.DeleteAccount2FAConfig(ctx.Context(), services.DeleteAccount2FAConfigOptions{
 		RequestID:       requestID,
 		AccountPublicID: accountClaims.AccountID,
 		AccountVersion:  accountClaims.AccountVersion,
@@ -168,7 +168,7 @@ func (c *Controllers) DeleteAccount2FAConfig(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&account2FAConfigDTO)
 }
 
-func (c *Controllers) ConfirmDeleteAccount2FAConfig(ctx *fiber.Ctx) error {
+func (c *Controllers) ConfirmDeleteAccount2FAConfig(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, account2FAConfigsLocation, "ConfirmDeleteAccount2FAConfig")
 	logRequest(logger, ctx)
@@ -179,7 +179,7 @@ func (c *Controllers) ConfirmDeleteAccount2FAConfig(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.GetAccount2FAConfigURLParams{TwoFAType: ctx.Params("twoFAType")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 	if string(twoFAType) != urlParams.TwoFAType {
@@ -187,15 +187,15 @@ func (c *Controllers) ConfirmDeleteAccount2FAConfig(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.TwoFactorLoginBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	authDTO, serviceErr := c.services.ConfirmDeleteAccount2FAConfig(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.ConfirmDeleteAccount2FAConfigOptions{
 			RequestID: requestID,
 			PublicID:  accountClaims.AccountID,

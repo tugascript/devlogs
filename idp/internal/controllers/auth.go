@@ -7,7 +7,7 @@
 package controllers
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
@@ -19,7 +19,7 @@ import (
 
 const authLocation string = "auth"
 
-func (c *Controllers) saveAccountRefreshCookie(ctx *fiber.Ctx, token string) {
+func (c *Controllers) saveAccountRefreshCookie(ctx fiber.Ctx, token string) {
 	ctx.Cookie(&fiber.Cookie{
 		Name:     c.cookieName + refreshCookieSuffix,
 		Value:    token,
@@ -31,7 +31,7 @@ func (c *Controllers) saveAccountRefreshCookie(ctx *fiber.Ctx, token string) {
 	})
 }
 
-func (c *Controllers) clearAccountRefreshCookie(ctx *fiber.Ctx) {
+func (c *Controllers) clearAccountRefreshCookie(ctx fiber.Ctx) {
 	ctx.Cookie(&fiber.Cookie{
 		Name:     c.cookieName + refreshCookieSuffix,
 		Value:    "",
@@ -43,20 +43,20 @@ func (c *Controllers) clearAccountRefreshCookie(ctx *fiber.Ctx) {
 	})
 }
 
-func (c *Controllers) RegisterAccount(ctx *fiber.Ctx) error {
+func (c *Controllers) RegisterAccount(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "RegisterAccount")
 	logRequest(logger, ctx)
 
 	body := new(bodies.RegisterAccountBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	messageDTO, serviceErr := c.services.RegisterAccount(ctx.UserContext(), services.RegisterAccountOptions{
+	messageDTO, serviceErr := c.services.RegisterAccount(ctx.Context(), services.RegisterAccountOptions{
 		RequestID: requestID,
 		Email:     body.Email,
 		GivenName: body.GivenName,
@@ -72,20 +72,20 @@ func (c *Controllers) RegisterAccount(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&messageDTO)
 }
 
-func (c *Controllers) ConfirmAccount(ctx *fiber.Ctx) error {
+func (c *Controllers) ConfirmAccount(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "ConfirmAccount")
 	logRequest(logger, ctx)
 
 	body := new(bodies.ConfirmationTokenBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.ConfirmAccount(ctx.UserContext(), services.ConfirmAccountOptions{
+	authDTO, serviceErr := c.services.ConfirmAccount(ctx.Context(), services.ConfirmAccountOptions{
 		RequestID:         requestID,
 		ConfirmationToken: body.ConfirmationToken,
 	})
@@ -98,20 +98,20 @@ func (c *Controllers) ConfirmAccount(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) LoginAccount(ctx *fiber.Ctx) error {
+func (c *Controllers) LoginAccount(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "LoginAccount")
 	logRequest(logger, ctx)
 
 	body := new(bodies.LoginBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.LoginAccount(ctx.UserContext(), services.LoginAccountOptions{
+	authDTO, serviceErr := c.services.LoginAccount(ctx.Context(), services.LoginAccountOptions{
 		RequestID: requestID,
 		Email:     body.Email,
 		Password:  body.Password,
@@ -128,7 +128,7 @@ func (c *Controllers) LoginAccount(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) TwoFactorLoginAccount(ctx *fiber.Ctx) error {
+func (c *Controllers) TwoFactorLoginAccount(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "TwoFactorLoginAccount")
 	logRequest(logger, ctx)
@@ -139,14 +139,14 @@ func (c *Controllers) TwoFactorLoginAccount(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.TwoFactorLoginBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.VerifyAccount2FA(ctx.UserContext(), services.VerifyAccount2FAOptions{
+	authDTO, serviceErr := c.services.VerifyAccount2FA(ctx.Context(), services.VerifyAccount2FAOptions{
 		RequestID:       requestID,
 		AccountPublicID: accountClaims.AccountID,
 		AccountVersion:  accountClaims.AccountVersion,
@@ -162,7 +162,7 @@ func (c *Controllers) TwoFactorLoginAccount(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) RecoverAccount(ctx *fiber.Ctx) error {
+func (c *Controllers) RecoverAccount(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "RecoverAccount")
 	logRequest(logger, ctx)
@@ -173,14 +173,14 @@ func (c *Controllers) RecoverAccount(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.RecoverBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	authDTO, serviceErr := c.services.RecoverAccount(ctx.UserContext(), services.RecoverAccountOptions{
+	authDTO, serviceErr := c.services.RecoverAccount(ctx.Context(), services.RecoverAccountOptions{
 		RequestID:    requestID,
 		PublicID:     accountClaims.AccountID,
 		Version:      accountClaims.AccountVersion,
@@ -194,24 +194,24 @@ func (c *Controllers) RecoverAccount(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) LogoutAccount(ctx *fiber.Ctx) error {
+func (c *Controllers) LogoutAccount(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "LogoutAccount")
 
 	refreshToken := ctx.Cookies(c.cookieName + refreshCookieSuffix)
 	if refreshToken == "" {
 		body := new(bodies.RefreshTokenBody)
-		if err := ctx.BodyParser(body); err != nil {
+		if err := ctx.Bind().Body(body); err != nil {
 			return parseRequestErrorResponse(logger, ctx, err)
 		}
-		if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 			return validateBodyErrorResponse(logger, ctx, err)
 		}
 
 		refreshToken = body.RefreshToken
 	}
 
-	if serviceErr := c.services.LogoutAccount(ctx.UserContext(), services.LogoutAccountOptions{
+	if serviceErr := c.services.LogoutAccount(ctx.Context(), services.LogoutAccountOptions{
 		RequestID:    requestID,
 		RefreshToken: refreshToken,
 	}); serviceErr != nil {
@@ -223,7 +223,7 @@ func (c *Controllers) LogoutAccount(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
-func (c *Controllers) RefreshAccount(ctx *fiber.Ctx) error {
+func (c *Controllers) RefreshAccount(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "RefreshAccount")
 	logRequest(logger, ctx)
@@ -232,10 +232,10 @@ func (c *Controllers) RefreshAccount(ctx *fiber.Ctx) error {
 	isCookie := true
 	if refreshToken == "" {
 		body := new(bodies.RefreshTokenBody)
-		if err := ctx.BodyParser(body); err != nil {
+		if err := ctx.Bind().Body(body); err != nil {
 			return serviceErrorResponse(logger, ctx, exceptions.NewUnauthorizedError())
 		}
-		if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+		if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 			return validateBodyErrorResponse(logger, ctx, err)
 		}
 
@@ -259,20 +259,20 @@ func (c *Controllers) RefreshAccount(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&authDTO)
 }
 
-func (c *Controllers) ForgotAccountPassword(ctx *fiber.Ctx) error {
+func (c *Controllers) ForgotAccountPassword(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "ForgotAccountPassword")
 	logRequest(logger, ctx)
 
 	body := new(bodies.ForgotPasswordBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	messageDTO, serviceErr := c.services.ForgotAccountPassword(ctx.UserContext(), services.ForgotAccountPasswordOptions{
+	messageDTO, serviceErr := c.services.ForgotAccountPassword(ctx.Context(), services.ForgotAccountPasswordOptions{
 		RequestID: requestID,
 		Email:     body.Email,
 	})
@@ -284,20 +284,20 @@ func (c *Controllers) ForgotAccountPassword(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&messageDTO)
 }
 
-func (c *Controllers) ResetAccountPassword(ctx *fiber.Ctx) error {
+func (c *Controllers) ResetAccountPassword(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "ResetAccountPassword")
 	logRequest(logger, ctx)
 
 	body := new(bodies.ResetPasswordBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	messageDTO, serviceErr := c.services.ResetAccountPassword(ctx.UserContext(), services.ResetAccountPasswordOptions{
+	messageDTO, serviceErr := c.services.ResetAccountPassword(ctx.Context(), services.ResetAccountPasswordOptions{
 		RequestID:  requestID,
 		ResetToken: body.ResetToken,
 		Password:   body.Password,
@@ -310,7 +310,7 @@ func (c *Controllers) ResetAccountPassword(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&messageDTO)
 }
 
-func (c *Controllers) ListAccountAuthProviders(ctx *fiber.Ctx) error {
+func (c *Controllers) ListAccountAuthProviders(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "ListAccountAuthProviders")
 	logRequest(logger, ctx)
@@ -321,7 +321,7 @@ func (c *Controllers) ListAccountAuthProviders(ctx *fiber.Ctx) error {
 	}
 
 	authProvidersDTO, serviceErr := c.services.ListAccountAuthProviders(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.ListAccountAuthProvidersOptions{
 			RequestID: requestID,
 			PublicID:  accountClaims.AccountID,
@@ -335,7 +335,7 @@ func (c *Controllers) ListAccountAuthProviders(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&items)
 }
 
-func (c *Controllers) GetAccountAuthProvider(ctx *fiber.Ctx) error {
+func (c *Controllers) GetAccountAuthProvider(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, authLocation, "GetAccountAuthProvider")
 	logRequest(logger, ctx)
@@ -348,12 +348,12 @@ func (c *Controllers) GetAccountAuthProvider(ctx *fiber.Ctx) error {
 	urlParams := params.AccountAuthProviderURLParams{
 		Provider: ctx.Params("provider"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	authProviderDTO, serviceErr := c.services.GetAccountAuthProvider(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAccountAuthProviderOptions{
 			RequestID: requestID,
 			PublicID:  accountClaims.AccountID,

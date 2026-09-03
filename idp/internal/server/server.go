@@ -11,12 +11,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/encryptcookie"
-	"github.com/gofiber/fiber/v2/middleware/helmet"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
-	"github.com/gofiber/fiber/v2/middleware/requestid"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/encryptcookie"
+	"github.com/gofiber/fiber/v3/middleware/helmet"
+	"github.com/gofiber/fiber/v3/middleware/limiter"
+	"github.com/gofiber/fiber/v3/middleware/requestid"
 	fiberRedis "github.com/gofiber/storage/redis/v3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -330,9 +330,9 @@ func New(
 		Key: cfg.CookieSecret(),
 	}))
 	server.App.Use(cors.New(cors.Config{
-		AllowOrigins:     "*",
-		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD",
-		AllowHeaders:     "Accept,Authorization,Content-Type",
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"},
+		AllowHeaders:     []string{"Accept", "Authorization", "Content-Type"},
 		AllowCredentials: false, // credentials require explicit origins
 		MaxAge:           300,
 	}))

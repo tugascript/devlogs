@@ -9,7 +9,7 @@ package controllers
 import (
 	"fmt"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
@@ -25,7 +25,7 @@ const (
 	accountCredentialsKeysCacheControl string = "public, max-age=900, must-revalidate"
 )
 
-func (c *Controllers) CreateAccountCredentials(ctx *fiber.Ctx) error {
+func (c *Controllers) CreateAccountCredentials(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsLocation, "CreateAccountCredentials")
 	logRequest(logger, ctx)
@@ -36,15 +36,15 @@ func (c *Controllers) CreateAccountCredentials(ctx *fiber.Ctx) error {
 	}
 
 	body := new(bodies.CreateAccountCredentialsBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	accountKeysDTO, serviceErr := c.services.CreateAccountCredentials(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.CreateAccountCredentialsOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -74,7 +74,7 @@ func (c *Controllers) CreateAccountCredentials(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusCreated).JSON(&accountKeysDTO)
 }
 
-func (c *Controllers) ListAccountCredentials(ctx *fiber.Ctx) error {
+func (c *Controllers) ListAccountCredentials(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsLocation, "ListAccountCredentials")
 	logRequest(logger, ctx)
@@ -85,15 +85,15 @@ func (c *Controllers) ListAccountCredentials(ctx *fiber.Ctx) error {
 	}
 
 	queryParams := params.PaginationQueryParams{
-		Offset: ctx.QueryInt("offset", 0),
-		Limit:  ctx.QueryInt("limit", 20),
+		Offset: fiber.Query[int](ctx, "offset", 0),
+		Limit:  fiber.Query[int](ctx, "limit", 20),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &queryParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &queryParams); err != nil {
 		return validateQueryParamsErrorResponse(logger, ctx, err)
 	}
 
 	accountKeysDTOs, count, serviceErr := c.services.ListAccountCredentialsByAccountPublicID(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.ListAccountCredentialsByAccountPublicID{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -117,7 +117,7 @@ func (c *Controllers) ListAccountCredentials(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&paginationDTO)
 }
 
-func (c *Controllers) GetSingleAccountCredentials(ctx *fiber.Ctx) error {
+func (c *Controllers) GetSingleAccountCredentials(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsLocation, "GetSingleAccountCredentials")
 	logRequest(logger, ctx)
@@ -128,12 +128,12 @@ func (c *Controllers) GetSingleAccountCredentials(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	accountKeysDTO, serviceErr := c.services.GetAccountCredentialsByClientIDAndAccountPublicID(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAccountCredentialsByClientIDAndAccountPublicIDOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -149,7 +149,7 @@ func (c *Controllers) GetSingleAccountCredentials(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&accountKeysDTO)
 }
 
-func (c *Controllers) UpdateAccountCredentials(ctx *fiber.Ctx) error {
+func (c *Controllers) UpdateAccountCredentials(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsLocation, "UpdateAccountCredentials")
 	logRequest(logger, ctx)
@@ -160,20 +160,20 @@ func (c *Controllers) UpdateAccountCredentials(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	body := new(bodies.UpdateAccountCredentialsBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	accountKeysDTO, serviceErr := c.services.UpdateAccountCredentials(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.UpdateAccountCredentialsScopesOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -199,7 +199,7 @@ func (c *Controllers) UpdateAccountCredentials(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&accountKeysDTO)
 }
 
-func (c *Controllers) DeleteAccountCredentials(ctx *fiber.Ctx) error {
+func (c *Controllers) DeleteAccountCredentials(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsLocation, "DeleteAccountCredentials")
 	logRequest(logger, ctx)
@@ -210,11 +210,11 @@ func (c *Controllers) DeleteAccountCredentials(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
-	if serviceErr := c.services.DeleteAccountCredentials(ctx.UserContext(), services.DeleteAccountCredentialsOptions{
+	if serviceErr := c.services.DeleteAccountCredentials(ctx.Context(), services.DeleteAccountCredentialsOptions{
 		RequestID:       requestID,
 		AccountPublicID: accountClaims.AccountID,
 		AccountVersion:  accountClaims.AccountVersion,
@@ -227,7 +227,7 @@ func (c *Controllers) DeleteAccountCredentials(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
-func (c *Controllers) ListAccountCredentialsSecrets(ctx *fiber.Ctx) error {
+func (c *Controllers) ListAccountCredentialsSecrets(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsLocation, "ListAccountCredentialsSecrets")
 	logRequest(logger, ctx)
@@ -238,20 +238,20 @@ func (c *Controllers) ListAccountCredentialsSecrets(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	queryParams := params.PaginationQueryParams{
-		Offset: ctx.QueryInt("offset", 0),
-		Limit:  ctx.QueryInt("limit", 20),
+		Offset: fiber.Query[int](ctx, "offset", 0),
+		Limit:  fiber.Query[int](ctx, "limit", 20),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), queryParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), queryParams); err != nil {
 		return validateQueryParamsErrorResponse(logger, ctx, err)
 	}
 
 	secretsOrKeys, count, serviceErr := c.services.ListAccountCredentialsSecretsOrKeys(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.ListAccountCredentialsSecretsOrKeysOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -276,7 +276,7 @@ func (c *Controllers) ListAccountCredentialsSecrets(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&paginationDTO)
 }
 
-func (c *Controllers) CreateAccountCredentialsSecret(ctx *fiber.Ctx) error {
+func (c *Controllers) CreateAccountCredentialsSecret(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsLocation, "CreateAccountCredentialsSecret")
 	logRequest(logger, ctx)
@@ -287,20 +287,20 @@ func (c *Controllers) CreateAccountCredentialsSecret(ctx *fiber.Ctx) error {
 	}
 
 	urlParams := params.CredentialsURLParams{ClientID: ctx.Params("clientID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	body := new(bodies.CreateCredentialsSecretBody)
-	if err := ctx.BodyParser(body); err != nil {
+	if err := ctx.Bind().Body(body); err != nil {
 		return parseRequestErrorResponse(logger, ctx, err)
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), body); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
 	secretDTO, serviceErr := c.services.RotateAccountCredentialsSecret(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.RotateAccountCredentialsSecretOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -318,7 +318,7 @@ func (c *Controllers) CreateAccountCredentialsSecret(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusCreated).JSON(&secretDTO)
 }
 
-func (c *Controllers) GetAccountCredentialsSecret(ctx *fiber.Ctx) error {
+func (c *Controllers) GetAccountCredentialsSecret(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsLocation, "GetAccountCredentialsSecret")
 	logRequest(logger, ctx)
@@ -332,12 +332,12 @@ func (c *Controllers) GetAccountCredentialsSecret(ctx *fiber.Ctx) error {
 		ClientID: ctx.Params("clientID"),
 		SecretID: ctx.Params("secretID"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	secretDTO, serviceErr := c.services.GetAccountCredentialsSecretOrKey(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.GetAccountCredentialsSecretOrKeyOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -353,7 +353,7 @@ func (c *Controllers) GetAccountCredentialsSecret(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&secretDTO)
 }
 
-func (c *Controllers) RevokeAccountCredentialsSecret(ctx *fiber.Ctx) error {
+func (c *Controllers) RevokeAccountCredentialsSecret(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsLocation, "RevokeAccountCredentialsSecret")
 	logRequest(logger, ctx)
@@ -367,12 +367,12 @@ func (c *Controllers) RevokeAccountCredentialsSecret(ctx *fiber.Ctx) error {
 		ClientID: ctx.Params("clientID"),
 		SecretID: ctx.Params("secretID"),
 	}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
 	secretDTO, serviceErr := c.services.RevokeAccountCredentialsSecretOrKey(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.RevokeAccountCredentialsSecretOrKeyOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountClaims.AccountID,
@@ -389,13 +389,13 @@ func (c *Controllers) RevokeAccountCredentialsSecret(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(&secretDTO)
 }
 
-func (c *Controllers) ListAccountCredentialsKeys(ctx *fiber.Ctx) error {
+func (c *Controllers) ListAccountCredentialsKeys(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, accountCredentialsLocation, "ListAccountCredentialsKeys")
 	logRequest(logger, ctx)
 
 	urlParams := params.AccountURLParams{AccountPublicID: ctx.Params("accountPublicID")}
-	if err := c.validate.StructCtx(ctx.UserContext(), &urlParams); err != nil {
+	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
 	}
 
@@ -405,7 +405,7 @@ func (c *Controllers) ListAccountCredentialsKeys(ctx *fiber.Ctx) error {
 	}
 
 	keys, etag, serviceErr := c.services.ListActiveAccountCredentialsKeysWithCache(
-		ctx.UserContext(),
+		ctx.Context(),
 		services.ListActiveAccountCredentialsKeysWithCacheOptions{
 			RequestID:       requestID,
 			AccountPublicID: accountPublicID,
