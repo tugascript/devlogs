@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/go-faker/faker/v4"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 
@@ -35,6 +35,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/oauth"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/server"
+	"github.com/tugascript/devlogs/idp/internal/server/validations"
 	"github.com/tugascript/devlogs/idp/internal/services"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"github.com/tugascript/devlogs/idp/internal/utils"
@@ -191,6 +192,7 @@ func initTestServicesAndApp(t *testing.T) {
 		oauthProvidersCfg.Microsoft(),
 	)
 	logger.InfoContext(ctx, "Finished building OAuth provider")
+	vld := validations.NewValidator(logger)
 
 	_testServices = services.NewServices(
 		logger,
@@ -200,6 +202,7 @@ func initTestServicesAndApp(t *testing.T) {
 		_testTokens,
 		_testCrypto,
 		oauthProviders,
+		vld,
 		cfg.KEKExpirationDays(),
 		cfg.DEKExpirationDays(),
 		cfg.JWKExpirationDays(),
@@ -288,6 +291,7 @@ func CreateTestJSONRequestBody(t *testing.T, reqBody any) *bytes.Reader {
 
 func PerformTestRequest(t *testing.T, app *fiber.App, delayMs int, method, path, tokenType, accessToken, contentType string, body io.Reader) *http.Response {
 	req := httptest.NewRequest(method, path, body)
+	req.Host = GetTestConfig(t).BackendDomain()
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Accept", "application/json")
 
@@ -295,7 +299,7 @@ func PerformTestRequest(t *testing.T, app *fiber.App, delayMs int, method, path,
 		req.Header.Set("Authorization", tokenType+" "+accessToken)
 	}
 
-	resp, err := app.Test(req, 2000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 2 * time.Second})
 	if err != nil {
 		t.Fatal("Failed to perform request", err)
 	}
@@ -309,13 +313,14 @@ func PerformTestRequest(t *testing.T, app *fiber.App, delayMs int, method, path,
 
 func PerformTestRequestWithURLEncodedBody(t *testing.T, app *fiber.App, delayMs int, method, path, tokenType, accessToken, body string) *http.Response {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req.Host = GetTestConfig(t).BackendDomain()
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	if accessToken != "" {
 		req.Header.Set("Authorization", tokenType+" "+accessToken)
 	}
 
-	resp, err := app.Test(req, 60000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 60 * time.Second})
 	if err != nil {
 		t.Fatal("Failed to perform request", err)
 	}
@@ -489,6 +494,19 @@ func CreateTestAccount(t *testing.T, userData services.CreateAccountOptions) dto
 	return account
 }
 
+func Account2FAAccessToken(t *testing.T, config dtos.Account2FAConfigDTO) string {
+	t.Helper()
+	if config.Account2FATOTPConfigDTO != nil {
+		return config.Account2FATOTPConfigDTO.AccessToken
+	}
+	if config.Account2FACodeConfigDTO != nil {
+		return config.Account2FACodeConfigDTO.AccessToken
+	}
+
+	t.Fatal("Account 2FA config did not include an access token")
+	return ""
+}
+
 func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (string, string) {
 	tks := GetTestTokens(t)
 	cpt := GetTestCrypto(t)
@@ -517,7 +535,9 @@ func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (stri
 				TTL:       tks.GetAccessTTL(),
 			},
 		),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, services.BuildGetGlobalDEKFnOptions{
+			RequestID: requestID,
+		}),
 	})
 	if serviceErr != nil {
 		t.Fatal("Failed to sign access token", serviceErr)
@@ -545,7 +565,9 @@ func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (stri
 					TTL:       tks.GetRefreshTTL(),
 				},
 			),
-			GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+			GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, services.BuildGetGlobalDEKFnOptions{
+				RequestID: requestID,
+			}),
 		},
 	)
 	if serviceErr != nil {
@@ -582,7 +604,9 @@ func GenerateScopedAccountAccessToken(t *testing.T, account *dtos.AccountDTO, sc
 				TTL:       tks.GetAccessTTL(),
 			},
 		),
-		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, requestID),
+		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, services.BuildGetGlobalDEKFnOptions{
+			RequestID: requestID,
+		}),
 	})
 	if serviceErr != nil {
 		t.Fatal("Failed to sign access token", serviceErr)
@@ -607,4 +631,8 @@ func AssertForbiddenError[T any](t *testing.T, _ T, res *http.Response) {
 
 func AssertNotFoundError[T any](t *testing.T, _ T, res *http.Response) {
 	assertErrorResponse(t, res, exceptions.StatusNotFound, exceptions.MessageNotFound)
+}
+
+func AssertConflictError[T any](t *testing.T, _ T, res *http.Response) {
+	assertErrorResponse(t, res, exceptions.StatusConflict, exceptions.MessageDuplicateKey)
 }

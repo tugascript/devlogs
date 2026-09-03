@@ -355,8 +355,9 @@ func (s *Services) generate2FAAuth(
 	twoFAToken, err := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: requestID,
 		Token: s.jwt.Create2FAToken(tokens.Account2FATokenOptions{
-			PublicID: accountDTO.PublicID,
-			Version:  accountDTO.Version(),
+			PublicID:  accountDTO.PublicID,
+			Version:   accountDTO.Version(),
+			TwoFAType: tokens.TwoFAType(twoFAType),
 		}),
 		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
 			RequestID: requestID,
@@ -1145,8 +1146,9 @@ func (s *Services) RecoverAccount(
 	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
 		RequestID: opts.RequestID,
 		Token: s.jwt.Create2FAToken(tokens.Account2FATokenOptions{
-			PublicID: accountDTO.PublicID,
-			Version:  accountDTO.Version(),
+			PublicID:  accountDTO.PublicID,
+			Version:   accountDTO.Version(),
+			TwoFAType: tokens.TwoFATypeTOTP,
 		}),
 		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
 			RequestID: opts.RequestID,

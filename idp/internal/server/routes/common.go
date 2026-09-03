@@ -28,23 +28,30 @@ func HostAwareRoute(
 ) fiber.Handler {
 	return func(ctx fiber.Ctx) error {
 		hasAccountHost, ok := ctx.Locals("hasAccountHost").(bool)
+		ctx.Locals("hostAwareRoute", true)
 
 		if !ok || !hasAccountHost {
 			for _, handler := range normalHandlers {
 				if err := handler(ctx); err != nil {
 					return err
 				}
+				if ctx.Response().StatusCode() >= fiber.StatusBadRequest {
+					return nil
+				}
 			}
 
-			return ctx.Status(fiber.StatusNotFound).JSON(errorResponseNotFound)
+			return nil
 		}
 
 		for _, handler := range hostHandlers {
 			if err := handler(ctx); err != nil {
 				return err
 			}
+			if ctx.Response().StatusCode() >= fiber.StatusBadRequest {
+				return nil
+			}
 		}
 
-		return ctx.Status(fiber.StatusNotFound).JSON(errorResponseNotFound)
+		return nil
 	}
 }

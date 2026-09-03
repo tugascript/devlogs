@@ -444,7 +444,7 @@ func (s *Services) OAuthLoginAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	ok, err = utils.CompareShaBase64(oauthData.Challenge, opts.ChallengeVerifier)
+	ok, err = utils.CompareShaBase64(opts.ChallengeVerifier, oauthData.Challenge)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to compare challenge", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
@@ -456,7 +456,7 @@ func (s *Services) OAuthLoginAccount(
 
 	accountDTO, serviceErr := s.saveExtAccount(ctx, logger, saveExtAccount{
 		requestID:  opts.RequestID,
-		provider:   AuthProviderApple,
+		provider:   opts.Provider,
 		email:      oauthData.Email,
 		givenName:  oauthData.GivenName,
 		familyName: oauthData.FamilyName,

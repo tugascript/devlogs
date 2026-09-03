@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/go-faker/faker/v4"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/encryptcookie"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/encryptcookie"
 	"github.com/google/uuid"
 	"github.com/pquerna/otp/totp"
 
@@ -243,7 +243,7 @@ func TestConfirm(t *testing.T) {
 				),
 				GetDecryptDEKfn: testServices.BuildGetGlobalDecDEKFn(
 					context.Background(),
-					requestID,
+					services.BuildGetGlobalDEKFnOptions{RequestID: requestID},
 				),
 			},
 		)
@@ -348,12 +348,11 @@ func TestLogin(t *testing.T) {
 				account := CreateTestAccount(t, data)
 				testS := GetTestServices(t)
 
-				if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
-					RequestID:     uuid.NewString(),
-					PublicID:      account.PublicID,
-					Version:       account.Version(),
-					TwoFactorType: services.TwoFactorTotp,
-					Password:      data.Password,
+				if _, err := testS.CreateAccount2FAConfig(context.Background(), services.CreateAccount2FAConfigOptions{
+					RequestID:       uuid.NewString(),
+					AccountPublicID: account.PublicID,
+					AccountVersion:  account.Version(),
+					TwoFAType:       services.TwoFactorTotp,
 				}); err != nil {
 					t.Fatal("Failed to enable 2FA", err)
 				}
@@ -416,18 +415,17 @@ func TestTwoFactorLogin(t *testing.T) {
 		testS := GetTestServices(t)
 		requestID := uuid.NewString()
 
-		token, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
-			RequestID:     requestID,
-			PublicID:      account.PublicID,
-			Version:       account.Version(),
-			TwoFactorType: twoFactorType,
-			Password:      data.Password,
+		token, err := testS.CreateAccount2FAConfig(context.Background(), services.CreateAccount2FAConfigOptions{
+			RequestID:       requestID,
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			TwoFAType:       twoFactorType,
 		})
 		if err != nil {
 			t.Fatal("Failed to enable 2FA", err)
 		}
 
-		return account, token.AccessToken
+		return account, Account2FAAccessToken(t, token)
 	}
 
 	genEmailCode := func(t *testing.T, account dtos.AccountDTO) string {
@@ -459,7 +457,7 @@ func TestTwoFactorLogin(t *testing.T) {
 					RequestID: requestID,
 					GetDecryptDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
 						ctx,
-						requestID,
+						services.BuildGetGlobalDEKFnOptions{RequestID: requestID},
 					),
 					Ciphertext: accountTOTP.Secret,
 				})
@@ -531,18 +529,20 @@ type cookieTestCase struct {
 
 func performCookieRequest(t *testing.T, app *fiber.App, path, accessToken, refreshToken string) *http.Response {
 	config := GetTestConfig(t)
+	cookieName := config.CookieName() + "_rt"
 	req := httptest.NewRequest(http.MethodPost, path, nil)
+	req.Host = config.BackendDomain()
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
 	if refreshToken != "" {
-		encryptedRefreshToken, err := encryptcookie.EncryptCookie(refreshToken, config.CookieSecret())
+		encryptedRefreshToken, err := encryptcookie.EncryptCookie(cookieName, refreshToken, config.CookieSecret())
 		if err != nil {
 			t.Fatal("Failed to encrypt cookie", err)
 		}
 
 		req.AddCookie(&http.Cookie{
-			Name:  config.CookieName(),
+			Name:  cookieName,
 			Value: encryptedRefreshToken,
 			Path:  "/api/auth",
 		})
@@ -805,89 +805,30 @@ func TestAccount2FARecover(t *testing.T) {
 	gen2FAAccount := func(t *testing.T) (dtos.AccountDTO, string, string) {
 		data := GenerateFakeAccountData(t, services.AuthProviderLocal)
 		accountDTO := CreateTestAccount(t, data)
-		testE := GetTestCrypto(t)
-		testD := GetTestDatabase(t)
-		testT := GetTestTokens(t)
 		testS := GetTestServices(t)
 		requestID := uuid.NewString()
 		ctx := context.Background()
 
-		totpKey, err := testE.GenerateTotpKey(ctx, crypto.GenerateTotpKeyOptions{
-			RequestID: requestID,
-			Email:     accountDTO.Email,
-			GetDEKfn: GetTestServices(t).BuildGetEncAccountDEKfn(ctx, services.BuildGetEncAccountDEKOptions{
-				RequestID: requestID,
-				AccountID: accountDTO.ID(),
-			}),
-			StoreTOTPfn: func(dekKID, encSecret string, hashedCode []byte, url string) *exceptions.ServiceError {
-				id, err := testD.CreateTotp(ctx, database.CreateTotpParams{
-					DekKid:        dekKID,
-					Url:           url,
-					Secret:        encSecret,
-					RecoveryCodes: hashedCode,
-					Usage:         database.TotpUsageAccount,
-					AccountID:     accountDTO.ID(),
-				})
-				if err != nil {
-					return exceptions.FromDBError(err)
-				}
-
-				if err := testD.CreateAccountTotp(ctx, database.CreateAccountTotpParams{
-					AccountID: accountDTO.ID(),
-					TotpID:    id,
-				}); err != nil {
-					return exceptions.FromDBError(err)
-				}
-
-				if err := testD.UpdateAccountTwoFactorType(context.Background(), database.UpdateAccountTwoFactorTypeParams{
-					TwoFactorType: database.TwoFactorTypeTotp,
-					ID:            accountDTO.ID(),
-				}); err != nil {
-					t.Fatal("Failed to update account two factor type", err)
-				}
-
-				return nil
-			},
+		configDTO, serviceErr := testS.CreateAccount2FAConfig(ctx, services.CreateAccount2FAConfigOptions{
+			RequestID:       requestID,
+			AccountPublicID: accountDTO.PublicID,
+			AccountVersion:  accountDTO.Version(),
+			TwoFAType:       services.TwoFactorTotp,
 		})
-		if err != nil {
-			t.Fatal("Failed to generate TOTP key", err)
-		}
-
-		account, err := testD.FindAccountById(ctx, accountDTO.ID())
-		if err != nil {
-			t.Fatal("Failed to find account by ID", err)
-		}
-
-		token := testT.Create2FAToken(tokens.Account2FATokenOptions{
-			PublicID: account.PublicID,
-			Version:  account.Version,
-		})
-
-		sToken, serviceErr := testE.SignToken(
-			context.Background(),
-			crypto.SignTokenOptions{
-				RequestID: uuid.NewString(),
-				Token:     token,
-				GetJWKfn: testS.BuildGetGlobalEncryptedJWKFn(
-					context.Background(),
-					services.BuildEncryptedJWKFnOptions{
-						RequestID: uuid.NewString(),
-						KeyType:   database.TokenKeyType2faAuthentication,
-						TTL:       testT.Get2FATTL(),
-					},
-				),
-				GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(
-					context.Background(),
-					requestID,
-				),
-			},
-		)
 		if serviceErr != nil {
-			t.Fatal("Failed to build encrypted JWK function", serviceErr)
+			t.Fatal("Failed to create TOTP account 2FA config", serviceErr)
 		}
 
-		recoveryCode := strings.Split(totpKey.Codes(), "\n")[getRandomZeroToSeven()]
-		return dtos.MapAccountToDTO(&account), sToken, recoveryCode
+		accountDTO, serviceErr = testS.GetAccountByPublicID(ctx, services.GetAccountByPublicIDOptions{
+			RequestID: requestID,
+			PublicID:  accountDTO.PublicID,
+		})
+		if serviceErr != nil {
+			t.Fatal("Failed to find account by public ID", serviceErr)
+		}
+
+		recoveryCode := strings.Split(configDTO.Account2FATOTPConfigDTO.RecoveryKeys, "\n")[getRandomZeroToSeven()]
+		return accountDTO, Account2FAAccessToken(t, configDTO), recoveryCode
 	}
 
 	testCases := []TestRequestCase[bodies.RecoverBody]{
@@ -938,7 +879,124 @@ func TestAccount2FARecover(t *testing.T) {
 	t.Cleanup(accountsCleanUp(t))
 }
 
-func TestAccountAuth2FAUpdate(t *testing.T) {
+func TestAccountAuth2FAConfigs(t *testing.T) {
+	const account2FAPath = v1Path + paths.AuthBase + paths.Auth2FA
+
+	genAccountWith2FA := func(t *testing.T, twoFAType string) string {
+		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGitHub))
+		requestID := uuid.NewString()
+		if _, serviceErr := GetTestServices(t).CreateAccount2FAConfig(
+			context.Background(),
+			services.CreateAccount2FAConfigOptions{
+				RequestID:       requestID,
+				AccountPublicID: account.PublicID,
+				AccountVersion:  account.Version(),
+				TwoFAType:       twoFAType,
+				IsDefault:       true,
+			},
+		); serviceErr != nil {
+			t.Fatalf("failed to create account 2FA config: %v", serviceErr)
+		}
+
+		account, serviceErr := GetTestServices(t).GetAccountByPublicID(
+			context.Background(),
+			services.GetAccountByPublicIDOptions{RequestID: requestID, PublicID: account.PublicID},
+		)
+		if serviceErr != nil {
+			t.Fatalf("failed to reload account: %v", serviceErr)
+		}
+		accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+		return accessToken
+	}
+
+	testCases := []TestRequestCase[bodies.Account2FAConfigBody]{
+		{
+			Name: "Should create a default TOTP 2FA config",
+			ReqFn: func(t *testing.T) (bodies.Account2FAConfigBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.Account2FAConfigBody{TwoFAType: services.TwoFactorTotp, IsDefault: true}, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ bodies.Account2FAConfigBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.Account2FAConfigDTO{})
+				AssertEqual(t, database.TwoFactorTypeTotp, resBody.TwoFactorType)
+				AssertEqual(t, true, resBody.IsDefault)
+				AssertNotEmpty(t, resBody.Account2FATOTPConfigDTO.AccessToken)
+				AssertNotEmpty(t, resBody.Account2FATOTPConfigDTO.Image)
+				AssertNotEmpty(t, resBody.Account2FATOTPConfigDTO.RecoveryKeys)
+			},
+		},
+		{
+			Name: "Should create a default email 2FA config",
+			ReqFn: func(t *testing.T) (bodies.Account2FAConfigBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderMicrosoft))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.Account2FAConfigBody{TwoFAType: services.TwoFactorEmail, IsDefault: true}, accessToken
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ bodies.Account2FAConfigBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.Account2FAConfigDTO{})
+				AssertEqual(t, database.TwoFactorTypeEmail, resBody.TwoFactorType)
+				AssertEqual(t, true, resBody.IsDefault)
+				AssertNotEmpty(t, resBody.Account2FACodeConfigDTO.AccessToken)
+			},
+		},
+		{
+			Name: "Should add a second 2FA provider and make it default",
+			ReqFn: func(t *testing.T) (bodies.Account2FAConfigBody, string) {
+				return bodies.Account2FAConfigBody{TwoFAType: services.TwoFactorTotp, IsDefault: true},
+					genAccountWith2FA(t, services.TwoFactorEmail)
+			},
+			ExpStatus: http.StatusCreated,
+			AssertFn: func(t *testing.T, _ bodies.Account2FAConfigBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, dtos.Account2FAConfigDTO{})
+				AssertEqual(t, database.TwoFactorTypeTotp, resBody.TwoFactorType)
+				AssertEqual(t, true, resBody.IsDefault)
+			},
+		},
+		{
+			Name: "Should return 409 CONFLICT for an existing 2FA provider",
+			ReqFn: func(t *testing.T) (bodies.Account2FAConfigBody, string) {
+				return bodies.Account2FAConfigBody{TwoFAType: services.TwoFactorTotp, IsDefault: true},
+					genAccountWith2FA(t, services.TwoFactorTotp)
+			},
+			ExpStatus: http.StatusConflict,
+			AssertFn:  AssertConflictError[bodies.Account2FAConfigBody],
+		},
+		{
+			Name: "Should return 400 BAD REQUEST for an invalid 2FA provider",
+			ReqFn: func(t *testing.T) (bodies.Account2FAConfigBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.Account2FAConfigBody{TwoFAType: "invalid", IsDefault: true}, accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ bodies.Account2FAConfigBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ValidationErrorResponse{})
+				AssertNotEmpty(t, len(resBody.Fields))
+			},
+		},
+		{
+			Name: "Should return 401 UNAUTHORIZED without an access token",
+			ReqFn: func(t *testing.T) (bodies.Account2FAConfigBody, string) {
+				return bodies.Account2FAConfigBody{TwoFAType: services.TwoFactorTotp, IsDefault: true}, ""
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  AssertUnauthorizedError[bodies.Account2FAConfigBody],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, account2FAPath, tc)
+		})
+	}
+
+	t.Cleanup(accountsCleanUp(t))
+}
+
+func legacyAccountAuth2FAUpdate(t *testing.T) {
 	const update2FAPath = v1Path + paths.AuthBase + paths.Auth2FA
 
 	genTwoFactorAccount := func(t *testing.T, twoFactorType string) string {
@@ -947,12 +1005,11 @@ func TestAccountAuth2FAUpdate(t *testing.T) {
 		testS := GetTestServices(t)
 		requestID := uuid.NewString()
 
-		if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
-			RequestID:     requestID,
-			PublicID:      account.PublicID,
-			Version:       account.Version(),
-			TwoFactorType: twoFactorType,
-			Password:      accountData.Password,
+		if _, err := testS.CreateAccount2FAConfig(context.Background(), services.CreateAccount2FAConfigOptions{
+			RequestID:       requestID,
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			TwoFAType:       twoFactorType,
 		}); err != nil {
 			t.Fatalf("failed to enable 2FA for account: %v", err)
 		}
@@ -1086,7 +1143,7 @@ func TestAccountAuth2FAUpdate(t *testing.T) {
 	t.Cleanup(accountsCleanUp(t))
 }
 
-func TestAccountAuth2FAUpdateConfirm(t *testing.T) {
+func legacyAccountAuth2FAUpdateConfirm(t *testing.T) {
 	const confirm2FAPath = v1Path + paths.AuthBase + paths.Auth2FA + paths.Confirm
 
 	genEmailCode := func(t *testing.T, account dtos.AccountDTO) string {
@@ -1113,7 +1170,7 @@ func TestAccountAuth2FAUpdateConfirm(t *testing.T) {
 			RequestID: requestID,
 			GetDecryptDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
 				ctx,
-				requestID,
+				services.BuildGetGlobalDEKFnOptions{RequestID: requestID},
 			),
 			Ciphertext: accountTOTP.Secret,
 		})
@@ -1136,32 +1193,31 @@ func TestAccountAuth2FAUpdateConfirm(t *testing.T) {
 		testC := GetTestCache(t)
 		requestID := uuid.NewString()
 
-		authDTO, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
-			RequestID:     requestID,
-			PublicID:      account.PublicID,
-			Version:       account.Version(),
-			TwoFactorType: old2FAType,
-			Password:      accountData.Password,
+		authDTO, err := testS.CreateAccount2FAConfig(context.Background(), services.CreateAccount2FAConfigOptions{
+			RequestID:       requestID,
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			TwoFAType:       old2FAType,
 		})
 		if err != nil {
 			t.Fatalf("failed to enable 2FA for account: %v", err)
 		}
 
-		if err := testC.SaveTwoFactorUpdateRequest(context.Background(), cache.SaveTwoFactorUpdateRequestOptions{
-			RequestID:       requestID,
-			PrefixType:      cache.SensitiveRequestAccountPrefix,
-			PublicID:        account.PublicID,
-			TwoFactorType:   database.TwoFactorType(new2FAType),
-			DurationSeconds: 300,
+		if _, err := testC.SaveDelete2FAConfigRequest(context.Background(), cache.SaveDelete2FAConfigRequestOptions{
+			RequestID:  requestID,
+			PrefixType: cache.SensitiveRequestAccountPrefix,
+			PublicID:   account.PublicID,
+			TwoFAType:  new2FAType,
+			TTL:        300,
 		}); err != nil {
-			t.Fatalf("failed to save 2FA update request: %v", err)
+			t.Fatalf("failed to save 2FA delete request: %v", err)
 		}
 
 		switch old2FAType {
 		case services.TwoFactorEmail:
-			return authDTO.AccessToken, genEmailCode(t, account)
+			return Account2FAAccessToken(t, authDTO), genEmailCode(t, account)
 		case services.TwoFactorTotp:
-			return authDTO.AccessToken, genToptCode(t, account)
+			return Account2FAAccessToken(t, authDTO), genToptCode(t, account)
 		default:
 			t.Fatalf("unsupported 2FA type: %s", old2FAType)
 			return "", ""
@@ -1325,7 +1381,7 @@ func TestResetAccountPassword(t *testing.T) {
 				),
 				GetDecryptDEKfn: testServices.BuildGetGlobalDecDEKFn(
 					context.Background(),
-					requestID,
+					services.BuildGetGlobalDEKFnOptions{RequestID: requestID},
 				),
 			},
 		)
@@ -1437,7 +1493,7 @@ func TestResetAccountPassword(t *testing.T) {
 						),
 						GetDecryptDEKfn: testServices.BuildGetGlobalDecDEKFn(
 							context.Background(),
-							requestID,
+							services.BuildGetGlobalDEKFnOptions{RequestID: requestID},
 						),
 					},
 				)
@@ -1535,7 +1591,7 @@ func TestListAccountAuthProviders(t *testing.T) {
 						),
 						GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(
 							context.Background(),
-							requestID,
+							services.BuildGetGlobalDEKFnOptions{RequestID: requestID},
 						),
 					},
 				)
@@ -1593,7 +1649,7 @@ func TestListAccountAuthProviders(t *testing.T) {
 						),
 						GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(
 							context.Background(),
-							requestID,
+							services.BuildGetGlobalDEKFnOptions{RequestID: requestID},
 						),
 					},
 				)
@@ -1677,7 +1733,7 @@ func TestGetAccountAuthProvider(t *testing.T) {
 						),
 						GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(
 							context.Background(),
-							requestID,
+							services.BuildGetGlobalDEKFnOptions{RequestID: requestID},
 						),
 					},
 				)
@@ -1757,7 +1813,7 @@ func TestGetAccountAuthProvider(t *testing.T) {
 						),
 						GetDecryptDEKfn: testS.BuildGetGlobalDecDEKFn(
 							context.Background(),
-							requestID,
+							services.BuildGetGlobalDEKFnOptions{RequestID: requestID},
 						),
 					},
 				)

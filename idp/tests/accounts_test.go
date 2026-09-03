@@ -154,12 +154,11 @@ func TestUpdateAccountPassword(t *testing.T) {
 				testS := GetTestServices(t)
 				requestID := uuid.NewString()
 
-				if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
-					RequestID:     requestID,
-					PublicID:      account.PublicID,
-					Version:       account.Version(),
-					TwoFactorType: services.TwoFactorEmail,
-					Password:      data.Password,
+				if _, err := testS.CreateAccount2FAConfig(context.Background(), services.CreateAccount2FAConfigOptions{
+					RequestID:       requestID,
+					AccountPublicID: account.PublicID,
+					AccountVersion:  account.Version(),
+					TwoFAType:       services.TwoFactorEmail,
 				}); err != nil {
 					t.Fatalf("failed to enable 2FA for account: %v", err)
 				}
@@ -262,12 +261,11 @@ func TestConfirmUpdateAccountPassword(t *testing.T) {
 		testS := GetTestServices(t)
 		requestID := uuid.NewString()
 
-		if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
-			RequestID:     requestID,
-			PublicID:      account.PublicID,
-			Version:       account.Version(),
-			TwoFactorType: twoFactorType,
-			Password:      data.Password,
+		if _, err := testS.CreateAccount2FAConfig(context.Background(), services.CreateAccount2FAConfigOptions{
+			RequestID:       requestID,
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			TwoFAType:       twoFactorType,
 		}); err != nil {
 			t.Fatal("Failed to enable 2FA", err)
 		}
@@ -566,12 +564,11 @@ func TestUpdateAccountEmail(t *testing.T) {
 				testS := GetTestServices(t)
 				requestID := uuid.NewString()
 
-				if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
-					RequestID:     requestID,
-					PublicID:      account.PublicID,
-					Version:       account.Version(),
-					TwoFactorType: services.TwoFactorEmail,
-					Password:      accountData.Password,
+				if _, err := testS.CreateAccount2FAConfig(context.Background(), services.CreateAccount2FAConfigOptions{
+					RequestID:       requestID,
+					AccountPublicID: account.PublicID,
+					AccountVersion:  account.Version(),
+					TwoFAType:       services.TwoFactorEmail,
 				}); err != nil {
 					t.Fatalf("failed to enable 2FA for account: %v", err)
 				}
@@ -702,12 +699,11 @@ func TestConfirmUpdateAccountEmail(t *testing.T) {
 		testS := GetTestServices(t)
 		requestID := uuid.NewString()
 
-		if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
-			RequestID:     requestID,
-			PublicID:      account.PublicID,
-			Version:       account.Version(),
-			TwoFactorType: twoFactorType,
-			Password:      accountData.Password,
+		if _, err := testS.CreateAccount2FAConfig(context.Background(), services.CreateAccount2FAConfigOptions{
+			RequestID:       requestID,
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			TwoFAType:       twoFactorType,
 		}); err != nil {
 			t.Fatalf("failed to enable 2FA for account: %v", err)
 		}
@@ -750,9 +746,12 @@ func TestConfirmUpdateAccountEmail(t *testing.T) {
 
 				secret, serviceErr := GetTestCrypto(t).DecryptWithDEK(context.Background(), crypto.DecryptWithDEKOptions{
 					RequestID: requestID,
-					GetDecryptDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
+					GetDecryptDEKfn: GetTestServices(t).BuildGetDecAccountDEKFn(
 						context.Background(),
-						requestID,
+						services.BuildGetDecAccountDEKFnOptions{
+							RequestID: requestID,
+							AccountID: account.ID(),
+						},
 					),
 					Ciphertext: accountTOTP.Secret,
 				})
@@ -939,12 +938,11 @@ func TestUpdateAccountUsername(t *testing.T) {
 				account := CreateTestAccount(t, accountData)
 				testS := GetTestServices(t)
 				requestID := uuid.NewString()
-				if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
-					RequestID:     requestID,
-					PublicID:      account.PublicID,
-					Version:       account.Version(),
-					TwoFactorType: services.TwoFactorEmail,
-					Password:      accountData.Password,
+				if _, err := testS.CreateAccount2FAConfig(context.Background(), services.CreateAccount2FAConfigOptions{
+					RequestID:       requestID,
+					AccountPublicID: account.PublicID,
+					AccountVersion:  account.Version(),
+					TwoFAType:       services.TwoFactorEmail,
 				}); err != nil {
 					t.Fatalf("failed to enable 2FA for account: %v", err)
 				}
@@ -1070,12 +1068,11 @@ func TestConfirmUpdateAccountUsername(t *testing.T) {
 		testS := GetTestServices(t)
 		requestID := uuid.NewString()
 
-		if _, err := testS.UpdateAccount2FA(context.Background(), services.UpdateAccount2FAOptions{
-			RequestID:     requestID,
-			PublicID:      account.PublicID,
-			Version:       account.Version(),
-			TwoFactorType: twoFactorType,
-			Password:      accountData.Password,
+		if _, err := testS.CreateAccount2FAConfig(context.Background(), services.CreateAccount2FAConfigOptions{
+			RequestID:       requestID,
+			AccountPublicID: account.PublicID,
+			AccountVersion:  account.Version(),
+			TwoFAType:       twoFactorType,
 		}); err != nil {
 			t.Fatalf("failed to enable 2FA for account: %v", err)
 		}
@@ -1118,9 +1115,12 @@ func TestConfirmUpdateAccountUsername(t *testing.T) {
 
 				secret, serviceErr := GetTestCrypto(t).DecryptWithDEK(context.Background(), crypto.DecryptWithDEKOptions{
 					RequestID: requestID,
-					GetDecryptDEKfn: GetTestServices(t).BuildGetGlobalDecDEKFn(
+					GetDecryptDEKfn: GetTestServices(t).BuildGetDecAccountDEKFn(
 						context.Background(),
-						requestID,
+						services.BuildGetDecAccountDEKFnOptions{
+							RequestID: requestID,
+							AccountID: account.ID(),
+						},
 					),
 					Ciphertext: accountTOTP.Secret,
 				})

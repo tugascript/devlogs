@@ -267,6 +267,26 @@ func (s *Services) CreateAccountCredentials(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
+	creationMethod := opts.CreationMethod
+	if creationMethod == "" {
+		creationMethod = database.CreationMethodManual
+	}
+
+	grantTypes, serviceErr := mapAccountCredentialsGrantTypes(credentialsType, nil)
+	if serviceErr != nil {
+		return dtos.AccountCredentialsDTO{}, serviceErr
+	}
+	responseTypes := make([]database.ResponseType, 0)
+	if credentialsType == database.AccountCredentialsTypeMcp && transport != database.TransportStdio {
+		responseTypes, serviceErr = mapResponseTypesWithDefault(nil)
+		if serviceErr != nil {
+			return dtos.AccountCredentialsDTO{}, serviceErr
+		}
+	}
+	if transport == database.TransportStdio {
+		grantTypes = make([]database.GrantType, 0)
+	}
+
 	scopes, serviceErr := mapAccountCredentialsScopes(opts.Scopes)
 	if serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to map scopes", "serviceError", serviceErr)
@@ -316,20 +336,24 @@ func (s *Services) CreateAccountCredentials(
 				CredentialsType:         credentialsType,
 				ClientName:              name,
 				Scopes:                  scopes,
+				GrantTypes:              grantTypes,
+				ResponseTypes:           responseTypes,
 				TokenEndpointAuthMethod: authMethod,
 				Domain:                  domain,
 				ClientUri:               utils.ProcessURL(opts.ClientURI),
 				RedirectUris: utils.MapSlice(opts.RedirectURIs, func(uri *string) string {
 					return utils.ProcessURL(*uri)
 				}),
-				LogoUri:         mapEmptyURL(opts.LogoURI),
-				PolicyUri:       mapEmptyURL(opts.PolicyURI),
-				TosUri:          mapEmptyURL(opts.TOSURI),
-				SoftwareID:      mapEmptyString(opts.SoftwareID),
-				SoftwareVersion: mapEmptyString(opts.SoftwareVersion),
-				Contacts:        opts.Contacts,
-				CreationMethod:  opts.CreationMethod,
-				Transport:       transport,
+				LogoUri:                  mapEmptyURL(opts.LogoURI),
+				PolicyUri:                mapEmptyURL(opts.PolicyURI),
+				TosUri:                   mapEmptyURL(opts.TOSURI),
+				SoftwareID:               mapEmptyString(opts.SoftwareID),
+				SoftwareVersion:          mapEmptyString(opts.SoftwareVersion),
+				Contacts:                 utils.ToEmptySlice(opts.Contacts),
+				CreationMethod:           creationMethod,
+				Transport:                transport,
+				IDTokenSignedResponseAlg: database.TokenCryptoSuiteES256,
+				AccessTokenSigningAlg:    database.TokenCryptoSuiteES256,
 			},
 		)
 		if err != nil {
@@ -359,20 +383,24 @@ func (s *Services) CreateAccountCredentials(
 			CredentialsType:         credentialsType,
 			ClientName:              name,
 			Scopes:                  scopes,
+			GrantTypes:              grantTypes,
+			ResponseTypes:           responseTypes,
 			TokenEndpointAuthMethod: authMethod,
 			Domain:                  domain,
 			ClientUri:               utils.ProcessURL(opts.ClientURI),
 			RedirectUris: utils.MapSlice(opts.RedirectURIs, func(uri *string) string {
 				return utils.ProcessURL(*uri)
 			}),
-			LogoUri:         mapEmptyURL(opts.LogoURI),
-			PolicyUri:       mapEmptyURL(opts.PolicyURI),
-			TosUri:          mapEmptyURL(opts.TOSURI),
-			SoftwareID:      mapEmptyString(opts.SoftwareID),
-			SoftwareVersion: mapEmptyString(opts.SoftwareVersion),
-			Contacts:        opts.Contacts,
-			CreationMethod:  opts.CreationMethod,
-			Transport:       transport,
+			LogoUri:                  mapEmptyURL(opts.LogoURI),
+			PolicyUri:                mapEmptyURL(opts.PolicyURI),
+			TosUri:                   mapEmptyURL(opts.TOSURI),
+			SoftwareID:               mapEmptyString(opts.SoftwareID),
+			SoftwareVersion:          mapEmptyString(opts.SoftwareVersion),
+			Contacts:                 utils.ToEmptySlice(opts.Contacts),
+			CreationMethod:           creationMethod,
+			Transport:                transport,
+			IDTokenSignedResponseAlg: database.TokenCryptoSuiteES256,
+			AccessTokenSigningAlg:    database.TokenCryptoSuiteES256,
 		},
 	)
 	if err != nil {
@@ -685,8 +713,8 @@ func (s *Services) UpdateAccountCredentials(
 			return dtos.AccountCredentialsDTO{}, exceptions.NewInternalServerError()
 		}
 		if count > 0 {
-			logger.WarnContext(ctx, "Account credentials alias already exists", "name", name)
-			return dtos.AccountCredentialsDTO{}, exceptions.NewConflictError("Account credentials alias already exists")
+			logger.WarnContext(ctx, "Account credentials name already exists", "name", name)
+			return dtos.AccountCredentialsDTO{}, exceptions.NewConflictError("Account credentials name already exists")
 		}
 	}
 
@@ -706,17 +734,19 @@ func (s *Services) UpdateAccountCredentials(
 	}
 
 	accountCredentials, err := s.database.UpdateAccountCredentials(ctx, database.UpdateAccountCredentialsParams{
-		ID:              accountCredentialsDTO.ID(),
-		Scopes:          scopes,
-		ClientName:      name,
-		Domain:          domain,
-		ClientUri:       opts.ClientURI,
-		RedirectUris:    opts.RedirectURIs,
+		ID:         accountCredentialsDTO.ID(),
+		Scopes:     scopes,
+		ClientName: name,
+		Domain:     domain,
+		ClientUri:  utils.ProcessURL(opts.ClientURI),
+		RedirectUris: utils.MapSlice(opts.RedirectURIs, func(uri *string) string {
+			return utils.ProcessURL(*uri)
+		}),
 		LogoUri:         mapEmptyURL(opts.LogoURI),
 		TosUri:          mapEmptyURL(opts.TOSURI),
 		PolicyUri:       mapEmptyURL(opts.PolicyURI),
 		SoftwareVersion: mapEmptyString(opts.SoftwareVersion),
-		Contacts:        opts.Contacts,
+		Contacts:        utils.ToEmptySlice(opts.Contacts),
 		Transport:       transport,
 	})
 	if err != nil {

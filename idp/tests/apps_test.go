@@ -95,7 +95,7 @@ func TestCreateApp(t *testing.T) {
 			ExpStatus: http.StatusCreated,
 			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 				AssertEqual(t, req.Domain, resBody.Domain)
 				AssertEqual(t, database.AppTypeWeb, resBody.AppType)
@@ -125,7 +125,7 @@ func TestCreateApp(t *testing.T) {
 			ExpStatus: http.StatusCreated,
 			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 				AssertEqual(t, database.AppTypeSpa, resBody.AppType)
 				AssertNotEmpty(t, resBody.ClientID)
@@ -153,7 +153,7 @@ func TestCreateApp(t *testing.T) {
 			ExpStatus: http.StatusCreated,
 			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 				AssertEqual(t, database.AppTypeNative, resBody.AppType)
 				AssertNotEmpty(t, resBody.ClientID)
@@ -182,7 +182,7 @@ func TestCreateApp(t *testing.T) {
 			ExpStatus: http.StatusCreated,
 			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 				AssertEqual(t, database.AppTypeBackend, resBody.AppType)
 				AssertNotEmpty(t, resBody.ClientID)
@@ -210,7 +210,7 @@ func TestCreateApp(t *testing.T) {
 			ExpStatus: http.StatusCreated,
 			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 				AssertEqual(t, database.AppTypeDevice, resBody.AppType)
 				AssertNotEmpty(t, resBody.ClientID)
@@ -242,7 +242,7 @@ func TestCreateApp(t *testing.T) {
 			ExpStatus: http.StatusCreated,
 			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 				AssertEqual(t, database.AppTypeService, resBody.AppType)
 				AssertNotEmpty(t, resBody.ClientID)
@@ -272,7 +272,7 @@ func TestCreateApp(t *testing.T) {
 			ExpStatus: http.StatusCreated,
 			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 				AssertEqual(t, database.AppTypeMcp, resBody.AppType)
 				AssertNotEmpty(t, resBody.ClientID)
@@ -300,7 +300,7 @@ func TestCreateApp(t *testing.T) {
 			ExpStatus: http.StatusCreated,
 			AssertFn: func(t *testing.T, req createAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 				AssertEqual(t, database.AppTypeMcp, resBody.AppType)
 				AssertNotEmpty(t, resBody.ClientID)
@@ -465,7 +465,7 @@ func TestListApps(t *testing.T) {
 				resBody := AssertTestResponseBody(t, res, dtos.PaginationDTO[dtos.AppDTO]{})
 				AssertEqual(t, int64(1), resBody.Total)
 				AssertEqual(t, 1, len(resBody.Items))
-				AssertStringContains(t, resBody.Items[0].Name, "Filtered")
+				AssertStringContains(t, resBody.Items[0].ClientName, "Filtered")
 			},
 		},
 		{
@@ -566,7 +566,7 @@ func TestGetAppWithRelatedConfigs(t *testing.T) {
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, _ any, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, "Test App", resBody.Name)
+				AssertEqual(t, "Test App", resBody.ClientName)
 				AssertEqual(t, "https://test-app.example.com", resBody.ClientURI)
 				AssertEqual(t, database.AppTypeWeb, resBody.AppType)
 				AssertNotEmpty(t, resBody.ClientID)
@@ -807,7 +807,6 @@ func TestUpdateApp(t *testing.T) {
 					LogoURI:         "https://example.com/logo.png",
 					TOSURI:          "https://example.com/tos",
 					PolicyURI:       "https://example.com/policy",
-					SoftwareID:      "test-app-v1",
 					SoftwareVersion: "1.0.0",
 					UsernameColumn:  "email",
 					RedirectURIs:    []string{"https://updated-test-app.example.com/callback"},
@@ -819,12 +818,11 @@ func TestUpdateApp(t *testing.T) {
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, req updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 				AssertEqual(t, req.LogoURI, resBody.LogoURI)
 				AssertEqual(t, req.TOSURI, resBody.TosURI)
 				AssertEqual(t, req.PolicyURI, resBody.PolicyURI)
-				AssertEqual(t, req.SoftwareID, resBody.SoftwareID)
 				AssertEqual(t, req.SoftwareVersion, resBody.SoftwareVersion)
 			},
 		},
@@ -849,7 +847,7 @@ func TestUpdateApp(t *testing.T) {
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, req updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 			},
 		},
@@ -873,7 +871,7 @@ func TestUpdateApp(t *testing.T) {
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, req updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 			},
 		},
@@ -897,7 +895,7 @@ func TestUpdateApp(t *testing.T) {
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, req updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 			},
 		},
@@ -922,7 +920,7 @@ func TestUpdateApp(t *testing.T) {
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, req updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 			},
 		},
@@ -946,7 +944,7 @@ func TestUpdateApp(t *testing.T) {
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, req updateAppBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.AppDTO{})
-				AssertEqual(t, req.Name, resBody.Name)
+				AssertEqual(t, req.Name, resBody.ClientName)
 				AssertEqual(t, req.ClientURI, resBody.ClientURI)
 			},
 		},

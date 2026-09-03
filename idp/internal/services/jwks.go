@@ -24,6 +24,10 @@ const (
 	jwkLocation = "jwks"
 )
 
+func globalJWKCacheNamespace(keyType database.TokenKeyType) string {
+	return fmt.Sprintf("global:%s", keyType)
+}
+
 func isDistributedJWK(name database.TokenKeyType) bool {
 	return name == database.TokenKeyTypeAccess || name == database.TokenKeyTypeClientCredentials || name == database.TokenKeyTypeIDToken
 }
@@ -133,7 +137,7 @@ func (s *Services) buildStoreGlobalJWKfn(
 
 		if err := s.cache.SaveJWKPrivateKey(ctx, cache.SaveJWKPrivateKeyOptions{
 			RequestID:   opts.requestID,
-			Suffix:      "global",
+			Suffix:      globalJWKCacheNamespace(opts.keyType),
 			CryptoSuite: cryptoSuite,
 			KID:         kid,
 			EncPrivKey:  encryptedKey,
@@ -172,7 +176,7 @@ func (s *Services) BuildGetGlobalEncryptedJWKFn(
 		logger.InfoContext(ctx, "Getting global encrypted JWK from cache...")
 		jwkKID, encPrivKey, found, err := s.cache.GetJWKPrivateKey(ctx, cache.GetJWKPrivateKeyOptions{
 			RequestID:   opts.RequestID,
-			Suffix:      "global",
+			Suffix:      globalJWKCacheNamespace(opts.KeyType),
 			CryptoSuite: cryptoSuite,
 		})
 		if err != nil {
@@ -253,7 +257,7 @@ func (s *Services) BuildGetGlobalEncryptedJWKFn(
 		logger.InfoContext(ctx, "Saving JWK private key to cache", "kid", jwkEnt.Kid)
 		if err := s.cache.SaveJWKPrivateKey(ctx, cache.SaveJWKPrivateKeyOptions{
 			RequestID:   opts.RequestID,
-			Suffix:      "global",
+			Suffix:      globalJWKCacheNamespace(opts.KeyType),
 			CryptoSuite: cryptoSuite,
 			KID:         jwkEnt.Kid,
 			EncPrivKey:  jwkEnt.PrivateKey,
@@ -284,7 +288,7 @@ func (s *Services) BuildGetGlobalPublicKeyFn(
 		logger.InfoContext(ctx, "Getting global public JWK...")
 		jwk, found, err := s.cache.GetJWK(ctx, cache.GetJWKOptions{
 			RequestID:   opts.RequestID,
-			Prefix:      "global",
+			Prefix:      globalJWKCacheNamespace(opts.KeyType),
 			CryptoSuite: cryptoSuite,
 			KeyID:       kid,
 		})
@@ -331,7 +335,7 @@ func (s *Services) BuildGetGlobalPublicKeyFn(
 		}
 		if err := s.cache.SavePublicJWK(ctx, cache.SavePublicJWKOptions{
 			RequestID:   opts.RequestID,
-			Prefix:      "global",
+			Prefix:      globalJWKCacheNamespace(opts.KeyType),
 			CryptoSuite: cryptoSuite,
 			KeyID:       jwkEnt.Kid,
 			PublicKey:   jwkEnt.PublicKey,

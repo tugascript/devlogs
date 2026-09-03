@@ -390,7 +390,7 @@ CREATE TABLE "account_credentials" (
   "credentials_type" account_credentials_type NOT NULL,
   "sector_identifier_uri" varchar(512),
   "subject_type" client_subject_type,
-  "id_token_signed_response_alg" token_crypto_suite NOT NULL,
+  "id_token_signed_response_alg" token_crypto_suite NOT NULL DEFAULT 'ES256',
   "id_token_encrypted_response_alg" token_encryption_algorithm,
   "id_token_encrypted_response_enc" token_encryption_encoding,
   "userinfo_signed_response_alg" token_crypto_suite,
@@ -405,7 +405,7 @@ CREATE TABLE "account_credentials" (
   "default_acr_values" varchar(100)[],
   "initiate_login_uri" varchar(512),
   "request_uris" varchar(2048)[],
-  "access_token_signing_alg" token_crypto_suite NOT NULL,
+  "access_token_signing_alg" token_crypto_suite NOT NULL DEFAULT 'ES256',
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -572,7 +572,7 @@ CREATE TABLE "apps" (
   "app_type" app_type NOT NULL,
   "sector_identifier_uri" varchar(512),
   "subject_type" client_subject_type,
-  "id_token_signed_response_alg" token_crypto_suite NOT NULL,
+  "id_token_signed_response_alg" token_crypto_suite NOT NULL DEFAULT 'ES256',
   "id_token_encrypted_response_alg" token_encryption_algorithm,
   "id_token_encrypted_response_enc" token_encryption_encoding,
   "userinfo_signed_response_alg" token_crypto_suite,
@@ -587,7 +587,7 @@ CREATE TABLE "apps" (
   "default_acr_values" varchar(100)[],
   "initiate_login_uri" varchar(512),
   "request_uris" varchar(2048)[],
-  "access_token_signing_alg" token_crypto_suite NOT NULL,
+  "access_token_signing_alg" token_crypto_suite NOT NULL DEFAULT 'ES256',
   "id_token_ttl" integer NOT NULL DEFAULT 300,
   "token_ttl" integer NOT NULL DEFAULT 300,
   "refresh_token_ttl" integer NOT NULL DEFAULT 604800,
@@ -779,7 +779,7 @@ CREATE INDEX "account_2fa_configs_account_public_id_idx" ON "account_2fa_configs
 
 CREATE INDEX "account_2fa_configs_account_public_id_is_default_idx" ON "account_2fa_configs" ("account_public_id", "is_default");
 
-CREATE INDEX "account_2fa_configs_account_public_id_two_factor_type_idx" ON "account_2fa_configs" ("account_public_id", "two_factor_type");
+CREATE UNIQUE INDEX "account_2fa_configs_account_public_id_two_factor_type_uidx" ON "account_2fa_configs" ("account_public_id", "two_factor_type");
 
 CREATE INDEX "accounts_totps_dek_kid_idx" ON "totps" ("dek_kid");
 
@@ -1009,17 +1009,17 @@ CREATE INDEX "app_dynamic_registration_configs_account_id_idx" ON "app_dynamic_r
 
 CREATE INDEX "app_dynamic_registration_configs_account_public_id_idx" ON "app_dynamic_registration_configs" ("account_public_id");
 
-CREATE INDEX "accounts_totps_account_id_idx" ON "dynamic_registration_domains" ("account_id");
+CREATE INDEX "dynamic_registration_domains_account_id_idx" ON "dynamic_registration_domains" ("account_id");
 
 CREATE INDEX "account_dynamic_registration_domains_account_public_id_idx" ON "dynamic_registration_domains" ("account_public_id");
 
-CREATE UNIQUE INDEX "account_dynamic_registration_domains_account_public_id_domain_uidx" ON "dynamic_registration_domains" ("account_public_id", "domain");
+CREATE UNIQUE INDEX "dr_domains_account_domain_uidx" ON "dynamic_registration_domains" ("account_public_id", "domain");
 
-CREATE INDEX "account_dynamic_registration_domains_account_public_id_domain_verified_at_idx" ON "dynamic_registration_domains" ("account_public_id", "domain", "verified_at");
+CREATE INDEX "dr_domains_account_domain_verified_at_idx" ON "dynamic_registration_domains" ("account_public_id", "domain", "verified_at");
 
-CREATE INDEX "account_dynamic_registration_domains_account_public_id_domain_usages_idx" ON "dynamic_registration_domains" ("account_public_id", "domain", "usages");
+CREATE INDEX "dr_domains_account_domain_usages_idx" ON "dynamic_registration_domains" ("account_public_id", "domain", "usages");
 
-CREATE INDEX "account_dynamic_registration_domains_account_public_id_domain_usages_verified_at_idx" ON "dynamic_registration_domains" ("account_public_id", "domain", "usages", "verified_at");
+CREATE INDEX "dr_domains_account_domain_usages_verified_at_idx" ON "dynamic_registration_domains" ("account_public_id", "domain", "usages", "verified_at");
 
 CREATE INDEX "dynamic_registration_domain_codes_account_id_idx" ON "dynamic_registration_domain_codes" ("account_id");
 

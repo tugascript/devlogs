@@ -80,7 +80,7 @@ func (c *Controllers) ConfirmUpdateAccountPassword(ctx fiber.Ctx) error {
 	logger := c.buildLogger(requestID, accountsLocation, "ConfirmUpdateAccountPassword")
 	logRequest(logger, ctx)
 
-	accountClaims, serviceErr := getAccountClaims(ctx)
+	accountClaims, twoFAType, serviceErr := getAccounts2FAClaims(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
@@ -97,6 +97,7 @@ func (c *Controllers) ConfirmUpdateAccountPassword(ctx fiber.Ctx) error {
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
 		Version:   accountClaims.AccountVersion,
+		TwoFAType: twoFAType,
 		Code:      body.Code,
 	})
 	if serviceErr != nil {
@@ -183,7 +184,7 @@ func (c *Controllers) ConfirmUpdateAccountEmail(ctx fiber.Ctx) error {
 	logger := c.buildLogger(requestID, accountsLocation, "ConfirmUpdateAccountEmail")
 	logRequest(logger, ctx)
 
-	accountClaims, serviceErr := getAccountClaims(ctx)
+	accountClaims, twoFAType, serviceErr := getAccounts2FAClaims(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
@@ -200,6 +201,7 @@ func (c *Controllers) ConfirmUpdateAccountEmail(ctx fiber.Ctx) error {
 		RequestID: requestID,
 		PublicID:  accountClaims.AccountID,
 		Version:   accountClaims.AccountVersion,
+		TwoFAType: twoFAType,
 		Code:      body.Code,
 	})
 	if serviceErr != nil {
@@ -357,7 +359,7 @@ func (c *Controllers) ConfirmUpdateAccountUsername(ctx fiber.Ctx) error {
 	logger := c.buildLogger(requestID, accountsLocation, "ConfirmUpdateAccountUsername")
 	logRequest(logger, ctx)
 
-	accountClaims, serviceErr := getAccountClaims(ctx)
+	accountClaims, twoFAType, serviceErr := getAccounts2FAClaims(ctx)
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
@@ -376,6 +378,7 @@ func (c *Controllers) ConfirmUpdateAccountUsername(ctx fiber.Ctx) error {
 			RequestID: requestID,
 			PublicID:  accountClaims.AccountID,
 			Version:   accountClaims.AccountVersion,
+			TwoFAType: twoFAType,
 			Code:      body.Code,
 		},
 	)
