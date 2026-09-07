@@ -97,15 +97,14 @@ func (ak *AccountCredentialsDTO) UnmarshalJSON(data []byte) error {
 	}
 
 	if aux.JWKs != nil {
-		jwks := make([]utils.JWK, 0, len(aux.JWKs))
-		for _, raw := range aux.JWKs {
+		ak.JWKs = make([]utils.JWK, len(aux.JWKs))
+		for i, raw := range aux.JWKs {
 			jwk, err := utils.JsonToJWK(raw)
 			if err != nil {
 				return err
 			}
-			jwks = append(jwks, jwk)
+			ak.JWKs[i] = jwk
 		}
-		ak.JWKs = jwks
 	}
 
 	return nil

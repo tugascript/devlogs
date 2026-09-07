@@ -165,10 +165,14 @@ func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
 		return database.CreateAccountCredentialsParams{}, serviceErr
 	}
 
-	jwks, serviceErr := mapEmptyJWKs(logger, ctx, opts.data.JWKs)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map JWKs", "serviceError", serviceErr)
-		return database.CreateAccountCredentialsParams{}, serviceErr
+	var jsonJwks []byte
+	if opts.data.JWKs != nil && len(opts.data.JWKs.Keys) > 0 {
+		var err error
+		jsonJwks, err = opts.data.JWKs.MarshalJSON()
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to marshal JWKs to JSON", "error", err)
+			return database.CreateAccountCredentialsParams{}, exceptions.NewInternalServerError()
+		}
 	}
 
 	params := database.CreateAccountCredentialsParams{
@@ -194,7 +198,7 @@ func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
 		TosUri:                       mapEmptyURL(opts.data.TOSURI),
 		PolicyUri:                    mapEmptyURL(opts.data.PolicyURI),
 		JwksUri:                      mapEmptyURL(opts.data.JWKsURI),
-		Jwks:                         jwks,
+		Jwks:                         jsonJwks,
 		SoftwareID:                   mapEmptyString(opts.data.SoftwareID),
 		SoftwareVersion:              mapEmptyString(opts.data.SoftwareVersion),
 		CredentialsType:              opts.applicationType,
@@ -242,14 +246,13 @@ func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
 		if opts.claims.JWKsURI != "" {
 			params.JwksUri = mapEmptyURL(opts.claims.JWKsURI)
 		}
-		if len(opts.claims.JWKs) > 0 {
-			jwks, serviceErr := mapEmptyJWKs(logger, ctx, opts.claims.JWKs)
-			if serviceErr != nil {
-				logger.ErrorContext(ctx, "Failed to map JWKs", "serviceError", serviceErr)
-				return database.CreateAccountCredentialsParams{}, serviceErr
+		if opts.claims.JWKs != nil && len(opts.claims.JWKs.Keys) > 0 {
+			var err error
+			if jsonJwks, err = opts.data.JWKs.MarshalJSON(); err != nil {
+				logger.ErrorContext(ctx, "Failed to marshal JWKs to JSON", "error", err)
+				return database.CreateAccountCredentialsParams{}, exceptions.NewInternalServerError()
 			}
-
-			params.Jwks = jwks
+			params.Jwks = jsonJwks
 		}
 		if opts.claims.SoftwareID != "" {
 			params.SoftwareID = mapEmptyString(opts.claims.SoftwareID)
@@ -369,7 +372,7 @@ type CreateAccountCredentialsRegistrationOptions struct {
 	SoftwareVersion              string
 	SoftwareStatement            string
 	JWKsURI                      string
-	JWKs                         []string
+	JWKs                         *utils.JWKSet
 	FrontendDomain               string
 	BackendDomain                string
 	RequireAuthTime              bool
@@ -575,7 +578,6 @@ func (s *Services) CreateAccountCredentialsRegistration(
 		if serviceErr := s.validateSoftwareStatementClaims(ctx, validateSoftwareStatementClaimsOptions{
 			requestID:     opts.RequestID,
 			claims:        &ssClaims,
-			data:          &data,
 			allowedScopes: utils.SliceToHashSet(allowedAccountCredentialsScopes),
 		}); serviceErr != nil {
 			logger.WarnContext(ctx, "Failed to validate software statement claims", "serviceError", serviceErr)
