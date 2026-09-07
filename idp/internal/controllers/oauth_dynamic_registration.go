@@ -41,6 +41,9 @@ func (c *Controllers) OAuthDynamicRegistration(ctx fiber.Ctx) error {
 	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)
 	}
+	if body.JWKs != nil && body.JWKsURI != "" {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)
+	}
 
 	isAuthenticated, ok := ctx.Locals("isAuthenticated").(bool)
 	if !ok {

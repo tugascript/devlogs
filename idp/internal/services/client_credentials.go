@@ -155,7 +155,11 @@ func buildES256Jwk(
 
 	pub := priv.Public().(*ecdsa.PublicKey)
 	kid := utils.ExtractECDSAKeyID(pub)
-	dbJwk := utils.EncodeP256Jwk(pub, kid)
+	dbJwk, err := utils.EncodeP256Jwk(pub, kid)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to encode ES256 public key to JWK", "error", err)
+		return "", nil, nil, exceptions.NewInternalServerError()
+	}
 
 	jsonJwk, err := json.Marshal(dbJwk)
 	if err != nil {
@@ -163,7 +167,12 @@ func buildES256Jwk(
 		return "", nil, nil, exceptions.NewInternalServerError()
 	}
 
-	privateJWK := utils.EncodeP256JwkPrivate(priv, kid)
+	privateJWK, err := utils.EncodeP256JwkPrivate(priv, kid)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to encode ES256 private key to JWK", "error", err)
+		return "", nil, nil, exceptions.NewInternalServerError()
+	}
+
 	logger.InfoContext(ctx, "Generated ES256 JWK successfully", "kid", kid)
 	return kid, jsonJwk, &privateJWK, nil
 }

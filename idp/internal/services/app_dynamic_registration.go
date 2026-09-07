@@ -271,7 +271,7 @@ type CreateAppCredentialsRegistrationOptions struct {
 	SoftwareVersion              string
 	SoftwareStatement            string
 	JWKsURI                      string
-	JWKs                         []string
+	JWKs                         *utils.JWKSet
 	FrontendDomain               string
 	BackendDomain                string
 	RequireAuthTime              bool
@@ -517,7 +517,6 @@ func (s *Services) CreateAppCredentialsRegistration(
 		if serviceErr := s.validateSoftwareStatementClaims(ctx, validateSoftwareStatementClaimsOptions{
 			requestID:     opts.RequestID,
 			claims:        &ssClaims,
-			data:          &data,
 			allowedScopes: utils.SliceToHashSet(allowedAppScopes),
 		}); serviceErr != nil {
 			logger.WarnContext(ctx, "Failed to validate software statement claims", "serviceError", serviceErr)
