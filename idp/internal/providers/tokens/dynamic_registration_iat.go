@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -20,8 +19,26 @@ import (
 
 const dynamicRegistrationIATLocation = "dynamic_registration_iat"
 
-type accountCredentialsDynamicRegistrationClaims struct {
+const registrationAccessTokenTTLSeconds int64 = 10 * 365 * 24 * 60 * 60
+
+type DynamicRegistrationUsage string
+
+const (
+	DynamicRegistrationUsageAccount DynamicRegistrationUsage = "account"
+	DynamicRegistrationUsageApp     DynamicRegistrationUsage = "app"
+)
+
+type DynamicRegistrationTokenUse string
+
+const (
+	DynamicRegistrationTokenUseInitialAccess DynamicRegistrationTokenUse = "initial_access"
+	DynamicRegistrationTokenUseRegistration  DynamicRegistrationTokenUse = "registration"
+)
+
+type dynamicRegistrationTokenClaims struct {
 	AccountClaims
+	Usage    DynamicRegistrationUsage    `json:"usage"`
+	TokenUse DynamicRegistrationTokenUse `json:"token_use"`
 	jwt.RegisteredClaims
 }
 
@@ -29,41 +46,62 @@ type DynamicRegistrationIATOptions struct {
 	AccountPublicID uuid.UUID
 	AccountVersion  int32
 	IssuerDomain    string
-	Domain          string
-	ClientID        string
+	Subject         string
+	JTI             string
+	Usage           DynamicRegistrationUsage
+	TokenUse        DynamicRegistrationTokenUse
+	TTL             int64
 }
 
 func (t *Tokens) DynamicRegistrationIAT(
 	opts DynamicRegistrationIATOptions,
 ) *jwt.Token {
+	if opts.TokenUse == "" {
+		opts.TokenUse = DynamicRegistrationTokenUseInitialAccess
+	}
+	if opts.TTL == 0 {
+		opts.TTL = t.dynamicRegistrationTTL
+	}
 	now := time.Now()
 	iat := jwt.NewNumericDate(now)
-	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(t.dynamicRegistrationTTL)))
+	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(opts.TTL)))
 	iss := fmt.Sprintf("https://%s", opts.IssuerDomain)
 	return jwt.NewWithClaims(
 		jwt.SigningMethodEdDSA,
-		accountCredentialsDynamicRegistrationClaims{
+		dynamicRegistrationTokenClaims{
 			AccountClaims: AccountClaims{
 				AccountID:      opts.AccountPublicID,
 				AccountVersion: opts.AccountVersion,
 			},
+			Usage:    opts.Usage,
+			TokenUse: opts.TokenUse,
 			RegisteredClaims: jwt.RegisteredClaims{
 				Issuer:    iss,
 				Audience:  []string{iss},
-				Subject:   opts.Domain,
+				Subject:   opts.Subject,
 				IssuedAt:  iat,
 				NotBefore: iat,
 				ExpiresAt: exp,
-				ID:        opts.ClientID,
+				ID:        opts.JTI,
 			},
 		},
 	)
+}
+
+func (t *Tokens) DynamicRegistrationAccessToken(opts DynamicRegistrationIATOptions) *jwt.Token {
+	opts.TokenUse = DynamicRegistrationTokenUseRegistration
+	if opts.TTL == 0 {
+		opts.TTL = registrationAccessTokenTTLSeconds
+	}
+	return t.DynamicRegistrationIAT(opts)
 }
 
 type VerifyDynamicRegistrationIATOptions struct {
 	RequestID    string
 	IAT          string
 	IssuerDomain string
+	Usage        DynamicRegistrationUsage
+	TokenUse     DynamicRegistrationTokenUse
 	GetPublicJWK GetPublicJWK
 }
 
@@ -76,57 +114,53 @@ func (t *Tokens) VerifyDynamicRegistrationIAT(
 		Method:    "VerifyDynamicRegistrationIAT",
 		RequestID: opts.RequestID,
 	})
-	logger.DebugContext(ctx, "Verifying account credentials dynamic registration IAT...")
+	logger.DebugContext(ctx, "Verifying dynamic registration token...")
 
-	claims := new(accountCredentialsDynamicRegistrationClaims)
+	if opts.TokenUse == "" {
+		opts.TokenUse = DynamicRegistrationTokenUseInitialAccess
+	}
+
+	claims := new(dynamicRegistrationTokenClaims)
 	if _, err := jwt.ParseWithClaims(opts.IAT, claims, func(token *jwt.Token) (interface{}, error) {
 		kid, err := extractTokenKID(token)
 		if err != nil {
-			logger.DebugContext(ctx, "Failed to extract KID from account credentials dynamic registration IAT", "error", err)
+			logger.DebugContext(ctx, "Failed to extract KID from dynamic registration token", "error", err)
 			return nil, err
 		}
 
 		jwk, err := opts.GetPublicJWK(kid, utils.SupportedCryptoSuiteEd25519)
 		if err != nil {
-			logger.WarnContext(ctx, "Failed to get public JWK for account credentials dynamic registration IAT", "error", err, "kid", kid)
+			logger.WarnContext(ctx, "Failed to get public JWK for dynamic registration token", "error", err, "kid", kid)
 			return nil, err
 		}
 
 		return jwk.ToUsableKey()
-	}); err != nil {
-		logger.WarnContext(ctx, "Failed to verify account credentials dynamic registration IAT", "error", err)
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodEdDSA.Alg()}),
+		jwt.WithIssuer("https://"+opts.IssuerDomain),
+		jwt.WithAudience("https://"+opts.IssuerDomain),
+		jwt.WithExpirationRequired(), jwt.WithIssuedAt()); err != nil {
+		logger.WarnContext(ctx, "Failed to verify dynamic registration token", "error", err)
 		return "", AccountClaims{}, err
 	}
 
-	issDomain, err := url.Parse(claims.Issuer)
-	if err != nil {
-		logger.WarnContext(ctx, "Failed to parse issuer from account credentials dynamic registration IAT", "error", err, "issuer", claims.Issuer)
-		return "", AccountClaims{}, err
+	if claims.Subject == "" || claims.ID == "" || claims.AccountID == uuid.Nil {
+		return "", AccountClaims{}, errors.New("missing registration token binding")
 	}
-	if issDomain.Host != opts.IssuerDomain {
-		logger.WarnContext(ctx, "Issuer domain mismatch in account credentials dynamic registration IAT", "expected", opts.IssuerDomain, "actual", issDomain.Host)
-		return "", AccountClaims{}, errors.New("issuer domain mismatch")
+	if claims.Usage != opts.Usage {
+		return "", AccountClaims{}, errors.New("registration token usage mismatch")
 	}
-
-	if len(claims.Audience) == 0 {
-		logger.WarnContext(ctx, "Missing audience in account credentials dynamic registration IAT")
-		return "", AccountClaims{}, errors.New("missing audience")
+	if claims.TokenUse != opts.TokenUse {
+		return "", AccountClaims{}, errors.New("registration token use mismatch")
 	}
 
-	audDomain, err := url.Parse(claims.Audience[0])
-	if err != nil {
-		logger.WarnContext(ctx, "Failed to parse audience from account credentials dynamic registration IAT", "error", err, "audience", claims.Audience[0])
-		return "", AccountClaims{}, err
-	}
-	if audDomain.Host != opts.IssuerDomain {
-		logger.WarnContext(ctx, "Audience domain mismatch in account credentials dynamic registration IAT", "expected", opts.IssuerDomain, "actual", audDomain.Host)
-		return "", AccountClaims{}, errors.New("audience domain mismatch")
-	}
-
-	logger.InfoContext(ctx, "Verified account credentials dynamic registration IAT successfully")
+	logger.InfoContext(ctx, "Verified dynamic registration token successfully")
 	return claims.Subject, claims.AccountClaims, nil
 }
 
 func (t *Tokens) GetDynamicRegistrationTTL() int64 {
 	return t.dynamicRegistrationTTL
+}
+
+func (t *Tokens) GetRegistrationAccessTokenTTL() int64 {
+	return registrationAccessTokenTTLSeconds
 }

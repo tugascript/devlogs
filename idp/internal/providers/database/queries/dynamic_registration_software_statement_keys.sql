@@ -6,7 +6,7 @@
 
 -- name: FindDynamicRegistrationSoftwareStatementKeysByRootDomainAndAccountPublicID :one
 SELECT "c".* FROM "credentials_keys" AS "c"
-LEFT JOIN "dynamic_registration_software_statement_keys" AS "d" ON "c"."id" = "d"."credential_key_id"
+LEFT JOIN "dynamic_registration_software_statement_keys" AS "d" ON "c"."id" = "d"."credentials_key_id"
 WHERE "d"."root_domain" = $1 AND "d"."account_public_id" = $2
 LIMIT 1;
 

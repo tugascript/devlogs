@@ -71,9 +71,12 @@ const (
 	PgTypeSoftwareStatementVerificationMethod PgType = "software_statement_verification_method"
 	PgTypeAppProfileType                      PgType = "app_profile_type"
 	PgTypeTokenOwner                          PgType = "token_owner"
+	PgTypeDynamicRegistrationUsage            PgType = "dynamic_registration_usage"
+	PgTypeDomainVerificationMethod            PgType = "domain_verification_method"
+	PgTypeCreationMethod                      PgType = "creation_method"
 )
 
-var PgTypes = [25]PgType{
+var PgTypes = [28]PgType{
 	PgTypeKekUsage,
 	PgTypeDekUsage,
 	PgTypeTokenCryptoSuite,
@@ -99,6 +102,9 @@ var PgTypes = [25]PgType{
 	PgTypeSoftwareStatementVerificationMethod,
 	PgTypeAppProfileType,
 	PgTypeTokenOwner,
+	PgTypeDynamicRegistrationUsage,
+	PgTypeDomainVerificationMethod,
+	PgTypeCreationMethod,
 }
 
 func New(

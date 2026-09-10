@@ -199,7 +199,7 @@ func (c *Controllers) DynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
 
 	ctx.Locals("account", accountClaims)
 	ctx.Locals("domain", domain)
-	return ctx.Next()
+	return continueMiddleware(ctx)
 }
 
 func (c *Controllers) AppDynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
@@ -211,10 +211,11 @@ func (c *Controllers) AppDynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
 	}
 
+	ctx.Locals("isAuthenticated", false)
 	authHeader := ctx.Get("Authorization")
 	if authHeader == "" {
 		logger.InfoContext(ctx.Context(), "No Authorization header found, skipping app dynamic registration IAT middleware")
-		return ctx.Next()
+		return continueMiddleware(ctx)
 	}
 
 	domain, accountClaims, serviceErr := c.services.ProcessAppDynamicRegistrationIATAuth(
@@ -235,7 +236,63 @@ func (c *Controllers) AppDynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
 	ctx.Locals("account", accountClaims)
 	ctx.Locals("domain", domain)
 	ctx.Locals("isAuthenticated", true)
-	return ctx.Next()
+	return continueMiddleware(ctx)
+}
+
+func (c *Controllers) DynamicRegistrationAccessTokenMiddleware(ctx fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, middlewareLocation, "DynamicRegistrationAccessTokenMiddleware")
+	authHeader := ctx.Get("Authorization")
+	if authHeader == "" {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+	}
+
+	clientID, accountClaims, serviceErr := c.services.ProcessAccountCredentialsRegistrationAccessToken(
+		ctx.Context(),
+		services.ProcessAccountCredentialsRegistrationAccessTokenOptions{
+			RequestID:    requestID,
+			AuthHeader:   authHeader,
+			IssuerDomain: c.backendDomain,
+		},
+	)
+	if serviceErr != nil {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+	}
+
+	ctx.Locals("account", accountClaims)
+	ctx.Locals("registrationClientID", clientID)
+	return continueMiddleware(ctx)
+}
+
+func (c *Controllers) AppDynamicRegistrationAccessTokenMiddleware(ctx fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, middlewareLocation, "AppDynamicRegistrationAccessTokenMiddleware")
+	username, accountID, serviceErr := getHostAccount(ctx)
+	if serviceErr != nil {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+	}
+
+	authHeader := ctx.Get("Authorization")
+	if authHeader == "" {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+	}
+
+	clientID, accountClaims, serviceErr := c.services.ProcessAppDynamicRegistrationAccessToken(
+		ctx.Context(),
+		services.ProcessAppDynamicRegistrationAccessTokenOptions{
+			RequestID:    requestID,
+			AuthHeader:   authHeader,
+			AccountID:    accountID,
+			IssuerDomain: fmt.Sprintf("%s.%s", username, c.backendDomain),
+		},
+	)
+	if serviceErr != nil {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+	}
+
+	ctx.Locals("account", accountClaims)
+	ctx.Locals("registrationClientID", clientID)
+	return continueMiddleware(ctx)
 }
 
 func (c *Controllers) ScopeMiddleware(scope tokens.AccountScope) func(fiber.Ctx) error {

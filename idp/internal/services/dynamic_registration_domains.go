@@ -889,34 +889,19 @@ func (s *Services) checkClientRegistrationDomain(
 		return "", exceptions.NewUnauthorizedError()
 	}
 
-	var count int64
+	domains := []string{opts.domain}
 	if baseDomain != opts.domain {
-		if opts.requireVerifiedDomains {
-			count, err = s.database.CountVerifiedDynamicRegistrationDomainsByDomainsAccountPublicIDAndUsages(
-				ctx,
-				database.CountVerifiedDynamicRegistrationDomainsByDomainsAccountPublicIDAndUsagesParams{
-					AccountPublicID: opts.accountPublicID,
-					Usages:          opts.usages,
-					Domains:         []string{opts.domain, baseDomain},
-				},
-			)
-		} else {
-			count, err = s.database.CountDynamicRegistrationDomainsByDomainsAccountPublicIDAndUsages(
-				ctx,
-				database.CountDynamicRegistrationDomainsByDomainsAccountPublicIDAndUsagesParams{
-					AccountPublicID: opts.accountPublicID,
-					Usages:          opts.usages,
-					Domains:         []string{opts.domain, baseDomain},
-				},
-			)
-		}
-	} else {
+		domains = append(domains, baseDomain)
+	}
+
+	var count int64
+	for _, domain := range domains {
 		if opts.requireVerifiedDomains {
 			count, err = s.database.CountVerifiedDynamicRegistrationDomainsByDomainAccountPublicIDAndUsages(
 				ctx,
 				database.CountVerifiedDynamicRegistrationDomainsByDomainAccountPublicIDAndUsagesParams{
 					AccountPublicID: opts.accountPublicID,
-					Domain:          opts.domain,
+					Domain:          domain,
 					Usages:          opts.usages,
 				},
 			)
@@ -925,10 +910,13 @@ func (s *Services) checkClientRegistrationDomain(
 				ctx,
 				database.CountDynamicRegistrationDomainsByDomainAndAccountPublicIDAndUsagesParams{
 					AccountPublicID: opts.accountPublicID,
-					Domain:          opts.domain,
-					Usages:          appDynamicRegistrationUsages,
+					Domain:          domain,
+					Usages:          opts.usages,
 				},
 			)
+		}
+		if err != nil || count > 0 {
+			break
 		}
 	}
 

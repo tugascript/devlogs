@@ -168,7 +168,8 @@ func (j *Ed25519JWK) MarshalJSON() ([]byte, error) {
 }
 
 func (j *Ed25519JWK) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, j)
+	type alias Ed25519JWK
+	return json.Unmarshal(data, (*alias)(j))
 }
 
 func (j *Ed25519JWK) ToPrivateKey() (any, error) {
@@ -235,7 +236,8 @@ func (j *ES256JWK) MarshalJSON() ([]byte, error) {
 }
 
 func (j *ES256JWK) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, j)
+	type alias ES256JWK
+	return json.Unmarshal(data, (*alias)(j))
 }
 
 func (j *ES256JWK) ToPrivateKey() (any, error) {
@@ -311,7 +313,8 @@ func (j *RS256JWK) MarshalJSON() ([]byte, error) {
 }
 
 func (j *RS256JWK) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, j)
+	type alias RS256JWK
+	return json.Unmarshal(data, (*alias)(j))
 }
 
 func (j *RS256JWK) ToPrivateKey() (any, error) {

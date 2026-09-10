@@ -37,9 +37,10 @@ func newRelatedAppDTO(
 }
 
 type AppDTO struct {
-	id        int32
-	accountID int32
-	version   int32
+	Registration *ClientRegistrationDTO `json:"-"`
+	id           int32
+	accountID    int32
+	version      int32
 
 	AppType        database.AppType        `json:"app_type"`
 	ClientName     string                  `json:"client_name"`

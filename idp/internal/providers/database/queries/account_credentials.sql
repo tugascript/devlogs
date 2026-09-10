@@ -104,6 +104,48 @@ INSERT INTO "account_credentials" (
     $40
 ) RETURNING *;
 
+-- name: UpdateRegisteredAccountCredentials :one
+UPDATE "account_credentials" SET
+    "domain" = $2,
+    "transport" = $3,
+    "redirect_uris" = $4,
+    "token_endpoint_auth_method" = $5,
+    "grant_types" = $6,
+    "response_types" = $7,
+    "client_name" = $8,
+    "client_uri" = $9,
+    "logo_uri" = $10,
+    "scopes" = $11,
+    "contacts" = $12,
+    "tos_uri" = $13,
+    "policy_uri" = $14,
+    "jwks_uri" = $15,
+    "jwks" = $16,
+    "software_id" = $17,
+    "software_version" = $18,
+    "sector_identifier_uri" = $19,
+    "subject_type" = $20,
+    "id_token_signed_response_alg" = $21,
+    "id_token_encrypted_response_alg" = $22,
+    "id_token_encrypted_response_enc" = $23,
+    "userinfo_signed_response_alg" = $24,
+    "userinfo_encrypted_response_alg" = $25,
+    "userinfo_encrypted_response_enc" = $26,
+    "request_object_signing_alg" = $27,
+    "request_object_encryption_alg" = $28,
+    "request_object_encryption_enc" = $29,
+    "token_endpoint_auth_signing_alg" = $30,
+    "default_max_age" = $31,
+    "require_auth_time" = $32,
+    "default_acr_values" = $33,
+    "initiate_login_uri" = $34,
+    "request_uris" = $35,
+    "access_token_signing_alg" = $36,
+    "version" = "version" + 1,
+    "updated_at" = now()
+WHERE "id" = $1
+RETURNING *;
+
 -- name: UpdateAccountCredentials :one
 UPDATE "account_credentials" SET
     "scopes" = $2,

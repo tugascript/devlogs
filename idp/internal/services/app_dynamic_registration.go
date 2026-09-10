@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -132,48 +132,147 @@ type mapAppRegistrationDataToDBParamsOptions struct {
 	usernameColumn          database.AppUsernameColumn
 	authProviders           []database.AuthProvider
 	data                    *ApplicationRegistrationData
-	claims                  *tokens.SoftwareStatementClaims
 }
 
 func (s *Services) mapAppRegistrationDataToDBParams(
 	ctx context.Context,
 	opts mapAppRegistrationDataToDBParamsOptions,
-) (database.CreateAppParams, *exceptions.ServiceError) {
+) (database.CreateRegisteredAppParams, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, appDynamicRegistrationLocation, "mapAppRegistrationDataToDBParams").With(
 		"accountPublicID", opts.accountPublicID,
 		"accountID", opts.accountID,
 		"domain", opts.domain,
 		"data", opts.data,
-		"claims", opts.claims,
 	)
 	logger.InfoContext(ctx, "Mapping app registration data to database params")
 
-	responseTypes, serviceErr := mapResponseTypesWithDefault(opts.data.ResponseTypes)
+	responseTypes, serviceErr := mapRegistrationResponseTypes(opts.data.ResponseTypes)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
-		return database.CreateAppParams{}, serviceErr
+		return database.CreateRegisteredAppParams{}, serviceErr
 	}
 
 	grantTypes, serviceErr := mapAppGrantTypes(opts.appType, opts.data.GrantTypes)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map grant types", "serviceError", serviceErr)
-		return database.CreateAppParams{}, serviceErr
+		return database.CreateRegisteredAppParams{}, serviceErr
 	}
 
-	params := database.CreateAppParams{
-		AccountID:               opts.accountID,
-		AccountPublicID:         opts.accountPublicID,
-		AppType:                 opts.appType,
-		ClientName:              opts.data.ClientName,
-		ClientID:                utils.Base62UUID(),
-		ClientUri:               utils.ProcessURL(opts.data.ClientURI),
-		UsernameColumn:          opts.usernameColumn,
-		TokenEndpointAuthMethod: opts.tokenEndpointAuthMethod,
-		CreationMethod:          database.CreationMethodDynamicRegistration,
-		GrantTypes:              grantTypes,
-		LogoUri:                 mapEmptyURL(opts.data.LogoURI),
-		TosUri:                  mapEmptyURL(opts.data.TOSURI),
-		PolicyUri:               mapEmptyURL(opts.data.PolicyURI),
+	subjectType, serviceErr := mapEmptySubjectType(opts.data.SubjectType)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map subject type", "serviceError", serviceErr)
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+
+	tokenEndpointAuthSigningAlg, serviceErr := mapEmptyTokenCryptoSuite(opts.data.TokenEndpointAuthSigningAlg)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map token endpoint auth signing alg", "serviceError", serviceErr)
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+
+	idSignAlg, serviceErr := mapTokenCryptoSuiteWithDefault(opts.data.IDTokenSignedResponseAlg)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map ID token signed response alg", "serviceError", serviceErr)
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+
+	idEncAlg, serviceErr := mapEmptyTokenEncryptionAlgorithm(opts.data.IDTokenEncryptedResponseAlg)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map ID token encrypted response alg", "serviceError", serviceErr)
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+
+	idEncEnc, serviceErr := mapEmptyTokenEncryptionEncoding(idEncAlg, opts.data.IDTokenEncryptedResponseEnc)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map ID token encrypted response enc", "serviceError", serviceErr)
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+
+	userInfoSignAlg, serviceErr := mapEmptyTokenCryptoSuite(opts.data.UserInfoSignedResponseAlg)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map user info signed response alg", "serviceError", serviceErr)
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+
+	userInfoEncAlg, serviceErr := mapEmptyTokenEncryptionAlgorithm(opts.data.UserInfoEncryptedResponseAlg)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map user info encrypted response alg", "serviceError", serviceErr)
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+
+	userInfoEncEnc, serviceErr := mapEmptyTokenEncryptionEncoding(userInfoEncAlg, opts.data.UserInfoEncryptedResponseEnc)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map user info encrypted response enc", "serviceError", serviceErr)
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+
+	requestObjectSigningAlg, serviceErr := mapEmptyTokenCryptoSuite(opts.data.RequestObjectSigningAlg)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map request object signing alg", "serviceError", serviceErr)
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+
+	requestObjectEncryptionAlg, serviceErr := mapEmptyTokenEncryptionAlgorithm(opts.data.RequestObjectEncryptionAlg)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map request object encryption alg", "serviceError", serviceErr)
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+
+	requestObjectEncryptionEnc, serviceErr := mapEmptyTokenEncryptionEncoding(requestObjectEncryptionAlg, opts.data.RequestObjectEncryptionEnc)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to map request object encryption enc", "serviceError", serviceErr)
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+
+	var jsonJwks []byte
+	if opts.data.JWKs != nil && len(opts.data.JWKs.Keys) > 0 {
+		var err error
+		jsonJwks, err = opts.data.JWKs.MarshalJSON()
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to marshal JWKs to JSON", "error", err)
+			return database.CreateRegisteredAppParams{}, exceptions.NewInternalServerError()
+		}
+	}
+
+	accessTokenSigningAlg, serviceErr := mapTokenCryptoSuiteWithDefault(opts.data.AccessTokenSigningAlg)
+	if serviceErr != nil {
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+
+	params := database.CreateRegisteredAppParams{
+		JwksUri:                      mapEmptyURL(opts.data.JWKsURI),
+		Jwks:                         jsonJwks,
+		SectorIdentifierUri:          mapEmptyURL(opts.data.SectorIdentifierURI),
+		SubjectType:                  subjectType,
+		IDTokenSignedResponseAlg:     idSignAlg,
+		IDTokenEncryptedResponseAlg:  idEncAlg,
+		IDTokenEncryptedResponseEnc:  idEncEnc,
+		UserinfoSignedResponseAlg:    userInfoSignAlg,
+		UserinfoEncryptedResponseAlg: userInfoEncAlg,
+		UserinfoEncryptedResponseEnc: userInfoEncEnc,
+		RequestObjectSigningAlg:      requestObjectSigningAlg,
+		RequestObjectEncryptionAlg:   requestObjectEncryptionAlg,
+		RequestObjectEncryptionEnc:   requestObjectEncryptionEnc,
+		TokenEndpointAuthSigningAlg:  tokenEndpointAuthSigningAlg,
+		DefaultMaxAge:                pgtype.Int4{Int32: int32(opts.data.DefaultMaxAge), Valid: opts.data.DefaultMaxAge != 0},
+		RequireAuthTime:              opts.data.RequireAuthTime,
+		DefaultAcrValues:             opts.data.DefaultACRValues,
+		InitiateLoginUri:             mapEmptyURL(opts.data.InitiateLoginURI),
+		RequestUris:                  opts.data.RequestURIs,
+		AccessTokenSigningAlg:        accessTokenSigningAlg,
+		AccountID:                    opts.accountID,
+		AccountPublicID:              opts.accountPublicID,
+		AppType:                      opts.appType,
+		ClientName:                   opts.data.ClientName,
+		ClientID:                     utils.Base62UUID(),
+		ClientUri:                    utils.ProcessURL(opts.data.ClientURI),
+		UsernameColumn:               opts.usernameColumn,
+		TokenEndpointAuthMethod:      opts.tokenEndpointAuthMethod,
+		CreationMethod:               database.CreationMethodDynamicRegistration,
+		GrantTypes:                   grantTypes,
+		LogoUri:                      mapEmptyURL(opts.data.LogoURI),
+		TosUri:                       mapEmptyURL(opts.data.TOSURI),
+		PolicyUri:                    mapEmptyURL(opts.data.PolicyURI),
 		Contacts: utils.MapSlice(opts.data.Contacts, func(t *string) string {
 			return utils.Lowered(*t)
 		}),
@@ -186,65 +285,11 @@ func (s *Services) mapAppRegistrationDataToDBParams(
 		Domain:              opts.domain,
 		Transport:           opts.transport,
 		RedirectUris: utils.MapSlice(opts.data.RedirectURIs, func(uri *string) string {
-			return utils.ProcessURL(*uri)
+			return *uri
 		}),
 		ResponseTypes:         responseTypes,
 		AllowUserRegistration: opts.allowUserRegistration,
 		AuthProviders:         opts.authProviders,
-	}
-
-	if opts.claims != nil {
-		if opts.claims.ClientName != "" {
-			params.ClientName = opts.claims.ClientName
-		}
-		if opts.claims.ClientURI != "" {
-			params.ClientUri = utils.ProcessURL(opts.claims.ClientURI)
-		}
-		if opts.claims.LogoURI != "" {
-			params.LogoUri = mapEmptyURL(opts.claims.LogoURI)
-		}
-		if len(opts.claims.RedirectURIs) > 0 {
-			params.RedirectUris = utils.MapSlice(opts.claims.RedirectURIs, func(uri *string) string {
-				return utils.ProcessURL(*uri)
-			})
-		}
-		if opts.claims.TOSURI != "" {
-			params.TosUri = mapEmptyURL(opts.claims.TOSURI)
-		}
-		if opts.claims.PolicyURI != "" {
-			params.PolicyUri = mapEmptyURL(opts.claims.PolicyURI)
-		}
-		if opts.claims.SoftwareID != "" {
-			params.SoftwareID = mapEmptyString(opts.claims.SoftwareID)
-		}
-		if opts.claims.SoftwareVersion != "" {
-			params.SoftwareVersion = mapEmptyString(opts.claims.SoftwareVersion)
-		}
-		if len(opts.claims.GrantTypes) > 0 {
-			params.GrantTypes = utils.MapSlice(opts.claims.GrantTypes, func(grantType *string) database.GrantType {
-				return database.GrantType(*grantType)
-			})
-		}
-		if len(opts.claims.ResponseTypes) > 0 {
-			params.ResponseTypes = utils.MapSlice(opts.claims.ResponseTypes, func(responseType *string) database.ResponseType {
-				return database.ResponseType(*responseType)
-			})
-		}
-		if opts.claims.Scope != "" {
-			scopesList := strings.Fields(opts.claims.Scope)
-			stdScopes, customScopes, _, _, serviceErr := mapScopesToStandardAndCustomScopes(scopesList, nil)
-			if serviceErr != nil {
-				logger.ErrorContext(ctx, "Failed to map scopes from software statement", "serviceError", serviceErr)
-				return database.CreateAppParams{}, serviceErr
-			}
-			params.Scopes = stdScopes
-			params.CustomScopes = customScopes
-		}
-		if len(opts.claims.Contacts) > 0 {
-			params.Contacts = utils.MapSlice(opts.claims.Contacts, func(t *string) string {
-				return utils.Lowered(*t)
-			})
-		}
 	}
 
 	return params, nil
@@ -308,6 +353,85 @@ func (s *Services) CreateAppCredentialsRegistration(
 	)
 	logger.InfoContext(ctx, "Creating app credentials registration...")
 
+	data := ApplicationRegistrationData{
+		RedirectURIs:                 opts.RedirectURIs,
+		TokenEndpointAuthMethod:      opts.TokenEndpointAuthMethod,
+		ResponseTypes:                opts.ResponseTypes,
+		GrantTypes:                   opts.GrantTypes,
+		ApplicationType:              opts.ApplicationType,
+		ClientName:                   opts.ClientName,
+		ClientURI:                    opts.ClientURI,
+		LogoURI:                      opts.LogoURI,
+		Scope:                        opts.Scope,
+		Contacts:                     opts.Contacts,
+		TOSURI:                       opts.TOSURI,
+		PolicyURI:                    opts.PolicyURI,
+		JWKsURI:                      opts.JWKsURI,
+		JWKs:                         opts.JWKs,
+		SoftwareID:                   opts.SoftwareID,
+		SoftwareVersion:              opts.SoftwareVersion,
+		SubjectType:                  opts.SubjectType,
+		SectorIdentifierURI:          opts.SectorIdentifierURI,
+		DefaultMaxAge:                opts.DefaultMaxAge,
+		RequireAuthTime:              opts.RequireAuthTime,
+		DefaultACRValues:             opts.DefaultACRValues,
+		InitiateLoginURI:             opts.InitiateLoginURI,
+		RequestURIs:                  opts.RequestURIs,
+		IDTokenSignedResponseAlg:     opts.IDTokenSignedResponseAlg,
+		IDTokenEncryptedResponseAlg:  opts.IDTokenEncryptedResponseAlg,
+		IDTokenEncryptedResponseEnc:  opts.IDTokenEncryptedResponseEnc,
+		UserInfoSignedResponseAlg:    opts.UserInfoSignedResponseAlg,
+		UserInfoEncryptedResponseAlg: opts.UserInfoEncryptedResponseAlg,
+		UserInfoEncryptedResponseEnc: opts.UserInfoEncryptedResponseEnc,
+		RequestObjectSigningAlg:      opts.RequestObjectSigningAlg,
+		RequestObjectEncryptionAlg:   opts.RequestObjectEncryptionAlg,
+		RequestObjectEncryptionEnc:   opts.RequestObjectEncryptionEnc,
+		TokenEndpointAuthSigningAlg:  opts.TokenEndpointAuthSigningAlg,
+		AccessTokenSigningAlg:        opts.AccessTokenSigningAlg,
+	}
+	data, preparationErr := s.prepareDynamicRegistration(ctx, prepareDynamicRegistrationOptions{
+		requestID: opts.RequestID, accountID: opts.AccountID, accountPublicID: uuid.Nil,
+		data: data, softwareStatement: opts.SoftwareStatement, iatDomain: opts.IATDomain,
+		backendDomain: opts.BackendDomain, frontendDomain: opts.FrontendDomain, app: true,
+	})
+	if preparationErr != nil {
+		return dtos.AppDTO{}, preparationErr
+	}
+	opts.RedirectURIs = data.RedirectURIs
+	opts.TokenEndpointAuthMethod = data.TokenEndpointAuthMethod
+	opts.ResponseTypes = data.ResponseTypes
+	opts.GrantTypes = data.GrantTypes
+	opts.ApplicationType = data.ApplicationType
+	opts.ClientName = data.ClientName
+	opts.ClientURI = data.ClientURI
+	opts.LogoURI = data.LogoURI
+	opts.Scope = data.Scope
+	opts.Contacts = data.Contacts
+	opts.TOSURI = data.TOSURI
+	opts.PolicyURI = data.PolicyURI
+	opts.JWKsURI = data.JWKsURI
+	opts.JWKs = data.JWKs
+	opts.SoftwareID = data.SoftwareID
+	opts.SoftwareVersion = data.SoftwareVersion
+	opts.SubjectType = data.SubjectType
+	opts.SectorIdentifierURI = data.SectorIdentifierURI
+	opts.DefaultMaxAge = data.DefaultMaxAge
+	opts.RequireAuthTime = data.RequireAuthTime
+	opts.DefaultACRValues = data.DefaultACRValues
+	opts.InitiateLoginURI = data.InitiateLoginURI
+	opts.RequestURIs = data.RequestURIs
+	opts.IDTokenSignedResponseAlg = data.IDTokenSignedResponseAlg
+	opts.IDTokenEncryptedResponseAlg = data.IDTokenEncryptedResponseAlg
+	opts.IDTokenEncryptedResponseEnc = data.IDTokenEncryptedResponseEnc
+	opts.UserInfoSignedResponseAlg = data.UserInfoSignedResponseAlg
+	opts.UserInfoEncryptedResponseAlg = data.UserInfoEncryptedResponseAlg
+	opts.UserInfoEncryptedResponseEnc = data.UserInfoEncryptedResponseEnc
+	opts.RequestObjectSigningAlg = data.RequestObjectSigningAlg
+	opts.RequestObjectEncryptionAlg = data.RequestObjectEncryptionAlg
+	opts.RequestObjectEncryptionEnc = data.RequestObjectEncryptionEnc
+	opts.TokenEndpointAuthSigningAlg = data.TokenEndpointAuthSigningAlg
+	opts.AccessTokenSigningAlg = data.AccessTokenSigningAlg
+
 	appType, serviceErr := mapAppTypeToDB(opts.ApplicationType)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map application type", "serviceError", serviceErr)
@@ -315,10 +439,7 @@ func (s *Services) CreateAppCredentialsRegistration(
 	}
 
 	transport := mapAppDRTransport(appType)
-	tokenEndpointAuthMethod, serviceErr := mapAppTokenEndpointAuthMethod(
-		opts.TokenEndpointAuthMethod,
-		appType,
-	)
+	tokenEndpointAuthMethod, serviceErr := mapAuthMethod(opts.TokenEndpointAuthMethod)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map token endpoint auth method", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
@@ -407,7 +528,7 @@ func (s *Services) CreateAppCredentialsRegistration(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	baseDomain, serviceErr := s.checkClientRegistrationDomain(ctx, checkClientRegistrationDomainOptions{
+	_, serviceErr = s.checkClientRegistrationDomain(ctx, checkClientRegistrationDomainOptions{
 		requestID:              opts.RequestID,
 		accountPublicID:        accountDTO.PublicID,
 		iatDomain:              opts.IATDomain,
@@ -447,85 +568,6 @@ func (s *Services) CreateAppCredentialsRegistration(
 	usernameColumn := appDRConfigDTO.DefaultUsernameColumn
 	authProviders := appDRConfigDTO.DefaultAuthProviders
 
-	data := ApplicationRegistrationData{
-		RedirectURIs:                 opts.RedirectURIs,
-		TokenEndpointAuthMethod:      opts.TokenEndpointAuthMethod,
-		ResponseTypes:                opts.ResponseTypes,
-		GrantTypes:                   opts.GrantTypes,
-		ApplicationType:              opts.ApplicationType,
-		ClientName:                   opts.ClientName,
-		ClientURI:                    opts.ClientURI,
-		LogoURI:                      opts.LogoURI,
-		Scope:                        opts.Scope,
-		Contacts:                     opts.Contacts,
-		TOSURI:                       opts.TOSURI,
-		PolicyURI:                    opts.PolicyURI,
-		JWKsURI:                      opts.JWKsURI,
-		JWKs:                         opts.JWKs,
-		SoftwareID:                   opts.SoftwareID,
-		SoftwareVersion:              opts.SoftwareVersion,
-		SubjectType:                  opts.SubjectType,
-		SectorIdentifierURI:          opts.SectorIdentifierURI,
-		DefaultMaxAge:                opts.DefaultMaxAge,
-		RequireAuthTime:              opts.RequireAuthTime,
-		DefaultACRValues:             opts.DefaultACRValues,
-		InitiateLoginURI:             opts.InitiateLoginURI,
-		RequestURIs:                  opts.RequestURIs,
-		IDTokenSignedResponseAlg:     opts.IDTokenSignedResponseAlg,
-		IDTokenEncryptedResponseAlg:  opts.IDTokenEncryptedResponseAlg,
-		IDTokenEncryptedResponseEnc:  opts.IDTokenEncryptedResponseEnc,
-		UserInfoSignedResponseAlg:    opts.UserInfoSignedResponseAlg,
-		UserInfoEncryptedResponseAlg: opts.UserInfoEncryptedResponseAlg,
-		UserInfoEncryptedResponseEnc: opts.UserInfoEncryptedResponseEnc,
-		RequestObjectSigningAlg:      opts.RequestObjectSigningAlg,
-		RequestObjectEncryptionAlg:   opts.RequestObjectEncryptionAlg,
-		RequestObjectEncryptionEnc:   opts.RequestObjectEncryptionEnc,
-		TokenEndpointAuthSigningAlg:  opts.TokenEndpointAuthSigningAlg,
-		AccessTokenSigningAlg:        opts.AccessTokenSigningAlg,
-	}
-	var ssClaimsReference *tokens.SoftwareStatementClaims
-	if opts.SoftwareStatement != "" {
-		ssClaims, stdClaims, err := s.jwt.VerifySoftwareStatement(ctx, tokens.VerifySoftwareStatementOptions{
-			RequestID:         opts.RequestID,
-			SoftwareStatement: opts.SoftwareStatement,
-			GetPublicJWK: s.buildDynamicRegistrationSoftwareStatementFunc(ctx, buildDynamicRegistrationSoftwareStatementFuncOptions{
-				requestID:           opts.RequestID,
-				accountPublicID:     accountDTO.PublicID,
-				verificationMethods: appDRConfigDTO.SoftwareStatementVerificationMethods,
-				jwksURI:             opts.JWKsURI,
-				jwks:                opts.JWKs,
-				domain:              domain,
-				baseDomain:          baseDomain,
-			}),
-		})
-		if err != nil {
-			logger.WarnContext(ctx, "Failed to verify software statement", "error", err)
-			return dtos.AppDTO{}, exceptions.NewInvalidTokenError("invalid software statement")
-		}
-		if serviceErr := s.verifySoftwareStatementSTDClaims(ctx, verifySoftwareStatementSTDClaimsOptions{
-			requestID:      opts.RequestID,
-			backendDomain:  opts.BackendDomain,
-			frontendDomain: opts.FrontendDomain,
-			domain:         domain,
-			baseDomain:     baseDomain,
-			claims:         &stdClaims,
-		}); serviceErr != nil {
-			logger.WarnContext(ctx, "Failed to verify software statement standard claims", "serviceError", serviceErr)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		if serviceErr := s.validateSoftwareStatementClaims(ctx, validateSoftwareStatementClaimsOptions{
-			requestID:     opts.RequestID,
-			claims:        &ssClaims,
-			allowedScopes: utils.SliceToHashSet(allowedAppScopes),
-		}); serviceErr != nil {
-			logger.WarnContext(ctx, "Failed to validate software statement claims", "serviceError", serviceErr)
-			return dtos.AppDTO{}, serviceErr
-		}
-
-		ssClaimsReference = &ssClaims
-	}
-
 	params, serviceErr := s.mapAppRegistrationDataToDBParams(ctx, mapAppRegistrationDataToDBParamsOptions{
 		appType:                 appType,
 		accountPublicID:         accountDTO.PublicID,
@@ -542,22 +584,21 @@ func (s *Services) CreateAppCredentialsRegistration(
 		usernameColumn:          usernameColumn,
 		authProviders:           authProviders,
 		data:                    &data,
-		claims:                  ssClaimsReference,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map app registration data to database params", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	if tokenEndpointAuthMethod == database.AuthMethodNone {
-		app, err := s.database.CreateApp(ctx, params)
+	if tokenEndpointAuthMethod == database.AuthMethodNone || (tokenEndpointAuthMethod == database.AuthMethodPrivateKeyJwt && (data.JWKs != nil || data.JWKsURI != "")) {
+		app, err := s.database.CreateRegisteredApp(ctx, params)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create app", "error", err)
 			return dtos.AppDTO{}, exceptions.FromDBError(err)
 		}
 
 		logger.InfoContext(ctx, "Created app successfully")
-		return dtos.MapAppToDTO(&app), nil
+		return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, "", time.Time{}, nil)
 	}
 
 	qrs, txn, err := s.database.BeginTx(ctx)
@@ -570,7 +611,7 @@ func (s *Services) CreateAppCredentialsRegistration(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	app, err := s.database.CreateApp(ctx, params)
+	app, err := qrs.CreateRegisteredApp(ctx, params)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
 		return dtos.AppDTO{}, exceptions.FromDBError(err)
@@ -612,15 +653,15 @@ func (s *Services) CreateAppCredentialsRegistration(
 		}
 
 		if appType == database.AppTypeBackend || appType == database.AppTypeService {
-			return dtos.MapBackendAppWithJWKToDTO(&app, jwk, dbPrms.ExpiresAt), nil
+			return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, "", dbPrms.ExpiresAt, jwk)
 		}
 
-		return dtos.MapWebAppWithJWKToDTO(&app, jwk, dbPrms.ExpiresAt), nil
+		return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, "", dbPrms.ExpiresAt, jwk)
 	case database.AuthMethodClientSecretBasic, database.AuthMethodClientSecretPost, database.AuthMethodClientSecretJwt:
 		var ccID int32
-		var secretID, secret string
+		var secret string
 		var exp time.Time
-		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
+		ccID, _, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
 			requestID:   opts.RequestID,
 			accountID:   opts.AccountID,
 			storageMode: mapCCSecretStorageMode(string(tokenEndpointAuthMethod)),
@@ -647,13 +688,38 @@ func (s *Services) CreateAppCredentialsRegistration(
 		}
 
 		if appType == database.AppTypeBackend || appType == database.AppTypeService {
-			return dtos.MapBackendAppWithSecretToDTO(&app, secretID, secret, exp), nil
+			return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, secret, exp, nil)
 		}
 
-		return dtos.MapWebAppWithSecretToDTO(&app, secretID, secret, exp), nil
+		return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, secret, exp, nil)
 	default:
 		logger.ErrorContext(ctx, "Invalid token endpoint auth method", "tokenEndpointAuthMethod", tokenEndpointAuthMethod)
 		serviceErr = exceptions.NewInternalServerError()
 		return dtos.AppDTO{}, serviceErr
 	}
+}
+
+func (s *Services) finalizeRegisteredApp(
+	ctx context.Context,
+	opts CreateAppCredentialsRegistrationOptions,
+	accountDTO dtos.AccountDTO,
+	app *database.App,
+	secret string,
+	expiry time.Time,
+	key utils.JWK,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	dto := dtos.MapRegisteredApp(app, opts.SoftwareStatement, secret, expiry, key)
+	token, serviceErr := s.CreateAppCredentialsRegistrationAccessToken(ctx, CreateAppCredentialsRegistrationAccessTokenOptions{
+		RequestID:       opts.RequestID,
+		AccountPublicID: accountDTO.PublicID,
+		AccountVersion:  accountDTO.Version(),
+		ClientID:        app.ClientID,
+		BackendDomain:   opts.BackendDomain,
+	})
+	if serviceErr != nil {
+		return dtos.AppDTO{}, serviceErr
+	}
+	issuer := accountDTO.Username + "." + opts.BackendDomain
+	dto.Registration.WithRegistrationAccess(token, dtos.RegistrationClientURI(issuer, app.ClientID))
+	return dto, nil
 }

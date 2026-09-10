@@ -67,8 +67,10 @@ func (s *Services) CreateAppCredentialsRegistrationIAT(
 			AccountPublicID: opts.AccountPublicID,
 			AccountVersion:  opts.AccountVersion,
 			IssuerDomain:    fmt.Sprintf("%s.%s", accountDTO.Username, opts.BackendDomain),
-			Domain:          opts.Domain,
-			ClientID:        utils.Base62UUID(),
+			Subject:         opts.Domain,
+			JTI:             utils.Base62UUID(),
+			Usage:           tokens.DynamicRegistrationUsageApp,
+			TokenUse:        tokens.DynamicRegistrationTokenUseInitialAccess,
 		}),
 		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, BuildGetEncryptedAccountJWKFnOptions{
 			RequestID: opts.RequestID,
@@ -122,6 +124,8 @@ func (s *Services) ProcessAppDynamicRegistrationIATAuth(
 			RequestID:    opts.RequestID,
 			IAT:          token,
 			IssuerDomain: opts.IssuerDomain,
+			Usage:        tokens.DynamicRegistrationUsageApp,
+			TokenUse:     tokens.DynamicRegistrationTokenUseInitialAccess,
 			GetPublicJWK: s.BuildGetAccountPublicKeyFn(
 				ctx,
 				BuildGetAccountPublicKeyFnOptions{
@@ -140,4 +144,116 @@ func (s *Services) ProcessAppDynamicRegistrationIATAuth(
 
 	logger.InfoContext(ctx, "Processed OAuth dynamic registration IAT auth successfully")
 	return domain, accountClaims, nil
+}
+
+type CreateAppCredentialsRegistrationAccessTokenOptions struct {
+	RequestID       string
+	AccountPublicID uuid.UUID
+	AccountVersion  int32
+	ClientID        string
+	BackendDomain   string
+}
+
+func (s *Services) CreateAppCredentialsRegistrationAccessToken(
+	ctx context.Context,
+	opts CreateAppCredentialsRegistrationAccessTokenOptions,
+) (string, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appDynamicRegistrationIATLocation, "CreateAppCredentialsRegistrationAccessToken").With(
+		"accountPublicId", opts.AccountPublicID,
+		"clientId", opts.ClientID,
+	)
+	logger.InfoContext(ctx, "Creating app registration access token...")
+
+	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.AccountPublicID,
+		Version:   opts.AccountVersion,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get account", "serviceError", serviceErr)
+		return "", serviceErr
+	}
+
+	accountID := accountDTO.ID()
+	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
+		RequestID: opts.RequestID,
+		Token: s.jwt.DynamicRegistrationAccessToken(tokens.DynamicRegistrationIATOptions{
+			AccountPublicID: opts.AccountPublicID,
+			AccountVersion:  opts.AccountVersion,
+			IssuerDomain:    fmt.Sprintf("%s.%s", accountDTO.Username, opts.BackendDomain),
+			Subject:         opts.ClientID,
+			JTI:             utils.Base62UUID(),
+			Usage:           tokens.DynamicRegistrationUsageApp,
+			TokenUse:        tokens.DynamicRegistrationTokenUseRegistration,
+			TTL:             s.jwt.GetRegistrationAccessTokenTTL(),
+		}),
+		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, BuildGetEncryptedAccountJWKFnOptions{
+			RequestID: opts.RequestID,
+			KeyType:   database.TokenKeyTypeDynamicRegistration,
+			AccountID: accountID,
+		}),
+		GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
+			RequestID: opts.RequestID,
+			AccountID: accountID,
+		}),
+		GetEncryptDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			RequestID: opts.RequestID,
+			AccountID: accountID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
+			RequestID: opts.RequestID,
+		}),
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to sign app registration access token", "serviceError", serviceErr)
+		return "", serviceErr
+	}
+
+	return signedToken, nil
+}
+
+type ProcessAppDynamicRegistrationAccessTokenOptions struct {
+	RequestID    string
+	AuthHeader   string
+	AccountID    int32
+	IssuerDomain string
+}
+
+func (s *Services) ProcessAppDynamicRegistrationAccessToken(
+	ctx context.Context,
+	opts ProcessAppDynamicRegistrationAccessTokenOptions,
+) (string, tokens.AccountClaims, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, appDynamicRegistrationIATLocation, "ProcessAppDynamicRegistrationAccessToken")
+	logger.InfoContext(ctx, "Processing app registration access token...")
+
+	token, serviceErr := extractAuthHeaderToken(opts.AuthHeader)
+	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to extract token from auth header", "serviceError", serviceErr)
+		return "", tokens.AccountClaims{}, serviceErr
+	}
+
+	clientID, accountClaims, err := s.jwt.VerifyDynamicRegistrationIAT(
+		ctx,
+		tokens.VerifyDynamicRegistrationIATOptions{
+			RequestID:    opts.RequestID,
+			IAT:          token,
+			IssuerDomain: opts.IssuerDomain,
+			Usage:        tokens.DynamicRegistrationUsageApp,
+			TokenUse:     tokens.DynamicRegistrationTokenUseRegistration,
+			GetPublicJWK: s.BuildGetAccountPublicKeyFn(
+				ctx,
+				BuildGetAccountPublicKeyFnOptions{
+					RequestID: opts.RequestID,
+					AccountID: opts.AccountID,
+					KeyType:   database.TokenKeyTypeDynamicRegistration,
+				},
+			),
+		},
+	)
+	if err != nil {
+		logger.WarnContext(ctx, "Failed to verify app registration access token", "error", err)
+		return "", tokens.AccountClaims{}, exceptions.NewUnauthorizedError()
+	}
+
+	return clientID, accountClaims, nil
 }
