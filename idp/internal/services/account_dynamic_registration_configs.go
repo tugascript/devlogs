@@ -102,14 +102,12 @@ func mapInitialAccessTokenGenerationMethods(
 }
 
 type SaveAccountDynamicRegistrationConfigOptions struct {
-	RequestID                                string
-	AccountPublicID                          uuid.UUID
-	AccountVersion                           int32
-	AccountCredentialsTypes                  []string
-	RequireSoftwareStatementCredentialTypes  []string
-	SoftwareStatementVerificationMethods     []string
-	RequireInitialAccessTokenCredentialTypes []string
-	InitialAccessTokenGenerationMethods      []string
+	RequestID                               string
+	AccountPublicID                         uuid.UUID
+	AccountVersion                          int32
+	AccountCredentialsTypes                 []string
+	RequireSoftwareStatementCredentialTypes []string
+	SoftwareStatementVerificationMethods    []string
 }
 
 func (s *Services) SaveAccountDynamicRegistrationConfig(
@@ -134,21 +132,9 @@ func (s *Services) SaveAccountDynamicRegistrationConfig(
 		return dtos.AccountDynamicRegistrationConfigDTO{}, false, serviceErr
 	}
 
-	requireInitialAccessTokenCredentialTypes, serviceErr := mapAccountCredentialsTypes(opts.RequireInitialAccessTokenCredentialTypes)
-	if serviceErr != nil {
-		logger.WarnContext(ctx, "Failed to map require initial access token credential types", "serviceError", serviceErr)
-		return dtos.AccountDynamicRegistrationConfigDTO{}, false, serviceErr
-	}
-
 	softwareStatementVerificationMethods, serviceErr := mapSoftwareStatementVerificationMethods(opts.SoftwareStatementVerificationMethods)
 	if serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to map software statement verification methods", "serviceError", serviceErr)
-		return dtos.AccountDynamicRegistrationConfigDTO{}, false, serviceErr
-	}
-
-	initialAccessTokenGenerationMethods, serviceErr := mapInitialAccessTokenGenerationMethods(opts.InitialAccessTokenGenerationMethods)
-	if serviceErr != nil {
-		logger.WarnContext(ctx, "Failed to map initial access token generation methods", "serviceError", serviceErr)
 		return dtos.AccountDynamicRegistrationConfigDTO{}, false, serviceErr
 	}
 
@@ -174,13 +160,11 @@ func (s *Services) SaveAccountDynamicRegistrationConfig(
 		accountDynamicRegistrationConfig, err = s.database.CreateAccountDynamicRegistrationConfig(
 			ctx,
 			database.CreateAccountDynamicRegistrationConfigParams{
-				AccountID:                                accountID,
-				AccountPublicID:                          opts.AccountPublicID,
-				AccountCredentialsTypes:                  credentialsTypes,
-				RequireSoftwareStatementCredentialTypes:  requireSoftwareStatementCredentialTypes,
-				SoftwareStatementVerificationMethods:     softwareStatementVerificationMethods,
-				RequireInitialAccessTokenCredentialTypes: requireInitialAccessTokenCredentialTypes,
-				InitialAccessTokenGenerationMethods:      initialAccessTokenGenerationMethods,
+				AccountID:                               accountID,
+				AccountPublicID:                         opts.AccountPublicID,
+				AccountCredentialsTypes:                 credentialsTypes,
+				RequireSoftwareStatementCredentialTypes: requireSoftwareStatementCredentialTypes,
+				SoftwareStatementVerificationMethods:    softwareStatementVerificationMethods,
 			},
 		)
 		if err != nil {
@@ -192,12 +176,10 @@ func (s *Services) SaveAccountDynamicRegistrationConfig(
 	}
 
 	accountDynamicRegistrationConfig, err = s.database.UpdateAccountDynamicRegistrationConfig(ctx, database.UpdateAccountDynamicRegistrationConfigParams{
-		ID:                                       accountDynamicRegistrationConfig.ID,
-		AccountCredentialsTypes:                  credentialsTypes,
-		RequireSoftwareStatementCredentialTypes:  requireSoftwareStatementCredentialTypes,
-		SoftwareStatementVerificationMethods:     softwareStatementVerificationMethods,
-		RequireInitialAccessTokenCredentialTypes: requireInitialAccessTokenCredentialTypes,
-		InitialAccessTokenGenerationMethods:      initialAccessTokenGenerationMethods,
+		ID:                                      accountDynamicRegistrationConfig.ID,
+		AccountCredentialsTypes:                 credentialsTypes,
+		RequireSoftwareStatementCredentialTypes: requireSoftwareStatementCredentialTypes,
+		SoftwareStatementVerificationMethods:    softwareStatementVerificationMethods,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account dynamic registration config", "error", err)

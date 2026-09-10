@@ -9,7 +9,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
@@ -606,21 +605,23 @@ func (s *Services) BuildGetEncryptedAccountJWKFn(
 	}
 }
 
-type buildVerifyAccountKeyFnOptions struct {
-	requestID string
-	accountID int32
-	keyType   database.TokenKeyType
+type BuildGetAccountPublicKeyFnOptions struct {
+	RequestID string
+	AccountID int32
+	KeyType   database.TokenKeyType
 }
 
-func (s *Services) buildVerifyAccountKeyFn(
+func (s *Services) BuildGetAccountPublicKeyFn(
 	ctx context.Context,
-	logger *slog.Logger,
-	opts buildVerifyAccountKeyFnOptions,
+	opts BuildGetAccountPublicKeyFnOptions,
 ) tokens.GetPublicJWK {
+	logger := s.buildLogger(opts.RequestID, jwkLocation, "BuildGetAccountPublicKeyFn")
+	logger.InfoContext(ctx, "Building get account public JWK function...")
+
 	return func(kid string, cryptoSuite utils.SupportedCryptoSuite) (utils.JWK, error) {
-		suffix := fmt.Sprintf("account:%d", opts.accountID)
+		suffix := fmt.Sprintf("account:%d", opts.AccountID)
 		jwk, found, err := s.cache.GetJWK(ctx, cache.GetJWKOptions{
-			RequestID:   opts.requestID,
+			RequestID:   opts.RequestID,
 			Prefix:      suffix,
 			CryptoSuite: cryptoSuite,
 			KeyID:       kid,
@@ -643,7 +644,7 @@ func (s *Services) buildVerifyAccountKeyFn(
 		jwkEnt, err := s.database.FindAccountTokenSigningKeyByAccountIDAndKID(
 			ctx,
 			database.FindAccountTokenSigningKeyByAccountIDAndKIDParams{
-				AccountID: opts.accountID,
+				AccountID: opts.AccountID,
 				Kid:       kid,
 			},
 		)
@@ -655,8 +656,8 @@ func (s *Services) buildVerifyAccountKeyFn(
 			logger.ErrorContext(ctx, "JWK is not an account JWK", "kid", kid)
 			return nil, exceptions.NewUnauthorizedError()
 		}
-		if jwkEnt.KeyType != opts.keyType {
-			logger.ErrorContext(ctx, "JWK is not the expected key type", "kid", kid, "expectedKeyType", opts.keyType, "actualKeyType", jwkEnt.KeyType)
+		if jwkEnt.KeyType != opts.KeyType {
+			logger.ErrorContext(ctx, "JWK is not the expected key type", "kid", kid, "expectedKeyType", opts.KeyType, "actualKeyType", jwkEnt.KeyType)
 			return nil, exceptions.NewUnauthorizedError()
 		}
 		if dbCryptoSuite != jwkEnt.CryptoSuite {
@@ -673,7 +674,7 @@ func (s *Services) buildVerifyAccountKeyFn(
 			return nil, err
 		}
 		if err := s.cache.SavePublicJWK(ctx, cache.SavePublicJWKOptions{
-			RequestID:   opts.requestID,
+			RequestID:   opts.RequestID,
 			Prefix:      suffix,
 			CryptoSuite: cryptoSuite,
 			KeyID:       jwkEnt.Kid,

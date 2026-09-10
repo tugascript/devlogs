@@ -107,8 +107,8 @@ func (c *Controllers) ListUsers(ctx fiber.Ctx) error {
 	}
 
 	queryParams := params.ListUsersQueryParams{
-		Limit:  fiber.Query[int](ctx, "limit", 10),
-		Offset: fiber.Query[int](ctx, "offset", 0),
+		Limit:  fiber.Query(ctx, "limit", 10),
+		Offset: fiber.Query(ctx, "offset", 0),
 		Order:  ctx.Query("order", "date"),
 		Search: ctx.Query("search"),
 	}

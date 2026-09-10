@@ -231,6 +231,7 @@ func (c *Cache) VerifyAccountCredentialsDynamicRegistrationIATLoginCSRF(
 }
 
 type AccountCredentialsDynamicRegistrationIAT2FAData struct {
+	Username        string    `json:"username"`
 	AccountPublicID uuid.UUID `json:"account_public_id"`
 	AccountVersion  int32     `json:"account_version"`
 	RedirectURI     string    `json:"redirect_uri"`
@@ -245,6 +246,7 @@ func buildAccountCredentialsDynamicRegistrationIAT2FACacheKey(sessionID string) 
 }
 
 type SaveAccountCredentialsDynamicRegistrationIAT2FAOptions struct {
+	Username        string
 	RequestID       string
 	AccountPublicID uuid.UUID
 	AccountVersion  int32
@@ -272,6 +274,7 @@ func (c *Cache) SaveAccountCredentialsDynamicRegistrationIAT2FA(
 
 	sessionId := utils.Base64UUID()
 	data := AccountCredentialsDynamicRegistrationIAT2FAData{
+		Username:        opts.Username,
 		AccountPublicID: opts.AccountPublicID,
 		AccountVersion:  opts.AccountVersion,
 		RedirectURI:     opts.RedirectURI,
@@ -443,6 +446,7 @@ func buildAccountCredentialsDynamicRegistrationIATCodeCacheKey(codeID string) st
 }
 
 type AccountCredentialsDynamicRegistrationIATCodeData struct {
+	HostUsername    string    `json:"host_username"`
 	AccountPublicID uuid.UUID `json:"account_public_id"`
 	AccountVersion  int32     `json:"account_version"`
 	Domain          string    `json:"domain"`
@@ -452,6 +456,7 @@ type AccountCredentialsDynamicRegistrationIATCodeData struct {
 }
 
 type GenerateAccountCredentialsRegistrationIATCodeOptions struct {
+	HostUsername    string
 	RequestID       string
 	ClientID        string
 	AccountPublicID uuid.UUID
@@ -483,6 +488,7 @@ func (c *Cache) GenerateAccountCredentialsRegistrationIATCode(
 	}
 
 	data := AccountCredentialsDynamicRegistrationIATCodeData{
+		HostUsername:    opts.HostUsername,
 		AccountPublicID: opts.AccountPublicID,
 		AccountVersion:  opts.AccountVersion,
 		Domain:          opts.Domain,
@@ -525,13 +531,10 @@ func (c *Cache) VerifyAccountCredentialsRegistrationIATCode(
 	})
 	logger.DebugContext(ctx, "Verifying account credentials registration IAT code...")
 
-	if len(opts.Code) < 45 {
-		logger.DebugContext(ctx, "Invalid account credentials registration IAT code length")
-		return AccountCredentialsDynamicRegistrationIATCodeData{}, false, nil
-	}
-
+	// Codes are "{base62uuid}-{base62secret}". The secret is unpadded base62 of 16
+	// bytes, so total length is often 44 or 45. Reject only structurally invalid values.
 	parts := strings.Split(opts.Code, "-")
-	if len(parts) != 2 {
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		logger.WarnContext(ctx, "Invalid account credentials registration IAT code format")
 		return AccountCredentialsDynamicRegistrationIATCodeData{}, false, nil
 	}
@@ -572,6 +575,7 @@ func (c *Cache) VerifyAccountCredentialsRegistrationIATCode(
 }
 
 type AccountCredentialsDynamicRegistrationSessionData struct {
+	Username        string    `json:"username"`
 	AccountPublicID uuid.UUID `json:"account_public_id"`
 	AccountVersion  int32     `json:"account_version"`
 	SessionKey      string    `json:"session_key"`
@@ -594,6 +598,7 @@ func parseSessionKey(sessionKey string) (string, string, bool) {
 }
 
 type CreateAccountCredentialsRegistrationSessionKeyOptions struct {
+	Username        string
 	RequestID       string
 	ClientID        string
 	Domain          string
@@ -623,6 +628,7 @@ func (c *Cache) CreateAccountCredentialsRegistrationSessionKey(
 	}
 
 	data := AccountCredentialsDynamicRegistrationSessionData{
+		Username:        opts.Username,
 		AccountPublicID: opts.AccountPublicID,
 		AccountVersion:  opts.AccountVersion,
 		SessionKey:      utils.Sha256HashHex(sessionKey),

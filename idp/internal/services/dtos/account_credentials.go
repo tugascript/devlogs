@@ -17,8 +17,9 @@ import (
 )
 
 type AccountCredentialsDTO struct {
-	ClientID    string `json:"client_id"`
-	ClientIDIAT int64  `json:"client_idiat"`
+	Registration *ClientRegistrationDTO `json:"-"`
+	ClientID     string                 `json:"client_id"`
+	ClientIDIAT  int64                  `json:"client_idiat"`
 
 	Type                    database.AccountCredentialsType    `json:"application_type"`
 	ClientName              string                             `json:"client_name"`
@@ -97,15 +98,14 @@ func (ak *AccountCredentialsDTO) UnmarshalJSON(data []byte) error {
 	}
 
 	if aux.JWKs != nil {
-		jwks := make([]utils.JWK, 0, len(aux.JWKs))
-		for _, raw := range aux.JWKs {
+		ak.JWKs = make([]utils.JWK, len(aux.JWKs))
+		for i, raw := range aux.JWKs {
 			jwk, err := utils.JsonToJWK(raw)
 			if err != nil {
 				return err
 			}
-			jwks = append(jwks, jwk)
+			ak.JWKs[i] = jwk
 		}
-		ak.JWKs = jwks
 	}
 
 	return nil
@@ -126,17 +126,11 @@ func MapAccountCredentialsToDTO(
 
 	jwks := make([]utils.JWK, 0)
 	if accountCredential.Jwks != nil {
-		var rawJwks []json.RawMessage
-		if err := json.Unmarshal(accountCredential.Jwks, &rawJwks); err != nil {
+		var set utils.JWKSet
+		if err := json.Unmarshal(accountCredential.Jwks, &set); err != nil {
 			return AccountCredentialsDTO{}, exceptions.NewInternalServerError()
 		}
-		for _, raw := range rawJwks {
-			jwk, err := utils.JsonToJWK(raw)
-			if err != nil {
-				return AccountCredentialsDTO{}, exceptions.NewInternalServerError()
-			}
-			jwks = append(jwks, jwk)
-		}
+		jwks = set.Keys
 	}
 
 	return AccountCredentialsDTO{
@@ -194,17 +188,11 @@ func MapAccountCredentialsToDTOWithJWK(
 
 	jwks := make([]utils.JWK, 0)
 	if accountCredential.Jwks != nil {
-		var rawJwks []json.RawMessage
-		if err := json.Unmarshal(accountCredential.Jwks, &rawJwks); err != nil {
+		var set utils.JWKSet
+		if err := json.Unmarshal(accountCredential.Jwks, &set); err != nil {
 			return AccountCredentialsDTO{}, exceptions.NewInternalServerError()
 		}
-		for _, raw := range rawJwks {
-			jwk, err := utils.JsonToJWK(raw)
-			if err != nil {
-				return AccountCredentialsDTO{}, exceptions.NewInternalServerError()
-			}
-			jwks = append(jwks, jwk)
-		}
+		jwks = set.Keys
 	}
 
 	return AccountCredentialsDTO{
@@ -266,17 +254,11 @@ func MapAccountCredentialsToDTOWithSecret(
 
 	jwks := make([]utils.JWK, 0)
 	if accountCredential.Jwks != nil {
-		var rawJwks []json.RawMessage
-		if err := json.Unmarshal(accountCredential.Jwks, &rawJwks); err != nil {
+		var set utils.JWKSet
+		if err := json.Unmarshal(accountCredential.Jwks, &set); err != nil {
 			return AccountCredentialsDTO{}, exceptions.NewInternalServerError()
 		}
-		for _, raw := range rawJwks {
-			jwk, err := utils.JsonToJWK(raw)
-			if err != nil {
-				return AccountCredentialsDTO{}, exceptions.NewInternalServerError()
-			}
-			jwks = append(jwks, jwk)
-		}
+		jwks = set.Keys
 	}
 
 	return AccountCredentialsDTO{
