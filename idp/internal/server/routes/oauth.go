@@ -31,15 +31,25 @@ func (r *Routes) OAuthRoutes(app *fiber.App) {
 	router.Post(
 		paths.OAuthRegister,
 		r.controllers.HostMiddleware,
-		r.controllers.DynamicRegistrationIATMiddleware,
 		HostAwareRoute(
-			[]fiber.Handler{r.controllers.OAuthDynamicRegistration},
-			[]fiber.Handler{r.controllers.OAuthAppDynamicRegistration},
+			[]fiber.Handler{
+				r.controllers.DynamicRegistrationIATMiddleware,
+				r.controllers.OAuthDynamicRegistration,
+			},
+			[]fiber.Handler{
+				r.controllers.AppDynamicRegistrationIATMiddleware,
+				r.controllers.OAuthAppDynamicRegistration,
+			},
 		),
 	)
 
 	// Initial Access Token (IAT) routes
 	iatRouter := router.Group(paths.InitialAccessToken, r.controllers.HostMiddleware)
+	iatRouter.Post(
+		paths.InitialAccessTokenSign,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.AppDynamicRegistrationIATSign,
+	)
 
 	// Dynamic Registration IAT Code Exchange flow
 	iatRouter.Get(paths.OAuthAuth, r.controllers.OAuthDynamicRegistrationIATAuth)

@@ -22,8 +22,6 @@ const dynamicRegistrationIATLocation = "dynamic_registration_iat"
 
 type accountCredentialsDynamicRegistrationClaims struct {
 	AccountClaims
-	Domain   string `json:"domain"`
-	ClientID string `json:"client_id"`
 	jwt.RegisteredClaims
 }
 
@@ -49,8 +47,6 @@ func (t *Tokens) DynamicRegistrationIAT(
 				AccountID:      opts.AccountPublicID,
 				AccountVersion: opts.AccountVersion,
 			},
-			Domain:   opts.Domain,
-			ClientID: opts.ClientID,
 			RegisteredClaims: jwt.RegisteredClaims{
 				Issuer:    iss,
 				Audience:  []string{iss},
@@ -58,7 +54,7 @@ func (t *Tokens) DynamicRegistrationIAT(
 				IssuedAt:  iat,
 				NotBefore: iat,
 				ExpiresAt: exp,
-				ID:        uuid.NewString(),
+				ID:        opts.ClientID,
 			},
 		},
 	)
@@ -128,7 +124,7 @@ func (t *Tokens) VerifyDynamicRegistrationIAT(
 	}
 
 	logger.InfoContext(ctx, "Verified account credentials dynamic registration IAT successfully")
-	return claims.Domain, claims.AccountClaims, nil
+	return claims.Subject, claims.AccountClaims, nil
 }
 
 func (t *Tokens) GetDynamicRegistrationTTL() int64 {

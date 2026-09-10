@@ -1021,9 +1021,6 @@ Table account_dynamic_registration_configs as ADRC {
     software_statement_verification_methods "software_statement_verification_method[]" [not null]
     require_verified_domains_credentials_type "account_credentials_type[]" [not null]
 
-    require_initial_access_token_credential_types "account_credentials_type[]" [not null]
-    initial_access_token_generation_methods "initial_access_token_generation_method[]" [not null]
-
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
 

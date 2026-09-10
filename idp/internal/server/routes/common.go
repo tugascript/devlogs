@@ -10,13 +10,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
-	"github.com/tugascript/devlogs/idp/internal/exceptions"
 )
-
-var errorResponseNotFound = exceptions.ErrorResponse{
-	Code:    exceptions.StatusNotFound,
-	Message: exceptions.MessageNotFound,
-}
 
 func V1PathRouter(app *fiber.App) fiber.Router {
 	return app.Group(paths.V1)

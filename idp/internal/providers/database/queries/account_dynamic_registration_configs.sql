@@ -10,26 +10,20 @@ INSERT INTO "account_dynamic_registration_configs" (
     "account_public_id",
     "account_credentials_types",
     "require_software_statement_credential_types",
-    "software_statement_verification_methods",
-    "require_initial_access_token_credential_types",
-    "initial_access_token_generation_methods"
+    "software_statement_verification_methods"
 ) VALUES (
     $1, 
     $2, 
     $3, 
     $4, 
-    $5, 
-    $6, 
-    $7
+    $5
 ) RETURNING *;
 
 -- name: UpdateAccountDynamicRegistrationConfig :one
 UPDATE "account_dynamic_registration_configs" SET
     "account_credentials_types" = $2,
     "require_software_statement_credential_types" = $3,
-    "software_statement_verification_methods" = $4,
-    "require_initial_access_token_credential_types" = $5,
-    "initial_access_token_generation_methods" = $6
+    "software_statement_verification_methods" = $4
 WHERE "id" = $1 
 RETURNING *;
 

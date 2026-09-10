@@ -173,18 +173,6 @@ func (c *Controllers) AppAccessClaimsMiddleware(ctx fiber.Ctx) error {
 	return continueMiddleware(ctx)
 }
 
-func processIATIssuerDomain(ctx fiber.Ctx, backendDomain string) (string, *exceptions.ServiceError) {
-	hasAccountHost, ok := ctx.Locals("hasAccountHost").(bool)
-	if ok && hasAccountHost {
-		username, _, serviceErr := getHostAccount(ctx)
-		if serviceErr != nil {
-			return "", serviceErr
-		}
-		return fmt.Sprintf("%s.%s", username, backendDomain), nil
-	}
-	return backendDomain, nil
-}
-
 func (c *Controllers) DynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, middlewareLocation, "DynamicRegistrationIATMiddleware")
@@ -192,13 +180,7 @@ func (c *Controllers) DynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
 
 	if authHeader == "" {
 		logger.InfoContext(ctx.Context(), "No Authorization header found")
-		ctx.Locals("isAuthenticated", false)
-		return ctx.Next()
-	}
-
-	issDomain, serviceErr := processIATIssuerDomain(ctx, c.backendDomain)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
 	}
 
 	domain, accountClaims, serviceErr := c.services.ProcessAccountCredentialsRegistrationIATAuth(
@@ -206,13 +188,50 @@ func (c *Controllers) DynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
 		services.ProcessAccountCredentialsRegistrationIATAuthOptions{
 			RequestID:    requestID,
 			AuthHeader:   authHeader,
-			IssuerDomain: issDomain,
+			IssuerDomain: c.backendDomain,
 		},
 	)
+
 	if serviceErr != nil {
+		logger.InfoContext(ctx.Context(), "Failed to process account credentials registration IAT auth", "serviceError", serviceErr)
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
 	}
 
+	ctx.Locals("account", accountClaims)
+	ctx.Locals("domain", domain)
+	return ctx.Next()
+}
+
+func (c *Controllers) AppDynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, middlewareLocation, "AppDynamicRegistrationIATMiddleware")
+	username, accountID, serviceErr := getHostAccount(ctx)
+	if serviceErr != nil {
+		logger.InfoContext(ctx.Context(), "Failed to get host account", "serviceError", serviceErr)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
+	}
+
+	authHeader := ctx.Get("Authorization")
+	if authHeader == "" {
+		logger.InfoContext(ctx.Context(), "No Authorization header found, skipping app dynamic registration IAT middleware")
+		return ctx.Next()
+	}
+
+	domain, accountClaims, serviceErr := c.services.ProcessAppDynamicRegistrationIATAuth(
+		ctx.Context(),
+		services.ProcessAppDynamicRegistrationIATAuthOptions{
+			RequestID:    requestID,
+			AuthHeader:   authHeader,
+			AccountID:    accountID,
+			IssuerDomain: fmt.Sprintf("%s.%s", username, c.backendDomain),
+		},
+	)
+	if serviceErr != nil {
+		logger.InfoContext(ctx.Context(), "Failed to process app dynamic registration IAT auth", "serviceError", serviceErr)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
+	}
+
+	logger.DebugContext(ctx.Context(), "Processed app dynamic registration IAT auth successfully", "domain", domain, "account", accountClaims)
 	ctx.Locals("account", accountClaims)
 	ctx.Locals("domain", domain)
 	ctx.Locals("isAuthenticated", true)
