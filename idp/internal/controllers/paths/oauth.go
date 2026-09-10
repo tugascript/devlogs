@@ -9,14 +9,15 @@ package paths
 const (
 	OAuthBase string = "/oauth2"
 
-	OAuthKeys       string = "/jwks"
-	OAuthAuth       string = "/auth"
-	OAuthUserInfo   string = "/userinfo"
-	OAuthToken      string = "/token"
-	OAuthRevoke     string = "/revoke"
-	OAuthRegister   string = "/register"
-	OAuthIntrospect string = "/introspect"
-	OAuthDeviceAuth string = "/auth/device"
+	OAuthKeys           string = "/jwks"
+	OAuthAuth           string = "/auth"
+	OAuthUserInfo       string = "/userinfo"
+	OAuthToken          string = "/token"
+	OAuthRevoke         string = "/revoke"
+	OAuthRegister       string = "/register"
+	OAuthRegisterClient string = "/register/:clientID"
+	OAuthIntrospect     string = "/introspect"
+	OAuthDeviceAuth     string = "/auth/device"
 
 	OAuthAppleCallback string = "/apple/callback"
 	OAuthCallback      string = "/:provider/callback"

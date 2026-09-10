@@ -604,3 +604,174 @@ func (q *Queries) UpdateAccountCredentials(ctx context.Context, arg UpdateAccoun
 	)
 	return i, err
 }
+
+const updateRegisteredAccountCredentials = `-- name: UpdateRegisteredAccountCredentials :one
+UPDATE "account_credentials" SET
+    "domain" = $2,
+    "transport" = $3,
+    "redirect_uris" = $4,
+    "token_endpoint_auth_method" = $5,
+    "grant_types" = $6,
+    "response_types" = $7,
+    "client_name" = $8,
+    "client_uri" = $9,
+    "logo_uri" = $10,
+    "scopes" = $11,
+    "contacts" = $12,
+    "tos_uri" = $13,
+    "policy_uri" = $14,
+    "jwks_uri" = $15,
+    "jwks" = $16,
+    "software_id" = $17,
+    "software_version" = $18,
+    "sector_identifier_uri" = $19,
+    "subject_type" = $20,
+    "id_token_signed_response_alg" = $21,
+    "id_token_encrypted_response_alg" = $22,
+    "id_token_encrypted_response_enc" = $23,
+    "userinfo_signed_response_alg" = $24,
+    "userinfo_encrypted_response_alg" = $25,
+    "userinfo_encrypted_response_enc" = $26,
+    "request_object_signing_alg" = $27,
+    "request_object_encryption_alg" = $28,
+    "request_object_encryption_enc" = $29,
+    "token_endpoint_auth_signing_alg" = $30,
+    "default_max_age" = $31,
+    "require_auth_time" = $32,
+    "default_acr_values" = $33,
+    "initiate_login_uri" = $34,
+    "request_uris" = $35,
+    "access_token_signing_alg" = $36,
+    "version" = "version" + 1,
+    "updated_at" = now()
+WHERE "id" = $1
+RETURNING id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at
+`
+
+type UpdateRegisteredAccountCredentialsParams struct {
+	ID                           int32
+	Domain                       string
+	Transport                    Transport
+	RedirectUris                 []string
+	TokenEndpointAuthMethod      AuthMethod
+	GrantTypes                   []GrantType
+	ResponseTypes                []ResponseType
+	ClientName                   string
+	ClientUri                    string
+	LogoUri                      pgtype.Text
+	Scopes                       []AccountCredentialsScope
+	Contacts                     []string
+	TosUri                       pgtype.Text
+	PolicyUri                    pgtype.Text
+	JwksUri                      pgtype.Text
+	Jwks                         []byte
+	SoftwareID                   pgtype.Text
+	SoftwareVersion              pgtype.Text
+	SectorIdentifierUri          pgtype.Text
+	SubjectType                  NullClientSubjectType
+	IDTokenSignedResponseAlg     TokenCryptoSuite
+	IDTokenEncryptedResponseAlg  NullTokenEncryptionAlgorithm
+	IDTokenEncryptedResponseEnc  NullTokenEncryptionEncoding
+	UserinfoSignedResponseAlg    NullTokenCryptoSuite
+	UserinfoEncryptedResponseAlg NullTokenEncryptionAlgorithm
+	UserinfoEncryptedResponseEnc NullTokenEncryptionEncoding
+	RequestObjectSigningAlg      NullTokenCryptoSuite
+	RequestObjectEncryptionAlg   NullTokenEncryptionAlgorithm
+	RequestObjectEncryptionEnc   NullTokenEncryptionEncoding
+	TokenEndpointAuthSigningAlg  NullTokenCryptoSuite
+	DefaultMaxAge                pgtype.Int8
+	RequireAuthTime              bool
+	DefaultAcrValues             []string
+	InitiateLoginUri             pgtype.Text
+	RequestUris                  []string
+	AccessTokenSigningAlg        TokenCryptoSuite
+}
+
+func (q *Queries) UpdateRegisteredAccountCredentials(ctx context.Context, arg UpdateRegisteredAccountCredentialsParams) (AccountCredential, error) {
+	row := q.db.QueryRow(ctx, updateRegisteredAccountCredentials,
+		arg.ID,
+		arg.Domain,
+		arg.Transport,
+		arg.RedirectUris,
+		arg.TokenEndpointAuthMethod,
+		arg.GrantTypes,
+		arg.ResponseTypes,
+		arg.ClientName,
+		arg.ClientUri,
+		arg.LogoUri,
+		arg.Scopes,
+		arg.Contacts,
+		arg.TosUri,
+		arg.PolicyUri,
+		arg.JwksUri,
+		arg.Jwks,
+		arg.SoftwareID,
+		arg.SoftwareVersion,
+		arg.SectorIdentifierUri,
+		arg.SubjectType,
+		arg.IDTokenSignedResponseAlg,
+		arg.IDTokenEncryptedResponseAlg,
+		arg.IDTokenEncryptedResponseEnc,
+		arg.UserinfoSignedResponseAlg,
+		arg.UserinfoEncryptedResponseAlg,
+		arg.UserinfoEncryptedResponseEnc,
+		arg.RequestObjectSigningAlg,
+		arg.RequestObjectEncryptionAlg,
+		arg.RequestObjectEncryptionEnc,
+		arg.TokenEndpointAuthSigningAlg,
+		arg.DefaultMaxAge,
+		arg.RequireAuthTime,
+		arg.DefaultAcrValues,
+		arg.InitiateLoginUri,
+		arg.RequestUris,
+		arg.AccessTokenSigningAlg,
+	)
+	var i AccountCredential
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.AccountPublicID,
+		&i.Domain,
+		&i.CreationMethod,
+		&i.Transport,
+		&i.Version,
+		&i.ClientID,
+		&i.RedirectUris,
+		&i.TokenEndpointAuthMethod,
+		&i.GrantTypes,
+		&i.ResponseTypes,
+		&i.ClientName,
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.Scopes,
+		&i.Contacts,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.CredentialsType,
+		&i.SectorIdentifierUri,
+		&i.SubjectType,
+		&i.IDTokenSignedResponseAlg,
+		&i.IDTokenEncryptedResponseAlg,
+		&i.IDTokenEncryptedResponseEnc,
+		&i.UserinfoSignedResponseAlg,
+		&i.UserinfoEncryptedResponseAlg,
+		&i.UserinfoEncryptedResponseEnc,
+		&i.RequestObjectSigningAlg,
+		&i.RequestObjectEncryptionAlg,
+		&i.RequestObjectEncryptionEnc,
+		&i.TokenEndpointAuthSigningAlg,
+		&i.DefaultMaxAge,
+		&i.RequireAuthTime,
+		&i.DefaultAcrValues,
+		&i.InitiateLoginUri,
+		&i.RequestUris,
+		&i.AccessTokenSigningAlg,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

@@ -18,13 +18,19 @@ INSERT INTO "account_dynamic_registration_configs" (
     "account_public_id",
     "account_credentials_types",
     "require_software_statement_credential_types",
-    "software_statement_verification_methods"
+    "software_statement_verification_methods",
+    "require_verified_domains_credentials_type",
+    "require_initial_access_token_credential_types",
+    "initial_access_token_generation_methods"
 ) VALUES (
     $1, 
     $2, 
     $3, 
     $4, 
-    $5
+    $5,
+    '{}'::account_credentials_type[],
+    '{}'::account_credentials_type[],
+    '{}'::initial_access_token_generation_method[]
 ) RETURNING id, account_id, account_public_id, account_credentials_types, require_software_statement_credential_types, software_statement_verification_methods, require_verified_domains_credentials_type, created_at, updated_at
 `
 

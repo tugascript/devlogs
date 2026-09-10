@@ -17,7 +17,6 @@ import (
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
-	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -65,7 +64,6 @@ type mapAccountCredentialsRegistrationDataToDBParamsOptions struct {
 	transport               database.Transport
 	scopes                  []database.AccountCredentialsScope
 	data                    *ApplicationRegistrationData
-	claims                  *tokens.SoftwareStatementClaims
 }
 
 func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
@@ -77,7 +75,6 @@ func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
 		"accountID", opts.accountID,
 		"domain", opts.domain,
 		"data", opts.data,
-		"claims", opts.claims,
 	)
 	logger.InfoContext(ctx, "Mapping account credentials registration data to database params")
 
@@ -87,7 +84,7 @@ func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
 		return database.CreateAccountCredentialsParams{}, serviceErr
 	}
 
-	responseTypes, serviceErr := mapResponseTypesWithDefault(opts.data.ResponseTypes)
+	responseTypes, serviceErr := mapRegistrationResponseTypes(opts.data.ResponseTypes)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
 		return database.CreateAccountCredentialsParams{}, serviceErr
@@ -183,7 +180,7 @@ func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
 		Transport:       opts.transport,
 		ClientID:        utils.Base62UUID(),
 		RedirectUris: utils.MapSlice(opts.data.RedirectURIs, func(uri *string) string {
-			return utils.ProcessURL(*uri)
+			return *uri
 		}),
 		TokenEndpointAuthMethod:      opts.tokenEndpointAuthMethod,
 		TokenEndpointAuthSigningAlg:  tokenEndpointAuthSigningAlg,
@@ -218,134 +215,8 @@ func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
 		DefaultAcrValues:             opts.data.DefaultACRValues,
 		InitiateLoginUri:             mapEmptyURL(opts.data.InitiateLoginURI),
 		RequestUris: utils.MapSlice(opts.data.RequestURIs, func(uri *string) string {
-			return utils.ProcessURL(*uri)
+			return *uri
 		}),
-	}
-
-	if opts.claims != nil {
-		if opts.claims.ClientName != "" {
-			params.ClientName = opts.claims.ClientName
-		}
-		if opts.claims.ClientURI != "" {
-			params.ClientUri = utils.ProcessURL(opts.claims.ClientURI)
-		}
-		if opts.claims.LogoURI != "" {
-			params.LogoUri = mapEmptyURL(opts.claims.LogoURI)
-		}
-		if len(opts.claims.RedirectURIs) > 0 {
-			params.RedirectUris = utils.MapSlice(opts.claims.RedirectURIs, func(uri *string) string {
-				return utils.ProcessURL(*uri)
-			})
-		}
-		if opts.claims.TOSURI != "" {
-			params.TosUri = mapEmptyURL(opts.claims.TOSURI)
-		}
-		if opts.claims.PolicyURI != "" {
-			params.PolicyUri = mapEmptyURL(opts.claims.PolicyURI)
-		}
-		if opts.claims.JWKsURI != "" {
-			params.JwksUri = mapEmptyURL(opts.claims.JWKsURI)
-		}
-		if opts.claims.JWKs != nil && len(opts.claims.JWKs.Keys) > 0 {
-			var err error
-			if jsonJwks, err = opts.data.JWKs.MarshalJSON(); err != nil {
-				logger.ErrorContext(ctx, "Failed to marshal JWKs to JSON", "error", err)
-				return database.CreateAccountCredentialsParams{}, exceptions.NewInternalServerError()
-			}
-			params.Jwks = jsonJwks
-		}
-		if opts.claims.SoftwareID != "" {
-			params.SoftwareID = mapEmptyString(opts.claims.SoftwareID)
-		}
-		if opts.claims.SoftwareVersion != "" {
-			params.SoftwareVersion = mapEmptyString(opts.claims.SoftwareVersion)
-		}
-		if opts.claims.SectorIdentifierURI != "" {
-			params.SectorIdentifierUri = mapEmptyURL(opts.claims.SectorIdentifierURI)
-		}
-		if opts.claims.SubjectType != "" {
-			subjectType, _ := mapEmptySubjectType(opts.claims.SubjectType)
-			params.SubjectType = subjectType
-		}
-		if len(opts.claims.RequestURIs) > 0 {
-			params.RequestUris = utils.MapSlice(opts.claims.RequestURIs, func(uri *string) string {
-				return utils.ProcessURL(*uri)
-			})
-		}
-		if opts.claims.IDTokenSignedResponseAlg != "" {
-			idSignAlg, _ := mapTokenCryptoSuiteWithDefault(opts.claims.IDTokenSignedResponseAlg)
-			params.IDTokenSignedResponseAlg = idSignAlg
-		}
-		if opts.claims.IDTokenEncryptedResponseAlg != "" {
-			idEncAlg, _ := mapEmptyTokenEncryptionAlgorithm(opts.claims.IDTokenEncryptedResponseAlg)
-			params.IDTokenEncryptedResponseAlg = idEncAlg
-		}
-		if opts.claims.IDTokenEncryptedResponseEnc != "" {
-			idEncEnc, _ := mapEmptyTokenEncryptionEncoding(params.IDTokenEncryptedResponseAlg, opts.claims.IDTokenEncryptedResponseEnc)
-			params.IDTokenEncryptedResponseEnc = idEncEnc
-		}
-		if opts.claims.UserInfoSignedResponseAlg != "" {
-			userInfoSignAlg, _ := mapEmptyTokenCryptoSuite(opts.claims.UserInfoSignedResponseAlg)
-			params.UserinfoSignedResponseAlg = userInfoSignAlg
-		}
-		if opts.claims.UserInfoEncryptedResponseAlg != "" {
-			userInfoEncAlg, _ := mapEmptyTokenEncryptionAlgorithm(opts.claims.UserInfoEncryptedResponseAlg)
-			params.UserinfoEncryptedResponseAlg = userInfoEncAlg
-		}
-		if opts.claims.UserInfoEncryptedResponseEnc != "" {
-			userInfoEncEnc, _ := mapEmptyTokenEncryptionEncoding(params.UserinfoEncryptedResponseAlg, opts.claims.UserInfoEncryptedResponseEnc)
-			params.UserinfoEncryptedResponseEnc = userInfoEncEnc
-		}
-		if opts.claims.RequestObjectSigningAlg != "" {
-			requestObjectSigningAlg, _ := mapEmptyTokenCryptoSuite(opts.claims.RequestObjectSigningAlg)
-			params.RequestObjectSigningAlg = requestObjectSigningAlg
-		}
-		if opts.claims.RequestObjectEncryptionAlg != "" {
-			requestObjectEncryptionAlg, _ := mapEmptyTokenEncryptionAlgorithm(opts.claims.RequestObjectEncryptionAlg)
-			params.RequestObjectEncryptionAlg = requestObjectEncryptionAlg
-		}
-		if opts.claims.RequestObjectEncryptionEnc != "" {
-			requestObjectEncryptionEnc, _ := mapEmptyTokenEncryptionEncoding(params.RequestObjectEncryptionAlg, opts.claims.RequestObjectEncryptionEnc)
-			params.RequestObjectEncryptionEnc = requestObjectEncryptionEnc
-		}
-		if opts.claims.TokenEndpointAuthSigningAlg != "" {
-			tokenEndpointAuthSigningAlg, _ := mapEmptyTokenCryptoSuite(opts.claims.TokenEndpointAuthSigningAlg)
-			params.TokenEndpointAuthSigningAlg = tokenEndpointAuthSigningAlg
-		}
-		if opts.claims.AccessTokenSigningAlg != "" {
-			accessTokenSigningAlg, _ := mapTokenCryptoSuiteWithDefault(opts.claims.AccessTokenSigningAlg)
-			params.AccessTokenSigningAlg = accessTokenSigningAlg
-		}
-		if opts.claims.RequireAuthTime {
-			params.RequireAuthTime = opts.claims.RequireAuthTime
-		}
-		if opts.claims.DefaultMaxAge > 0 {
-			params.DefaultMaxAge = mapEmptyBigInt(opts.claims.DefaultMaxAge)
-		}
-		if opts.claims.DefaultACRValues != nil {
-			params.DefaultAcrValues = opts.claims.DefaultACRValues
-		}
-		if opts.claims.InitiateLoginURI != "" {
-			params.InitiateLoginUri = mapEmptyURL(opts.claims.InitiateLoginURI)
-		}
-		if len(opts.claims.GrantTypes) > 0 {
-			params.GrantTypes = utils.MapSlice(opts.claims.GrantTypes, func(grantType *string) database.GrantType {
-				return database.GrantType(*grantType)
-			})
-		}
-		if len(opts.claims.ResponseTypes) > 0 {
-			params.ResponseTypes = utils.MapSlice(opts.claims.ResponseTypes, func(responseType *string) database.ResponseType {
-				return database.ResponseType(*responseType)
-			})
-		}
-		if opts.claims.Scope != "" {
-			params.Scopes = utils.MapSlice(strings.Fields(opts.claims.Scope), func(scope *string) database.AccountCredentialsScope {
-				return database.AccountCredentialsScope(*scope)
-			})
-		}
-		if len(opts.claims.Contacts) > 0 {
-			params.Contacts = opts.claims.Contacts
-		}
 	}
 
 	return params, nil
@@ -408,6 +279,85 @@ func (s *Services) CreateAccountCredentialsRegistration(
 	)
 	logger.InfoContext(ctx, "Creating account credentials registration...")
 
+	data := ApplicationRegistrationData{
+		RedirectURIs:                 opts.RedirectURIs,
+		TokenEndpointAuthMethod:      opts.TokenEndpointAuthMethod,
+		ResponseTypes:                opts.ResponseTypes,
+		GrantTypes:                   opts.GrantTypes,
+		ApplicationType:              opts.ApplicationType,
+		ClientName:                   opts.ClientName,
+		ClientURI:                    opts.ClientURI,
+		LogoURI:                      opts.LogoURI,
+		Scope:                        opts.Scope,
+		Contacts:                     opts.Contacts,
+		TOSURI:                       opts.TOSURI,
+		PolicyURI:                    opts.PolicyURI,
+		JWKsURI:                      opts.JWKsURI,
+		JWKs:                         opts.JWKs,
+		SoftwareID:                   opts.SoftwareID,
+		SoftwareVersion:              opts.SoftwareVersion,
+		SubjectType:                  opts.SubjectType,
+		SectorIdentifierURI:          opts.SectorIdentifierURI,
+		DefaultMaxAge:                opts.DefaultMaxAge,
+		RequireAuthTime:              opts.RequireAuthTime,
+		DefaultACRValues:             opts.DefaultACRValues,
+		InitiateLoginURI:             opts.InitiateLoginURI,
+		RequestURIs:                  opts.RequestURIs,
+		IDTokenSignedResponseAlg:     opts.IDTokenSignedResponseAlg,
+		IDTokenEncryptedResponseAlg:  opts.IDTokenEncryptedResponseAlg,
+		IDTokenEncryptedResponseEnc:  opts.IDTokenEncryptedResponseEnc,
+		UserInfoSignedResponseAlg:    opts.UserInfoSignedResponseAlg,
+		UserInfoEncryptedResponseAlg: opts.UserInfoEncryptedResponseAlg,
+		UserInfoEncryptedResponseEnc: opts.UserInfoEncryptedResponseEnc,
+		RequestObjectSigningAlg:      opts.RequestObjectSigningAlg,
+		RequestObjectEncryptionAlg:   opts.RequestObjectEncryptionAlg,
+		RequestObjectEncryptionEnc:   opts.RequestObjectEncryptionEnc,
+		TokenEndpointAuthSigningAlg:  opts.TokenEndpointAuthSigningAlg,
+		AccessTokenSigningAlg:        opts.AccessTokenSigningAlg,
+	}
+	data, preparationErr := s.prepareDynamicRegistration(ctx, prepareDynamicRegistrationOptions{
+		requestID: opts.RequestID, accountID: 0, accountPublicID: opts.AccountPublicID,
+		data: data, softwareStatement: opts.SoftwareStatement, iatDomain: opts.IATDomain,
+		backendDomain: opts.BackendDomain, frontendDomain: opts.FrontendDomain, app: false,
+	})
+	if preparationErr != nil {
+		return dtos.AccountCredentialsDTO{}, preparationErr
+	}
+	opts.RedirectURIs = data.RedirectURIs
+	opts.TokenEndpointAuthMethod = data.TokenEndpointAuthMethod
+	opts.ResponseTypes = data.ResponseTypes
+	opts.GrantTypes = data.GrantTypes
+	opts.ApplicationType = data.ApplicationType
+	opts.ClientName = data.ClientName
+	opts.ClientURI = data.ClientURI
+	opts.LogoURI = data.LogoURI
+	opts.Scope = data.Scope
+	opts.Contacts = data.Contacts
+	opts.TOSURI = data.TOSURI
+	opts.PolicyURI = data.PolicyURI
+	opts.JWKsURI = data.JWKsURI
+	opts.JWKs = data.JWKs
+	opts.SoftwareID = data.SoftwareID
+	opts.SoftwareVersion = data.SoftwareVersion
+	opts.SubjectType = data.SubjectType
+	opts.SectorIdentifierURI = data.SectorIdentifierURI
+	opts.DefaultMaxAge = data.DefaultMaxAge
+	opts.RequireAuthTime = data.RequireAuthTime
+	opts.DefaultACRValues = data.DefaultACRValues
+	opts.InitiateLoginURI = data.InitiateLoginURI
+	opts.RequestURIs = data.RequestURIs
+	opts.IDTokenSignedResponseAlg = data.IDTokenSignedResponseAlg
+	opts.IDTokenEncryptedResponseAlg = data.IDTokenEncryptedResponseAlg
+	opts.IDTokenEncryptedResponseEnc = data.IDTokenEncryptedResponseEnc
+	opts.UserInfoSignedResponseAlg = data.UserInfoSignedResponseAlg
+	opts.UserInfoEncryptedResponseAlg = data.UserInfoEncryptedResponseAlg
+	opts.UserInfoEncryptedResponseEnc = data.UserInfoEncryptedResponseEnc
+	opts.RequestObjectSigningAlg = data.RequestObjectSigningAlg
+	opts.RequestObjectEncryptionAlg = data.RequestObjectEncryptionAlg
+	opts.RequestObjectEncryptionEnc = data.RequestObjectEncryptionEnc
+	opts.TokenEndpointAuthSigningAlg = data.TokenEndpointAuthSigningAlg
+	opts.AccessTokenSigningAlg = data.AccessTokenSigningAlg
+
 	applicationType, serviceErr := mapAccountCredentialsType(opts.ApplicationType)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map application type", "serviceError", serviceErr)
@@ -421,11 +371,7 @@ func (s *Services) CreateAccountCredentialsRegistration(
 	}
 
 	transport := mapAccountCredentialsDRTransport(applicationType)
-	tokenEndpointAuthMethod, serviceErr := mapAccountCredentialsTokenEndpointAuthMethod(
-		opts.TokenEndpointAuthMethod,
-		applicationType,
-		transport,
-	)
+	tokenEndpointAuthMethod, serviceErr := mapAuthMethod(opts.TokenEndpointAuthMethod)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map token endpoint auth method", "serviceError", serviceErr)
 		return dtos.AccountCredentialsDTO{}, serviceErr
@@ -488,7 +434,7 @@ func (s *Services) CreateAccountCredentialsRegistration(
 	}
 
 	domain := parsedClientURI.Hostname()
-	baseDomain, serviceErr := s.checkClientRegistrationDomain(ctx, checkClientRegistrationDomainOptions{
+	_, serviceErr = s.checkClientRegistrationDomain(ctx, checkClientRegistrationDomainOptions{
 		requestID:              opts.RequestID,
 		accountPublicID:        opts.AccountPublicID,
 		iatDomain:              opts.IATDomain,
@@ -501,103 +447,23 @@ func (s *Services) CreateAccountCredentialsRegistration(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	data := ApplicationRegistrationData{
-		RedirectURIs:                 opts.RedirectURIs,
-		TokenEndpointAuthMethod:      opts.TokenEndpointAuthMethod,
-		ResponseTypes:                opts.ResponseTypes,
-		GrantTypes:                   opts.GrantTypes,
-		ApplicationType:              opts.ApplicationType,
-		ClientName:                   opts.ClientName,
-		ClientURI:                    opts.ClientURI,
-		LogoURI:                      opts.LogoURI,
-		Scope:                        opts.Scope,
-		Contacts:                     opts.Contacts,
-		TOSURI:                       opts.TOSURI,
-		PolicyURI:                    opts.PolicyURI,
-		JWKsURI:                      opts.JWKsURI,
-		JWKs:                         opts.JWKs,
-		SoftwareID:                   opts.SoftwareID,
-		SoftwareVersion:              opts.SoftwareVersion,
-		SubjectType:                  opts.SubjectType,
-		SectorIdentifierURI:          opts.SectorIdentifierURI,
-		DefaultMaxAge:                opts.DefaultMaxAge,
-		RequireAuthTime:              opts.RequireAuthTime,
-		DefaultACRValues:             opts.DefaultACRValues,
-		InitiateLoginURI:             opts.InitiateLoginURI,
-		RequestURIs:                  opts.RequestURIs,
-		IDTokenSignedResponseAlg:     opts.IDTokenSignedResponseAlg,
-		IDTokenEncryptedResponseAlg:  opts.IDTokenEncryptedResponseAlg,
-		IDTokenEncryptedResponseEnc:  opts.IDTokenEncryptedResponseEnc,
-		UserInfoSignedResponseAlg:    opts.UserInfoSignedResponseAlg,
-		UserInfoEncryptedResponseAlg: opts.UserInfoEncryptedResponseAlg,
-		UserInfoEncryptedResponseEnc: opts.UserInfoEncryptedResponseEnc,
-		RequestObjectSigningAlg:      opts.RequestObjectSigningAlg,
-		RequestObjectEncryptionAlg:   opts.RequestObjectEncryptionAlg,
-		RequestObjectEncryptionEnc:   opts.RequestObjectEncryptionEnc,
-		TokenEndpointAuthSigningAlg:  opts.TokenEndpointAuthSigningAlg,
-		AccessTokenSigningAlg:        opts.AccessTokenSigningAlg,
-	}
-	var ssClaimsReference *tokens.SoftwareStatementClaims
-	if opts.SoftwareStatement != "" {
-		ssClaims, stdClaims, err := s.jwt.VerifySoftwareStatement(ctx, tokens.VerifySoftwareStatementOptions{
-			RequestID:         opts.RequestID,
-			SoftwareStatement: opts.SoftwareStatement,
-			GetPublicJWK: s.buildDynamicRegistrationSoftwareStatementFunc(ctx, buildDynamicRegistrationSoftwareStatementFuncOptions{
-				requestID:           opts.RequestID,
-				accountPublicID:     opts.AccountPublicID,
-				verificationMethods: accountDRConfigDTO.SoftwareStatementVerificationMethods,
-				jwksURI:             opts.JWKsURI,
-				jwks:                opts.JWKs,
-				domain:              domain,
-				baseDomain:          baseDomain,
-			}),
-		})
-		if err != nil {
-			logger.WarnContext(ctx, "Failed to verify software statement", "error", err)
-			return dtos.AccountCredentialsDTO{}, exceptions.NewInvalidTokenError("invalid software statement")
-		}
-		if serviceErr := s.verifySoftwareStatementSTDClaims(ctx, verifySoftwareStatementSTDClaimsOptions{
-			requestID:      opts.RequestID,
-			backendDomain:  opts.BackendDomain,
-			frontendDomain: opts.FrontendDomain,
-			domain:         domain,
-			baseDomain:     baseDomain,
-			claims:         &stdClaims,
-		}); serviceErr != nil {
-			logger.WarnContext(ctx, "Failed to verify software statement standard claims", "serviceError", serviceErr)
-			return dtos.AccountCredentialsDTO{}, serviceErr
-		}
-
-		if serviceErr := s.validateSoftwareStatementClaims(ctx, validateSoftwareStatementClaimsOptions{
-			requestID:     opts.RequestID,
-			claims:        &ssClaims,
-			allowedScopes: utils.SliceToHashSet(allowedAccountCredentialsScopes),
-		}); serviceErr != nil {
-			logger.WarnContext(ctx, "Failed to validate software statement claims", "serviceError", serviceErr)
-			return dtos.AccountCredentialsDTO{}, serviceErr
-		}
-
-		ssClaimsReference = &ssClaims
-	}
-
 	params, serviceErr := s.mapAccountCredentialsRegistrationDataToDBParams(ctx, mapAccountCredentialsRegistrationDataToDBParamsOptions{
 		applicationType:         applicationType,
 		accountPublicID:         opts.AccountPublicID,
-		accountID:               accountDTO.Version(),
+		accountID:               accountDTO.ID(),
 		domain:                  domain,
 		requestID:               opts.RequestID,
 		tokenEndpointAuthMethod: tokenEndpointAuthMethod,
 		transport:               transport,
 		scopes:                  scopes,
 		data:                    &data,
-		claims:                  ssClaimsReference,
 	})
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map account credentials registration data to database params", "serviceError", serviceErr)
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	if tokenEndpointAuthMethod == database.AuthMethodNone {
+	if tokenEndpointAuthMethod == database.AuthMethodNone || (tokenEndpointAuthMethod == database.AuthMethodPrivateKeyJwt && (data.JWKs != nil || data.JWKsURI != "")) {
 		accountCredentials, err := s.database.CreateAccountCredentials(ctx, params)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create account credentials", "error", err)
@@ -605,7 +471,7 @@ func (s *Services) CreateAccountCredentialsRegistration(
 		}
 
 		logger.InfoContext(ctx, "Created account credentials successfully")
-		return dtos.MapAccountCredentialsToDTO(&accountCredentials)
+		return s.finalizeAccountCredentialsRegistration(ctx, opts, &accountCredentials, "", time.Time{}, nil)
 	}
 
 	qrs, txn, err := s.database.BeginTx(ctx)
@@ -618,7 +484,7 @@ func (s *Services) CreateAccountCredentialsRegistration(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	accountCredentials, err := s.database.CreateAccountCredentials(ctx, params)
+	accountCredentials, err := qrs.CreateAccountCredentials(ctx, params)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create account credentials", "error", err)
 		return dtos.AccountCredentialsDTO{}, exceptions.FromDBError(err)
@@ -661,7 +527,7 @@ func (s *Services) CreateAccountCredentialsRegistration(
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
-		return dtos.MapAccountCredentialsToDTOWithJWK(&accountCredentials, jwk, dbPrms.ExpiresAt)
+		return s.finalizeAccountCredentialsRegistration(ctx, opts, &accountCredentials, "", dbPrms.ExpiresAt, jwk)
 	case database.AuthMethodClientSecretBasic, database.AuthMethodClientSecretPost, database.AuthMethodClientSecretJwt:
 		var ccID int32
 		var secretID, secret string
@@ -694,10 +560,36 @@ func (s *Services) CreateAccountCredentialsRegistration(
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
-		return dtos.MapAccountCredentialsToDTOWithSecret(&accountCredentials, secretID, secret, exp)
+		return s.finalizeAccountCredentialsRegistration(ctx, opts, &accountCredentials, secret, exp, nil)
 	default:
 		logger.ErrorContext(ctx, "Invalid token endpoint auth method", "tokenEndpointAuthMethod", tokenEndpointAuthMethod)
 		serviceErr = exceptions.NewInternalServerError()
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
+}
+
+func (s *Services) finalizeAccountCredentialsRegistration(
+	ctx context.Context,
+	opts CreateAccountCredentialsRegistrationOptions,
+	row *database.AccountCredential,
+	secret string,
+	expiry time.Time,
+	key utils.JWK,
+) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+	dto, serviceErr := dtos.MapRegisteredAccountCredentials(row, opts.SoftwareStatement, secret, expiry, key)
+	if serviceErr != nil {
+		return dto, serviceErr
+	}
+	token, serviceErr := s.CreateAccountCredentialsRegistrationAccessToken(ctx, CreateAccountCredentialsRegistrationAccessTokenOptions{
+		RequestID:       opts.RequestID,
+		AccountPublicID: opts.AccountPublicID,
+		AccountVersion:  opts.AccountVersion,
+		ClientID:        row.ClientID,
+		BackendDomain:   opts.BackendDomain,
+	})
+	if serviceErr != nil {
+		return dtos.AccountCredentialsDTO{}, serviceErr
+	}
+	dto.Registration.WithRegistrationAccess(token, dtos.RegistrationClientURI(opts.BackendDomain, row.ClientID))
+	return dto, nil
 }
