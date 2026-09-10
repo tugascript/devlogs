@@ -100,11 +100,6 @@ func serviceErrorResponse(logger *slog.Logger, ctx fiber.Ctx, serviceErr *except
 	return ctx.Status(status).JSON(&resErr)
 }
 
-func (c *Controllers) NotFoundHandler(ctx fiber.Ctx) error {
-	logger := c.buildLogger(getRequestID(ctx), "helpers", "NotFoundHandler")
-	return serviceErrorResponse(logger, ctx, exceptions.NewNotFoundError())
-}
-
 func serviceErrorWithFieldsResponse(logger *slog.Logger, ctx fiber.Ctx, serviceErr *exceptions.ServicErrorWithFields) error {
 	logResponse(logger, ctx, fiber.StatusBadRequest)
 	return ctx.Status(fiber.StatusBadRequest).JSON(exceptions.NewValidationErrorResponse(

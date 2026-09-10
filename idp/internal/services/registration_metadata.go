@@ -19,12 +19,12 @@ import (
 )
 
 type prepareDynamicRegistrationOptions struct {
-	requestID                                                   string
-	accountID                                                   int32
-	accountPublicID                                             uuid.UUID
-	data                                                        ApplicationRegistrationData
-	softwareStatement, iatDomain, backendDomain, frontendDomain string
-	app                                                         bool
+	requestID                                        string
+	accountID                                        int32
+	accountPublicID                                  uuid.UUID
+	data                                             ApplicationRegistrationData
+	softwareStatement, backendDomain, frontendDomain string
+	app                                              bool
 }
 
 // Merge verified claims by presence, including explicit false, zero and empty arrays.
@@ -100,7 +100,7 @@ func (s *Services) prepareDynamicRegistration(ctx context.Context, opts prepareD
 		if claimJWKS, ok := preview["jwks_uri"].(string); ok && claimJWKS != "" {
 			jwksURI = claimJWKS
 		}
-		domain := registrationDomain(keyURI, data.RedirectURIs, opts.iatDomain)
+		domain := registrationDomain(keyURI, data.RedirectURIs)
 		base, err := publicsuffix.EffectiveTLDPlusOne(domain)
 		if err != nil {
 			return data, exceptions.NewInvalidTokenError("invalid software statement domain")
@@ -146,7 +146,7 @@ func (s *Services) prepareDynamicRegistration(ctx context.Context, opts prepareD
 		data.ClientName = "Client " + utils.Base62UUID()
 	}
 	if data.ClientURI == "" {
-		domain := registrationDomain("", data.RedirectURIs, opts.iatDomain)
+		domain := registrationDomain("", data.RedirectURIs)
 		if domain == "" {
 			return data, exceptions.NewValidationError("a client domain could not be determined")
 		}
@@ -164,12 +164,9 @@ func (s *Services) prepareDynamicRegistration(ctx context.Context, opts prepareD
 	return data, nil
 }
 
-func registrationDomain(clientURI string, redirects []string, fallback string) string {
+func registrationDomain(clientURI string, redirects []string) string {
 	if parsed, err := url.Parse(clientURI); err == nil && parsed.Hostname() != "" {
 		return parsed.Hostname()
-	}
-	if fallback != "" {
-		return fallback
 	}
 	for _, redirect := range redirects {
 		if parsed, err := url.Parse(redirect); err == nil && parsed.Hostname() != "" {
