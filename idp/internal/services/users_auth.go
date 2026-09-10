@@ -91,10 +91,10 @@ func (s *Services) ProcessUserAuthHeader(
 	userClaims, appClaims, scopes, _, _, err := s.jwt.VerifyUserAuthToken(
 		token,
 		utils.SupportedCryptoSuiteES256,
-		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			keyType:   keyType,
+		s.BuildGetAccountPublicKeyFn(ctx, BuildGetAccountPublicKeyFnOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+			KeyType:   keyType,
 		}),
 	)
 	if err != nil {
@@ -133,10 +133,10 @@ func (s *Services) ProcessUserPurposeHeader(
 
 	userClaims, appClaims, purpose, err := s.jwt.VerifyUserPurposeToken(
 		token,
-		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			keyType:   keyType,
+		s.BuildGetAccountPublicKeyFn(ctx, BuildGetAccountPublicKeyFnOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+			KeyType:   keyType,
 		}),
 	)
 	if err != nil {
@@ -432,10 +432,10 @@ func (s *Services) ConfirmAuthUser(
 
 	userClaims, appClaims, _, err := s.jwt.VerifyUserPurposeToken(
 		opts.ConfirmationToken,
-		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			keyType:   database.TokenKeyTypeEmailVerification,
+		s.BuildGetAccountPublicKeyFn(ctx, BuildGetAccountPublicKeyFnOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+			KeyType:   database.TokenKeyTypeEmailVerification,
 		}),
 	)
 	if err != nil {
@@ -776,10 +776,10 @@ func (s *Services) LogoutUser(
 	userClaims, appClaims, _, tokenID, exp, err := s.jwt.VerifyUserAuthToken(
 		opts.Token,
 		utils.SupportedCryptoSuiteEd25519,
-		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			keyType:   database.TokenKeyTypeRefresh,
+		s.BuildGetAccountPublicKeyFn(ctx, BuildGetAccountPublicKeyFnOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+			KeyType:   database.TokenKeyTypeRefresh,
 		}),
 	)
 	if err != nil {
@@ -849,10 +849,10 @@ func (s *Services) RefreshUserAccess(
 	userClaims, appClaims, scopes, tokenID, _, err := s.jwt.VerifyUserAuthToken(
 		opts.Token,
 		utils.SupportedCryptoSuiteEd25519,
-		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			keyType:   database.TokenKeyTypeRefresh,
+		s.BuildGetAccountPublicKeyFn(ctx, BuildGetAccountPublicKeyFnOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+			KeyType:   database.TokenKeyTypeRefresh,
 		}),
 	)
 	if err != nil {
@@ -1078,10 +1078,10 @@ func (s *Services) ResetUserPassword(
 
 	userClaims, appClaims, _, err := s.jwt.VerifyUserPurposeToken(
 		opts.ResetToken,
-		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			keyType:   database.TokenKeyTypePasswordReset,
+		s.BuildGetAccountPublicKeyFn(ctx, BuildGetAccountPublicKeyFnOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+			KeyType:   database.TokenKeyTypePasswordReset,
 		}),
 	)
 	if err != nil {

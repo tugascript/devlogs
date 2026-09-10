@@ -8,10 +8,8 @@ package controllers
 
 import (
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
-	"github.com/tugascript/devlogs/idp/internal/controllers/params"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services"
@@ -24,14 +22,15 @@ func (c *Controllers) OAuthDynamicRegistration(ctx fiber.Ctx) error {
 	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthDynamicRegistration")
 	logRequest(logger, ctx)
 
-	urlParams := params.AccountURLParams{AccountPublicID: ctx.Params("accountPublicID")}
-	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+	accountClaims, ok := ctx.Locals("account").(tokens.AccountClaims)
+	if !ok {
+		logger.ErrorContext(ctx.Context(), "account should be set in context by middleware")
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
 	}
-
-	accountPublicID, err := uuid.Parse(urlParams.AccountPublicID)
-	if err != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+	domain, ok := ctx.Locals("domain").(string)
+	if !ok {
+		logger.ErrorContext(ctx.Context(), "domain should be set in context by middleware")
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
 	}
 
 	body := new(bodies.OAuthDynamicClientRegistrationBody)
@@ -45,32 +44,13 @@ func (c *Controllers) OAuthDynamicRegistration(ctx fiber.Ctx) error {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)
 	}
 
-	isAuthenticated, ok := ctx.Locals("isAuthenticated").(bool)
-	if !ok {
-		logger.ErrorContext(ctx.Context(), "isAuthenticated should be set in context by middleware")
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
-	}
-
-	domain, ok := ctx.Locals("domain").(string)
-	if isAuthenticated && !ok {
-		logger.ErrorContext(ctx.Context(), "domain should be set in context by middleware")
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
-	}
-
-	account, ok := ctx.Locals("account").(tokens.AccountClaims)
-	if isAuthenticated && !ok {
-		logger.ErrorContext(ctx.Context(), "account should be set in context by middleware")
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
-	}
-
 	accountCredentialsDTO, serviceErr := c.services.CreateAccountCredentialsRegistration(
 		ctx.Context(),
 		services.CreateAccountCredentialsRegistrationOptions{
 			RequestID:                    requestID,
-			AccountPublicID:              accountPublicID,
-			IsAuthenticated:              isAuthenticated,
+			AccountPublicID:              accountClaims.AccountID,
 			IATDomain:                    domain,
-			AccountVersion:               account.AccountVersion,
+			AccountVersion:               accountClaims.AccountVersion,
 			ApplicationType:              body.ApplicationType,
 			RedirectURIs:                 body.RedirectURIs,
 			TokenEndpointAuthMethod:      body.TokenEndpointAuthMethod,

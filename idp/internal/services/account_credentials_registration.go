@@ -354,7 +354,6 @@ func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
 type CreateAccountCredentialsRegistrationOptions struct {
 	RequestID                    string
 	AccountPublicID              uuid.UUID
-	IsAuthenticated              bool
 	IATDomain                    string
 	AccountVersion               int32
 	ApplicationType              string
@@ -457,12 +456,6 @@ func (s *Services) CreateAccountCredentialsRegistration(
 
 		logger.ErrorContext(ctx, "Failed to get account dynamic registration config", "serviceError", serviceErr)
 		return dtos.AccountCredentialsDTO{}, serviceErr
-	}
-
-	if slices.Contains(accountDRConfigDTO.RequireInitialAccessTokenCredentialTypes, applicationType) &&
-		!opts.IsAuthenticated {
-		logger.WarnContext(ctx, "Account dynamic registration configuration needs to contain initial access token")
-		return dtos.AccountCredentialsDTO{}, exceptions.NewUnauthorizedError()
 	}
 
 	if slices.Contains(accountDRConfigDTO.RequireSoftwareStatementCredentialTypes, applicationType) &&
