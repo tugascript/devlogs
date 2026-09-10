@@ -89,15 +89,11 @@ func (r *Routes) OAuthRoutes(app *fiber.App) {
 	iatRouter := router.Group(paths.InitialAccessToken, r.controllers.HostMiddleware)
 	iatRouter.Post(
 		paths.InitialAccessTokenSign,
-		HostAwareRoute(
-			[]fiber.Handler{r.controllers.NotFoundHandler},
-			[]fiber.Handler{
-				r.controllers.AccountAccessClaimsMiddleware,
-				r.controllers.AppDynamicRegistrationIATSign,
-			},
-		),
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.AppDynamicRegistrationIATSign,
 	)
 
+	// TODO: add host aware routes to all IAT oauth flow
 	// Dynamic Registration IAT Code Exchange flow
 	iatRouter.Get(paths.OAuthAuth, r.controllers.OAuthDynamicRegistrationIATAuth)
 	iatRouter.Post(paths.OAuthToken, r.controllers.OAuthDynamicRegistrationIATToken)

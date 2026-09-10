@@ -21,17 +21,12 @@ func (c *Controllers) OAuthDynamicRegistration(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthDynamicRegistration")
 	logRequest(logger, ctx)
-	ctx.Set("Cache-Control", "no-store")
-	ctx.Set("Pragma", "no-cache")
+	ctx.Set(fiber.HeaderCacheControl, "no-store")
+	ctx.Set(fiber.HeaderPragma, "no-cache")
 
 	accountClaims, ok := ctx.Locals("account").(tokens.AccountClaims)
 	if !ok {
 		logger.ErrorContext(ctx.Context(), "account should be set in context by middleware")
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
-	}
-	domain, ok := ctx.Locals("domain").(string)
-	if !ok {
-		logger.ErrorContext(ctx.Context(), "domain should be set in context by middleware")
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
 	}
 
@@ -45,7 +40,6 @@ func (c *Controllers) OAuthDynamicRegistration(ctx fiber.Ctx) error {
 		services.CreateAccountCredentialsRegistrationOptions{
 			RequestID:                    requestID,
 			AccountPublicID:              accountClaims.AccountID,
-			IATDomain:                    domain,
 			AccountVersion:               accountClaims.AccountVersion,
 			ApplicationType:              body.ApplicationType,
 			RedirectURIs:                 body.RedirectURIs,
@@ -98,8 +92,8 @@ func (c *Controllers) OAuthAppDynamicRegistration(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthAppDynamicRegistration")
 	logRequest(logger, ctx)
-	ctx.Set("Cache-Control", "no-store")
-	ctx.Set("Pragma", "no-cache")
+	ctx.Set(fiber.HeaderCacheControl, "no-store")
+	ctx.Set(fiber.HeaderPragma, "no-cache")
 
 	_, accountID, serviceErr := getHostAccount(ctx)
 	if serviceErr != nil {
@@ -117,12 +111,6 @@ func (c *Controllers) OAuthAppDynamicRegistration(ctx fiber.Ctx) error {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
 	}
 
-	domain, ok := ctx.Locals("domain").(string)
-	if isAuthenticated && !ok {
-		logger.ErrorContext(ctx.Context(), "domain should be set in context by middleware")
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
-	}
-
 	account, ok := ctx.Locals("account").(tokens.AccountClaims)
 	if isAuthenticated && !ok {
 		logger.ErrorContext(ctx.Context(), "account should be set in context by middleware")
@@ -135,7 +123,6 @@ func (c *Controllers) OAuthAppDynamicRegistration(ctx fiber.Ctx) error {
 			RequestID:                    requestID,
 			IsAuthenticated:              isAuthenticated,
 			AccountID:                    accountID,
-			IATDomain:                    domain,
 			AccountVersion:               account.AccountVersion,
 			ApplicationType:              body.ApplicationType,
 			RedirectURIs:                 body.RedirectURIs,
@@ -201,8 +188,8 @@ func (c *Controllers) OAuthDynamicRegistrationGet(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthDynamicRegistrationGet")
 	logRequest(logger, ctx)
-	ctx.Set("Cache-Control", "no-store")
-	ctx.Set("Pragma", "no-cache")
+	ctx.Set(fiber.HeaderCacheControl, "no-store")
+	ctx.Set(fiber.HeaderPragma, "no-cache")
 
 	accountClaims, ok := ctx.Locals("account").(tokens.AccountClaims)
 	tokenClientID, tokenOK := registrationClientIDFromContext(ctx)
@@ -224,8 +211,8 @@ func (c *Controllers) OAuthAppDynamicRegistrationGet(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthAppDynamicRegistrationGet")
 	logRequest(logger, ctx)
-	ctx.Set("Cache-Control", "no-store")
-	ctx.Set("Pragma", "no-cache")
+	ctx.Set(fiber.HeaderCacheControl, "no-store")
+	ctx.Set(fiber.HeaderPragma, "no-cache")
 
 	username, _, serviceErr := getHostAccount(ctx)
 	accountClaims, ok := ctx.Locals("account").(tokens.AccountClaims)
@@ -249,8 +236,8 @@ func (c *Controllers) OAuthDynamicRegistrationUpdate(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthDynamicRegistrationUpdate")
 	logRequest(logger, ctx)
-	ctx.Set("Cache-Control", "no-store")
-	ctx.Set("Pragma", "no-cache")
+	ctx.Set(fiber.HeaderCacheControl, "no-store")
+	ctx.Set(fiber.HeaderPragma, "no-cache")
 
 	accountClaims, ok := ctx.Locals("account").(tokens.AccountClaims)
 	tokenClientID, tokenOK := registrationClientIDFromContext(ctx)
@@ -292,8 +279,8 @@ func (c *Controllers) OAuthAppDynamicRegistrationUpdate(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthAppDynamicRegistrationUpdate")
 	logRequest(logger, ctx)
-	ctx.Set("Cache-Control", "no-store")
-	ctx.Set("Pragma", "no-cache")
+	ctx.Set(fiber.HeaderCacheControl, "no-store")
+	ctx.Set(fiber.HeaderPragma, "no-cache")
 
 	username, accountID, serviceErr := getHostAccount(ctx)
 	tokenClientID, tokenOK := registrationClientIDFromContext(ctx)

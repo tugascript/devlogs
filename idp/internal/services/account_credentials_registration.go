@@ -225,7 +225,6 @@ func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
 type CreateAccountCredentialsRegistrationOptions struct {
 	RequestID                    string
 	AccountPublicID              uuid.UUID
-	IATDomain                    string
 	AccountVersion               int32
 	ApplicationType              string
 	RedirectURIs                 []string
@@ -315,9 +314,10 @@ func (s *Services) CreateAccountCredentialsRegistration(
 		TokenEndpointAuthSigningAlg:  opts.TokenEndpointAuthSigningAlg,
 		AccessTokenSigningAlg:        opts.AccessTokenSigningAlg,
 	}
+	iatDomain := registrationDomain(opts.ClientURI, opts.RedirectURIs)
 	data, preparationErr := s.prepareDynamicRegistration(ctx, prepareDynamicRegistrationOptions{
 		requestID: opts.RequestID, accountID: 0, accountPublicID: opts.AccountPublicID,
-		data: data, softwareStatement: opts.SoftwareStatement, iatDomain: opts.IATDomain,
+		data: data, softwareStatement: opts.SoftwareStatement,
 		backendDomain: opts.BackendDomain, frontendDomain: opts.FrontendDomain, app: false,
 	})
 	if preparationErr != nil {
@@ -437,7 +437,7 @@ func (s *Services) CreateAccountCredentialsRegistration(
 	_, serviceErr = s.checkClientRegistrationDomain(ctx, checkClientRegistrationDomainOptions{
 		requestID:              opts.RequestID,
 		accountPublicID:        opts.AccountPublicID,
-		iatDomain:              opts.IATDomain,
+		iatDomain:              iatDomain,
 		domain:                 domain,
 		usages:                 accountCredentialsRegistrationUsages,
 		requireVerifiedDomains: slices.Contains(accountDRConfigDTO.RequireVerifiedDomainsCredentialsType, applicationType),

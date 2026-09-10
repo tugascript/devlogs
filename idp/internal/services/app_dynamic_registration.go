@@ -299,7 +299,6 @@ type CreateAppCredentialsRegistrationOptions struct {
 	RequestID                    string
 	AccountID                    int32
 	IsAuthenticated              bool
-	IATDomain                    string
 	AccountVersion               int32
 	ApplicationType              string
 	RedirectURIs                 []string
@@ -389,9 +388,10 @@ func (s *Services) CreateAppCredentialsRegistration(
 		TokenEndpointAuthSigningAlg:  opts.TokenEndpointAuthSigningAlg,
 		AccessTokenSigningAlg:        opts.AccessTokenSigningAlg,
 	}
+	iatDomain := registrationDomain(opts.ClientURI, opts.RedirectURIs)
 	data, preparationErr := s.prepareDynamicRegistration(ctx, prepareDynamicRegistrationOptions{
 		requestID: opts.RequestID, accountID: opts.AccountID, accountPublicID: uuid.Nil,
-		data: data, softwareStatement: opts.SoftwareStatement, iatDomain: opts.IATDomain,
+		data: data, softwareStatement: opts.SoftwareStatement,
 		backendDomain: opts.BackendDomain, frontendDomain: opts.FrontendDomain, app: true,
 	})
 	if preparationErr != nil {
@@ -531,7 +531,7 @@ func (s *Services) CreateAppCredentialsRegistration(
 	_, serviceErr = s.checkClientRegistrationDomain(ctx, checkClientRegistrationDomainOptions{
 		requestID:              opts.RequestID,
 		accountPublicID:        accountDTO.PublicID,
-		iatDomain:              opts.IATDomain,
+		iatDomain:              iatDomain,
 		usages:                 appDynamicRegistrationUsages,
 		domain:                 domain,
 		requireVerifiedDomains: slices.Contains(appDRConfigDTO.RequireVerifiedDomainsAppTypes, appType),

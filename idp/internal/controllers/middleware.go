@@ -23,14 +23,6 @@ import (
 
 const middlewareLocation string = "middleware"
 
-func continueMiddleware(ctx fiber.Ctx) error {
-	if hostAware, ok := ctx.Locals("hostAwareRoute").(bool); ok && hostAware {
-		return nil
-	}
-
-	return ctx.Next()
-}
-
 func (c *Controllers) UserAccessClaimsMiddleware(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, middlewareLocation, "UserAccessClaimsMiddleware")
@@ -61,7 +53,7 @@ func (c *Controllers) UserAccessClaimsMiddleware(ctx fiber.Ctx) error {
 	ctx.Locals("user", userClaims)
 	ctx.Locals("app", appClaims)
 	ctx.Locals("userScopes", userScopes)
-	return continueMiddleware(ctx)
+	return ctx.Next()
 }
 
 func (c *Controllers) User2FAClaimsMiddleware(ctx fiber.Ctx) error {
@@ -93,7 +85,7 @@ func (c *Controllers) User2FAClaimsMiddleware(ctx fiber.Ctx) error {
 
 	ctx.Locals("user", userClaims)
 	ctx.Locals("app", appClaims)
-	return continueMiddleware(ctx)
+	return ctx.Next()
 }
 
 func (c *Controllers) AccountAccessClaimsMiddleware(ctx fiber.Ctx) error {
@@ -116,7 +108,7 @@ func (c *Controllers) AccountAccessClaimsMiddleware(ctx fiber.Ctx) error {
 
 	ctx.Locals("account", accountClaims)
 	ctx.Locals("scopes", scopes)
-	return continueMiddleware(ctx)
+	return ctx.Next()
 }
 
 func (c *Controllers) TwoFAAccessClaimsMiddleware(ctx fiber.Ctx) error {
@@ -140,7 +132,7 @@ func (c *Controllers) TwoFAAccessClaimsMiddleware(ctx fiber.Ctx) error {
 
 	ctx.Locals("account", accountClaims)
 	ctx.Locals("twoFAType", twoFAType)
-	return continueMiddleware(ctx)
+	return ctx.Next()
 }
 
 func (c *Controllers) AppAccessClaimsMiddleware(ctx fiber.Ctx) error {
@@ -170,7 +162,7 @@ func (c *Controllers) AppAccessClaimsMiddleware(ctx fiber.Ctx) error {
 	}
 
 	ctx.Locals("app", appClaims)
-	return continueMiddleware(ctx)
+	return ctx.Next()
 }
 
 func (c *Controllers) DynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
@@ -199,7 +191,7 @@ func (c *Controllers) DynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
 
 	ctx.Locals("account", accountClaims)
 	ctx.Locals("domain", domain)
-	return continueMiddleware(ctx)
+	return ctx.Next()
 }
 
 func (c *Controllers) AppDynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
@@ -215,7 +207,7 @@ func (c *Controllers) AppDynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
 	authHeader := ctx.Get("Authorization")
 	if authHeader == "" {
 		logger.InfoContext(ctx.Context(), "No Authorization header found, skipping app dynamic registration IAT middleware")
-		return continueMiddleware(ctx)
+		return ctx.Next()
 	}
 
 	domain, accountClaims, serviceErr := c.services.ProcessAppDynamicRegistrationIATAuth(
@@ -236,7 +228,7 @@ func (c *Controllers) AppDynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
 	ctx.Locals("account", accountClaims)
 	ctx.Locals("domain", domain)
 	ctx.Locals("isAuthenticated", true)
-	return continueMiddleware(ctx)
+	return ctx.Next()
 }
 
 func (c *Controllers) DynamicRegistrationAccessTokenMiddleware(ctx fiber.Ctx) error {
@@ -261,7 +253,7 @@ func (c *Controllers) DynamicRegistrationAccessTokenMiddleware(ctx fiber.Ctx) er
 
 	ctx.Locals("account", accountClaims)
 	ctx.Locals("registrationClientID", clientID)
-	return continueMiddleware(ctx)
+	return ctx.Next()
 }
 
 func (c *Controllers) AppDynamicRegistrationAccessTokenMiddleware(ctx fiber.Ctx) error {
@@ -292,7 +284,7 @@ func (c *Controllers) AppDynamicRegistrationAccessTokenMiddleware(ctx fiber.Ctx)
 
 	ctx.Locals("account", accountClaims)
 	ctx.Locals("registrationClientID", clientID)
-	return continueMiddleware(ctx)
+	return ctx.Next()
 }
 
 func (c *Controllers) ScopeMiddleware(scope tokens.AccountScope) func(fiber.Ctx) error {
