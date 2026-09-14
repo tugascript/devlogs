@@ -88,6 +88,8 @@ func (c *Controllers) ConfirmAccount(ctx fiber.Ctx) error {
 	authDTO, serviceErr := c.services.ConfirmAccount(ctx.Context(), services.ConfirmAccountOptions{
 		RequestID:         requestID,
 		ConfirmationToken: body.ConfirmationToken,
+		IPAddress:         ctx.IP(),
+		UserAgent:         ctx.Get(fiber.HeaderUserAgent),
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -115,6 +117,8 @@ func (c *Controllers) LoginAccount(ctx fiber.Ctx) error {
 		RequestID: requestID,
 		Email:     body.Email,
 		Password:  body.Password,
+		IPAddress: ctx.IP(),
+		UserAgent: ctx.Get(fiber.HeaderUserAgent),
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -152,6 +156,8 @@ func (c *Controllers) TwoFactorLoginAccount(ctx fiber.Ctx) error {
 		AccountVersion:  accountClaims.AccountVersion,
 		TwoFAType:       twoFAType,
 		Code:            body.Code,
+		IPAddress:       ctx.IP(),
+		UserAgent:       ctx.Get(fiber.HeaderUserAgent),
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -246,6 +252,8 @@ func (c *Controllers) RefreshAccount(ctx fiber.Ctx) error {
 	authDTO, serviceErr := c.services.RefreshTokenAccount(ctx.Context(), services.RefreshTokenAccountOptions{
 		RequestID:    requestID,
 		RefreshToken: refreshToken,
+		IPAddress:    ctx.IP(),
+		UserAgent:    ctx.Get(fiber.HeaderUserAgent),
 	})
 	if serviceErr != nil {
 		if isCookie {

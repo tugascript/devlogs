@@ -1,5 +1,5 @@
 // Copyright (c) 2025 Afonso Barracha
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -12,7 +12,7 @@ Enum kek_usage {
 
 Table key_encryption_keys as KEK {
     id serial [pk]
-    
+
     kid uuid [not null]
     usage kek_usage [not null]
     version integer [not null, default: 1]
@@ -37,7 +37,7 @@ Enum dek_usage {
 
 Table data_encryption_keys as DEK {
     id serial [pk]
-    
+
     kid varchar(22) [not null]
     dek text [not null]
     kek_kid uuid [not null]
@@ -97,7 +97,7 @@ Enum token_key_type {
 
 Table token_signing_keys as TS {
     id serial [pk]
-    
+
     kid varchar(22) [not null]
     key_type token_key_type [not null]
     public_key jsonb [not null]
@@ -133,7 +133,7 @@ Enum activity_status {
 Table accounts as A {
     id serial [pk]
     public_id uuid [not null]
-    
+
     given_name varchar(100) [not null]
     family_name varchar(100) [not null]
     username varchar(63) [not null] // maximum length of a DNS label
@@ -522,7 +522,7 @@ Enum auth_provider {
 
 Table account_auth_providers as AP {
     id serial [pk]
-    
+
     email varchar(250) [not null]
     provider auth_provider [not null]
     account_public_id uuid [not null]
@@ -813,6 +813,11 @@ Enum grant_type {
     "urn:ietf:params:oauth:grant-type:jwt-bearer"
 }
 
+Enum session_type {
+    "sliding"
+    "fixed"
+}
+
 Table apps as APP {
     id serial [pk]
     account_id integer [not null]
@@ -874,10 +879,13 @@ Table apps as APP {
     // Custom field for selecting access token signing algorithm
     access_token_signing_alg token_crypto_suite [not null, default: 'ES256']
 
-    // Tokens TTLs
-    id_token_ttl integer [not null, default: 300] // 5 minutes
-    token_ttl integer [not null, default: 300] // 5 minutes
-    refresh_token_ttl integer [not null, default: 604800] // 7 days
+    // Tokens TTLs and session type
+    session_type session_type [not null]
+    access_token_ttl integer [not null]
+    id_token_ttl integer [null]
+    refresh_token_idle_ttl integer [null]
+    refresh_token_ttl integer [null]
+    grant_ttl integer [null]
 
     created_at timestamptz [not null, default: `now()`]
     updated_at timestamptz [not null, default: `now()`]
@@ -1138,7 +1146,7 @@ Table dynamic_registration_software_statement_keys as DRSK {
     root_domain varchar(250) [not null]
 
     created_at timestamptz [not null, default: `now()`]
-    
+
     Indexes {
         (account_id) [name: 'drs_statement_keys_account_id_idx']
         (account_public_id) [name: 'drs_statement_keys_account_public_id_idx']
@@ -1182,23 +1190,180 @@ Enum token_owner {
     "account"
 }
 
-Table revoked_tokens as RT {
+Table grants as G {
     id serial [pk]
+    account_id integer [not null]
 
+    grant_id uuid [not null]
+    granted_client_id varchar(22) [not null]
+    granted_scopes "scopes[]" [not null]
+    granted_custom_scopes "varchar(512)[]" [not null]
+
+    issued_at timestamptz [not null, default: `now()`]
+    last_active_at timestamptz [not null, default: `now()`]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'grants_account_id_idx']
+        (grant_id) [unique, name: 'grant_id_uidx']
+        (granted_client_id) [name: 'grants_granted_client_id_idx']
+    }
+}
+Ref: G.account_id > A.id [delete: cascade]
+
+Table account_grants as AG {
+    account_id integer [not null]
+    account_version integer [not null]
+
+    grant_id integer [not null]
+    account_credentials_id integer [null]
+
+    granted_client_id varchar(22) [not null]
+    is_revoked boolean [not null, default: false]
+    revoked_at timestamptz [null]
+    expires_at timestamptz [null]
+
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id, grant_id) [pk]
+        (account_id) [name: 'account_grants_account_id_idx']
+        (grant_id) [unique, name: 'account_grants_grant_id_uidx']
+        (account_credentials_id) [name: 'account_grants_account_credentials_id_idx']
+        (account_id, granted_client_id) [unique, name: 'account_grants_account_id_granted_client_id_uidx', note: 'WHERE is_revoked = false'] // Partial: WHERE is_revoked = false
+    }
+}
+Ref: AG.account_id > A.id [delete: cascade]
+Ref: AG.grant_id > G.id [delete: cascade]
+Ref: AG.account_credentials_id > AC.id [delete: cascade]
+
+Table user_grants as UG {
+    user_id integer [not null]
+    user_version integer [not null]
+    grant_id integer [not null]
+    app_id integer [not null]
+    account_id integer [not null]
+
+    granted_client_id varchar(22) [not null]
+    is_revoked boolean [not null, default: false]
+    revoked_at timestamptz [null]
+    expires_at timestamptz [null]
+
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (user_id, grant_id) [pk]
+        (user_id) [name: 'user_grants_user_id_idx']
+        (grant_id) [unique, name: 'user_grants_grant_id_uidx']
+        (app_id) [name: 'user_grants_app_id_idx']
+        (account_id) [name: 'user_grants_account_id_idx']
+        (user_id, granted_client_id) [unique, name: 'user_grants_user_id_granted_client_id_uidx', note: 'WHERE is_revoked = false'] // Partial: WHERE is_revoked = false
+    }
+}
+Ref: UG.user_id > U.id [delete: cascade]
+Ref: UG.grant_id > G.id [delete: cascade]
+Ref: UG.app_id > APP.id [delete: cascade]
+Ref: UG.account_id > A.id [delete: cascade]
+
+Table sessions as S {
+    id serial [pk]
+    account_id integer [not null]
+    grant_id integer [not null]
+
+    session_id uuid [not null]
+    session_type session_type [not null]
+    session_client_id varchar(22) [not null]
+
+    ip_address varchar(45) [null]
+    user_agent text [null]
+
+    issued_at timestamptz [not null, default: `now()`]
+    expires_at timestamptz [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+    updated_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id) [name: 'sessions_account_id_idx']
+        (grant_id) [name: 'sessions_grant_id_idx']
+        (session_id) [unique, name: 'sessions_session_id_uidx']
+        (expires_at) [name: 'sessions_expires_at_idx']
+    }
+}
+Ref: S.account_id > A.id [delete: cascade]
+Ref: S.grant_id > G.id [delete: cascade]
+
+Table account_sessions as AS {
+    account_id integer [not null]
+    account_version integer [not null]
+
+    session_id integer [not null]
+    account_credentials_id integer [null]
+
+    session_uuid uuid [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (account_id, session_id) [pk]
+        (account_id) [name: 'account_sessions_account_id_idx']
+        (session_id) [unique, name: 'account_sessions_session_id_uidx']
+        (account_id, session_uuid) [unique, name: 'account_sessions_account_id_session_uuid_uidx']
+        (account_credentials_id) [name: 'account_sessions_account_credentials_id_idx']
+    }
+}
+Ref: AS.account_id > A.id [delete: cascade]
+Ref: AS.session_id > S.id [delete: cascade]
+Ref: AS.account_credentials_id > AC.id [delete: cascade]
+
+Table user_sessions as US {
+    user_id integer [not null]
+    user_version integer [not null]
+    session_id integer [not null]
+    app_id integer [not null]
+    account_id integer [not null]
+
+    session_uuid uuid [not null]
+
+    created_at timestamptz [not null, default: `now()`]
+
+    Indexes {
+        (user_id, session_id) [pk]
+        (user_id) [name: 'user_sessions_user_id_idx']
+        (session_id) [unique, name: 'user_sessions_session_id_uidx']
+        (app_id) [name: 'user_sessions_app_id_idx']
+        (account_id) [name: 'user_sessions_account_id_idx']
+    }
+}
+Ref: US.user_id > U.id [delete: cascade]
+Ref: US.session_id > S.id [delete: cascade]
+Ref: US.app_id > APP.id [delete: cascade]
+Ref: US.account_id > A.id [delete: cascade]
+
+Table session_tokens as ST {
+    id serial [pk]
+    account_id integer [not null]
+    session_id integer [not null]
+    grant_id integer [not null]
+
+    session_uuid uuid [not null]
     token_id uuid [not null]
 
-    account_id integer [not null]
-    owner token_owner [not null]
-    owner_public_id uuid [not null]
-    issued_at timestamptz [not null]
+    issued_at timestamptz [not null, default: `now()`]
     expires_at timestamptz [not null]
 
     created_at timestamptz [not null, default: `now()`]
 
     Indexes {
-        (token_id) [unique, name: 'revoked_tokens_token_id_uidx']
-        (account_id) [name: 'revoked_tokens_account_id_idx']
-        (expires_at) [name: 'revoked_tokens_expires_at_idx']
+        (token_id) [unique, name: 'allowed_tokens_token_id_uidx']
+        (account_id) [name: 'allowed_tokens_account_id_idx']
+        (session_id) [name: 'allowed_tokens_session_id_idx']
+        (grant_id) [name: 'allowed_tokens_grant_id_idx']
+        (expires_at) [name: 'allowed_tokens_expires_at_idx']
     }
 }
-Ref: RT.account_id > A.id [delete: cascade]
+Ref: ST.account_id > A.id [delete: cascade]
+Ref: ST.grant_id > G.id [delete: cascade]
+Ref: ST.session_id > S.id [delete: cascade]

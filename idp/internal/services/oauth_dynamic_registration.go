@@ -9,7 +9,6 @@ package services
 import (
 	"context"
 	"net/url"
-	"slices"
 
 	"github.com/google/uuid"
 
@@ -229,7 +228,6 @@ type oauthDynamicRegistrationIATAuthOptions struct {
 	domain          string
 	redirectURI     string
 	state           string
-	hostUsername    string
 }
 
 func (s *Services) oauthDynamicRegistrationIATAuth(
@@ -243,7 +241,6 @@ func (s *Services) oauthDynamicRegistrationIATAuth(
 	).With(
 		"domain", opts.domain,
 		"redirectUri", opts.redirectURI,
-		"hostUsername", opts.hostUsername,
 	)
 	logger.InfoContext(ctx, "Handling OAuth dynamic registration IAT auth...")
 
@@ -291,146 +288,9 @@ func (s *Services) oauthDynamicRegistrationIATAuth(
 	}), nil
 }
 
-type refreshTokenOAuthDynamicRegistrationIATLoginOptions struct {
-	hostUsername    string
-	requestID       string
-	refreshToken    string
-	challenge       string
-	challengeMethod string
-	domain          string
-	redirectURI     string
-	state           string
-	backendDomain   string
-}
-
-func (s *Services) refreshTokenOAuthDynamicRegistrationIATLogin(
-	ctx context.Context,
-	opts refreshTokenOAuthDynamicRegistrationIATLoginOptions,
-) (string, *exceptions.ServiceError) {
-	logger := s.buildLogger(
-		opts.requestID,
-		oauthDynamicRegistrationLocation,
-		"refreshTokenOAuthDynamicRegistrationIATLogin",
-	).With(
-		"domain", opts.domain,
-		"redirectUri", opts.redirectURI,
-	)
-	logger.InfoContext(ctx, "Refreshing OAuth dynamic registration IAT callback...")
-
-	data, err := s.jwt.VerifyRefreshToken(
-		opts.refreshToken,
-		s.BuildGetGlobalPublicKeyFn(ctx, BuildGetGlobalVerifyKeyFnOptions{
-			RequestID: opts.requestID,
-			KeyType:   database.TokenKeyTypeRefresh,
-		}),
-	)
-	if err != nil {
-		logger.WarnContext(ctx, "Invalid refresh token", "error", err)
-		return buildOAuthDynamicRegistrationIATLoginURL(buildOAuthDynamicRegistrationIATLoginURLOptions{
-			domain:          opts.domain,
-			state:           opts.state,
-			challenge:       opts.challenge,
-			challengeMethod: opts.challengeMethod,
-			redirectURI:     opts.redirectURI,
-		}), nil
-	}
-
-	if !slices.ContainsFunc(data.Scopes, func(s string) bool {
-		return s == tokens.AccountScopeAdmin || s == tokens.AccountScopeCredentialsWrite
-	}) {
-		logger.WarnContext(ctx, "Refresh token missing offline_access scope")
-		return buildOAuthDynamicRegistrationIATLoginURL(buildOAuthDynamicRegistrationIATLoginURLOptions{
-			domain:          opts.domain,
-			state:           opts.state,
-			challenge:       opts.challenge,
-			challengeMethod: opts.challengeMethod,
-			redirectURI:     opts.redirectURI,
-		}), nil
-	}
-
-	blt, err := s.database.GetRevokedToken(ctx, data.TokenID)
-	if err != nil {
-		if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to get blacklisted token", "error", err)
-			return "", exceptions.NewInternalServerError()
-		}
-	} else {
-		logger.WarnContext(ctx, "Token is revoked", "revokedAt", blt.CreatedAt)
-		return buildOAuthDynamicRegistrationIATLoginURL(buildOAuthDynamicRegistrationIATLoginURLOptions{
-			domain:          opts.domain,
-			state:           opts.state,
-			challenge:       opts.challenge,
-			challengeMethod: opts.challengeMethod,
-			redirectURI:     opts.redirectURI,
-		}), nil
-	}
-
-	accountDTO, serviceErr := s.GetAccountByPublicIDAndVersion(ctx, GetAccountByPublicIDAndVersionOptions{
-		RequestID: opts.requestID,
-		PublicID:  data.AccountClaims.AccountID,
-		Version:   data.AccountClaims.AccountVersion,
-	})
-	if serviceErr != nil {
-		if serviceErr.Code != exceptions.CodeNotFound && serviceErr.Code != exceptions.CodeUnauthorized {
-			logger.ErrorContext(ctx, "Failed to get account by public ID and version", "serviceError", serviceErr)
-			return "", serviceErr
-		}
-
-		logger.WarnContext(ctx, "Account not found or version mismatch", "serviceError", serviceErr)
-		return s.oauthDynamicRegistrationIATAuth(ctx, oauthDynamicRegistrationIATAuthOptions{
-			hostUsername:    opts.hostUsername,
-			requestID:       opts.requestID,
-			challenge:       opts.challenge,
-			challengeMethod: opts.challengeMethod,
-			domain:          opts.domain,
-			redirectURI:     opts.redirectURI,
-			state:           opts.state,
-		})
-	}
-	if !hostMatchesAccount(opts.hostUsername, accountDTO.Username) {
-		logger.WarnContext(ctx, "Refresh token account does not match host")
-		return s.oauthDynamicRegistrationIATAuth(ctx, oauthDynamicRegistrationIATAuthOptions{
-			hostUsername:    opts.hostUsername,
-			requestID:       opts.requestID,
-			challenge:       opts.challenge,
-			challengeMethod: opts.challengeMethod,
-			domain:          opts.domain,
-			redirectURI:     opts.redirectURI,
-			state:           opts.state,
-		})
-	}
-
-	hashedChallenge, serviceErr := hashChallenge(opts.challenge, opts.challengeMethod)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Invalid code challenge", "serviceError", serviceErr)
-		return "", serviceErr
-	}
-
-	cbURL, serviceErr := s.generateOAuthDynamicRegistrationIATCallback(
-		ctx,
-		generateOAuthDynamicRegistrationIATCallbackOptions{
-			hostUsername:    opts.hostUsername,
-			requestID:       opts.requestID,
-			clientID:        utils.Base62UUID(),
-			accountPublicID: accountDTO.PublicID,
-			accountVersion:  accountDTO.Version(),
-			challenge:       hashedChallenge,
-			domain:          opts.domain,
-			redirectURI:     opts.redirectURI,
-			state:           opts.state,
-			backendDomain:   opts.backendDomain,
-		},
-	)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to generate OAuth dynamic registration IAT callback", "serviceErr", serviceErr)
-		return "", serviceErr
-	}
-
-	return cbURL, nil
-}
-
 type InitiateOAuthDynamicRegistrationIATAuthOptions struct {
 	RequestID       string
+	Origin          string
 	Domain          string
 	State           string
 	SessionKey      string
@@ -454,6 +314,21 @@ func (s *Services) InitiateOAuthDynamicRegistrationIATAuth(
 		"redirectUri", opts.RedirectURI,
 	)
 	logger.InfoContext(ctx, "Starting OAuth dynamic registration IAT authorization...")
+
+	if opts.Origin == "" {
+		logger.WarnContext(ctx, "Origin header is missing")
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	parsedOrigin, err := url.Parse(opts.Origin)
+	if err != nil {
+		logger.WarnContext(ctx, "Invalid origin header", "error", err)
+		return "", exceptions.NewUnauthorizedError()
+	}
+	if parsedOrigin.Host != opts.Domain {
+		logger.WarnContext(ctx, "Origin header does not match domain", "originHost", parsedOrigin.Host)
+		return "", exceptions.NewUnauthorizedError()
+	}
 
 	if opts.SessionKey == "" {
 		if opts.RefreshToken == "" {

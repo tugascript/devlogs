@@ -62,6 +62,8 @@ func (c *Controllers) UpdateAccountPassword(ctx fiber.Ctx) error {
 		Version:     accountClaims.AccountVersion,
 		Password:    body.OldPassword,
 		NewPassword: body.Password,
+		IPAddress:   ctx.IP(),
+		UserAgent:   ctx.Get(fiber.HeaderUserAgent),
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -99,6 +101,8 @@ func (c *Controllers) ConfirmUpdateAccountPassword(ctx fiber.Ctx) error {
 		Version:   accountClaims.AccountVersion,
 		TwoFAType: twoFAType,
 		Code:      body.Code,
+		IPAddress: ctx.IP(),
+		UserAgent: ctx.Get(fiber.HeaderUserAgent),
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -132,6 +136,8 @@ func (c *Controllers) CreateAccountPassword(ctx fiber.Ctx) error {
 		PublicID:  accountClaims.AccountID,
 		Version:   accountClaims.AccountVersion,
 		Password:  body.Password,
+		IPAddress: ctx.IP(),
+		UserAgent: ctx.Get(fiber.HeaderUserAgent),
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -166,6 +172,8 @@ func (c *Controllers) UpdateAccountEmail(ctx fiber.Ctx) error {
 		Version:   accountClaims.AccountVersion,
 		Email:     body.Email,
 		Password:  body.Password,
+		IPAddress: ctx.IP(),
+		UserAgent: ctx.Get(fiber.HeaderUserAgent),
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -203,6 +211,8 @@ func (c *Controllers) ConfirmUpdateAccountEmail(ctx fiber.Ctx) error {
 		Version:   accountClaims.AccountVersion,
 		TwoFAType: twoFAType,
 		Code:      body.Code,
+		IPAddress: ctx.IP(),
+		UserAgent: ctx.Get(fiber.HeaderUserAgent),
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -341,6 +351,8 @@ func (c *Controllers) UpdateAccountUsername(ctx fiber.Ctx) error {
 		Version:   accountClaims.AccountVersion,
 		Username:  body.Username,
 		Password:  body.Password,
+		IPAddress: ctx.IP(),
+		UserAgent: ctx.Get(fiber.HeaderUserAgent),
 	})
 	if serviceErr != nil {
 		return serviceErrorResponse(logger, ctx, serviceErr)
@@ -380,6 +392,8 @@ func (c *Controllers) ConfirmUpdateAccountUsername(ctx fiber.Ctx) error {
 			Version:   accountClaims.AccountVersion,
 			TwoFAType: twoFAType,
 			Code:      body.Code,
+			IPAddress: ctx.IP(),
+			UserAgent: ctx.Get(fiber.HeaderUserAgent),
 		},
 	)
 	if serviceErr != nil {

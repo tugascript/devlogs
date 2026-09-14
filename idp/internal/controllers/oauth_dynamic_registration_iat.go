@@ -80,6 +80,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx fiber.Ctx) error {
 			HostUsername:    registrationHostUsername(ctx),
 			RequestID:       requestID,
 			Domain:          baseQPrms.ClientID,
+			Origin:          ctx.Get(fiber.HeaderOrigin),
 			State:           qPrms.State,
 			SessionKey:      sessionKey,
 			RefreshToken:    ctx.Cookies(c.cookieName + refreshCookieSuffix),

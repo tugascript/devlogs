@@ -224,6 +224,8 @@ func (c *Controllers) accountAuthorizationCodeToken(ctx fiber.Ctx, requestID str
 		Code:              body.Code,
 		ChallengeVerifier: body.CodeVerifier,
 		Provider:          body.ClientID,
+		IPAddress:         ctx.IP(),
+		UserAgent:         ctx.Get(fiber.HeaderUserAgent),
 	})
 	if serviceErr != nil {
 		return oauthErrorResponseMapper(logger, ctx, serviceErr)
@@ -252,6 +254,8 @@ func (c *Controllers) accountRefreshToken(ctx fiber.Ctx, requestID string) error
 	authDTO, serviceErr := c.services.RefreshTokenAccount(ctx.Context(), services.RefreshTokenAccountOptions{
 		RequestID:    requestID,
 		RefreshToken: body.RefreshToken,
+		IPAddress:    ctx.IP(),
+		UserAgent:    ctx.Get(fiber.HeaderUserAgent),
 	})
 	if serviceErr != nil {
 		return oauthErrorResponseMapper(logger, ctx, serviceErr)

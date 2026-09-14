@@ -415,6 +415,8 @@ type OAuthLoginAccountOptions struct {
 	Provider          string
 	Code              string
 	ChallengeVerifier string
+	IPAddress         string
+	UserAgent         string
 }
 
 func (s *Services) OAuthLoginAccount(
@@ -466,14 +468,25 @@ func (s *Services) OAuthLoginAccount(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	return s.GenerateFullAuthDTO(
+	sessionID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return s.generateFullAuthDTO(
 		ctx,
-		logger,
-		s.database.Queries,
-		opts.RequestID,
-		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"OAuth logged in successfully",
+		generateFullAuthDTOOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountDTO.ID(),
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			sessionID:       sessionID,
+			scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+			clientID:        utils.NilBase62UUID,
+			ipAddress:       opts.IPAddress,
+			userAgent:       opts.UserAgent,
+		},
 	)
 }
 
