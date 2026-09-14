@@ -949,6 +949,48 @@ func (ns NullSecretStorageMode) Value() (driver.Value, error) {
 	return string(ns.SecretStorageMode), nil
 }
 
+type SessionType string
+
+const (
+	SessionTypeSliding SessionType = "sliding"
+	SessionTypeFixed   SessionType = "fixed"
+)
+
+func (e *SessionType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SessionType(s)
+	case string:
+		*e = SessionType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SessionType: %T", src)
+	}
+	return nil
+}
+
+type NullSessionType struct {
+	SessionType SessionType
+	Valid       bool // Valid is true if SessionType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSessionType) Scan(value interface{}) error {
+	if value == nil {
+		ns.SessionType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SessionType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSessionType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SessionType), nil
+}
+
 type SoftwareStatementVerificationMethod string
 
 const (
@@ -1502,6 +1544,18 @@ type AccountDynamicRegistrationConfig struct {
 	UpdatedAt                               time.Time
 }
 
+type AccountGrant struct {
+	AccountID            int32
+	AccountVersion       int32
+	GrantID              int32
+	AccountCredentialsID pgtype.Int4
+	GrantedClientID      string
+	IsRevoked            bool
+	RevokedAt            pgtype.Timestamptz
+	ExpiresAt            pgtype.Timestamptz
+	CreatedAt            time.Time
+}
+
 type AccountHmacSecret struct {
 	ID        int32
 	AccountID int32
@@ -1517,6 +1571,15 @@ type AccountKeyEncryptionKey struct {
 	AccountID          int32
 	KeyEncryptionKeyID int32
 	CreatedAt          time.Time
+}
+
+type AccountSession struct {
+	AccountID            int32
+	AccountVersion       int32
+	SessionID            int32
+	AccountCredentialsID pgtype.Int4
+	SessionUuid          uuid.UUID
+	CreatedAt            time.Time
 }
 
 type AccountTokenSigningKey struct {
@@ -1580,9 +1643,12 @@ type App struct {
 	InitiateLoginUri             pgtype.Text
 	RequestUris                  []string
 	AccessTokenSigningAlg        TokenCryptoSuite
-	IDTokenTtl                   int32
-	TokenTtl                     int32
-	RefreshTokenTtl              int32
+	SessionType                  SessionType
+	AccessTokenTtl               int32
+	IDTokenTtl                   pgtype.Int4
+	RefreshTokenIdleTtl          pgtype.Int4
+	RefreshTokenTtl              pgtype.Int4
+	GrantTtl                     pgtype.Int4
 	CreatedAt                    time.Time
 	UpdatedAt                    time.Time
 }
@@ -1740,6 +1806,19 @@ type DynamicRegistrationSoftwareStatementKey struct {
 	CreatedAt         time.Time
 }
 
+type Grant struct {
+	ID                  int32
+	AccountID           int32
+	GrantID             uuid.UUID
+	GrantedClientID     string
+	GrantedScopes       []Scopes
+	GrantedCustomScopes []string
+	IssuedAt            time.Time
+	LastActiveAt        time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
 type KeyEncryptionKey struct {
 	ID             int32
 	Kid            uuid.UUID
@@ -1762,15 +1841,31 @@ type OidcConfig struct {
 	UpdatedAt       time.Time
 }
 
-type RevokedToken struct {
-	ID            int32
-	TokenID       uuid.UUID
-	AccountID     int32
-	Owner         TokenOwner
-	OwnerPublicID uuid.UUID
-	IssuedAt      time.Time
-	ExpiresAt     time.Time
-	CreatedAt     time.Time
+type Session struct {
+	ID              int32
+	AccountID       int32
+	GrantID         int32
+	SessionID       uuid.UUID
+	SessionType     SessionType
+	SessionClientID string
+	IpAddress       pgtype.Text
+	UserAgent       pgtype.Text
+	IssuedAt        time.Time
+	ExpiresAt       time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type SessionToken struct {
+	ID          int32
+	AccountID   int32
+	SessionID   int32
+	GrantID     int32
+	SessionUuid uuid.UUID
+	TokenID     uuid.UUID
+	IssuedAt    time.Time
+	ExpiresAt   time.Time
+	CreatedAt   time.Time
 }
 
 type TokenSigningKey struct {
@@ -1870,6 +1965,29 @@ type UserDataEncryptionKey struct {
 	DataEncryptionKeyID int32
 	AccountID           int32
 	CreatedAt           time.Time
+}
+
+type UserGrant struct {
+	UserID          int32
+	UserVersion     int32
+	GrantID         int32
+	AppID           int32
+	AccountID       int32
+	GrantedClientID string
+	IsRevoked       bool
+	RevokedAt       pgtype.Timestamptz
+	ExpiresAt       pgtype.Timestamptz
+	CreatedAt       time.Time
+}
+
+type UserSession struct {
+	UserID      int32
+	UserVersion int32
+	SessionID   int32
+	AppID       int32
+	AccountID   int32
+	SessionUuid uuid.UUID
+	CreatedAt   time.Time
 }
 
 type UserTotp struct {

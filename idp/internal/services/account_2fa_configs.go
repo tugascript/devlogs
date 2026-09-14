@@ -20,6 +20,7 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/mailer"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
+	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
 const (
@@ -697,6 +698,8 @@ type ConfirmDeleteAccount2FAConfigOptions struct {
 	Version   int32
 	TwoFAType string
 	Code      string
+	IPAddress string
+	UserAgent string
 }
 
 func (s *Services) ConfirmDeleteAccount2FAConfig(
@@ -780,14 +783,25 @@ func (s *Services) ConfirmDeleteAccount2FAConfig(
 		}
 
 		accountDTO = dtos.MapAccountToDTO(&account)
-		return s.GenerateFullAuthDTO(
+		sessionID, err := uuid.NewV7()
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+		}
+
+		return s.generateFullAuthDTO(
 			ctx,
-			logger,
-			qrs,
-			opts.RequestID,
-			&accountDTO,
-			[]tokens.AccountScope{tokens.AccountScopeAdmin},
-			"Account 2FA config deleted successfully",
+			generateFullAuthDTOOptions{
+				requestID:       opts.RequestID,
+				accountID:       accountDTO.ID(),
+				accountPublicID: accountDTO.PublicID,
+				accountVersion:  accountDTO.Version(),
+				sessionID:       sessionID,
+				scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+				clientID:        utils.NilBase62UUID,
+				ipAddress:       opts.IPAddress,
+				userAgent:       opts.UserAgent,
+			},
 		)
 	}
 
@@ -821,13 +835,24 @@ func (s *Services) ConfirmDeleteAccount2FAConfig(
 		}
 	}
 
-	return s.GenerateFullAuthDTO(
+	sessionID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return s.generateFullAuthDTO(
 		ctx,
-		logger,
-		qrs,
-		opts.RequestID,
-		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"Account 2FA config deleted successfully",
+		generateFullAuthDTOOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountDTO.ID(),
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			sessionID:       sessionID,
+			scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+			clientID:        utils.NilBase62UUID,
+			ipAddress:       opts.IPAddress,
+			userAgent:       opts.UserAgent,
+		},
 	)
 }

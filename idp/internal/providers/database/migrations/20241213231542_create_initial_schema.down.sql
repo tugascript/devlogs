@@ -1,10 +1,11 @@
 -- Copyright (c) 2025 Afonso Barracha
--- 
+--
 -- This Source Code Form is subject to the terms of the Mozilla Public
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-DROP TABLE IF EXISTS "revoked_tokens";
+DROP TABLE IF EXISTS "allowed_tokens";
+DROP TABLE IF EXISTS "grants";
 DROP TABLE IF EXISTS "app_profiles";
 DROP TABLE IF EXISTS "dynamic_registration_configs";
 DROP TABLE IF EXISTS "app_designs";
@@ -62,3 +63,4 @@ DROP TYPE IF EXISTS "initial_access_token_generation_method";
 DROP TYPE IF EXISTS "software_statement_verification_method";
 DROP TYPE IF EXISTS "app_profile_type";
 DROP TYPE IF EXISTS "token_owner";
+DROP TYPE IF EXISTS "session_type";

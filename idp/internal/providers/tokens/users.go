@@ -20,15 +20,16 @@ import (
 
 type UserAuthClaims struct {
 	UserID      uuid.UUID `json:"user_id"`
-	UserVersion int32     `json:"user_version"`
+	UserVersion int32     `json:"user_ver"`
 	UserRoles   []string  `json:"user_roles"`
 }
 
 type userAuthTokenClaims struct {
 	UserAuthClaims
-	AppClaims
 	Scope           string `json:"scope"`
-	AuthorizedParty string `json:"azp,omitempty"`
+	SessionID       string `json:"sid,omitempty"`
+	AuthorizedParty string `json:"azp"`
+	AppVersion      int32  `json:"app_ver"`
 	jwt.RegisteredClaims
 }
 
@@ -85,11 +86,9 @@ func (t *Tokens) CreateUserAuthToken(opts UserAuthTokenOptions) (*jwt.Token, err
 			UserVersion: opts.UserVersion,
 			UserRoles:   opts.UserRoles,
 		},
-		AppClaims: AppClaims{
-			ClientID: opts.AppClientID,
-			Version:  opts.AppVersion,
-		},
-		Scope: strings.Join(opts.Scopes, " "),
+		AuthorizedParty: opts.AppClientID,
+		AppVersion:      opts.AppVersion,
+		Scope:           strings.Join(opts.Scopes, " "),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: iss,
 			Audience: utils.MapSlice(opts.Paths, func(path *string) string {
@@ -121,7 +120,10 @@ func (t *Tokens) VerifyUserAuthToken(
 		return UserAuthClaims{}, AppClaims{}, nil, uuid.Nil, time.Time{}, err
 	}
 
-	return claims.UserAuthClaims, claims.AppClaims, strings.Split(claims.Scope, " "), tokenID, claims.ExpiresAt.Time, nil
+	return claims.UserAuthClaims, AppClaims{
+		ClientID: claims.AuthorizedParty,
+		Version:  claims.AppVersion,
+	}, strings.Split(claims.Scope, " "), tokenID, claims.ExpiresAt.Time, nil
 }
 
 type UserPurposeClaims struct {
