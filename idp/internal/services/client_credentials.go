@@ -372,7 +372,7 @@ func (s *Services) BuildGetAccountClientCredentialsSecretFn(
 		}
 
 		logger.InfoContext(ctx, "Successfully fetched client credentials secret")
-		return []byte(fmt.Sprintf("%s.%s", secretID, decryptedSecret)), nil
+		return fmt.Appendf([]byte{}, "%s.%s", secretID, decryptedSecret), nil
 	}
 }
 
