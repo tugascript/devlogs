@@ -32,7 +32,7 @@ func (t *Tokens) getAccessTokenTTL(tokenSubject, publicID string) int64 {
 }
 
 func (t *Tokens) CreateAccessToken(opts AccountAccessTokenOptions) (*jwt.Token, error) {
-	return t.createAuthToken(accountAuthTokenOptions{
+	accesToken, _, err := t.createAuthToken(accountAuthTokenOptions{
 		cryptoSuite:     utils.SupportedCryptoSuiteES256,
 		ttlSec:          t.getAccessTokenTTL(opts.TokenSubject, opts.PublicID.String()),
 		accountPublicID: opts.PublicID,
@@ -41,6 +41,7 @@ func (t *Tokens) CreateAccessToken(opts AccountAccessTokenOptions) (*jwt.Token, 
 		tokenSubject:    opts.TokenSubject,
 		paths:           baseAccessPaths,
 	})
+	return accesToken, err
 }
 
 func (t *Tokens) VerifyAccessToken(token string, getPublicJWK GetPublicJWK) (AccountClaims, []AccountScope, error) {

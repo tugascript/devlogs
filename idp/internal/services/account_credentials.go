@@ -503,6 +503,11 @@ func (s *Services) GetAccountCredentialsByClientIDAndAccountPublicID(
 	)
 	logger.InfoContext(ctx, "Getting account keys by client id and account public id...")
 
+	if opts.ClientID == utils.NilBase62UUID {
+		logger.DebugContext(ctx, "ClientID is nil, returning not found")
+		return dtos.AccountCredentialsDTO{}, exceptions.NewNotFoundError()
+	}
+
 	accountCredentials, err := s.database.FindAccountCredentialsByAccountPublicIDAndClientID(
 		ctx,
 		database.FindAccountCredentialsByAccountPublicIDAndClientIDParams{

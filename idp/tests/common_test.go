@@ -290,8 +290,12 @@ func CreateTestJSONRequestBody(t *testing.T, reqBody any) *bytes.Reader {
 }
 
 func PerformTestRequest(t *testing.T, app *fiber.App, delayMs int, method, path, tokenType, accessToken, contentType string, body io.Reader) *http.Response {
+	return performTestRequest(t, app, delayMs, method, path, GetTestConfig(t).BackendDomain(), tokenType, accessToken, contentType, body)
+}
+
+func performTestRequest(t *testing.T, app *fiber.App, delayMs int, method, path, host, tokenType, accessToken, contentType string, body io.Reader) *http.Response {
 	req := httptest.NewRequest(method, path, body)
-	req.Host = GetTestConfig(t).BackendDomain()
+	req.Host = host
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Accept", "application/json")
 
@@ -379,29 +383,49 @@ func AssertStringContains(t *testing.T, actual string, expected string) {
 }
 
 type TestRequestCase[R any] struct {
-	Name      string
-	ReqFn     func(t *testing.T) (R, string)
-	ExpStatus int
-	AssertFn  func(t *testing.T, req R, res *http.Response)
-	DelayMs   int
-	Path      string
-	PathFn    func() string
-	Method    string
-	TokenType string
+	Name          string
+	ReqFn         func(t *testing.T) (R, string)
+	RequestBodyFn func(req R) any
+	HostFn        func(req R) string
+	PathFromReqFn func(req R) string
+	ExpStatus     int
+	AssertFn      func(t *testing.T, req R, res *http.Response)
+	DelayMs       int
+	Path          string
+	PathFn        func() string
+	Method        string
+	TokenType     string
 }
 
 func PerformTestRequestCase[R any](t *testing.T, method, path string, tc TestRequestCase[R]) {
 	// Arrange
 	reqBody, accessToken := tc.ReqFn(t)
-	jsonBody := CreateTestJSONRequestBody(t, reqBody)
+	body := any(reqBody)
+	if tc.RequestBodyFn != nil {
+		body = tc.RequestBodyFn(reqBody)
+	}
+	var jsonBody io.Reader
+	if body != nil {
+		jsonBody = CreateTestJSONRequestBody(t, body)
+	}
 	fiberApp := GetTestServer(t).App
 	tokenType := "Bearer"
 	if tc.TokenType != "" {
 		tokenType = tc.TokenType
 	}
+	host := GetTestConfig(t).BackendDomain()
+	if tc.HostFn != nil {
+		host = tc.HostFn(reqBody)
+	}
+	if tc.PathFn != nil {
+		path = tc.PathFn()
+	}
+	if tc.PathFromReqFn != nil {
+		path = tc.PathFromReqFn(reqBody)
+	}
 
 	// Act
-	resp := PerformTestRequest(t, fiberApp, tc.DelayMs, method, path, tokenType, accessToken, "application/json", jsonBody)
+	resp := performTestRequest(t, fiberApp, tc.DelayMs, method, path, host, tokenType, accessToken, "application/json", jsonBody)
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			t.Fatal(err)
@@ -436,27 +460,7 @@ func PerformTestRequestCaseWihURLEncodedBody(t *testing.T, method, path string, 
 }
 
 func PerformTestRequestCaseWithPathFn[R any](t *testing.T, method string, tc TestRequestCase[R]) {
-	// Arrange
-	reqBody, accessToken := tc.ReqFn(t)
-	jsonBody := CreateTestJSONRequestBody(t, reqBody)
-	fiberApp := GetTestServer(t).App
-	tokenType := "Bearer"
-	if tc.TokenType != "" {
-		tokenType = tc.TokenType
-	}
-
-	// Act
-	path := tc.PathFn()
-	resp := PerformTestRequest(t, fiberApp, tc.DelayMs, method, path, tokenType, accessToken, "application/json", jsonBody)
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	// Assert
-	AssertTestStatusCode(t, resp, tc.ExpStatus)
-	tc.AssertFn(t, reqBody, resp)
+	PerformTestRequestCase(t, method, "", tc)
 }
 
 type fakeAccountData struct {
@@ -543,10 +547,23 @@ func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (stri
 		t.Fatal("Failed to sign access token", serviceErr)
 	}
 
-	refreshToken, err := tks.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
+	sRefreshToken := GenerateTestAccountRefreshToken(t, account, []tokens.AccountScope{tokens.AccountScopeAdmin})
+
+	return sAccessToken, sRefreshToken
+}
+
+func GenerateTestAccountRefreshToken(t *testing.T, account *dtos.AccountDTO, scopes []tokens.AccountScope) string {
+	t.Helper()
+	tks := GetTestTokens(t)
+	cpt := GetTestCrypto(t)
+	s := GetTestServices(t)
+	requestID := uuid.NewString()
+	ctx := context.Background()
+
+	refreshToken, refreshJTI, err := tks.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
 		PublicID: account.PublicID,
 		Version:  account.Version(),
-		Scopes:   []tokens.AccountScope{tokens.AccountScopeAdmin},
+		Scopes:   scopes,
 	})
 	if err != nil {
 		t.Fatal("Failed to create refresh token", err)
@@ -574,7 +591,51 @@ func GenerateTestAccountAuthTokens(t *testing.T, account *dtos.AccountDTO) (stri
 		t.Fatal("Failed to sign refresh token", serviceErr)
 	}
 
-	return sAccessToken, sRefreshToken
+	sessionUUID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal("Failed to create test session UUID", err)
+	}
+	expiresAt := time.Now().Add(time.Duration(tks.GetRefreshTTL()) * time.Second)
+	db := GetTestDatabase(t)
+	grantedScopes := make([]database.Scopes, 0, len(scopes))
+	grantedCustomScopes := make([]string, 0, len(scopes))
+	for _, scope := range scopes {
+		switch scope {
+		case tokens.AccountScopeEmail:
+			grantedScopes = append(grantedScopes, database.ScopesEmail)
+		case tokens.AccountScopeProfile:
+			grantedScopes = append(grantedScopes, database.ScopesProfile)
+		default:
+			grantedCustomScopes = append(grantedCustomScopes, scope)
+		}
+	}
+	grantID, err := db.CreateGrant(ctx, database.CreateGrantParams{
+		AccountID: account.ID(), GrantedClientID: string(utils.NilBase62UUID),
+		GrantID: uuid.New(), GrantedScopes: grantedScopes, GrantedCustomScopes: grantedCustomScopes,
+	})
+	if err != nil {
+		t.Fatal("Failed to create test grant", err)
+	}
+	sessionID, err := db.CreateSession(ctx, database.CreateSessionParams{
+		AccountID: account.ID(), GrantID: grantID, SessionID: sessionUUID,
+		SessionType: database.SessionTypeSliding, SessionClientID: string(utils.NilBase62UUID), ExpiresAt: expiresAt,
+	})
+	if err != nil {
+		t.Fatal("Failed to create test session", err)
+	}
+	if err = db.CreateAccountSessionWithoutAccountCredentials(ctx, database.CreateAccountSessionWithoutAccountCredentialsParams{
+		AccountID: account.ID(), AccountVersion: account.Version(), SessionID: sessionID, SessionUuid: sessionUUID,
+	}); err != nil {
+		t.Fatal("Failed to create test account session", err)
+	}
+	if err = db.CreateSessionToken(ctx, database.CreateSessionTokenParams{
+		TokenID: refreshJTI, AccountID: account.ID(), SessionID: sessionID,
+		SessionUuid: sessionUUID, GrantID: grantID, ExpiresAt: expiresAt,
+	}); err != nil {
+		t.Fatal("Failed to create test session token", err)
+	}
+
+	return sRefreshToken
 }
 
 func GenerateScopedAccountAccessToken(t *testing.T, account *dtos.AccountDTO, scopes []tokens.AccountScope) string {

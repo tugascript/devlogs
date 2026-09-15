@@ -14,7 +14,11 @@ import (
 	"github.com/google/uuid"
 )
 
-func Base62UUID() string {
+type Base62UUIDStr = string
+
+const NilBase62UUID Base62UUIDStr = "0000000000000000000000"
+
+func Base62UUID() Base62UUIDStr {
 	id := uuid.New()
 	return fmt.Sprintf("%022s", Base62Encode(id[:]))
 }

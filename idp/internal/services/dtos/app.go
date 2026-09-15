@@ -37,9 +37,10 @@ func newRelatedAppDTO(
 }
 
 type AppDTO struct {
-	id        int32
-	accountID int32
-	version   int32
+	Registration *ClientRegistrationDTO `json:"-"`
+	id           int32
+	accountID    int32
+	version      int32
 
 	AppType        database.AppType        `json:"app_type"`
 	ClientName     string                  `json:"client_name"`
@@ -64,9 +65,10 @@ type AppDTO struct {
 	RedirectURIs            []string                   `json:"redirect_uris,omitempty"`
 	ResponseTypes           []database.ResponseType    `json:"response_types,omitempty"`
 
-	IDTokenTTL      int32 `json:"id_token_ttl"`
-	TokenTTL        int32 `json:"token_ttl"`
-	RefreshTokenTTL int32 `json:"refresh_token_ttl,omitempty"`
+	AccessTokenTTL      int32 `json:"access_token_ttl"`
+	IDTokenTTL          int32 `json:"id_token_ttl,omitempty"`
+	RefreshTokenIdleTTL int32 `json:"refresh_token_idle_ttl,omitempty"`
+	RefreshTokenTTL     int32 `json:"refresh_token_ttl,omitempty"`
 
 	ClientSecretID  string    `json:"client_secret_id,omitempty"`
 	ClientSecret    string    `json:"client_secret,omitempty"`
@@ -149,9 +151,10 @@ func MapAppToDTO(app *database.App) AppDTO {
 		AuthProviders:           app.AuthProviders,
 		RedirectURIs:            app.RedirectUris,
 		ResponseTypes:           app.ResponseTypes,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 	}
 }
 
@@ -180,9 +183,10 @@ func MapWebNativeSPAMCPAppToDTO(app *database.App) AppDTO {
 		AuthProviders:           app.AuthProviders,
 		RedirectURIs:            app.RedirectUris,
 		ResponseTypes:           app.ResponseTypes,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 	}
 }
 
@@ -216,9 +220,10 @@ func MapWebAppWithSecretToDTO(
 		AuthProviders:           app.AuthProviders,
 		RedirectURIs:            app.RedirectUris,
 		ResponseTypes:           app.ResponseTypes,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 		ClientSecretID:          secretID,
 		ClientSecret:            fmt.Sprintf("%s.%s", secretID, secret),
 		ClientSecretExp:         expiresAt.Unix(),
@@ -250,9 +255,10 @@ func MapWebAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) AppD
 		AuthProviders:           app.AuthProviders,
 		RedirectURIs:            app.RedirectUris,
 		ResponseTypes:           app.ResponseTypes,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 		ClientSecretID:          jwk.GetKeyID(),
 		ClientSecretJWK:         jwk,
 		ClientSecretExp:         exp.Unix(),
@@ -282,9 +288,10 @@ func MapBackendAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) 
 		Scopes:                  mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
 		UsernameColumn:          app.UsernameColumn,
 		AuthProviders:           app.AuthProviders,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 		ClientSecretID:          jwk.GetKeyID(),
 		ClientSecretJWK:         jwk,
 		ClientSecretExp:         exp.Unix(),
@@ -314,9 +321,10 @@ func MapBackendAppWithSecretToDTO(app *database.App, secretID string, secret str
 		Scopes:                  mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
 		UsernameColumn:          app.UsernameColumn,
 		AuthProviders:           app.AuthProviders,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 		ClientSecretID:          secretID,
 		ClientSecret:            fmt.Sprintf("%s.%s", secretID, secret),
 		ClientSecretExp:         expiresAt.Unix(),
@@ -346,9 +354,10 @@ func MapDeviceAppToDTO(app *database.App, relatedApps []database.App, backendDom
 		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
 		UsernameColumn:          app.UsernameColumn,
 		AuthProviders:           app.AuthProviders,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 		RelatedApps: utils.MapSlice(relatedApps, func(ra *database.App) RelatedAppDTO {
 			return newRelatedAppDTO(ra, backendDomain, paths.AppsBase)
 		}),
@@ -383,9 +392,10 @@ func MapServiceAppWithJWKToDTO(
 		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
 		UsernameColumn:          app.UsernameColumn,
 		AuthProviders:           app.AuthProviders,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 		ClientSecretID:          jwk.GetKeyID(),
 		ClientSecretJWK:         jwk,
 		ClientSecretExp:         exp.Unix(),
@@ -424,9 +434,10 @@ func MapServiceAppWithSecretToDTO(
 		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
 		UsernameColumn:          app.UsernameColumn,
 		AuthProviders:           app.AuthProviders,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 		ClientSecretID:          secretID,
 		ClientSecret:            fmt.Sprintf("%s.%s", secretID, secret),
 		ClientSecretExp:         expiresAt.Unix(),
@@ -459,9 +470,10 @@ func MapBackendAppToDTO(app *database.App) AppDTO {
 		Scopes:                  mapScopes(app.DefaultScopes, app.DefaultCustomScopes),
 		UsernameColumn:          app.UsernameColumn,
 		AuthProviders:           app.AuthProviders,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 	}
 }
 
@@ -491,9 +503,10 @@ func MapServiceAppToDTO(
 		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
 		UsernameColumn:          app.UsernameColumn,
 		AuthProviders:           app.AuthProviders,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 		AllowedDomains:          serviceCfg.AllowedDomains,
 		UsersAuthMethod:         serviceCfg.UserAuthMethod,
 		UsersGrantTypes:         serviceCfg.UserGrantTypes,
@@ -523,9 +536,10 @@ func MapMCPAppWithJWKToDTO(app *database.App, jwk utils.JWK, exp time.Time) AppD
 		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
 		UsernameColumn:          app.UsernameColumn,
 		AuthProviders:           app.AuthProviders,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 		ClientSecretID:          jwk.GetKeyID(),
 		ClientSecretExp:         exp.Unix(),
 	}
@@ -559,9 +573,10 @@ func MapMCPAppWithSecretToDTO(
 		Scopes:                  mapScopes(app.Scopes, app.CustomScopes),
 		UsernameColumn:          app.UsernameColumn,
 		AuthProviders:           app.AuthProviders,
-		IDTokenTTL:              app.IDTokenTtl,
-		TokenTTL:                app.TokenTtl,
-		RefreshTokenTTL:         app.RefreshTokenTtl,
+		AccessTokenTTL:          app.AccessTokenTtl,
+		IDTokenTTL:              app.IDTokenTtl.Int32,
+		RefreshTokenIdleTTL:     app.RefreshTokenIdleTtl.Int32,
+		RefreshTokenTTL:         app.RefreshTokenTtl.Int32,
 		ClientSecretID:          secretID,
 		ClientSecret:            fmt.Sprintf("%s.%s", secretID, secret),
 		ClientSecretExp:         expiresAt.Unix(),

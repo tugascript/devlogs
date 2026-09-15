@@ -7,10 +7,8 @@
 package bodies
 
 type AccountDynamicRegistrationConfigBody struct {
-	AccountCredentialsTypes                  []string `json:"account_credentials_types" validate:"required,unique,min=1,max=3,oneof=native service mcp"`
-	WhitelistedDomains                       []string `json:"whitelisted_domains" validate:"omitempty,unique,min=1,max=250,dive,fqdn"`
-	RequireSoftwareStatementCredentialTypes  []string `json:"require_software_statement_credential_types" validate:"omitempty,unique,min=1,max=3,oneof=native service mcp"`
-	SoftwareStatementVerificationMethods     []string `json:"software_statement_verification_methods" validate:"omitempty,unique,min=1,max=2,oneof=manual jwks_uri"`
-	RequireInitialAccessTokenCredentialTypes []string `json:"require_initial_access_token_credential_types" validate:"omitempty,unique,min=1,max=3,oneof=native service mcp"`
-	InitialAccessTokenGenerationMethods      []string `json:"initial_access_token_generation_methods" validate:"omitempty,unique,min=1,max=2,oneof=manual authorization_code"`
+	AccountCredentialsTypes                 []string `json:"account_credentials_types" validate:"required,unique,min=1,max=3,oneof=native service mcp"`
+	WhitelistedDomains                      []string `json:"whitelisted_domains" validate:"omitempty,unique,min=1,max=250,dive,fqdn"`
+	RequireSoftwareStatementCredentialTypes []string `json:"require_software_statement_credential_types" validate:"omitempty,unique,min=1,max=3,oneof=native service mcp"`
+	SoftwareStatementVerificationMethods    []string `json:"software_statement_verification_methods" validate:"omitempty,unique,min=1,max=2,oneof=manual jwks_uri"`
 }

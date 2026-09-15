@@ -36,7 +36,6 @@ type AccountCredentialsDynamicRegistrationIATAuthData struct {
 	Domain      string `json:"domain"`
 	State       string `json:"state"`
 	Challenge   string `json:"challenge"`
-	Username    string `json:"username,omitempty"`
 }
 
 type SaveAccountCredentialsDynamicRegistrationIATAuthOptions struct {
@@ -45,7 +44,6 @@ type SaveAccountCredentialsDynamicRegistrationIATAuthOptions struct {
 	State       string
 	RedirectURI string
 	Challenge   string
-	Username    string
 }
 
 func (c *Cache) SaveAccountCredentialsDynamicRegistrationIATAuth(
@@ -66,7 +64,6 @@ func (c *Cache) SaveAccountCredentialsDynamicRegistrationIATAuth(
 		Domain:      opts.Domain,
 		RedirectURI: opts.RedirectURI,
 		Challenge:   opts.Challenge,
-		Username:    opts.Username,
 	}
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
@@ -525,13 +522,10 @@ func (c *Cache) VerifyAccountCredentialsRegistrationIATCode(
 	})
 	logger.DebugContext(ctx, "Verifying account credentials registration IAT code...")
 
-	if len(opts.Code) < 45 {
-		logger.DebugContext(ctx, "Invalid account credentials registration IAT code length")
-		return AccountCredentialsDynamicRegistrationIATCodeData{}, false, nil
-	}
-
+	// Codes are "{base62uuid}-{base62secret}". The secret is unpadded base62 of 16
+	// bytes, so total length is often 44 or 45. Reject only structurally invalid values.
 	parts := strings.Split(opts.Code, "-")
-	if len(parts) != 2 {
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		logger.WarnContext(ctx, "Invalid account credentials registration IAT code format")
 		return AccountCredentialsDynamicRegistrationIATCodeData{}, false, nil
 	}
@@ -668,7 +662,7 @@ func (c *Cache) VerifyAccountCredentialsRegistrationSessionKey(
 	clientID, sessionKey, ok := parseSessionKey(opts.SessionKey)
 	if !ok {
 		logger.DebugContext(ctx, "Invalid account credentials registration session key format")
-		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, true, nil
+		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, false, nil
 	}
 
 	data, err := c.storage.GetWithContext(ctx, buildAccountCredentialsDynamicRegistrationSessionCacheKey(opts.Domain, clientID))
@@ -690,7 +684,7 @@ func (c *Cache) VerifyAccountCredentialsRegistrationSessionKey(
 	ok, err = utils.CompareShaHex(sessionKey, sessionData.SessionKey)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error comparing session key", "error", err)
-		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, false, err
+		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, true, err
 	}
 	if !ok {
 		logger.DebugContext(ctx, "Invalid session key")

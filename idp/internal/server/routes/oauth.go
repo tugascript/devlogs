@@ -17,8 +17,8 @@ func (r *Routes) OAuthRoutes(app *fiber.App) {
 
 	// Known auth paths (oauth2)
 	router.Post(paths.OAuthKeys, r.controllers.HostMiddleware, HostAwareRoute(
-		[]fiber.Handler{r.controllers.GlobalOAuthPublicJWKs},
-		[]fiber.Handler{r.controllers.AccountDistributedOAuthPublicJWKs},
+		r.controllers.GlobalOAuthPublicJWKs,
+		r.controllers.AccountDistributedOAuthPublicJWKs,
 	))
 	router.Post(paths.OAuthToken, r.controllers.AccountOAuthToken)
 	router.Get(paths.OAuthAuth, r.controllers.AccountOAuthURL)
@@ -31,16 +31,37 @@ func (r *Routes) OAuthRoutes(app *fiber.App) {
 	router.Post(
 		paths.OAuthRegister,
 		r.controllers.HostMiddleware,
-		r.controllers.DynamicRegistrationIATMiddleware,
-		HostAwareRoute(
-			[]fiber.Handler{r.controllers.OAuthDynamicRegistration},
-			[]fiber.Handler{r.controllers.OAuthAppDynamicRegistration},
-		),
+		HostAwareRoute(r.controllers.DynamicRegistrationIATMiddleware, r.controllers.AppDynamicRegistrationIATMiddleware),
+		HostAwareRoute(r.controllers.OAuthDynamicRegistration, r.controllers.OAuthAppDynamicRegistration),
+	)
+	router.Get(
+		paths.OAuthRegisterClient,
+		r.controllers.HostMiddleware,
+		HostAwareRoute(r.controllers.DynamicRegistrationAccessTokenMiddleware, r.controllers.AppDynamicRegistrationAccessTokenMiddleware),
+		HostAwareRoute(r.controllers.OAuthDynamicRegistrationGet, r.controllers.OAuthAppDynamicRegistrationGet),
+	)
+	router.Put(
+		paths.OAuthRegisterClient,
+		r.controllers.HostMiddleware,
+		HostAwareRoute(r.controllers.DynamicRegistrationAccessTokenMiddleware, r.controllers.AppDynamicRegistrationAccessTokenMiddleware),
+		HostAwareRoute(r.controllers.OAuthDynamicRegistrationUpdate, r.controllers.OAuthAppDynamicRegistrationUpdate),
+	)
+	router.Delete(
+		paths.OAuthRegisterClient,
+		r.controllers.HostMiddleware,
+		HostAwareRoute(r.controllers.DynamicRegistrationAccessTokenMiddleware, r.controllers.AppDynamicRegistrationAccessTokenMiddleware),
+		HostAwareRoute(r.controllers.OAuthDynamicRegistrationDelete, r.controllers.OAuthAppDynamicRegistrationDelete),
 	)
 
 	// Initial Access Token (IAT) routes
 	iatRouter := router.Group(paths.InitialAccessToken, r.controllers.HostMiddleware)
+	iatRouter.Post(
+		paths.InitialAccessTokenSign,
+		r.controllers.AccountAccessClaimsMiddleware,
+		r.controllers.AppDynamicRegistrationIATSign,
+	)
 
+	// TODO: add host aware routes to all IAT oauth flow
 	// Dynamic Registration IAT Code Exchange flow
 	iatRouter.Get(paths.OAuthAuth, r.controllers.OAuthDynamicRegistrationIATAuth)
 	iatRouter.Post(paths.OAuthToken, r.controllers.OAuthDynamicRegistrationIATToken)

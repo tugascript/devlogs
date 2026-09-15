@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -197,46 +198,463 @@ func (s *Services) RegisterAccount(
 	return dtos.NewMessageDTO("Account registered successfully. Confirmation email has been sent."), nil
 }
 
-func (s *Services) GenerateFullAuthDTO(
-	ctx context.Context,
-	logger *slog.Logger,
-	qrs *database.Queries,
-	requestID string,
-	accountDTO *dtos.AccountDTO,
+func mapAccountScopes(scopes []tokens.AccountScope) ([]database.Scopes, []string) {
+	dbScopes := make([]database.Scopes, 0)
+	customScopes := make([]string, 0)
+
+	for _, scope := range scopes {
+		switch scope {
+		case tokens.AccountScopeEmail:
+			dbScopes = append(dbScopes, database.ScopesEmail)
+		case tokens.AccountScopeProfile:
+			dbScopes = append(dbScopes, database.ScopesProfile)
+		default:
+			customScopes = append(customScopes, scope)
+		}
+	}
+
+	return dbScopes, customScopes
+}
+
+func validateScopes(
 	scopes []tokens.AccountScope,
-	logSuccessMessage string,
+	grantedScopes []database.Scopes,
+	grantedCustomScopes []string,
+) *exceptions.ServiceError {
+	scopesSet := utils.SliceToHashSet(scopes)
+
+	for _, grantedScope := range grantedScopes {
+		if !scopesSet.Contains(tokens.AccountScope(grantedScope)) {
+			return exceptions.NewForbiddenError()
+		}
+	}
+
+	for _, grantedCustomScope := range grantedCustomScopes {
+		if !scopesSet.Contains(grantedCustomScope) {
+			return exceptions.NewForbiddenError()
+		}
+	}
+
+	return nil
+}
+
+type upsertAccountGrantSessionAndTokenOptions struct {
+	requestID       string
+	accountID       int32
+	accountVersion  int32
+	accountPublicID uuid.UUID
+	scopes          []tokens.AccountScope
+	sessionID       uuid.UUID
+	tokenID         uuid.UUID
+	clientID        utils.Base62UUIDStr
+	ipAddress       string
+	userAgent       string
+}
+
+func (s *Services) createAccountGrantSessionAndToken(
+	ctx context.Context,
+	opts upsertAccountGrantSessionAndTokenOptions,
+) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.requestID, authLocation, "createAccountGrantSessionAndToken").With(
+		"accountID", opts.accountID,
+		"accountVersion", opts.accountVersion,
+		"accountPublicID", opts.accountPublicID,
+		"sessionID", opts.sessionID,
+		"clientID", opts.clientID,
+	)
+	logger.InfoContext(ctx, "Creating account grant session and token...")
+
+	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsByClientIDAndAccountPublicID(ctx, GetAccountCredentialsByClientIDAndAccountPublicIDOptions{
+		RequestID:       opts.requestID,
+		AccountPublicID: opts.accountPublicID,
+		ClientID:        opts.clientID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to get account credentials", "error", serviceErr)
+			return serviceErr
+		}
+		serviceErr = nil
+	}
+
+	grantUUID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate grant UUID", "error", err)
+		return exceptions.NewInternalServerError()
+	}
+
+	grantedScopes, grantedCustomScopes := mapAccountScopes(opts.scopes)
+	expiresAt := time.Now().Add(time.Duration(s.jwt.GetRefreshTTL()) * time.Second)
+	var ipAddress pgtype.Text
+	if err := ipAddress.Scan(opts.ipAddress); err != nil {
+		logger.ErrorContext(ctx, "Failed to scan IP address", "error", err)
+		return exceptions.NewInternalServerError()
+	}
+
+	var userAgent pgtype.Text
+	if err := userAgent.Scan(opts.userAgent); err != nil {
+		logger.ErrorContext(ctx, "Failed to scan user agent", "error", err)
+		return exceptions.NewInternalServerError()
+	}
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	grantID, err := qrs.CreateGrant(ctx, database.CreateGrantParams{
+		AccountID:           opts.accountID,
+		GrantID:             grantUUID,
+		GrantedClientID:     opts.clientID,
+		GrantedScopes:       grantedScopes,
+		GrantedCustomScopes: grantedCustomScopes,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create grant", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return serviceErr
+	}
+
+	sessionID, err := qrs.CreateSession(ctx, database.CreateSessionParams{
+		AccountID:       opts.accountID,
+		GrantID:         grantID,
+		SessionID:       opts.sessionID,
+		SessionType:     database.SessionTypeSliding,
+		SessionClientID: opts.clientID,
+		IpAddress:       ipAddress,
+		UserAgent:       userAgent,
+		ExpiresAt:       expiresAt,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create session", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return serviceErr
+	}
+
+	if accountCredentialsDTO.ID() > 0 {
+		var accountCredentialsID pgtype.Int4
+		if err = accountCredentialsID.Scan(accountCredentialsDTO.ID()); err != nil {
+			logger.ErrorContext(ctx, "Failed to scan account credentials ID", "error", err)
+			return exceptions.NewInternalServerError()
+		}
+
+		if err = qrs.CreateAccountSessionWithAccountCredentials(ctx, database.CreateAccountSessionWithAccountCredentialsParams{
+			AccountID:            opts.accountID,
+			AccountVersion:       opts.accountVersion,
+			AccountCredentialsID: accountCredentialsID,
+			SessionID:            sessionID,
+			SessionUuid:          opts.sessionID,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create account session with account credentials", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return serviceErr
+		}
+	} else {
+		if err = qrs.CreateAccountSessionWithoutAccountCredentials(ctx, database.CreateAccountSessionWithoutAccountCredentialsParams{
+			AccountID:      opts.accountID,
+			AccountVersion: opts.accountVersion,
+			SessionID:      sessionID,
+			SessionUuid:    opts.sessionID,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create account session without account credentials", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return serviceErr
+		}
+	}
+
+	if err = qrs.CreateSessionToken(ctx, database.CreateSessionTokenParams{
+		SessionID:   sessionID,
+		SessionUuid: opts.sessionID,
+		TokenID:     opts.tokenID,
+		AccountID:   opts.accountID,
+		GrantID:     grantID,
+		ExpiresAt:   expiresAt,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to create session token", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return serviceErr
+	}
+
+	logger.InfoContext(ctx, "Created account grant, session and token successfully")
+	return nil
+}
+
+type createAccountSessionAndTokenOptions struct {
+	requestID       string
+	accountID       int32
+	accountVersion  int32
+	accountPublicID uuid.UUID
+	scopes          []tokens.AccountScope
+	sessionID       uuid.UUID
+	tokenID         uuid.UUID
+	clientID        utils.Base62UUIDStr
+	ipAddress       string
+	userAgent       string
+	grantID         int32
+}
+
+func (s *Services) createAccountSessionAndToken(
+	ctx context.Context,
+	opts createAccountSessionAndTokenOptions,
+) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.requestID, authLocation, "createAccountSessionAndToken").With(
+		"accountID", opts.accountID,
+		"accountVersion", opts.accountVersion,
+		"accountPublicID", opts.accountPublicID,
+		"sessionID", opts.sessionID,
+		"clientID", opts.clientID,
+	)
+	logger.InfoContext(ctx, "Creating account session and token...")
+
+	accountCredentialsDTO, serviceErr := s.GetAccountCredentialsByClientIDAndAccountPublicID(ctx, GetAccountCredentialsByClientIDAndAccountPublicIDOptions{
+		RequestID:       opts.requestID,
+		AccountPublicID: opts.accountPublicID,
+		ClientID:        opts.clientID,
+	})
+	if serviceErr != nil {
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to get account credentials", "error", serviceErr)
+			return serviceErr
+		}
+		serviceErr = nil
+	}
+
+	expiresAt := time.Now().Add(time.Duration(s.jwt.GetRefreshTTL()) * time.Second)
+	var ipAddress pgtype.Text
+	if err := ipAddress.Scan(opts.ipAddress); err != nil {
+		logger.ErrorContext(ctx, "Failed to scan IP address", "error", err)
+		return exceptions.NewInternalServerError()
+	}
+
+	var userAgent pgtype.Text
+	if err := userAgent.Scan(opts.userAgent); err != nil {
+		logger.ErrorContext(ctx, "Failed to scan user agent", "error", err)
+		return exceptions.NewInternalServerError()
+	}
+
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	sessionID, err := qrs.CreateSession(ctx, database.CreateSessionParams{
+		AccountID:       opts.accountID,
+		GrantID:         opts.grantID,
+		SessionID:       opts.sessionID,
+		SessionType:     database.SessionTypeSliding,
+		SessionClientID: opts.clientID,
+		IpAddress:       ipAddress,
+		UserAgent:       userAgent,
+		ExpiresAt:       expiresAt,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create session", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return serviceErr
+	}
+
+	if accountCredentialsDTO.ID() > 0 {
+		var accountCredentialsID pgtype.Int4
+		if err = accountCredentialsID.Scan(accountCredentialsDTO.ID()); err != nil {
+			logger.ErrorContext(ctx, "Failed to scan account credentials ID", "error", err)
+			return exceptions.NewInternalServerError()
+		}
+
+		if err = qrs.CreateAccountSessionWithAccountCredentials(ctx, database.CreateAccountSessionWithAccountCredentialsParams{
+			AccountID:            opts.accountID,
+			AccountVersion:       opts.accountVersion,
+			AccountCredentialsID: accountCredentialsID,
+			SessionID:            sessionID,
+			SessionUuid:          opts.sessionID,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create account session with account credentials", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return serviceErr
+		}
+	} else {
+		if err = qrs.CreateAccountSessionWithoutAccountCredentials(ctx, database.CreateAccountSessionWithoutAccountCredentialsParams{
+			AccountID:      opts.accountID,
+			AccountVersion: opts.accountVersion,
+			SessionID:      sessionID,
+			SessionUuid:    opts.sessionID,
+		}); err != nil {
+			logger.ErrorContext(ctx, "Failed to create account session without account credentials", "error", err)
+			serviceErr = exceptions.FromDBError(err)
+			return serviceErr
+		}
+	}
+
+	if err = qrs.CreateSessionToken(ctx, database.CreateSessionTokenParams{
+		SessionID:   sessionID,
+		SessionUuid: opts.sessionID,
+		TokenID:     opts.tokenID,
+		AccountID:   opts.accountID,
+		GrantID:     opts.grantID,
+		ExpiresAt:   expiresAt,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to create session token", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return serviceErr
+	}
+
+	logger.InfoContext(ctx, "Created account session and token successfully")
+	return nil
+}
+
+func (s *Services) upsertAccountGrantSessionAndToken(
+	ctx context.Context,
+	opts upsertAccountGrantSessionAndTokenOptions,
+) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.requestID, authLocation, "upsertAccountGrantSessionAndToken").With(
+		"accountID", opts.accountID,
+		"accountVersion", opts.accountVersion,
+		"accountPublicID", opts.accountPublicID,
+		"sessionID", opts.sessionID,
+		"clientID", opts.clientID,
+	)
+	logger.InfoContext(ctx, "Upserting account grant session and token...")
+
+	grant, err := s.database.FindAccountGrantByAccountIDAndGrantedClientID(ctx, database.FindAccountGrantByAccountIDAndGrantedClientIDParams{
+		AccountID:       opts.accountID,
+		GrantedClientID: opts.clientID,
+	})
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to fetch grant", "error", err)
+			return serviceErr
+		}
+
+		return s.createAccountGrantSessionAndToken(ctx, opts)
+	}
+
+	session, err := s.database.FindAccountSessionByAccountIDAndSessionUUID(ctx, database.FindAccountSessionByAccountIDAndSessionUUIDParams{
+		AccountID:   opts.accountID,
+		SessionUuid: opts.sessionID,
+	})
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to fetch account session", "error", err)
+			return serviceErr
+		}
+
+		return s.createAccountSessionAndToken(ctx, createAccountSessionAndTokenOptions{
+			requestID:       opts.requestID,
+			accountID:       opts.accountID,
+			accountVersion:  opts.accountVersion,
+			accountPublicID: opts.accountPublicID,
+			scopes:          opts.scopes,
+			sessionID:       opts.sessionID,
+			tokenID:         opts.tokenID,
+			clientID:        opts.clientID,
+			ipAddress:       opts.ipAddress,
+			userAgent:       opts.userAgent,
+			grantID:         grant.GrantID,
+		})
+	}
+
+	expiresAt := time.Now().Add(time.Duration(s.jwt.GetRefreshTTL()) * time.Second)
+	var serviceErr *exceptions.ServiceError
+	qrs, txn, err := s.database.BeginTx(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
+		return exceptions.FromDBError(err)
+	}
+	defer func() {
+		logger.DebugContext(ctx, "Finalizing transaction")
+		s.database.FinalizeTx(ctx, txn, err, serviceErr)
+	}()
+
+	if err = qrs.UpdateSessionExpiresAt(ctx, database.UpdateSessionExpiresAtParams{
+		ExpiresAt: expiresAt,
+		ID:        session.SessionID,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to update session expires at", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return serviceErr
+	}
+
+	if err = qrs.CreateSessionToken(ctx, database.CreateSessionTokenParams{
+		SessionID:   session.SessionID,
+		SessionUuid: opts.sessionID,
+		TokenID:     opts.tokenID,
+		AccountID:   opts.accountID,
+		GrantID:     grant.GrantID,
+		ExpiresAt:   expiresAt,
+	}); err != nil {
+		logger.ErrorContext(ctx, "Failed to create session token", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		return serviceErr
+	}
+
+	logger.InfoContext(ctx, "Upserted account grant session and token successfully")
+	return nil
+}
+
+type generateFullAuthDTOOptions struct {
+	requestID       string
+	accountID       int32
+	accountPublicID uuid.UUID
+	accountVersion  int32
+	sessionID       uuid.UUID
+	ipAddress       string
+	userAgent       string
+	clientID        utils.Base62UUIDStr
+	scopes          []tokens.AccountScope
+}
+
+func (s *Services) generateFullAuthDTO(
+	ctx context.Context,
+	opts generateFullAuthDTOOptions,
 ) (dtos.AuthDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, authLocation, "generateFullAuthDTO").With(
+		"accountID", opts.accountID,
+		"accountPublicID", opts.accountPublicID,
+		"accountVersion", opts.accountVersion,
+		"sessionID", opts.sessionID,
+		"scopes", opts.scopes,
+	)
+	logger.InfoContext(ctx, "Generating full auth DTO...")
+
 	accessToken, err := s.jwt.CreateAccessToken(tokens.AccountAccessTokenOptions{
-		PublicID:     accountDTO.PublicID,
-		Version:      accountDTO.Version(),
-		Scopes:       scopes,
-		TokenSubject: accountDTO.PublicID.String(),
+		PublicID:     opts.accountPublicID,
+		Version:      opts.accountVersion,
+		Scopes:       opts.scopes,
+		TokenSubject: opts.accountPublicID.String(),
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate access token", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
+	accessTTL := s.jwt.GetAccessTTL()
 	signedAccessToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
-		RequestID: requestID,
+		RequestID: opts.requestID,
 		Token:     accessToken,
 		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
-			RequestID: requestID,
+			RequestID: opts.requestID,
 			KeyType:   database.TokenKeyTypeAccess,
-			TTL:       s.jwt.GetAccessTTL(),
-			Queries:   qrs,
+			TTL:       accessTTL,
 		}),
 		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
-			RequestID: requestID,
-			Queries:   qrs,
+			RequestID: opts.requestID,
 		}),
 		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
-			RequestID: requestID,
-			Queries:   qrs,
+			RequestID: opts.requestID,
 		}),
 		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
-			RequestID: requestID,
-			Queries:   qrs,
+			RequestID: opts.requestID,
 		}),
 	})
 	if serviceErr != nil {
@@ -244,36 +662,33 @@ func (s *Services) GenerateFullAuthDTO(
 		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
-	refreshToken, err := s.jwt.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
-		PublicID: accountDTO.PublicID,
-		Version:  accountDTO.Version(),
-		Scopes:   scopes,
+	refreshToken, refreshJTI, err := s.jwt.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
+		PublicID: opts.accountPublicID,
+		Version:  opts.accountVersion,
+		Scopes:   opts.scopes,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate refresh token", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
+	refreshTTL := s.jwt.GetRefreshTTL()
 	signedRefreshToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
-		RequestID: requestID,
+		RequestID: opts.requestID,
 		Token:     refreshToken,
 		GetJWKfn: s.BuildGetGlobalEncryptedJWKFn(ctx, BuildEncryptedJWKFnOptions{
-			RequestID: requestID,
+			RequestID: opts.requestID,
 			KeyType:   database.TokenKeyTypeRefresh,
-			TTL:       s.jwt.GetRefreshTTL(),
-			Queries:   qrs,
+			TTL:       refreshTTL,
 		}),
 		GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
-			RequestID: requestID,
-			Queries:   qrs,
+			RequestID: opts.requestID,
 		}),
 		GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
-			RequestID: requestID,
-			Queries:   qrs,
+			RequestID: opts.requestID,
 		}),
 		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{
-			RequestID: requestID,
-			Queries:   qrs,
+			RequestID: opts.requestID,
 		}),
 	})
 	if serviceErr != nil {
@@ -281,13 +696,31 @@ func (s *Services) GenerateFullAuthDTO(
 		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
-	logger.InfoContext(ctx, logSuccessMessage)
-	return dtos.NewFullAuthDTO(signedAccessToken, signedRefreshToken, s.jwt.GetAccessTTL()), nil
+	if serviceErr := s.upsertAccountGrantSessionAndToken(ctx, upsertAccountGrantSessionAndTokenOptions{
+		requestID:       opts.requestID,
+		accountID:       opts.accountID,
+		accountVersion:  opts.accountVersion,
+		accountPublicID: opts.accountPublicID,
+		scopes:          opts.scopes,
+		sessionID:       opts.sessionID,
+		tokenID:         refreshJTI,
+		clientID:        opts.clientID,
+		ipAddress:       opts.ipAddress,
+		userAgent:       opts.userAgent,
+	}); serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to upsert account grant session and token", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
+	}
+
+	logger.InfoContext(ctx, "Generated full auth DTO successfully")
+	return dtos.NewFullAuthDTO(signedAccessToken, signedRefreshToken, accessTTL), nil
 }
 
 type ConfirmAccountOptions struct {
 	RequestID         string
 	ConfirmationToken string
+	IPAddress         string
+	UserAgent         string
 }
 
 func (s *Services) ConfirmAccount(
@@ -333,14 +766,25 @@ func (s *Services) ConfirmAccount(
 		return dtos.AuthDTO{}, exceptions.NewForbiddenError()
 	}
 
-	return s.GenerateFullAuthDTO(
+	sessionID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return s.generateFullAuthDTO(
 		ctx,
-		logger,
-		s.database.Queries,
-		opts.RequestID,
-		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"Confirmed Account successfully",
+		generateFullAuthDTOOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountDTO.ID(),
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			sessionID:       sessionID,
+			scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+			clientID:        utils.NilBase62UUID,
+			ipAddress:       opts.IPAddress,
+			userAgent:       opts.UserAgent,
+		},
 	)
 }
 
@@ -412,6 +856,8 @@ type LoginAccountOptions struct {
 	RequestID string
 	Email     string
 	Password  string
+	IPAddress string
+	UserAgent string
 }
 
 func (s *Services) LoginAccount(
@@ -491,14 +937,25 @@ func (s *Services) LoginAccount(
 		return authDTO, nil
 	}
 
-	return s.GenerateFullAuthDTO(
+	sessionID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return s.generateFullAuthDTO(
 		ctx,
-		logger,
-		s.database.Queries,
-		opts.RequestID,
-		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"Logged in account successfully",
+		generateFullAuthDTOOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountDTO.ID(),
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			sessionID:       sessionID,
+			scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+			clientID:        utils.NilBase62UUID,
+			ipAddress:       opts.IPAddress,
+			userAgent:       opts.UserAgent,
+		},
 	)
 }
 
@@ -699,6 +1156,8 @@ type VerifyAccount2FAOptions struct {
 	AccountVersion  int32
 	TwoFAType       tokens.TwoFAType
 	Code            string
+	IPAddress       string
+	UserAgent       string
 }
 
 func (s *Services) VerifyAccount2FA(
@@ -733,14 +1192,25 @@ func (s *Services) VerifyAccount2FA(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	return s.GenerateFullAuthDTO(
+	sessionID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return s.generateFullAuthDTO(
 		ctx,
-		logger,
-		s.database.Queries,
-		opts.RequestID,
-		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"2FA Logged in successfully",
+		generateFullAuthDTOOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountDTO.ID(),
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			sessionID:       sessionID,
+			scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+			clientID:        utils.NilBase62UUID,
+			ipAddress:       opts.IPAddress,
+			userAgent:       opts.UserAgent,
+		},
 	)
 }
 
@@ -786,27 +1256,43 @@ func (s *Services) LogoutAccount(
 		return exceptions.NewUnauthorizedError()
 	}
 
-	blt, err := s.database.GetRevokedToken(ctx, data.TokenID)
+	sessionToken, err := s.database.FindSessionTokenByTokenID(ctx, data.TokenID)
 	if err != nil {
-		if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to fetch revoked token", "error", err)
+		serviceErr = exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to fetch session token", "error", err)
 			return exceptions.NewInternalServerError()
 		}
-	} else {
-		logger.WarnContext(ctx, "Token is revoked", "revokedAt", blt.CreatedAt)
+
+		logger.WarnContext(ctx, "Session token was not found in the DB, it is probably revoked")
+		return exceptions.NewUnauthorizedError()
+	}
+	if sessionToken.ExpiresAt.Before(time.Now()) {
+		logger.WarnContext(ctx, "Session token is expired")
 		return exceptions.NewUnauthorizedError()
 	}
 
-	if err := s.database.RevokeToken(ctx, database.RevokeTokenParams{
-		TokenID:       data.TokenID,
-		AccountID:     accountDTO.ID(),
-		Owner:         database.TokenOwnerAccount,
-		OwnerPublicID: accountDTO.PublicID,
-		ExpiresAt:     data.ExpiresAt,
-		IssuedAt:      data.IssuedAt,
-	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to revoke the token", "error", err)
-		return exceptions.NewInternalServerError()
+	accountSession, err := s.database.FindAccountSessionByAccountIDAndSessionUUID(
+		ctx,
+		database.FindAccountSessionByAccountIDAndSessionUUIDParams{
+			AccountID:   accountDTO.ID(),
+			SessionUuid: sessionToken.SessionUuid,
+		},
+	)
+	if err != nil {
+		serviceErr = exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to fetch account session", "error", err)
+			return exceptions.NewInternalServerError()
+		}
+
+		logger.WarnContext(ctx, "Account session was not found in the DB")
+		return exceptions.NewUnauthorizedError()
+	}
+
+	if err := s.database.DeleteSessionByID(ctx, accountSession.SessionID); err != nil {
+		logger.ErrorContext(ctx, "Failed to delete session", "error", err)
+		return exceptions.FromDBError(err)
 	}
 
 	logger.InfoContext(ctx, "Logged out account successfully")
@@ -816,6 +1302,8 @@ func (s *Services) LogoutAccount(
 type RefreshTokenAccountOptions struct {
 	RequestID    string
 	RefreshToken string
+	IPAddress    string
+	UserAgent    string
 }
 
 func (s *Services) RefreshTokenAccount(
@@ -837,14 +1325,24 @@ func (s *Services) RefreshTokenAccount(
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
-	blt, err := s.database.GetRevokedToken(ctx, data.TokenID)
+	sessionToken, err := s.database.FindSessionTokenByTokenID(ctx, data.TokenID)
 	if err != nil {
-		if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to get blacklisted token", "error", err)
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to fetch session token", "error", err)
 			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 		}
-	} else {
-		logger.WarnContext(ctx, "Token is revoked", "revokedAt", blt.CreatedAt)
+
+		logger.WarnContext(ctx, "Token was not found in the DB, it is probably revoked")
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	}
+	if sessionToken.ExpiresAt.Before(time.Now()) {
+		if err := s.database.DeleteSessionToken(ctx, data.TokenID); err != nil {
+			logger.ErrorContext(ctx, "Failed to delete session token", "error", err)
+			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+		}
+
+		logger.WarnContext(ctx, "Session token is expired")
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
@@ -858,26 +1356,30 @@ func (s *Services) RefreshTokenAccount(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	if err := s.database.RevokeToken(ctx, database.RevokeTokenParams{
-		TokenID:       data.TokenID,
-		AccountID:     accountDTO.ID(),
-		Owner:         database.TokenOwnerAccount,
-		OwnerPublicID: accountDTO.PublicID,
-		ExpiresAt:     data.ExpiresAt,
-		IssuedAt:      data.IssuedAt,
-	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to blacklist previous refresh token", "error", err)
+	if err := s.database.DeleteSessionToken(ctx, data.TokenID); err != nil {
+		logger.ErrorContext(ctx, "Failed to delete session token", "error", err)
 		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
 	}
 
-	return s.GenerateFullAuthDTO(
+	sessionID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return s.generateFullAuthDTO(
 		ctx,
-		logger,
-		s.database.Queries,
-		opts.RequestID,
-		&accountDTO,
-		data.Scopes,
-		"Refreshed access token successfully",
+		generateFullAuthDTOOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountDTO.ID(),
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			sessionID:       sessionID,
+			scopes:          data.Scopes,
+			clientID:        utils.NilBase62UUID,
+			ipAddress:       opts.IPAddress,
+			userAgent:       opts.UserAgent,
+		},
 	)
 }
 

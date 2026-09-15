@@ -195,7 +195,12 @@ func (e *Crypto) GenerateES256KeyPair(
 	}
 
 	kid := utils.ExtractECDSAKeyID(priv.Public().(*ecdsa.PublicKey))
-	publicJwk := utils.EncodeP256Jwk(&priv.PublicKey, kid)
+	publicJwk, err := utils.EncodeP256Jwk(&priv.PublicKey, kid)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to encode JWK", "error", err)
+		return KeyPair{}, exceptions.NewInternalServerError()
+	}
+
 	if _, err := opts.StoreFN(dekID, utils.SupportedCryptoSuiteES256, kid, encryptedPrivateKey, &publicJwk); err != nil {
 		logger.ErrorContext(ctx, "Failed to store private key", "error", err)
 		return KeyPair{}, exceptions.NewInternalServerError()

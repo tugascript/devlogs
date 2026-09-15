@@ -202,6 +202,8 @@ func (c *Controllers) ConfirmDeleteAccount2FAConfig(ctx fiber.Ctx) error {
 			Version:   accountClaims.AccountVersion,
 			TwoFAType: urlParams.TwoFAType,
 			Code:      body.Code,
+			IPAddress: ctx.IP(),
+			UserAgent: ctx.Get(fiber.HeaderUserAgent),
 		},
 	)
 	if serviceErr != nil {

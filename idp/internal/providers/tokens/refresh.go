@@ -24,7 +24,7 @@ type AccountRefreshTokenOptions struct {
 	Scopes   []AccountScope
 }
 
-func (t *Tokens) CreateRefreshToken(opts AccountRefreshTokenOptions) (*jwt.Token, error) {
+func (t *Tokens) CreateRefreshToken(opts AccountRefreshTokenOptions) (*jwt.Token, JTI, error) {
 	return t.createAuthToken(accountAuthTokenOptions{
 		cryptoSuite:     utils.SupportedCryptoSuiteEd25519,
 		ttlSec:          t.refreshTTL,

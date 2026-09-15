@@ -42,14 +42,12 @@ func (c *Controllers) UpsertAccountDynamicRegistrationConfig(ctx fiber.Ctx) erro
 	dto, created, serviceErr := c.services.SaveAccountDynamicRegistrationConfig(
 		ctx.Context(),
 		services.SaveAccountDynamicRegistrationConfigOptions{
-			RequestID:                                requestID,
-			AccountPublicID:                          accountClaims.AccountID,
-			AccountVersion:                           accountClaims.AccountVersion,
-			AccountCredentialsTypes:                  body.AccountCredentialsTypes,
-			RequireSoftwareStatementCredentialTypes:  body.RequireSoftwareStatementCredentialTypes,
-			SoftwareStatementVerificationMethods:     body.SoftwareStatementVerificationMethods,
-			RequireInitialAccessTokenCredentialTypes: body.RequireInitialAccessTokenCredentialTypes,
-			InitialAccessTokenGenerationMethods:      body.InitialAccessTokenGenerationMethods,
+			RequestID:                               requestID,
+			AccountPublicID:                         accountClaims.AccountID,
+			AccountVersion:                          accountClaims.AccountVersion,
+			AccountCredentialsTypes:                 body.AccountCredentialsTypes,
+			RequireSoftwareStatementCredentialTypes: body.RequireSoftwareStatementCredentialTypes,
+			SoftwareStatementVerificationMethods:    body.SoftwareStatementVerificationMethods,
 		},
 	)
 	if serviceErr != nil {

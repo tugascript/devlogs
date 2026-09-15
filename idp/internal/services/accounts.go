@@ -127,10 +127,11 @@ func (s *Services) CreateAccount(
 		s.database.FinalizeTx(ctx, txn, err, serviceErr)
 	}()
 
-	publicID, err := uuid.NewRandom()
+	publicID, err := uuid.NewV7()
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to generate public ID", "error", err)
-		return dtos.AccountDTO{}, exceptions.NewInternalServerError()
+		serviceErr = exceptions.NewInternalServerError()
+		return dtos.AccountDTO{}, serviceErr
 	}
 
 	var account database.Account
@@ -313,8 +314,7 @@ func (s *Services) updateAccountEmailInDB(
 	}()
 
 	// Delete external auth providers since they won't be valid anymore
-	err = qrs.DeleteExternalAccountAuthProviders(ctx, oldEmail)
-	if err != nil {
+	if err = qrs.DeleteExternalAccountAuthProviders(ctx, oldEmail); err != nil {
 		return database.Account{}, err
 	}
 
@@ -336,6 +336,8 @@ type UpdateAccountEmailOptions struct {
 	Version   int32
 	Email     string
 	Password  string
+	IPAddress string
+	UserAgent string
 }
 
 func (s *Services) UpdateAccountEmail(
@@ -417,14 +419,26 @@ func (s *Services) UpdateAccountEmail(
 
 		logger.InfoContext(ctx, "Updated account email successfully")
 		accountDTO = dtos.MapAccountToDTO(&account)
-		return s.GenerateFullAuthDTO(
+
+		sessionUUID, err := uuid.NewV7()
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to generate new session UUID", "error", err)
+			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+		}
+
+		return s.generateFullAuthDTO(
 			ctx,
-			logger,
-			s.database.Queries,
-			opts.RequestID,
-			&accountDTO,
-			[]tokens.AccountScope{tokens.AccountScopeAdmin},
-			"Email updated successfully",
+			generateFullAuthDTOOptions{
+				requestID:       opts.RequestID,
+				accountID:       accountDTO.ID(),
+				accountVersion:  accountDTO.Version(),
+				accountPublicID: accountDTO.PublicID,
+				scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+				sessionID:       sessionUUID,
+				clientID:        utils.NilBase62UUID,
+				ipAddress:       opts.IPAddress,
+				userAgent:       opts.UserAgent,
+			},
 		)
 	}
 
@@ -463,6 +477,8 @@ type ConfirmUpdateAccountEmailOptions struct {
 	Version   int32
 	TwoFAType tokens.TwoFAType
 	Code      string
+	IPAddress string
+	UserAgent string
 }
 
 func (s *Services) ConfirmUpdateAccountEmail(
@@ -518,14 +534,26 @@ func (s *Services) ConfirmUpdateAccountEmail(
 
 	logger.InfoContext(ctx, "Confirmed account email update successfully")
 	accountDTO = dtos.MapAccountToDTO(&account)
-	return s.GenerateFullAuthDTO(
+
+	sessionID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return s.generateFullAuthDTO(
 		ctx,
-		logger,
-		s.database.Queries,
-		opts.RequestID,
-		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"Email updated successfully",
+		generateFullAuthDTOOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountDTO.ID(),
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			sessionID:       sessionID,
+			scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+			clientID:        utils.NilBase62UUID,
+			ipAddress:       opts.IPAddress,
+			userAgent:       opts.UserAgent,
+		},
 	)
 }
 
@@ -558,6 +586,8 @@ type UpdateAccountPasswordOptions struct {
 	Version     int32
 	Password    string
 	NewPassword string
+	IPAddress   string
+	UserAgent   string
 }
 
 func (s *Services) UpdateAccountPassword(
@@ -656,14 +686,26 @@ func (s *Services) UpdateAccountPassword(
 	}
 
 	accountDTO = dtos.MapAccountToDTO(&account)
-	return s.GenerateFullAuthDTO(
+
+	sessionID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return s.generateFullAuthDTO(
 		ctx,
-		logger,
-		s.database.Queries,
-		opts.RequestID,
-		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"Password updated successfully",
+		generateFullAuthDTOOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountDTO.ID(),
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			sessionID:       sessionID,
+			scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+			clientID:        utils.NilBase62UUID,
+			ipAddress:       opts.IPAddress,
+			userAgent:       opts.UserAgent,
+		},
 	)
 }
 
@@ -673,6 +715,8 @@ type ConfirmUpdateAccountPasswordOptions struct {
 	Version   int32
 	TwoFAType tokens.TwoFAType
 	Code      string
+	IPAddress string
+	UserAgent string
 }
 
 func (s *Services) ConfirmUpdateAccountPassword(
@@ -728,14 +772,26 @@ func (s *Services) ConfirmUpdateAccountPassword(
 
 	accountDTO = dtos.MapAccountToDTO(&account)
 	logger.InfoContext(ctx, "Confirmed account password update successfully")
-	return s.GenerateFullAuthDTO(
+
+	sessionID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return s.generateFullAuthDTO(
 		ctx,
-		logger,
-		s.database.Queries,
-		opts.RequestID,
-		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"Password updated successfully",
+		generateFullAuthDTOOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountDTO.ID(),
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			sessionID:       sessionID,
+			scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+			clientID:        utils.NilBase62UUID,
+			ipAddress:       opts.IPAddress,
+			userAgent:       opts.UserAgent,
+		},
 	)
 }
 
@@ -744,6 +800,8 @@ type CreateAccountPasswordOptions struct {
 	PublicID  uuid.UUID
 	Version   int32
 	Password  string
+	IPAddress string
+	UserAgent string
 }
 
 func (s *Services) CreateAccountPassword(
@@ -824,14 +882,26 @@ func (s *Services) CreateAccountPassword(
 
 	accountDTO = dtos.MapAccountToDTO(&account)
 	logger.InfoContext(ctx, "Account password created successfully")
-	return s.GenerateFullAuthDTO(
+
+	sessionID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return s.generateFullAuthDTO(
 		ctx,
-		logger,
-		s.database.Queries,
-		opts.RequestID,
-		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"Password created successfully",
+		generateFullAuthDTOOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountDTO.ID(),
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			sessionID:       sessionID,
+			scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+			clientID:        utils.NilBase62UUID,
+			ipAddress:       opts.IPAddress,
+			userAgent:       opts.UserAgent,
+		},
 	)
 }
 
@@ -882,6 +952,8 @@ type UpdateAccountUsernameOptions struct {
 	Version   int32
 	Username  string
 	Password  string
+	IPAddress string
+	UserAgent string
 }
 
 func (s *Services) UpdateAccountUsername(
@@ -996,14 +1068,26 @@ func (s *Services) UpdateAccountUsername(
 
 	accountDTO = dtos.MapAccountToDTO(&account)
 	logger.InfoContext(ctx, "Updated account username successfully")
-	return s.GenerateFullAuthDTO(
+
+	sessionID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return s.generateFullAuthDTO(
 		ctx,
-		logger,
-		s.database.Queries,
-		opts.RequestID,
-		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"Username updated successfully",
+		generateFullAuthDTOOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountDTO.ID(),
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			sessionID:       sessionID,
+			scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+			clientID:        utils.NilBase62UUID,
+			ipAddress:       opts.IPAddress,
+			userAgent:       opts.UserAgent,
+		},
 	)
 }
 
@@ -1013,6 +1097,8 @@ type ConfirmUpdateAccountUsernameOptions struct {
 	Version   int32
 	TwoFAType tokens.TwoFAType
 	Code      string
+	IPAddress string
+	UserAgent string
 }
 
 func (s *Services) ConfirmUpdateAccountUsername(
@@ -1071,14 +1157,26 @@ func (s *Services) ConfirmUpdateAccountUsername(
 
 	accountDTO = dtos.MapAccountToDTO(&account)
 	logger.InfoContext(ctx, "Updated account username successfully")
-	return s.GenerateFullAuthDTO(
+
+	sessionID, err := uuid.NewV7()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to generate session ID", "error", err)
+		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+
+	return s.generateFullAuthDTO(
 		ctx,
-		logger,
-		s.database.Queries,
-		opts.RequestID,
-		&accountDTO,
-		[]tokens.AccountScope{tokens.AccountScopeAdmin},
-		"Username updated successfully",
+		generateFullAuthDTOOptions{
+			requestID:       opts.RequestID,
+			accountID:       accountDTO.ID(),
+			accountPublicID: accountDTO.PublicID,
+			accountVersion:  accountDTO.Version(),
+			sessionID:       sessionID,
+			scopes:          []tokens.AccountScope{tokens.AccountScopeAdmin},
+			clientID:        utils.NilBase62UUID,
+			ipAddress:       opts.IPAddress,
+			userAgent:       opts.UserAgent,
+		},
 	)
 }
 
