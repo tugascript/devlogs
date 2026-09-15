@@ -228,7 +228,6 @@ func (c *Cache) VerifyAccountCredentialsDynamicRegistrationIATLoginCSRF(
 }
 
 type AccountCredentialsDynamicRegistrationIAT2FAData struct {
-	Username        string    `json:"username"`
 	AccountPublicID uuid.UUID `json:"account_public_id"`
 	AccountVersion  int32     `json:"account_version"`
 	RedirectURI     string    `json:"redirect_uri"`
@@ -243,7 +242,6 @@ func buildAccountCredentialsDynamicRegistrationIAT2FACacheKey(sessionID string) 
 }
 
 type SaveAccountCredentialsDynamicRegistrationIAT2FAOptions struct {
-	Username        string
 	RequestID       string
 	AccountPublicID uuid.UUID
 	AccountVersion  int32
@@ -271,7 +269,6 @@ func (c *Cache) SaveAccountCredentialsDynamicRegistrationIAT2FA(
 
 	sessionId := utils.Base64UUID()
 	data := AccountCredentialsDynamicRegistrationIAT2FAData{
-		Username:        opts.Username,
 		AccountPublicID: opts.AccountPublicID,
 		AccountVersion:  opts.AccountVersion,
 		RedirectURI:     opts.RedirectURI,
@@ -443,7 +440,6 @@ func buildAccountCredentialsDynamicRegistrationIATCodeCacheKey(codeID string) st
 }
 
 type AccountCredentialsDynamicRegistrationIATCodeData struct {
-	HostUsername    string    `json:"host_username"`
 	AccountPublicID uuid.UUID `json:"account_public_id"`
 	AccountVersion  int32     `json:"account_version"`
 	Domain          string    `json:"domain"`
@@ -453,7 +449,6 @@ type AccountCredentialsDynamicRegistrationIATCodeData struct {
 }
 
 type GenerateAccountCredentialsRegistrationIATCodeOptions struct {
-	HostUsername    string
 	RequestID       string
 	ClientID        string
 	AccountPublicID uuid.UUID
@@ -485,7 +480,6 @@ func (c *Cache) GenerateAccountCredentialsRegistrationIATCode(
 	}
 
 	data := AccountCredentialsDynamicRegistrationIATCodeData{
-		HostUsername:    opts.HostUsername,
 		AccountPublicID: opts.AccountPublicID,
 		AccountVersion:  opts.AccountVersion,
 		Domain:          opts.Domain,
@@ -572,7 +566,6 @@ func (c *Cache) VerifyAccountCredentialsRegistrationIATCode(
 }
 
 type AccountCredentialsDynamicRegistrationSessionData struct {
-	Username        string    `json:"username"`
 	AccountPublicID uuid.UUID `json:"account_public_id"`
 	AccountVersion  int32     `json:"account_version"`
 	SessionKey      string    `json:"session_key"`
@@ -595,7 +588,6 @@ func parseSessionKey(sessionKey string) (string, string, bool) {
 }
 
 type CreateAccountCredentialsRegistrationSessionKeyOptions struct {
-	Username        string
 	RequestID       string
 	ClientID        string
 	Domain          string
@@ -625,7 +617,6 @@ func (c *Cache) CreateAccountCredentialsRegistrationSessionKey(
 	}
 
 	data := AccountCredentialsDynamicRegistrationSessionData{
-		Username:        opts.Username,
 		AccountPublicID: opts.AccountPublicID,
 		AccountVersion:  opts.AccountVersion,
 		SessionKey:      utils.Sha256HashHex(sessionKey),
@@ -671,7 +662,7 @@ func (c *Cache) VerifyAccountCredentialsRegistrationSessionKey(
 	clientID, sessionKey, ok := parseSessionKey(opts.SessionKey)
 	if !ok {
 		logger.DebugContext(ctx, "Invalid account credentials registration session key format")
-		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, true, nil
+		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, false, nil
 	}
 
 	data, err := c.storage.GetWithContext(ctx, buildAccountCredentialsDynamicRegistrationSessionCacheKey(opts.Domain, clientID))
@@ -693,7 +684,7 @@ func (c *Cache) VerifyAccountCredentialsRegistrationSessionKey(
 	ok, err = utils.CompareShaHex(sessionKey, sessionData.SessionKey)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error comparing session key", "error", err)
-		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, false, err
+		return AccountCredentialsDynamicRegistrationSessionData{}, "", false, true, err
 	}
 	if !ok {
 		logger.DebugContext(ctx, "Invalid session key")

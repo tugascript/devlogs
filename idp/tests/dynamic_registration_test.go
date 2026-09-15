@@ -599,71 +599,38 @@ func assertRFC7592Lifecycle(t *testing.T, setup dcrSetup, clientID, rat, backend
 
 func TestOAuthDynamicRegistrationIATTokenExchange(t *testing.T) {
 	ctx := context.Background()
-	cfg := GetTestConfig(t)
 	cacheStore := GetTestCache(t)
 
-	for _, appClient := range []bool{false, true} {
-		t.Run(fmt.Sprintf("app=%t", appClient), func(t *testing.T) {
-			setup := setupDynamicRegistration(t, appClient, false, false)
-			verifier := utils.Base62UUID() + utils.Base62UUID()
-			challenge := utils.Sha256HashBase64(verifier)
-			hostUsername := ""
-			if appClient {
-				hostUsername = setup.account.Username
-			}
-			code, err := cacheStore.GenerateAccountCredentialsRegistrationIATCode(ctx, cache.GenerateAccountCredentialsRegistrationIATCodeOptions{
-				HostUsername: hostUsername, RequestID: uuid.NewString(), ClientID: setup.domain,
-				AccountPublicID: setup.account.PublicID, AccountVersion: setup.account.Version(),
-				Domain: setup.domain, Challenge: challenge,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
+	setup := setupDynamicRegistration(t, false, false, false)
+	verifier := utils.Base62UUID() + utils.Base62UUID()
+	challenge := utils.Sha256HashBase64(verifier)
+	code, err := cacheStore.GenerateAccountCredentialsRegistrationIATCode(ctx, cache.GenerateAccountCredentialsRegistrationIATCodeOptions{
+		RequestID: uuid.NewString(), ClientID: setup.domain,
+		AccountPublicID: setup.account.PublicID, AccountVersion: setup.account.Version(),
+		Domain: setup.domain, Challenge: challenge,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
-			form := url.Values{}
-			form.Set("grant_type", "authorization_code")
-			form.Set("code", code)
-			form.Set("client_id", setup.domain)
-			form.Set("code_verifier", verifier)
-			req := httptest.NewRequest(http.MethodPost, requestURL(setup.host, oauthIATTokenPath()), strings.NewReader(form.Encode()))
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			res, err := GetTestServer(t).App.Test(req, fiber.TestConfig{Timeout: 30 * time.Second, FailOnTimeout: true})
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer res.Body.Close()
-			response := decodeJSONObject(t, res)
-			if res.StatusCode != http.StatusOK {
-				t.Fatalf("status=%d error=%s", res.StatusCode, response["error"])
-			}
-			accessToken := jsonString(response["access_token"])
-			if accessToken == "" {
-				t.Fatal("missing access_token")
-			}
-
-			wrongHost := setup.account.Username + "." + cfg.BackendDomain()
-			if appClient {
-				wrongHost = cfg.BackendDomain()
-			}
-			mismatchCode, err := cacheStore.GenerateAccountCredentialsRegistrationIATCode(ctx, cache.GenerateAccountCredentialsRegistrationIATCodeOptions{
-				HostUsername: hostUsername, RequestID: uuid.NewString(), ClientID: setup.domain,
-				AccountPublicID: setup.account.PublicID, AccountVersion: setup.account.Version(),
-				Domain: setup.domain, Challenge: challenge,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			form.Set("code", mismatchCode)
-			badReq := httptest.NewRequest(http.MethodPost, requestURL(wrongHost, oauthIATTokenPath()), strings.NewReader(form.Encode()))
-			badReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			badRes, err := GetTestServer(t).App.Test(badReq, fiber.TestConfig{Timeout: 30 * time.Second, FailOnTimeout: true})
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer badRes.Body.Close()
-			if badRes.StatusCode != http.StatusUnauthorized {
-				t.Fatalf("cross-host token exchange status=%d", badRes.StatusCode)
-			}
-		})
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("code", code)
+	form.Set("client_id", setup.domain)
+	form.Set("code_verifier", verifier)
+	req := httptest.NewRequest(http.MethodPost, requestURL(setup.host, oauthIATTokenPath()), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := GetTestServer(t).App.Test(req, fiber.TestConfig{Timeout: 30 * time.Second, FailOnTimeout: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	response := decodeJSONObject(t, res)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status=%d error=%s", res.StatusCode, response["error"])
+	}
+	accessToken := jsonString(response["access_token"])
+	if accessToken == "" {
+		t.Fatal("missing access_token")
 	}
 }

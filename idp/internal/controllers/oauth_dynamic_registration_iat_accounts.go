@@ -31,14 +31,6 @@ func oauthDynamicRegistrationIATCookiePath() string {
 	return paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken
 }
 
-func (c *Controllers) registrationIssuerDomain(ctx fiber.Ctx) string {
-	username := registrationHostUsername(ctx)
-	if username == "" {
-		return c.backendDomain
-	}
-	return username + "." + c.backendDomain
-}
-
 func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistrationIAT, "OAuthDynamicRegistrationIATAuth")
@@ -77,7 +69,6 @@ func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx fiber.Ctx) error {
 	redirectURL, serviceErr := c.services.InitiateOAuthDynamicRegistrationIATAuth(
 		ctx.Context(),
 		services.InitiateOAuthDynamicRegistrationIATAuthOptions{
-			HostUsername:    registrationHostUsername(ctx),
 			RequestID:       requestID,
 			Domain:          baseQPrms.ClientID,
 			Origin:          ctx.Get(fiber.HeaderOrigin),
@@ -275,7 +266,6 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginPost(ctx fiber.Ctx) error 
 			Email:               loginBody.Email,
 			Password:            loginBody.Password,
 			BackendDomain:       c.backendDomain,
-			HostUsername:        registrationHostUsername(ctx),
 		},
 	)
 	if serviceErr != nil {
@@ -452,7 +442,6 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAPost(ctx fiber.Ctx) error {
 			CSRFToken:     hiddenFields.CSRFToken,
 			Code:          twoFABody.Code,
 			BackendDomain: c.backendDomain,
-			HostUsername:  registrationHostUsername(ctx),
 		},
 	)
 	if serviceErr != nil {
@@ -536,11 +525,10 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtAuthGet(ctx fiber.Ctx) error
 			ACCClientID:   uPrms.ACCClientID,
 			Provider:      uPrms.Provider,
 			Domain:        baseQPrms.ClientID,
-			CallbackURL:   "https://" + c.registrationIssuerDomain(ctx) + paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken + "/" + uPrms.ACCClientID + paths.InitialAccessTokenAuthEXT + "/" + uPrms.Provider + paths.InitialAccessTokenCallback,
+			CallbackURL:   "https://" + c.backendDomain + paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken + "/" + uPrms.ACCClientID + paths.InitialAccessTokenAuthEXT + "/" + uPrms.Provider + paths.InitialAccessTokenCallback,
 			RedirectURI:   baseQPrms.RedirectURI,
 			State:         qPrms.State,
 			BackendDomain: c.backendDomain,
-			HostUsername:  registrationHostUsername(ctx),
 		},
 	)
 	if serviceErr != nil {
@@ -580,9 +568,8 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtCB(ctx fiber.Ctx) error {
 			Provider:      uPrms.Provider,
 			State:         qPrms.State,
 			Code:          qPrms.Code,
-			RedirectURL:   "https://" + c.registrationIssuerDomain(ctx) + paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken + "/" + uPrms.ACCClientID + paths.InitialAccessTokenAuthEXT + "/" + uPrms.Provider + paths.InitialAccessTokenCallback,
+			RedirectURL:   "https://" + c.backendDomain + paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken + "/" + uPrms.ACCClientID + paths.InitialAccessTokenAuthEXT + "/" + uPrms.Provider + paths.InitialAccessTokenCallback,
 			BackendDomain: c.backendDomain,
-			HostUsername:  registrationHostUsername(ctx),
 		},
 	)
 	if serviceErr != nil {
@@ -634,9 +621,8 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtAppleCB(ctx fiber.Ctx) error
 			Email:         user.Email,
 			Code:          qPrms.Code,
 			State:         qPrms.State,
-			RedirectURL:   "https://" + c.registrationIssuerDomain(ctx) + paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken + "/" + uPrms.ACCClientID + paths.InitialAccessTokenAuthEXT + "/" + services.AuthProviderApple + paths.InitialAccessTokenCallback,
+			RedirectURL:   "https://" + c.backendDomain + paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken + "/" + uPrms.ACCClientID + paths.InitialAccessTokenAuthEXT + "/" + services.AuthProviderApple + paths.InitialAccessTokenCallback,
 			BackendDomain: c.backendDomain,
-			HostUsername:  registrationHostUsername(ctx),
 		},
 	)
 	if serviceErr != nil {
@@ -675,7 +661,6 @@ func (c *Controllers) OAuthDynamicRegistrationIATToken(ctx fiber.Ctx) error {
 		ctx.Context(),
 		services.VerifyOAuthDynamicRegistrationIATCodeOptions{
 			BackendDomain: c.backendDomain,
-			HostUsername:  registrationHostUsername(ctx),
 			RequestID:     requestID,
 			Code:          body.Code,
 			CodeVerifier:  body.CodeVerifier,
@@ -688,10 +673,4 @@ func (c *Controllers) OAuthDynamicRegistrationIATToken(ctx fiber.Ctx) error {
 
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(authDTO)
-}
-
-// HostMiddleware validates the host and sets accountUsername for tenant hosts.
-func registrationHostUsername(ctx fiber.Ctx) string {
-	username, _ := ctx.Locals("accountUsername").(string)
-	return username
 }

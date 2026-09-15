@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"reflect"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -805,23 +806,20 @@ func (s *Services) LogoutUser(
 		return serviceErr
 	}
 
-	blt, err := s.database.GetRevokedToken(ctx, tokenID)
+	stn, err := s.database.FindSessionTokenByTokenID(ctx, tokenID)
 	if err != nil {
-		if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to fetch revoked token", "error", err)
-			return exceptions.NewInternalServerError()
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to find session token by token ID", "error", err)
+			return serviceErr
 		}
-	} else {
-		logger.WarnContext(ctx, "Token is revoked", "revokedAt", blt.CreatedAt)
+
+		logger.WarnContext(ctx, "Session token not found", "tokenID", tokenID)
 		return exceptions.NewUnauthorizedError()
 	}
-
-	if err := s.database.RevokeToken(ctx, database.RevokeTokenParams{
-		TokenID:   tokenID,
-		ExpiresAt: exp,
-	}); err != nil {
-		logger.ErrorContext(ctx, "Failed to revoke token", "error", err)
-		return exceptions.NewInternalServerError()
+	if stn.ExpiresAt.Before(time.Now()) {
+		logger.WarnContext(ctx, "Session token expired", "expiresAt", stn.ExpiresAt)
+		return exceptions.NewUnauthorizedError()
 	}
 
 	logger.InfoContext(ctx, "User logged out successfully")
