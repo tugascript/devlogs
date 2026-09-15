@@ -763,18 +763,7 @@ func (s *Services) LogoutUser(
 	)
 	logger.InfoContext(ctx, "Logging out user...")
 
-	appDTO, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{
-		RequestID: opts.RequestID,
-		ClientID:  opts.AppClientID,
-		Version:   opts.AppVersion,
-		AccountID: opts.AccountID,
-	})
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to get app by ID", "error", serviceErr)
-		return serviceErr
-	}
-
-	userClaims, appClaims, _, tokenID, exp, err := s.jwt.VerifyUserAuthToken(
+	userClaims, appClaims, _, tokenID, _, err := s.jwt.VerifyUserAuthToken(
 		opts.Token,
 		utils.SupportedCryptoSuiteEd25519,
 		s.BuildGetAccountPublicKeyFn(ctx, BuildGetAccountPublicKeyFnOptions{
@@ -791,9 +780,31 @@ func (s *Services) LogoutUser(
 		logger.WarnContext(ctx, "Invalid user ID", "tokenUserId", userClaims.UserID, "userPublicId", opts.UserPublicID)
 		return exceptions.NewUnauthorizedError()
 	}
+
+	appDTO, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{
+		RequestID: opts.RequestID,
+		ClientID:  opts.AppClientID,
+		Version:   opts.AppVersion,
+		AccountID: opts.AccountID,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get app by ID", "error", serviceErr)
+		return serviceErr
+	}
 	if appClaims.ClientID != appDTO.ClientID {
 		logger.WarnContext(ctx, "Invalid app client ID", "tokenAppClientId", appClaims.ClientID, "appClientId", opts.AppClientID)
 		return exceptions.NewUnauthorizedError()
+	}
+
+	userDTO, serviceErr := s.GetUserByPublicIDAndVersion(ctx, GetUserByPublicIDAndVersionOptions{
+		RequestID: opts.RequestID,
+		AccountID: opts.AccountID,
+		PublicID:  opts.UserPublicID,
+		Version:   opts.UserVersion,
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to get user by ID", "error", serviceErr)
+		return serviceErr
 	}
 
 	if _, serviceErr := s.GetUserByPublicIDAndVersion(ctx, GetUserByPublicIDAndVersionOptions{
@@ -820,6 +831,25 @@ func (s *Services) LogoutUser(
 	if stn.ExpiresAt.Before(time.Now()) {
 		logger.WarnContext(ctx, "Session token expired", "expiresAt", stn.ExpiresAt)
 		return exceptions.NewUnauthorizedError()
+	}
+
+	userSession, err := s.database.FindUserSessionByUserIDAndSessionUUID(ctx, database.FindUserSessionByUserIDAndSessionUUIDParams{
+		UserID:      userDTO.ID(),
+		SessionUuid: stn.SessionUuid,
+	})
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to find user session by user ID and session UUID", "error", err)
+			return serviceErr
+		}
+
+		logger.WarnContext(ctx, "User session not found", "userID", opts.UserPublicID, "sessionUUID", tokenID)
+		return exceptions.NewUnauthorizedError()
+	}
+	if err := s.database.DeleteSessionByID(ctx, userSession.SessionID); err != nil {
+		logger.ErrorContext(ctx, "Failed to delete session", "error", err)
+		return exceptions.FromDBError(err)
 	}
 
 	logger.InfoContext(ctx, "User logged out successfully")
@@ -863,13 +893,25 @@ func (s *Services) RefreshUserAccess(
 	}
 
 	// Check if token is blacklisted
-	blt, err := s.database.GetRevokedToken(ctx, tokenID)
-	if err == nil {
-		logger.WarnContext(ctx, "Token is revoked", "revokedAt", blt.CreatedAt)
+	sessionToken, err := s.database.FindSessionTokenByTokenID(ctx, tokenID)
+	if err != nil {
+		serviceErr := exceptions.FromDBError(err)
+		if serviceErr.Code != exceptions.CodeNotFound {
+			logger.ErrorContext(ctx, "Failed to fetch session token", "error", err)
+			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+		}
+
+		logger.WarnContext(ctx, "Token was not found in the DB, it is probably revoked")
 		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
-	} else if exceptions.FromDBError(err).Code != exceptions.CodeNotFound {
-		logger.ErrorContext(ctx, "Failed to check blacklisted token", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+	}
+	if sessionToken.ExpiresAt.Before(time.Now()) {
+		if err := s.database.DeleteSessionToken(ctx, tokenID); err != nil {
+			logger.ErrorContext(ctx, "Failed to delete session token", "error", err)
+			return dtos.AuthDTO{}, exceptions.NewInternalServerError()
+		}
+
+		logger.WarnContext(ctx, "Session token is expired")
+		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
 	}
 
 	userDTO, serviceErr := s.GetUserByPublicIDAndVersion(ctx, GetUserByPublicIDAndVersionOptions{
@@ -919,6 +961,7 @@ func (s *Services) RefreshUserAccess(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
+	// TODO: fix all user login logic
 	return s.generateFullUserAuthDTO(
 		ctx,
 		logger,
