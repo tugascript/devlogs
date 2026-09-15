@@ -31,7 +31,9 @@ INSERT INTO "apps" (
   "redirect_uris",
   "response_types",
   "allow_user_registration",
-  "auth_providers"
+  "auth_providers",
+  "session_type",
+  "access_token_ttl"
 ) VALUES (
   $1,
   $2,
@@ -58,7 +60,9 @@ INSERT INTO "apps" (
   $23,
   $24,
   $25,
-  $26
+  $26,
+  $27,
+  $28
 ) RETURNING *;
 
 

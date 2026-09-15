@@ -695,14 +695,7 @@ func TestRefreshToken(t *testing.T) {
 		if err != nil {
 			t.Fatal("Failed to verify refresh token", err)
 		}
-		if err := testDb.RevokeToken(context.Background(), database.RevokeTokenParams{
-			TokenID:       data.TokenID,
-			AccountID:     account.ID(),
-			Owner:         database.TokenOwnerAccount,
-			OwnerPublicID: account.PublicID,
-			IssuedAt:      data.IssuedAt,
-			ExpiresAt:     data.ExpiresAt,
-		}); err != nil {
+		if err := testDb.DeleteSessionToken(context.Background(), data.TokenID); err != nil {
 			t.Fatal("Failed to blacklist token", err)
 		}
 

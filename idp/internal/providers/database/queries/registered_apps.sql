@@ -45,7 +45,9 @@ INSERT INTO "apps" (
   "default_acr_values",
   "initiate_login_uri",
   "request_uris",
-  "access_token_signing_alg"
+  "access_token_signing_alg",
+  "session_type",
+  "access_token_ttl"
 ) VALUES (
   $1,
   $2,
@@ -92,7 +94,9 @@ INSERT INTO "apps" (
   $43,
   $44,
   $45,
-  $46
+  $46,
+  $47,
+  $48
 ) RETURNING *;
 
 -- name: UpdateRegisteredApp :one

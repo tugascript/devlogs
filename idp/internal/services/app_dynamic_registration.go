@@ -260,6 +260,8 @@ func (s *Services) mapAppRegistrationDataToDBParams(
 		InitiateLoginUri:             mapEmptyURL(opts.data.InitiateLoginURI),
 		RequestUris:                  opts.data.RequestURIs,
 		AccessTokenSigningAlg:        accessTokenSigningAlg,
+		SessionType:                  database.SessionTypeSliding,
+		AccessTokenTtl:               int32(s.jwt.GetAccessTTL()),
 		AccountID:                    opts.accountID,
 		AccountPublicID:              opts.accountPublicID,
 		AppType:                      opts.appType,
