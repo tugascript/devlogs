@@ -1132,15 +1132,15 @@ func TestCreateAccountCredentialsSecret(t *testing.T) {
 		return accountCredentialsPath + "/" + clientID + "/secrets"
 	}
 
-	testCases := []TestRequestCase[any]{
+	testCases := []TestRequestCase[bodies.CreateCredentialsSecretBody]{
 		{
 			Name: "Should return 201 CREATED and create new secret for client_secret_post",
-			ReqFn: func(t *testing.T) (any, string) {
+			ReqFn: func(t *testing.T) (bodies.CreateCredentialsSecretBody, string) {
 				accessToken := createAccountCredentialBeforeEach(t, "client_secret_post")
-				return nil, accessToken
+				return bodies.CreateCredentialsSecretBody{}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
-			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+			AssertFn: func(t *testing.T, _ bodies.CreateCredentialsSecretBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
 				AssertNotEmpty(t, resBody.PublicID)
 				AssertEqual(t, resBody.Status, "active")
@@ -1150,12 +1150,12 @@ func TestCreateAccountCredentialsSecret(t *testing.T) {
 		},
 		{
 			Name: "Should return 201 CREATED and create new key for private_key_jwt",
-			ReqFn: func(t *testing.T) (any, string) {
+			ReqFn: func(t *testing.T) (bodies.CreateCredentialsSecretBody, string) {
 				accessToken := createAccountCredentialBeforeEach(t, "private_key_jwt")
-				return nil, accessToken
+				return bodies.CreateCredentialsSecretBody{Algorithm: "ES256"}, accessToken
 			},
 			ExpStatus: http.StatusCreated,
-			AssertFn: func(t *testing.T, _ any, res *http.Response) {
+			AssertFn: func(t *testing.T, _ bodies.CreateCredentialsSecretBody, res *http.Response) {
 				resBody := AssertTestResponseBody(t, res, dtos.ClientCredentialsSecretDTO{})
 				AssertNotEmpty(t, resBody.PublicID)
 				AssertEqual(t, resBody.Status, "active")
@@ -1165,28 +1165,28 @@ func TestCreateAccountCredentialsSecret(t *testing.T) {
 		},
 		{
 			Name: "Should return 404 NOT FOUND for non-existent credential",
-			ReqFn: func(t *testing.T) (any, string) {
+			ReqFn: func(t *testing.T) (bodies.CreateCredentialsSecretBody, string) {
 				accessToken := createAccountCredentialBeforeEach(t, "client_secret_post")
 				clientID = utils.Base62UUID()
-				return nil, accessToken
+				return bodies.CreateCredentialsSecretBody{}, accessToken
 			},
 			ExpStatus: http.StatusNotFound,
-			AssertFn:  AssertNotFoundError[any],
+			AssertFn:  AssertNotFoundError[bodies.CreateCredentialsSecretBody],
 			PathFn:    pathFN,
 		},
 		{
 			Name: "Should return 401 UNAUTHORIZED without access token",
-			ReqFn: func(t *testing.T) (any, string) {
+			ReqFn: func(t *testing.T) (bodies.CreateCredentialsSecretBody, string) {
 				createAccountCredentialBeforeEach(t, "client_secret_post")
-				return nil, ""
+				return bodies.CreateCredentialsSecretBody{}, ""
 			},
 			ExpStatus: http.StatusUnauthorized,
-			AssertFn:  AssertUnauthorizedError[any],
+			AssertFn:  AssertUnauthorizedError[bodies.CreateCredentialsSecretBody],
 			PathFn:    pathFN,
 		},
 		{
 			Name: "Should return 403 FORBIDDEN without account:credentials:write scope",
-			ReqFn: func(t *testing.T) (any, string) {
+			ReqFn: func(t *testing.T) (bodies.CreateCredentialsSecretBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken := GenerateScopedAccountAccessToken(t, &account, []string{tokens.AccountScopeCredentialsRead})
 
@@ -1207,10 +1207,10 @@ func TestCreateAccountCredentialsSecret(t *testing.T) {
 					t.Fatalf("Failed to create account credentials: %v", err)
 				}
 				clientID = cred.ClientID
-				return nil, accessToken
+				return bodies.CreateCredentialsSecretBody{}, accessToken
 			},
 			ExpStatus: http.StatusForbidden,
-			AssertFn:  AssertForbiddenError[any],
+			AssertFn:  AssertForbiddenError[bodies.CreateCredentialsSecretBody],
 			PathFn:    pathFN,
 		},
 	}

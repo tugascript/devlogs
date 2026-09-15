@@ -368,11 +368,12 @@ func (s *Services) createAccountGrantSessionAndToken(
 	}
 
 	if err = qrs.CreateSessionToken(ctx, database.CreateSessionTokenParams{
-		SessionID: sessionID,
-		TokenID:   opts.tokenID,
-		AccountID: opts.accountID,
-		GrantID:   grantID,
-		ExpiresAt: expiresAt,
+		SessionID:   sessionID,
+		SessionUuid: opts.sessionID,
+		TokenID:     opts.tokenID,
+		AccountID:   opts.accountID,
+		GrantID:     grantID,
+		ExpiresAt:   expiresAt,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create session token", "error", err)
 		serviceErr = exceptions.FromDBError(err)
@@ -494,11 +495,12 @@ func (s *Services) createAccountSessionAndToken(
 	}
 
 	if err = qrs.CreateSessionToken(ctx, database.CreateSessionTokenParams{
-		SessionID: sessionID,
-		TokenID:   opts.tokenID,
-		AccountID: opts.accountID,
-		GrantID:   opts.grantID,
-		ExpiresAt: expiresAt,
+		SessionID:   sessionID,
+		SessionUuid: opts.sessionID,
+		TokenID:     opts.tokenID,
+		AccountID:   opts.accountID,
+		GrantID:     opts.grantID,
+		ExpiresAt:   expiresAt,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create session token", "error", err)
 		serviceErr = exceptions.FromDBError(err)
@@ -584,11 +586,12 @@ func (s *Services) upsertAccountGrantSessionAndToken(
 	}
 
 	if err = qrs.CreateSessionToken(ctx, database.CreateSessionTokenParams{
-		SessionID: session.SessionID,
-		TokenID:   opts.tokenID,
-		AccountID: opts.accountID,
-		GrantID:   grant.GrantID,
-		ExpiresAt: expiresAt,
+		SessionID:   session.SessionID,
+		SessionUuid: opts.sessionID,
+		TokenID:     opts.tokenID,
+		AccountID:   opts.accountID,
+		GrantID:     grant.GrantID,
+		ExpiresAt:   expiresAt,
 	}); err != nil {
 		logger.ErrorContext(ctx, "Failed to create session token", "error", err)
 		serviceErr = exceptions.FromDBError(err)

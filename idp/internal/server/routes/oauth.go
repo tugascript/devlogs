@@ -17,8 +17,8 @@ func (r *Routes) OAuthRoutes(app *fiber.App) {
 
 	// Known auth paths (oauth2)
 	router.Post(paths.OAuthKeys, r.controllers.HostMiddleware, HostAwareRoute(
-		[]fiber.Handler{r.controllers.GlobalOAuthPublicJWKs},
-		[]fiber.Handler{r.controllers.AccountDistributedOAuthPublicJWKs},
+		r.controllers.GlobalOAuthPublicJWKs,
+		r.controllers.AccountDistributedOAuthPublicJWKs,
 	))
 	router.Post(paths.OAuthToken, r.controllers.AccountOAuthToken)
 	router.Get(paths.OAuthAuth, r.controllers.AccountOAuthURL)
@@ -31,58 +31,26 @@ func (r *Routes) OAuthRoutes(app *fiber.App) {
 	router.Post(
 		paths.OAuthRegister,
 		r.controllers.HostMiddleware,
-		HostAwareRoute(
-			[]fiber.Handler{
-				r.controllers.DynamicRegistrationIATMiddleware,
-				r.controllers.OAuthDynamicRegistration,
-			},
-			[]fiber.Handler{
-				r.controllers.AppDynamicRegistrationIATMiddleware,
-				r.controllers.OAuthAppDynamicRegistration,
-			},
-		),
+		HostAwareRoute(r.controllers.DynamicRegistrationIATMiddleware, r.controllers.AppDynamicRegistrationIATMiddleware),
+		HostAwareRoute(r.controllers.OAuthDynamicRegistration, r.controllers.OAuthAppDynamicRegistration),
 	)
 	router.Get(
 		paths.OAuthRegisterClient,
 		r.controllers.HostMiddleware,
-		HostAwareRoute(
-			[]fiber.Handler{
-				r.controllers.DynamicRegistrationAccessTokenMiddleware,
-				r.controllers.OAuthDynamicRegistrationGet,
-			},
-			[]fiber.Handler{
-				r.controllers.AppDynamicRegistrationAccessTokenMiddleware,
-				r.controllers.OAuthAppDynamicRegistrationGet,
-			},
-		),
+		HostAwareRoute(r.controllers.DynamicRegistrationAccessTokenMiddleware, r.controllers.AppDynamicRegistrationAccessTokenMiddleware),
+		HostAwareRoute(r.controllers.OAuthDynamicRegistrationGet, r.controllers.OAuthAppDynamicRegistrationGet),
 	)
 	router.Put(
 		paths.OAuthRegisterClient,
 		r.controllers.HostMiddleware,
-		HostAwareRoute(
-			[]fiber.Handler{
-				r.controllers.DynamicRegistrationAccessTokenMiddleware,
-				r.controllers.OAuthDynamicRegistrationUpdate,
-			},
-			[]fiber.Handler{
-				r.controllers.AppDynamicRegistrationAccessTokenMiddleware,
-				r.controllers.OAuthAppDynamicRegistrationUpdate,
-			},
-		),
+		HostAwareRoute(r.controllers.DynamicRegistrationAccessTokenMiddleware, r.controllers.AppDynamicRegistrationAccessTokenMiddleware),
+		HostAwareRoute(r.controllers.OAuthDynamicRegistrationUpdate, r.controllers.OAuthAppDynamicRegistrationUpdate),
 	)
 	router.Delete(
 		paths.OAuthRegisterClient,
 		r.controllers.HostMiddleware,
-		HostAwareRoute(
-			[]fiber.Handler{
-				r.controllers.DynamicRegistrationAccessTokenMiddleware,
-				r.controllers.OAuthDynamicRegistrationDelete,
-			},
-			[]fiber.Handler{
-				r.controllers.AppDynamicRegistrationAccessTokenMiddleware,
-				r.controllers.OAuthAppDynamicRegistrationDelete,
-			},
-		),
+		HostAwareRoute(r.controllers.DynamicRegistrationAccessTokenMiddleware, r.controllers.AppDynamicRegistrationAccessTokenMiddleware),
+		HostAwareRoute(r.controllers.OAuthDynamicRegistrationDelete, r.controllers.OAuthAppDynamicRegistrationDelete),
 	)
 
 	// Initial Access Token (IAT) routes

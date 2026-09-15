@@ -59,7 +59,9 @@ INSERT INTO "apps" (
   "default_acr_values",
   "initiate_login_uri",
   "request_uris",
-  "access_token_signing_alg"
+  "access_token_signing_alg",
+  "session_type",
+  "access_token_ttl"
 ) VALUES (
   $1,
   $2,
@@ -106,7 +108,9 @@ INSERT INTO "apps" (
   $43,
   $44,
   $45,
-  $46
+  $46,
+  $47,
+  $48
 ) RETURNING id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
 `
 
@@ -157,6 +161,8 @@ type CreateRegisteredAppParams struct {
 	InitiateLoginUri             pgtype.Text
 	RequestUris                  []string
 	AccessTokenSigningAlg        TokenCryptoSuite
+	SessionType                  SessionType
+	AccessTokenTtl               int32
 }
 
 func (q *Queries) CreateRegisteredApp(ctx context.Context, arg CreateRegisteredAppParams) (App, error) {
@@ -207,6 +213,8 @@ func (q *Queries) CreateRegisteredApp(ctx context.Context, arg CreateRegisteredA
 		arg.InitiateLoginUri,
 		arg.RequestUris,
 		arg.AccessTokenSigningAlg,
+		arg.SessionType,
+		arg.AccessTokenTtl,
 	)
 	var i App
 	err := row.Scan(

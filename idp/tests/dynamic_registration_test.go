@@ -9,13 +9,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
@@ -63,30 +61,6 @@ func jsonString(raw json.RawMessage) string {
 	var value string
 	_ = json.Unmarshal(raw, &value)
 	return value
-}
-
-func doJSONRequest(t *testing.T, method, rawURL, accessToken string, body any) *http.Response {
-	t.Helper()
-	var reader io.Reader
-	if body != nil {
-		encoded, err := json.Marshal(body)
-		if err != nil {
-			t.Fatal(err)
-		}
-		reader = bytes.NewReader(encoded)
-	}
-	req := httptest.NewRequest(method, rawURL, reader)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	if accessToken != "" {
-		req.Header.Set("Authorization", "Bearer "+accessToken)
-	}
-	res, err := GetTestServer(t).App.Test(req, fiber.TestConfig{Timeout: 30 * time.Second, FailOnTimeout: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return res
 }
 
 func signSoftwareStatement(t *testing.T, private ed25519.PrivateKey, kid string, claims jwt.MapClaims) string {
@@ -283,18 +257,9 @@ func setupDynamicRegistration(t *testing.T, appClient, bounded, statement bool) 
 	}
 }
 
-func postRegister(t *testing.T, setup dcrSetup) *http.Response {
-	t.Helper()
-	return doJSONRequest(t, http.MethodPost, requestURL(setup.host, oauthRegisterPath()), setup.accessToken, setup.body)
-}
-
 func assertCreatedRegistration(t *testing.T, setup dcrSetup, res *http.Response) (clientID, rat, registrationURI string) {
 	t.Helper()
-	defer res.Body.Close()
 	response := decodeJSONObject(t, res)
-	if res.StatusCode != http.StatusCreated {
-		t.Fatalf("status=%d error=%s", res.StatusCode, response["error"])
-	}
 	clientID = jsonString(response["client_id"])
 	returnedName := jsonString(response["client_name"])
 	scope := jsonString(response["scope"])
@@ -357,65 +322,90 @@ func assertCreatedRegistration(t *testing.T, setup dcrSetup, res *http.Response)
 // Exercise the actual HTTP route, IAT verification, software-statement trust,
 // credential issuance and database persistence together.
 func TestDynamicRegistration(t *testing.T) {
+	testCases := make([]TestRequestCase[dcrSetup], 0, 6)
 	for _, appClient := range []bool{true, false} {
 		for _, bounded := range []bool{false, true} {
 			if !appClient && !bounded {
 				continue
 			} // Account registration is protected by policy.
 			for _, statement := range []bool{false, true} {
-				t.Run(fmt.Sprintf("app=%t/iat=%t/statement=%t", appClient, bounded, statement), func(t *testing.T) {
-					setup := setupDynamicRegistration(t, appClient, bounded, statement)
-					res := postRegister(t, setup)
-					assertCreatedRegistration(t, setup, res)
+				appClient, bounded, statement := appClient, bounded, statement
+				testCases = append(testCases, TestRequestCase[dcrSetup]{
+					Name: fmt.Sprintf("app=%t/iat=%t/statement=%t", appClient, bounded, statement),
+					ReqFn: func(t *testing.T) (dcrSetup, string) {
+						setup := setupDynamicRegistration(t, appClient, bounded, statement)
+						return setup, setup.accessToken
+					},
+					RequestBodyFn: func(setup dcrSetup) any { return setup.body },
+					HostFn:        func(setup dcrSetup) string { return setup.host },
+					ExpStatus:     http.StatusCreated,
+					AssertFn: func(t *testing.T, setup dcrSetup, res *http.Response) {
+						assertCreatedRegistration(t, setup, res)
+					},
 				})
 			}
 		}
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, oauthRegisterPath(), tc)
+		})
 	}
 }
 
 func TestDynamicRegistrationIATHostIsolation(t *testing.T) {
 	cfg := GetTestConfig(t)
 
-	t.Run("account IAT cannot register an app", func(t *testing.T) {
-		setup := setupDynamicRegistration(t, false, true, false)
-		setup.host = setup.account.Username + "." + cfg.BackendDomain()
-		setup.body["application_type"] = "web"
-		if _, _, serviceErr := GetTestServices(t).SaveAppDynamicRegistrationConfig(context.Background(), services.SaveAppDynamicRegistrationConfigOptions{
-			RequestID: uuid.NewString(), AccountPublicID: setup.account.PublicID, AccountVersion: setup.account.Version(),
-			AllowedAppTypes: []string{"web"}, DefaultUsernameColumn: "email", DefaultAuthProviders: []string{"local"},
-			DefaultAllowedScopes: []string{"openid", "profile"}, DefaultScopes: []string{"openid"},
-			SoftwareStatementVerificationMethods: []string{"manual"}, InitialAccessTokenGenerationMethods: []string{"manual", "authorization_code"},
-			InitialAccessTokenTtl: 300, InitialAccessTokenMaxUses: 10,
-			AllowedGrantTypes: []string{"authorization_code", "refresh_token"}, AllowedResponseTypes: []string{"code"},
-			AllowedTokenEndpointAuthMethods: []string{"client_secret_basic", "none", "private_key_jwt"}, MaxRedirectUris: 10,
-		}); serviceErr != nil {
-			t.Fatal(serviceErr)
-		}
-		res := postRegister(t, setup)
-		defer res.Body.Close()
+	assertAccessDenied := func(t *testing.T, _ dcrSetup, res *http.Response) {
 		response := decodeJSONObject(t, res)
-		if res.StatusCode != http.StatusUnauthorized {
-			t.Fatalf("status=%d error=%s", res.StatusCode, response["error"])
-		}
-		if jsonString(response["error"]) != exceptions.OAuthErrorAccessDenied {
-			t.Fatalf("error=%s", response["error"])
-		}
-	})
+		AssertEqual(t, jsonString(response["error"]), exceptions.OAuthErrorAccessDenied)
+	}
+	testCases := []TestRequestCase[dcrSetup]{
+		{
+			Name: "account IAT cannot register an app",
+			ReqFn: func(t *testing.T) (dcrSetup, string) {
+				setup := setupDynamicRegistration(t, false, true, false)
+				setup.host = setup.account.Username + "." + cfg.BackendDomain()
+				setup.body["application_type"] = "web"
+				if _, _, serviceErr := GetTestServices(t).SaveAppDynamicRegistrationConfig(context.Background(), services.SaveAppDynamicRegistrationConfigOptions{
+					RequestID: uuid.NewString(), AccountPublicID: setup.account.PublicID, AccountVersion: setup.account.Version(),
+					AllowedAppTypes: []string{"web"}, DefaultUsernameColumn: "email", DefaultAuthProviders: []string{"local"},
+					DefaultAllowedScopes: []string{"openid", "profile"}, DefaultScopes: []string{"openid"},
+					SoftwareStatementVerificationMethods: []string{"manual"}, InitialAccessTokenGenerationMethods: []string{"manual", "authorization_code"},
+					InitialAccessTokenTtl: 300, InitialAccessTokenMaxUses: 10,
+					AllowedGrantTypes: []string{"authorization_code", "refresh_token"}, AllowedResponseTypes: []string{"code"},
+					AllowedTokenEndpointAuthMethods: []string{"client_secret_basic", "none", "private_key_jwt"}, MaxRedirectUris: 10,
+				}); serviceErr != nil {
+					t.Fatal(serviceErr)
+				}
+				return setup, setup.accessToken
+			},
+			RequestBodyFn: func(setup dcrSetup) any { return setup.body },
+			HostFn:        func(setup dcrSetup) string { return setup.host },
+			ExpStatus:     http.StatusUnauthorized,
+			AssertFn:      assertAccessDenied,
+		},
+		{
+			Name: "app IAT cannot register account credentials",
+			ReqFn: func(t *testing.T) (dcrSetup, string) {
+				setup := setupDynamicRegistration(t, true, true, false)
+				setup.host = cfg.BackendDomain()
+				setup.body["application_type"] = "native"
+				return setup, setup.accessToken
+			},
+			RequestBodyFn: func(setup dcrSetup) any { return setup.body },
+			HostFn:        func(setup dcrSetup) string { return setup.host },
+			ExpStatus:     http.StatusUnauthorized,
+			AssertFn:      assertAccessDenied,
+		},
+	}
 
-	t.Run("app IAT cannot register account credentials", func(t *testing.T) {
-		setup := setupDynamicRegistration(t, true, true, false)
-		setup.host = cfg.BackendDomain()
-		setup.body["application_type"] = "native"
-		res := postRegister(t, setup)
-		defer res.Body.Close()
-		response := decodeJSONObject(t, res)
-		if res.StatusCode != http.StatusUnauthorized {
-			t.Fatalf("status=%d error=%s", res.StatusCode, response["error"])
-		}
-		if jsonString(response["error"]) != exceptions.OAuthErrorAccessDenied {
-			t.Fatalf("error=%s", response["error"])
-		}
-	})
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			PerformTestRequestCase(t, http.MethodPost, oauthRegisterPath(), tc)
+		})
+	}
 }
 
 func TestDynamicRegistrationSoftwareStatementFailures(t *testing.T) {
@@ -427,53 +417,59 @@ func TestDynamicRegistrationSoftwareStatementFailures(t *testing.T) {
 	}
 	approveSoftwareStatementKey(t, setup.account, goodJSON, goodKid, database.CredentialsUsageApp)
 
-	cases := []struct {
-		name      string
-		statement string
-		wantError string
-	}{
+	buildRequest := func(statement string) dcrSetup {
+		request := setup
+		request.body = cloneMap(setup.body)
+		request.body["software_statement"] = statement
+		return request
+	}
+	assertError := func(want string) func(*testing.T, dcrSetup, *http.Response) {
+		return func(t *testing.T, _ dcrSetup, res *http.Response) {
+			response := decodeJSONObject(t, res)
+			AssertEqual(t, jsonString(response["error"]), want)
+		}
+	}
+
+	testCases := []TestRequestCase[dcrSetup]{
 		{
-			name: "bad signature",
-			statement: func() string {
+			Name: "bad signature",
+			ReqFn: func(t *testing.T) (dcrSetup, string) {
 				badPrivate, _, _ := generateEd25519JWK(t)
-				return signSoftwareStatement(t, badPrivate, goodKid, jwt.MapClaims{
+				return buildRequest(signSoftwareStatement(t, badPrivate, goodKid, jwt.MapClaims{
 					"iss": "https://" + setup.domain, "client_name": setup.clientName, "client_uri": "https://" + setup.domain,
-				})
-			}(),
-			wantError: exceptions.OAuthErrorInvalidSoftwareStatement,
+				})), ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn:  assertError(exceptions.OAuthErrorInvalidSoftwareStatement),
 		},
 		{
-			name: "unapproved kid",
-			statement: func() string {
+			Name: "unapproved kid",
+			ReqFn: func(t *testing.T) (dcrSetup, string) {
 				private, kid, _ := generateEd25519JWK(t)
-				return signSoftwareStatement(t, private, kid, jwt.MapClaims{
+				return buildRequest(signSoftwareStatement(t, private, kid, jwt.MapClaims{
 					"iss": "https://" + setup.domain, "client_name": setup.clientName, "client_uri": "https://" + setup.domain,
-				})
-			}(),
-			wantError: exceptions.OAuthErrorUnapprovedSoftwareStatement,
+				})), ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn:  assertError(exceptions.OAuthErrorUnapprovedSoftwareStatement),
 		},
 		{
-			name: "issuer mismatch",
-			statement: signSoftwareStatement(t, goodPrivate, goodKid, jwt.MapClaims{
-				"iss": "https://unrelated.example.net", "client_name": setup.clientName, "client_uri": "https://" + setup.domain,
-			}),
-			wantError: exceptions.OAuthErrorUnapprovedSoftwareStatement,
+			Name: "issuer mismatch",
+			ReqFn: func(t *testing.T) (dcrSetup, string) {
+				return buildRequest(signSoftwareStatement(t, goodPrivate, goodKid, jwt.MapClaims{
+					"iss": "https://unrelated.example.net", "client_name": setup.clientName, "client_uri": "https://" + setup.domain,
+				})), ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn:  assertError(exceptions.OAuthErrorUnapprovedSoftwareStatement),
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			body := cloneMap(setup.body)
-			body["software_statement"] = tc.statement
-			res := doJSONRequest(t, http.MethodPost, requestURL(setup.host, oauthRegisterPath()), "", body)
-			defer res.Body.Close()
-			response := decodeJSONObject(t, res)
-			if res.StatusCode != http.StatusBadRequest {
-				t.Fatalf("status=%d error=%s", res.StatusCode, response["error"])
-			}
-			if jsonString(response["error"]) != tc.wantError {
-				t.Fatalf("error=%s want %s", response["error"], tc.wantError)
-			}
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			tc.RequestBodyFn = func(setup dcrSetup) any { return setup.body }
+			tc.HostFn = func(setup dcrSetup) string { return setup.host }
+			PerformTestRequestCase(t, http.MethodPost, oauthRegisterPath(), tc)
 		})
 	}
 }
@@ -489,111 +485,166 @@ func cloneMap(src map[string]any) map[string]any {
 func TestRFC7592ClientConfiguration(t *testing.T) {
 	cfg := GetTestConfig(t)
 
-	t.Run("app", func(t *testing.T) {
-		setup := setupDynamicRegistration(t, true, false, false)
-		res := postRegister(t, setup)
-		clientID, rat, registrationURI := assertCreatedRegistration(t, setup, res)
-		if registrationURI != requestURL(setup.host, oauthRegisterClientPath(clientID)) {
-			t.Fatalf("registration_client_uri=%q", registrationURI)
-		}
-		assertRFC7592Lifecycle(t, setup, clientID, rat, cfg.BackendDomain())
-	})
-
-	t.Run("account credentials", func(t *testing.T) {
-		setup := setupDynamicRegistration(t, false, true, false)
-		res := postRegister(t, setup)
-		clientID, rat, _ := assertCreatedRegistration(t, setup, res)
-		assertRFC7592Lifecycle(t, setup, clientID, rat, cfg.BackendDomain())
-	})
+	for _, clientType := range []struct {
+		name      string
+		appClient bool
+		bounded   bool
+	}{
+		{name: "app", appClient: true},
+		{name: "account credentials", bounded: true},
+	} {
+		clientType := clientType
+		t.Run(clientType.name, func(t *testing.T) {
+			var clientID, rat string
+			createCase := TestRequestCase[dcrSetup]{
+				Name: "register client",
+				ReqFn: func(t *testing.T) (dcrSetup, string) {
+					setup := setupDynamicRegistration(t, clientType.appClient, clientType.bounded, false)
+					return setup, setup.accessToken
+				},
+				RequestBodyFn: func(setup dcrSetup) any { return setup.body },
+				HostFn:        func(setup dcrSetup) string { return setup.host },
+				ExpStatus:     http.StatusCreated,
+				AssertFn: func(t *testing.T, setup dcrSetup, res *http.Response) {
+					var registrationURI string
+					clientID, rat, registrationURI = assertCreatedRegistration(t, setup, res)
+					AssertEqual(t, registrationURI, requestURL(setup.host, oauthRegisterClientPath(clientID)))
+					assertRFC7592Lifecycle(t, setup, clientID, rat, cfg.BackendDomain())
+				},
+			}
+			PerformTestRequestCase(t, http.MethodPost, oauthRegisterPath(), createCase)
+		})
+	}
 
 	t.Run("well-known registration_endpoint", func(t *testing.T) {
-		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
-		cleanupAccount(t, account)
-		host := account.Username + "." + cfg.BackendDomain()
-		res := doJSONRequest(t, http.MethodGet, requestURL(host, paths.WellKnownBase+paths.WellKnownOIDC), "", nil)
-		defer res.Body.Close()
-		response := decodeJSONObject(t, res)
-		if res.StatusCode != http.StatusOK {
-			t.Fatalf("status=%d error=%s", res.StatusCode, response["error"])
+		testCase := TestRequestCase[string]{
+			ReqFn: func(t *testing.T) (string, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderLocal))
+				cleanupAccount(t, account)
+				return account.Username + "." + cfg.BackendDomain(), ""
+			},
+			RequestBodyFn: func(string) any { return nil },
+			HostFn:        func(host string) string { return host },
+			ExpStatus:     http.StatusOK,
+			AssertFn: func(t *testing.T, host string, res *http.Response) {
+				response := decodeJSONObject(t, res)
+				AssertEqual(t, jsonString(response["registration_endpoint"]), requestURL(host, oauthRegisterPath()))
+			},
 		}
-		want := requestURL(host, oauthRegisterPath())
-		if jsonString(response["registration_endpoint"]) != want {
-			t.Fatalf("registration_endpoint=%s want %s", response["registration_endpoint"], want)
-		}
+		PerformTestRequestCase(t, http.MethodGet, paths.WellKnownBase+paths.WellKnownOIDC, testCase)
 	})
+}
+
+type rfc7592Request struct {
+	setup dcrSetup
+	host  string
+	path  string
+	body  any
 }
 
 func assertRFC7592Lifecycle(t *testing.T, setup dcrSetup, clientID, rat, backendDomain string) {
 	t.Helper()
-	clientURL := requestURL(setup.host, oauthRegisterClientPath(clientID))
-
-	getRes := doJSONRequest(t, http.MethodGet, clientURL, rat, nil)
-	defer getRes.Body.Close()
-	getBody := decodeJSONObject(t, getRes)
-	if getRes.StatusCode != http.StatusOK {
-		t.Fatalf("GET status=%d error=%s", getRes.StatusCode, getBody["error"])
-	}
-	if getRes.Header.Get("Cache-Control") != "no-store" {
-		t.Error("GET response is cacheable")
-	}
-	if jsonString(getBody["client_id"]) != clientID || jsonString(getBody["client_name"]) != setup.clientName {
-		t.Fatalf("GET metadata mismatch: %s", getBody["client_name"])
-	}
-	if _, ok := getBody["client_secret"]; ok {
-		t.Fatal("GET must not return client_secret")
-	}
-	if _, ok := getBody["registration_access_token"]; ok {
-		t.Fatal("GET must not return registration_access_token")
-	}
-
 	updatedName := "Updated " + setup.clientName
-	putBody := cloneMap(setup.body)
-	putBody["client_name"] = updatedName
-	putRes := doJSONRequest(t, http.MethodPut, clientURL, rat, putBody)
-	defer putRes.Body.Close()
-	putResponse := decodeJSONObject(t, putRes)
-	if putRes.StatusCode != http.StatusOK {
-		t.Fatalf("PUT status=%d error=%s", putRes.StatusCode, putResponse["error"])
-	}
-	if jsonString(putResponse["client_name"]) != updatedName {
-		t.Fatalf("PUT did not update client_name: %s", putResponse["client_name"])
-	}
-	if _, ok := putResponse["client_secret"]; ok {
-		t.Fatal("PUT must not return client_secret")
-	}
-
-	confirm := doJSONRequest(t, http.MethodGet, clientURL, rat, nil)
-	defer confirm.Body.Close()
-	confirmBody := decodeJSONObject(t, confirm)
-	if jsonString(confirmBody["client_name"]) != updatedName {
-		t.Fatal("updated name was not persisted")
-	}
-
-	unknown := doJSONRequest(t, http.MethodGet, requestURL(setup.host, oauthRegisterClientPath("missing-client")), rat, nil)
-	defer unknown.Body.Close()
-	if unknown.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("unknown client status=%d", unknown.StatusCode)
-	}
-
 	crossHost := backendDomain
 	if !setup.appClient {
 		crossHost = setup.account.Username + "." + backendDomain
 	}
-	cross := doJSONRequest(t, http.MethodGet, requestURL(crossHost, oauthRegisterClientPath(clientID)), rat, nil)
-	defer cross.Body.Close()
-	if cross.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("cross-host RAT status=%d", cross.StatusCode)
+	clientPath := oauthRegisterClientPath(clientID)
+
+	testCases := []TestRequestCase[rfc7592Request]{
+		{
+			Name: "get registration",
+			ReqFn: func(t *testing.T) (rfc7592Request, string) {
+				return rfc7592Request{setup: setup, host: setup.host, path: clientPath}, rat
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, req rfc7592Request, res *http.Response) {
+				body := decodeJSONObject(t, res)
+				AssertEqual(t, res.Header.Get("Cache-Control"), "no-store")
+				AssertEqual(t, jsonString(body["client_id"]), clientID)
+				AssertEqual(t, jsonString(body["client_name"]), req.setup.clientName)
+				if _, ok := body["client_secret"]; ok {
+					t.Fatal("GET must not return client_secret")
+				}
+				if _, ok := body["registration_access_token"]; ok {
+					t.Fatal("GET must not return registration_access_token")
+				}
+			},
+			Method: http.MethodGet,
+		},
+		{
+			Name: "update registration",
+			ReqFn: func(t *testing.T) (rfc7592Request, string) {
+				body := cloneMap(setup.body)
+				body["client_name"] = updatedName
+				return rfc7592Request{setup: setup, host: setup.host, path: clientPath, body: body}, rat
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ rfc7592Request, res *http.Response) {
+				body := decodeJSONObject(t, res)
+				AssertEqual(t, jsonString(body["client_name"]), updatedName)
+				if _, ok := body["client_secret"]; ok {
+					t.Fatal("PUT must not return client_secret")
+				}
+			},
+			Method: http.MethodPut,
+		},
+		{
+			Name: "confirm update",
+			ReqFn: func(t *testing.T) (rfc7592Request, string) {
+				return rfc7592Request{setup: setup, host: setup.host, path: clientPath}, rat
+			},
+			ExpStatus: http.StatusOK,
+			AssertFn: func(t *testing.T, _ rfc7592Request, res *http.Response) {
+				AssertEqual(t, jsonString(decodeJSONObject(t, res)["client_name"]), updatedName)
+			},
+			Method: http.MethodGet,
+		},
+		{
+			Name: "reject unknown client",
+			ReqFn: func(t *testing.T) (rfc7592Request, string) {
+				return rfc7592Request{host: setup.host, path: oauthRegisterClientPath("missing-client")}, rat
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  func(*testing.T, rfc7592Request, *http.Response) {},
+			Method:    http.MethodGet,
+		},
+		{
+			Name: "reject cross-host token",
+			ReqFn: func(t *testing.T) (rfc7592Request, string) {
+				return rfc7592Request{host: crossHost, path: clientPath}, rat
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  func(*testing.T, rfc7592Request, *http.Response) {},
+			Method:    http.MethodGet,
+		},
+		{
+			Name: "delete registration",
+			ReqFn: func(t *testing.T) (rfc7592Request, string) {
+				return rfc7592Request{host: setup.host, path: clientPath}, rat
+			},
+			ExpStatus: http.StatusNoContent,
+			AssertFn:  func(*testing.T, rfc7592Request, *http.Response) {},
+			Method:    http.MethodDelete,
+		},
+		{
+			Name: "reject deleted client",
+			ReqFn: func(t *testing.T) (rfc7592Request, string) {
+				return rfc7592Request{host: setup.host, path: clientPath}, rat
+			},
+			ExpStatus: http.StatusUnauthorized,
+			AssertFn:  func(*testing.T, rfc7592Request, *http.Response) {},
+			Method:    http.MethodGet,
+		},
 	}
 
-	delRes := doJSONRequest(t, http.MethodDelete, clientURL, rat, nil)
-	defer delRes.Body.Close()
-	if delRes.StatusCode != http.StatusNoContent {
-		t.Fatalf("DELETE status=%d", delRes.StatusCode)
-	}
-	after := doJSONRequest(t, http.MethodGet, clientURL, rat, nil)
-	defer after.Body.Close()
-	if after.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("GET after DELETE status=%d", after.StatusCode)
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			tc.RequestBodyFn = func(req rfc7592Request) any { return req.body }
+			tc.HostFn = func(req rfc7592Request) string { return req.host }
+			tc.PathFromReqFn = func(req rfc7592Request) string { return req.path }
+			PerformTestRequestCase(t, tc.Method, "", tc)
+		})
 	}
 }
 
@@ -613,24 +664,19 @@ func TestOAuthDynamicRegistrationIATTokenExchange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	form := url.Values{}
-	form.Set("grant_type", "authorization_code")
-	form.Set("code", code)
-	form.Set("client_id", setup.domain)
-	form.Set("code_verifier", verifier)
-	req := httptest.NewRequest(http.MethodPost, requestURL(setup.host, oauthIATTokenPath()), strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	res, err := GetTestServer(t).App.Test(req, fiber.TestConfig{Timeout: 30 * time.Second, FailOnTimeout: true})
-	if err != nil {
-		t.Fatal(err)
+	testCase := TestRequestCase[string]{
+		ReqFn: func(t *testing.T) (string, string) {
+			form := url.Values{}
+			form.Set("grant_type", "authorization_code")
+			form.Set("code", code)
+			form.Set("client_id", setup.domain)
+			form.Set("code_verifier", verifier)
+			return form.Encode(), ""
+		},
+		ExpStatus: http.StatusOK,
+		AssertFn: func(t *testing.T, _ string, res *http.Response) {
+			AssertNotEmpty(t, jsonString(decodeJSONObject(t, res)["access_token"]))
+		},
 	}
-	defer res.Body.Close()
-	response := decodeJSONObject(t, res)
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("status=%d error=%s", res.StatusCode, response["error"])
-	}
-	accessToken := jsonString(response["access_token"])
-	if accessToken == "" {
-		t.Fatal("missing access_token")
-	}
+	PerformTestRequestCaseWihURLEncodedBody(t, http.MethodPost, oauthIATTokenPath(), testCase)
 }

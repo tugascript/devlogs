@@ -707,37 +707,9 @@ func TestOAuthToken(t *testing.T) {
 
 	beforeEachRefresh := func(t *testing.T) string {
 		account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
-		testTokens := GetTestTokens(t)
-		testServices := GetTestServices(t)
-		requestID := uuid.NewString()
-		ctx := context.Background()
-
-		refreshToken, err := testTokens.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
-			PublicID: account.PublicID,
-			Version:  account.Version(),
-			Scopes:   []tokens.AccountScope{tokens.AccountScopeEmail, tokens.AccountScopeProfile, tokens.AccountScopeAdmin},
+		return GenerateTestAccountRefreshToken(t, &account, []tokens.AccountScope{
+			tokens.AccountScopeEmail, tokens.AccountScopeProfile, tokens.AccountScopeAdmin,
 		})
-		if err != nil {
-			t.Fatal("Failed to create refresh token", err)
-		}
-
-		sRefreshToken, serviceErr := GetTestCrypto(t).SignToken(ctx, crypto.SignTokenOptions{
-			RequestID: requestID,
-			Token:     refreshToken,
-			GetJWKfn: testServices.BuildGetGlobalEncryptedJWKFn(ctx, services.BuildEncryptedJWKFnOptions{
-				RequestID: requestID,
-				KeyType:   database.TokenKeyTypeRefresh,
-				TTL:       testTokens.GetRefreshTTL(),
-			}),
-			GetDecryptDEKfn: testServices.BuildGetGlobalDecDEKFn(ctx, services.BuildGetGlobalDEKFnOptions{
-				RequestID: requestID,
-			}),
-		})
-		if serviceErr != nil {
-			t.Fatal("Failed to sign refresh token", serviceErr)
-		}
-
-		return sRefreshToken
 	}
 
 	beforeEachBearerJWT := func(
@@ -1027,7 +999,7 @@ func TestOAuthToken(t *testing.T) {
 				testS := GetTestServices(t)
 				requestID := uuid.NewString()
 
-				refreshToken, err := testTokens.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
+				refreshToken, _, err := testTokens.CreateRefreshToken(tokens.AccountRefreshTokenOptions{
 					PublicID: account.PublicID,
 					Version:  account.Version() + 2,
 					Scopes:   []tokens.AccountScope{tokens.AccountScopeEmail, tokens.AccountScopeProfile, tokens.AccountScopeAdmin},
