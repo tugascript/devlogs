@@ -469,19 +469,8 @@ func (s *Services) InitiateOAuthDynamicRegistrationIATAuth(
 	)
 	logger.InfoContext(ctx, "Starting OAuth dynamic registration IAT authorization...")
 
-	if opts.Origin == "" {
-		logger.WarnContext(ctx, "Origin header is missing")
-		return "", exceptions.NewUnauthorizedError()
-	}
-
-	parsedOrigin, err := url.Parse(opts.Origin)
-	if err != nil {
-		logger.WarnContext(ctx, "Invalid origin header", "error", err)
-		return "", exceptions.NewUnauthorizedError()
-	}
-	if parsedOrigin.Host != opts.Domain {
-		logger.WarnContext(ctx, "Origin header does not match domain", "originHost", parsedOrigin.Host)
-		return "", exceptions.NewUnauthorizedError()
+	if serviceErr := validateOrigin(ctx, logger, opts.Origin, opts.Domain); serviceErr != nil {
+		return "", serviceErr
 	}
 
 	if opts.SessionKey == "" {
