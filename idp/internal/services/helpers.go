@@ -8,7 +8,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -382,36 +381,6 @@ func (s *Services) verifyTXTRecord(
 
 	logger.InfoContext(ctx, "TXT code found in records")
 	return nil
-}
-
-func mapEmptyJWKs(logger *slog.Logger, ctx context.Context, jsonJWKs []string) ([]byte, *exceptions.ServiceError) {
-	var jwks []byte
-
-	if len(jsonJWKs) > 0 {
-		rawJWKs := make([]json.RawMessage, 0, len(jsonJWKs))
-		for _, jwk := range jsonJWKs {
-			jwk, err := utils.JsonToJWK([]byte(jwk))
-			if err != nil {
-				logger.ErrorContext(ctx, "Failed to parse JWK", "error", err)
-				return nil, exceptions.NewInternalServerError()
-			}
-			jwkBytes, err := jwk.MarshalJSON()
-			if err != nil {
-				logger.ErrorContext(ctx, "Failed to marshal JWK", "error", err)
-				return nil, exceptions.NewInternalServerError()
-			}
-			rawJWKs = append(rawJWKs, jwkBytes)
-		}
-
-		var err error
-		jwks, err = json.Marshal(rawJWKs)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to marshal JWKS", "error", err)
-			return nil, exceptions.NewInternalServerError()
-		}
-	}
-
-	return jwks, nil
 }
 
 func mapGrantType(grantType string) (database.GrantType, *exceptions.ServiceError) {

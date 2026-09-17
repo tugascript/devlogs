@@ -27,6 +27,10 @@ const (
 	accountsIAT2FACookieSuffix string = "_acc_iat_2fa"
 )
 
+func oauthDynamicRegistrationIATCookiePath() string {
+	return paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken
+}
+
 func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
 	logger := c.buildLogger(requestID, oauthDynamicRegistrationIAT, "OAuthDynamicRegistrationIATAuth")
@@ -67,6 +71,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATAuth(ctx fiber.Ctx) error {
 		services.InitiateOAuthDynamicRegistrationIATAuthOptions{
 			RequestID:       requestID,
 			Domain:          baseQPrms.ClientID,
+			Origin:          ctx.Get(fiber.HeaderOrigin),
 			State:           qPrms.State,
 			SessionKey:      sessionKey,
 			RefreshToken:    ctx.Cookies(c.cookieName + refreshCookieSuffix),
@@ -141,7 +146,7 @@ func (c *Controllers) saveAccountIATCookie(
 	ctx.Cookie(&fiber.Cookie{
 		Name:     c.cookieName + accountsIATCookieSuffix,
 		Value:    sessionKey,
-		Path:     paths.V1 + paths.AccountsBase + paths.CredentialsBase + paths.InitialAccessToken + paths.OAuthAuth,
+		Path:     oauthDynamicRegistrationIATCookiePath(),
 		HTTPOnly: true,
 		SameSite: fiber.CookieSameSiteLaxMode,
 		Secure:   true,
@@ -153,7 +158,7 @@ func (c *Controllers) removeAccountIATCookie(ctx fiber.Ctx) {
 	ctx.Cookie(&fiber.Cookie{
 		Name:     c.cookieName + accountsIATCookieSuffix,
 		Value:    "",
-		Path:     paths.V1 + paths.AccountsBase + paths.CredentialsBase + paths.InitialAccessToken + paths.OAuthAuth,
+		Path:     oauthDynamicRegistrationIATCookiePath(),
 		HTTPOnly: true,
 		Secure:   true,
 		SameSite: fiber.CookieSameSiteNoneMode,
@@ -161,11 +166,11 @@ func (c *Controllers) removeAccountIATCookie(ctx fiber.Ctx) {
 	})
 }
 
-func (c *Controllers) saveAccountIAT2FACookie(ctx fiber.Ctx, sessionID, clientID string) {
+func (c *Controllers) saveAccountIAT2FACookie(ctx fiber.Ctx, sessionID string) {
 	ctx.Cookie(&fiber.Cookie{
 		Name:     c.cookieName + accountsIAT2FACookieSuffix,
 		Value:    sessionID,
-		Path:     paths.AccountsBase + paths.CredentialsBase + paths.InitialAccessToken + "/" + clientID + paths.OAuthAuth,
+		Path:     oauthDynamicRegistrationIATCookiePath(),
 		HTTPOnly: true,
 		SameSite: fiber.CookieSameSiteLaxMode,
 		Secure:   true,
@@ -173,11 +178,11 @@ func (c *Controllers) saveAccountIAT2FACookie(ctx fiber.Ctx, sessionID, clientID
 	})
 }
 
-func (c *Controllers) removeAccountIAT2FACookie(ctx fiber.Ctx, clientID string) {
+func (c *Controllers) removeAccountIAT2FACookie(ctx fiber.Ctx) {
 	ctx.Cookie(&fiber.Cookie{
 		Name:     c.cookieName + accountsIAT2FACookieSuffix,
 		Value:    "",
-		Path:     paths.AccountsBase + paths.CredentialsBase + paths.InitialAccessToken + "/" + clientID + paths.OAuthAuth,
+		Path:     oauthDynamicRegistrationIATCookiePath(),
 		HTTPOnly: true,
 		SameSite: fiber.CookieSameSiteLaxMode,
 		Secure:   true,
@@ -294,7 +299,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATLoginPost(ctx fiber.Ctx) error 
 	}
 
 	if loggedIn {
-		c.saveAccountIAT2FACookie(ctx, sessionKey, uPrms.ACCClientID)
+		c.saveAccountIAT2FACookie(ctx, sessionKey)
 		logResponse(logger, ctx, fiber.StatusSeeOther)
 		return ctx.Redirect().Status(fiber.StatusSeeOther).To(redirectURL)
 	}
@@ -470,7 +475,7 @@ func (c *Controllers) OAuthDynamicRegistrationIAT2FAPost(ctx fiber.Ctx) error {
 		return serviceErrorHTMLResponse(logger, ctx, serviceErr)
 	}
 
-	c.removeAccountIAT2FACookie(ctx, uPrms.ACCClientID)
+	c.removeAccountIAT2FACookie(ctx)
 	c.saveAccountIATCookie(ctx, sessionKey)
 	logResponse(logger, ctx, fiber.StatusSeeOther)
 	return ctx.Redirect().Status(fiber.StatusSeeOther).To(redirectURL)
@@ -520,7 +525,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtAuthGet(ctx fiber.Ctx) error
 			ACCClientID:   uPrms.ACCClientID,
 			Provider:      uPrms.Provider,
 			Domain:        baseQPrms.ClientID,
-			CallbackURL:   baseQPrms.RedirectURI,
+			CallbackURL:   "https://" + c.backendDomain + paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken + "/" + uPrms.ACCClientID + paths.InitialAccessTokenAuthEXT + "/" + uPrms.Provider + paths.InitialAccessTokenCallback,
 			RedirectURI:   baseQPrms.RedirectURI,
 			State:         qPrms.State,
 			BackendDomain: c.backendDomain,
@@ -558,15 +563,12 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtCB(ctx fiber.Ctx) error {
 	cbURL, serviceErr := c.services.OAuthDynamicRegistrationIATExtCB(
 		ctx.Context(),
 		services.OAuthDynamicRegistrationIATExtCBOptions{
-			RequestID:   requestID,
-			ACCClientID: uPrms.ACCClientID,
-			Provider:    uPrms.Provider,
-			State:       qPrms.State,
-			Code:        qPrms.Code,
-			RedirectURL: "https://" + c.backendDomain + paths.V1 + paths.AccountsBase +
-				paths.CredentialsBase + paths.DynamicRegistrationBase + paths.InitialAccessToken +
-				"/" + uPrms.ACCClientID + paths.OAuthAuth + paths.InitialAccessTokenAuthEXT + "/" +
-				uPrms.Provider + paths.InitialAccessTokenCallback,
+			RequestID:     requestID,
+			ACCClientID:   uPrms.ACCClientID,
+			Provider:      uPrms.Provider,
+			State:         qPrms.State,
+			Code:          qPrms.Code,
+			RedirectURL:   "https://" + c.backendDomain + paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken + "/" + uPrms.ACCClientID + paths.InitialAccessTokenAuthEXT + "/" + uPrms.Provider + paths.InitialAccessTokenCallback,
 			BackendDomain: c.backendDomain,
 		},
 	)
@@ -614,15 +616,12 @@ func (c *Controllers) OAuthDynamicRegistrationIATExtAppleCB(ctx fiber.Ctx) error
 	cbURL, serviceErr := c.services.OAuthDynamicRegistrationIATExtAppleCB(
 		ctx.Context(),
 		services.OAuthDynamicRegistrationIATExtAppleCBOptions{
-			RequestID:   requestID,
-			ACCClientID: uPrms.ACCClientID,
-			Email:       user.Email,
-			Code:        qPrms.Code,
-			State:       qPrms.State,
-			RedirectURL: "https://" + c.backendDomain + paths.V1 + paths.AccountsBase +
-				paths.CredentialsBase + paths.DynamicRegistrationBase + paths.InitialAccessToken +
-				"/" + uPrms.ACCClientID + paths.OAuthAuth + paths.InitialAccessTokenAuthEXT + "/" +
-				services.AuthProviderApple + paths.InitialAccessTokenCallback,
+			RequestID:     requestID,
+			ACCClientID:   uPrms.ACCClientID,
+			Email:         user.Email,
+			Code:          qPrms.Code,
+			State:         qPrms.State,
+			RedirectURL:   "https://" + c.backendDomain + paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken + "/" + uPrms.ACCClientID + paths.InitialAccessTokenAuthEXT + "/" + services.AuthProviderApple + paths.InitialAccessTokenCallback,
 			BackendDomain: c.backendDomain,
 		},
 	)
@@ -643,7 +642,7 @@ func (c *Controllers) OAuthDynamicRegistrationIATToken(ctx fiber.Ctx) error {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 
-	grantType := ctx.Get("grant_type")
+	grantType := ctx.FormValue("grant_type")
 	if grantType != "authorization_code" {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnsupportedGrantType)
 	}
@@ -661,10 +660,11 @@ func (c *Controllers) OAuthDynamicRegistrationIATToken(ctx fiber.Ctx) error {
 	authDTO, serviceErr := c.services.VerifyOAuthDynamicRegistrationIATCode(
 		ctx.Context(),
 		services.VerifyOAuthDynamicRegistrationIATCodeOptions{
-			RequestID:    requestID,
-			Code:         body.Code,
-			CodeVerifier: body.CodeVerifier,
-			Domain:       body.ClientID,
+			BackendDomain: c.backendDomain,
+			RequestID:     requestID,
+			Code:          body.Code,
+			CodeVerifier:  body.CodeVerifier,
+			Domain:        body.ClientID,
 		},
 	)
 	if serviceErr != nil {

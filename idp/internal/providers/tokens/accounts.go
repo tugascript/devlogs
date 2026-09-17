@@ -44,12 +44,14 @@ const baseAuthScope = AccountScopeEmail + " " + AccountScopeProfile
 
 type AccountClaims struct {
 	AccountID      uuid.UUID `json:"account_id"`
-	AccountVersion int32     `json:"account_version"`
+	AccountVersion int32     `json:"account_ver"`
 }
 
 type accountAuthTokenClaims struct {
 	AccountClaims
-	Scope string `json:"scope"`
+	Scope           string `json:"scope"`
+	AuthorizedParty string `json:"azp"`
+	SessionID       string `json:"sid,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -64,6 +66,8 @@ type accountAuthTokenOptions struct {
 	ttlSec          int64
 	accountPublicID uuid.UUID
 	accountVersion  int32
+	sessionID       uuid.UUID
+	clientID        utils.Base62UUIDStr
 	tokenSubject    string
 	scopes          []AccountScope
 	paths           []string
@@ -90,13 +94,25 @@ func splitAccountScopes(scope string) ([]AccountScope, error) {
 	return strings.Split(scope, " "), nil
 }
 
-func (t *Tokens) createAuthToken(opts accountAuthTokenOptions) (*jwt.Token, error) {
+type JTI = uuid.UUID
+
+func (t *Tokens) createAuthToken(opts accountAuthTokenOptions) (*jwt.Token, JTI, error) {
 	now := time.Now()
 	iat := jwt.NewNumericDate(now)
 	exp := jwt.NewNumericDate(now.Add(time.Second * time.Duration(opts.ttlSec)))
 	method, err := getSigningMethod(opts.cryptoSuite)
 	if err != nil {
-		return nil, err
+		return nil, uuid.Nil, err
+	}
+
+	var sessionID string
+	if opts.sessionID != uuid.Nil {
+		sessionID = opts.sessionID.String()
+	}
+
+	jti, err := uuid.NewV7()
+	if err != nil {
+		return nil, uuid.Nil, err
 	}
 
 	return jwt.NewWithClaims(method, accountAuthTokenClaims{
@@ -104,6 +120,7 @@ func (t *Tokens) createAuthToken(opts accountAuthTokenOptions) (*jwt.Token, erro
 			AccountID:      opts.accountPublicID,
 			AccountVersion: opts.accountVersion,
 		},
+		AuthorizedParty: opts.clientID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: fmt.Sprintf("https://%s", t.backendDomain),
 			Audience: utils.MapSlice(opts.paths, func(path *string) string {
@@ -113,11 +130,11 @@ func (t *Tokens) createAuthToken(opts accountAuthTokenOptions) (*jwt.Token, erro
 			IssuedAt:  iat,
 			NotBefore: iat,
 			ExpiresAt: exp,
-			ID:        uuid.NewString(),
+			ID:        jti.String(),
 		},
-		Scope: processAccountScopes(opts.scopes),
-	}), nil
-
+		Scope:     processAccountScopes(opts.scopes),
+		SessionID: sessionID,
+	}), jti, nil
 }
 
 func verifyAuthToken(token string, pubKeyFn func(token *jwt.Token) (any, error)) (accountAuthTokenClaims, error) {

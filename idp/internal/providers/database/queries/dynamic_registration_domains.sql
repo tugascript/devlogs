@@ -118,7 +118,7 @@ SELECT COUNT(*) FROM "dynamic_registration_domains"
 WHERE
     "account_public_id" = $1 AND
     "domain" = $2 AND
-    "usages" = ANY($3) AND
+    "usages" && sqlc.arg(usages)::dynamic_registration_usage[] AND
     "verified_at" IS NOT NULL
 LIMIT 1;
 
@@ -126,7 +126,7 @@ LIMIT 1;
 SELECT COUNT(*) FROM "dynamic_registration_domains"
 WHERE
     "account_public_id" = $1 AND
-    "usages" = ANY($2) AND
+    "usages" && sqlc.arg(usages)::dynamic_registration_usage[] AND
     "domain" IN (sqlc.slice('domains'))
 LIMIT 1;
 
@@ -135,21 +135,21 @@ SELECT COUNT(*) FROM "dynamic_registration_domains"
 WHERE
     "account_public_id" = $1 AND
     "domain" = $2 AND
-    "usages" = ANY($3)
+    "usages" && sqlc.arg(usages)::dynamic_registration_usage[]
 LIMIT 1;
 
 -- name: CountDynamicRegistrationDomainsByDomainAndUsages :one
 SELECT COUNT(*) FROM "dynamic_registration_domains"
 WHERE
     "domain" = $1 AND
-    "usages" = ANY($2)
+    "usages" && sqlc.arg(usages)::dynamic_registration_usage[]
 LIMIT 1;
 
 -- name: CountDynamicRegistrationDomainsByDomainsAndUsages :one
 SELECT COUNT(*) FROM "dynamic_registration_domains"
 WHERE
     "domain" IN (sqlc.slice('domains')) AND
-    "usages" = ANY($1)
+    "usages" && sqlc.arg(usages)::dynamic_registration_usage[]
 LIMIT 1;
 
 -- name: DeleteDynamicRegistrationDomain :exec

@@ -11,12 +11,10 @@ import "github.com/tugascript/devlogs/idp/internal/providers/database"
 type AccountDynamicRegistrationConfigDTO struct {
 	id int32
 
-	CredentialsTypes                         []database.AccountCredentialsType              `json:"credentials_types"`
-	RequireSoftwareStatementCredentialTypes  []database.AccountCredentialsType              `json:"require_software_statement_credential_types"`
-	RequireVerifiedDomainsCredentialsType    []database.AccountCredentialsType              `json:"require_verified_domains_credentials_type"`
-	SoftwareStatementVerificationMethods     []database.SoftwareStatementVerificationMethod `json:"software_statement_verification_methods"`
-	RequireInitialAccessTokenCredentialTypes []database.AccountCredentialsType              `json:"require_initial_access_token_credential_types"`
-	InitialAccessTokenGenerationMethods      []database.InitialAccessTokenGenerationMethod  `json:"initial_access_token_generation_methods"`
+	CredentialsTypes                        []database.AccountCredentialsType              `json:"credentials_types"`
+	RequireSoftwareStatementCredentialTypes []database.AccountCredentialsType              `json:"require_software_statement_credential_types"`
+	RequireVerifiedDomainsCredentialsType   []database.AccountCredentialsType              `json:"require_verified_domains_credentials_type"`
+	SoftwareStatementVerificationMethods    []database.SoftwareStatementVerificationMethod `json:"software_statement_verification_methods"`
 }
 
 func (a *AccountDynamicRegistrationConfigDTO) ID() int32 {
@@ -27,12 +25,10 @@ func MapAccountDynamicRegistrationConfigToDTO(
 	config *database.AccountDynamicRegistrationConfig,
 ) AccountDynamicRegistrationConfigDTO {
 	return AccountDynamicRegistrationConfigDTO{
-		id:                                       config.ID,
-		CredentialsTypes:                         config.AccountCredentialsTypes,
-		RequireSoftwareStatementCredentialTypes:  config.RequireSoftwareStatementCredentialTypes,
-		RequireVerifiedDomainsCredentialsType:    config.RequireVerifiedDomainsCredentialsType,
-		SoftwareStatementVerificationMethods:     config.SoftwareStatementVerificationMethods,
-		RequireInitialAccessTokenCredentialTypes: config.RequireInitialAccessTokenCredentialTypes,
-		InitialAccessTokenGenerationMethods:      config.InitialAccessTokenGenerationMethods,
+		id:                                      config.ID,
+		CredentialsTypes:                        config.AccountCredentialsTypes,
+		RequireSoftwareStatementCredentialTypes: config.RequireSoftwareStatementCredentialTypes,
+		RequireVerifiedDomainsCredentialsType:   config.RequireVerifiedDomainsCredentialsType,
+		SoftwareStatementVerificationMethods:    config.SoftwareStatementVerificationMethods,
 	}
 }

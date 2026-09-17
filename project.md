@@ -24,19 +24,18 @@
   - device
   - service
   - mcp
+- Add support for multiple 2FA types
 
 ### IDP On-Going
 
 - Add OAuth Dynamic Registration for:
   - accounts
   - apps
-- Add support for multiple 2FA types
+- Make refresh tokens whitelisted not blacklisted
+- Add grants to control refresh token
 
 ### IDP Todo
 
-- Account key generation
-- Add Passkey (WebAuthn) support
-- Dynamic OIDC configs
 - User authentication for each app type:
   - web
   - native & spa
@@ -44,6 +43,11 @@
   - device
   - service
   - MCP
+- Custom External Providers
+- Account key generation
+- Add Passkey (WebAuthn) support
+- Dynamic OIDC configs
+- Separate signing, encryption, and decryption into a KMS service
 
 ## Mailer
 
@@ -59,6 +63,30 @@ NONE
 
 - Change Queue from Redis to RabbitMQ
 - Use templates instead of full emails
+
+## KMS
+
+### KMS Done
+
+NONE
+
+### KMS On-Going
+
+NONE
+
+### KMS Todo
+
+- Add gRPC endpoints for KMS operations
+- Add KMS mTLS authentication
+- Add SEK, DEK, KEK generation
+- Add SEK, DEK, KEK rotation
+- Add SEK, DEK, KEK revocation
+- Add SEK, DEK, KEK destruction
+- Add DEK encryption & decryption
+- Add JWKs generation & rotation
+- Add JWKs revocation & destruction
+- Add JWKs signing & verification
+- Add JWKs public key retrieval
 
 ## Scripts
 

@@ -16,8 +16,8 @@ func (r *Routes) WellKnownRoutes(app *fiber.App) {
 	router := app.Group(paths.WellKnownBase, r.controllers.HostMiddleware)
 
 	router.Get(paths.WellKnownJWKs, HostAwareRoute(
-		[]fiber.Handler{r.controllers.GlobalOAuthPublicJWKs},
-		[]fiber.Handler{r.controllers.AccountDistributedOAuthPublicJWKs},
+		r.controllers.GlobalOAuthPublicJWKs,
+		r.controllers.AccountDistributedOAuthPublicJWKs,
 	))
 	router.Get(paths.WellKnownOIDC, r.controllers.WellKnownOIDCConfiguration)
 }

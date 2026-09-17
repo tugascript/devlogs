@@ -38,10 +38,10 @@ func (s *Services) ProcessAppAuthHeader(
 
 	appClaims, err := s.jwt.VerifyAppToken(
 		token,
-		s.buildVerifyAccountKeyFn(ctx, logger, buildVerifyAccountKeyFnOptions{
-			requestID: opts.RequestID,
-			accountID: opts.AccountID,
-			keyType:   database.TokenKeyTypeClientCredentials,
+		s.BuildGetAccountPublicKeyFn(ctx, BuildGetAccountPublicKeyFnOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+			KeyType:   database.TokenKeyTypeClientCredentials,
 		}),
 	)
 	if err != nil {

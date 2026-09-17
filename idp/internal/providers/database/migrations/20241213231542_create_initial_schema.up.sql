@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2025-11-04T08:56:30.229Z
+-- Generated at: 2026-09-14T01:24:14.048Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -192,6 +192,11 @@ CREATE TYPE "grant_type" AS ENUM (
   'client_credentials',
   'urn:ietf:params:oauth:grant-type:device_code',
   'urn:ietf:params:oauth:grant-type:jwt-bearer'
+);
+
+CREATE TYPE "session_type" AS ENUM (
+  'sliding',
+  'fixed'
 );
 
 CREATE TYPE "initial_access_token_generation_method" AS ENUM (
@@ -588,9 +593,12 @@ CREATE TABLE "apps" (
   "initiate_login_uri" varchar(512),
   "request_uris" varchar(2048)[],
   "access_token_signing_alg" token_crypto_suite NOT NULL DEFAULT 'ES256',
-  "id_token_ttl" integer NOT NULL DEFAULT 300,
-  "token_ttl" integer NOT NULL DEFAULT 300,
-  "refresh_token_ttl" integer NOT NULL DEFAULT 604800,
+  "session_type" session_type NOT NULL,
+  "access_token_ttl" integer NOT NULL,
+  "id_token_ttl" integer,
+  "refresh_token_idle_ttl" integer,
+  "refresh_token_ttl" integer,
+  "grant_ttl" integer,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -651,8 +659,6 @@ CREATE TABLE "account_dynamic_registration_configs" (
   "require_software_statement_credential_types" account_credentials_type[] NOT NULL,
   "software_statement_verification_methods" software_statement_verification_method[] NOT NULL,
   "require_verified_domains_credentials_type" account_credentials_type[] NOT NULL,
-  "require_initial_access_token_credential_types" account_credentials_type[] NOT NULL,
-  "initial_access_token_generation_methods" initial_access_token_generation_method[] NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -726,13 +732,90 @@ CREATE TABLE "app_profiles" (
   PRIMARY KEY ("app_id", "user_id")
 );
 
-CREATE TABLE "revoked_tokens" (
+CREATE TABLE "grants" (
   "id" serial PRIMARY KEY,
-  "token_id" uuid NOT NULL,
   "account_id" integer NOT NULL,
-  "owner" token_owner NOT NULL,
-  "owner_public_id" uuid NOT NULL,
-  "issued_at" timestamptz NOT NULL,
+  "grant_id" uuid NOT NULL,
+  "granted_client_id" varchar(22) NOT NULL,
+  "granted_scopes" scopes[] NOT NULL,
+  "granted_custom_scopes" varchar(512)[] NOT NULL,
+  "issued_at" timestamptz NOT NULL DEFAULT (now()),
+  "last_active_at" timestamptz NOT NULL DEFAULT (now()),
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "account_grants" (
+  "account_id" integer NOT NULL,
+  "account_version" integer NOT NULL,
+  "grant_id" integer NOT NULL,
+  "account_credentials_id" integer,
+  "granted_client_id" varchar(22) NOT NULL,
+  "is_revoked" boolean NOT NULL DEFAULT false,
+  "revoked_at" timestamptz,
+  "expires_at" timestamptz,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  PRIMARY KEY ("account_id", "grant_id")
+);
+
+CREATE TABLE "user_grants" (
+  "user_id" integer NOT NULL,
+  "user_version" integer NOT NULL,
+  "grant_id" integer NOT NULL,
+  "app_id" integer NOT NULL,
+  "account_id" integer NOT NULL,
+  "granted_client_id" varchar(22) NOT NULL,
+  "is_revoked" boolean NOT NULL DEFAULT false,
+  "revoked_at" timestamptz,
+  "expires_at" timestamptz,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  PRIMARY KEY ("user_id", "grant_id")
+);
+
+CREATE TABLE "sessions" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "grant_id" integer NOT NULL,
+  "session_id" uuid NOT NULL,
+  "session_type" session_type NOT NULL,
+  "session_client_id" varchar(22) NOT NULL,
+  "ip_address" varchar(45),
+  "user_agent" text,
+  "issued_at" timestamptz NOT NULL DEFAULT (now()),
+  "expires_at" timestamptz NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "account_sessions" (
+  "account_id" integer NOT NULL,
+  "account_version" integer NOT NULL,
+  "session_id" integer NOT NULL,
+  "account_credentials_id" integer,
+  "session_uuid" uuid NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  PRIMARY KEY ("account_id", "session_id")
+);
+
+CREATE TABLE "user_sessions" (
+  "user_id" integer NOT NULL,
+  "user_version" integer NOT NULL,
+  "session_id" integer NOT NULL,
+  "app_id" integer NOT NULL,
+  "account_id" integer NOT NULL,
+  "session_uuid" uuid NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  PRIMARY KEY ("user_id", "session_id")
+);
+
+CREATE TABLE "session_tokens" (
+  "id" serial PRIMARY KEY,
+  "account_id" integer NOT NULL,
+  "session_id" integer NOT NULL,
+  "grant_id" integer NOT NULL,
+  "session_uuid" uuid NOT NULL,
+  "token_id" uuid NOT NULL,
+  "issued_at" timestamptz NOT NULL DEFAULT (now()),
   "expires_at" timestamptz NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now())
 );
@@ -1043,11 +1126,63 @@ CREATE INDEX "user_profiles_account_id_idx" ON "app_profiles" ("account_id");
 
 CREATE UNIQUE INDEX "user_profiles_user_id_app_id_uidx" ON "app_profiles" ("user_id", "app_id");
 
-CREATE UNIQUE INDEX "revoked_tokens_token_id_uidx" ON "revoked_tokens" ("token_id");
+CREATE INDEX "grants_account_id_idx" ON "grants" ("account_id");
 
-CREATE INDEX "revoked_tokens_account_id_idx" ON "revoked_tokens" ("account_id");
+CREATE UNIQUE INDEX "grant_id_uidx" ON "grants" ("grant_id");
 
-CREATE INDEX "revoked_tokens_expires_at_idx" ON "revoked_tokens" ("expires_at");
+CREATE INDEX "grants_granted_client_id_idx" ON "grants" ("granted_client_id");
+
+CREATE INDEX "account_grants_account_id_idx" ON "account_grants" ("account_id");
+
+CREATE UNIQUE INDEX "account_grants_grant_id_uidx" ON "account_grants" ("grant_id");
+
+CREATE INDEX "account_grants_account_credentials_id_idx" ON "account_grants" ("account_credentials_id");
+
+CREATE UNIQUE INDEX "account_grants_account_id_granted_client_id_uidx" ON "account_grants" ("account_id", "granted_client_id");
+
+CREATE INDEX "user_grants_user_id_idx" ON "user_grants" ("user_id");
+
+CREATE UNIQUE INDEX "user_grants_grant_id_uidx" ON "user_grants" ("grant_id");
+
+CREATE INDEX "user_grants_app_id_idx" ON "user_grants" ("app_id");
+
+CREATE INDEX "user_grants_account_id_idx" ON "user_grants" ("account_id");
+
+CREATE UNIQUE INDEX "user_grants_user_id_granted_client_id_uidx" ON "user_grants" ("user_id", "granted_client_id");
+
+CREATE INDEX "sessions_account_id_idx" ON "sessions" ("account_id");
+
+CREATE INDEX "sessions_grant_id_idx" ON "sessions" ("grant_id");
+
+CREATE UNIQUE INDEX "sessions_session_id_uidx" ON "sessions" ("session_id");
+
+CREATE INDEX "sessions_expires_at_idx" ON "sessions" ("expires_at");
+
+CREATE INDEX "account_sessions_account_id_idx" ON "account_sessions" ("account_id");
+
+CREATE UNIQUE INDEX "account_sessions_session_id_uidx" ON "account_sessions" ("session_id");
+
+CREATE UNIQUE INDEX "account_sessions_account_id_session_uuid_uidx" ON "account_sessions" ("account_id", "session_uuid");
+
+CREATE INDEX "account_sessions_account_credentials_id_idx" ON "account_sessions" ("account_credentials_id");
+
+CREATE INDEX "user_sessions_user_id_idx" ON "user_sessions" ("user_id");
+
+CREATE UNIQUE INDEX "user_sessions_session_id_uidx" ON "user_sessions" ("session_id");
+
+CREATE INDEX "user_sessions_app_id_idx" ON "user_sessions" ("app_id");
+
+CREATE INDEX "user_sessions_account_id_idx" ON "user_sessions" ("account_id");
+
+CREATE UNIQUE INDEX "allowed_tokens_token_id_uidx" ON "session_tokens" ("token_id");
+
+CREATE INDEX "allowed_tokens_account_id_idx" ON "session_tokens" ("account_id");
+
+CREATE INDEX "allowed_tokens_session_id_idx" ON "session_tokens" ("session_id");
+
+CREATE INDEX "allowed_tokens_grant_id_idx" ON "session_tokens" ("grant_id");
+
+CREATE INDEX "allowed_tokens_expires_at_idx" ON "session_tokens" ("expires_at");
 
 ALTER TABLE "data_encryption_keys" ADD FOREIGN KEY ("kek_kid") REFERENCES "key_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -1195,4 +1330,42 @@ ALTER TABLE "app_profiles" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id")
 
 ALTER TABLE "app_profiles" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 
-ALTER TABLE "revoked_tokens" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "grants" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_grants" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_grants" ADD FOREIGN KEY ("grant_id") REFERENCES "grants" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_grants" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_grants" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_grants" ADD FOREIGN KEY ("grant_id") REFERENCES "grants" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_grants" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_grants" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "sessions" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "sessions" ADD FOREIGN KEY ("grant_id") REFERENCES "grants" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_sessions" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_sessions" ADD FOREIGN KEY ("session_id") REFERENCES "sessions" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_sessions" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_sessions" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_sessions" ADD FOREIGN KEY ("session_id") REFERENCES "sessions" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_sessions" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "user_sessions" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "session_tokens" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "session_tokens" ADD FOREIGN KEY ("grant_id") REFERENCES "grants" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "session_tokens" ADD FOREIGN KEY ("session_id") REFERENCES "sessions" ("id") ON DELETE CASCADE;

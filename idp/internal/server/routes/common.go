@@ -10,48 +10,28 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/paths"
-	"github.com/tugascript/devlogs/idp/internal/exceptions"
 )
-
-var errorResponseNotFound = exceptions.ErrorResponse{
-	Code:    exceptions.StatusNotFound,
-	Message: exceptions.MessageNotFound,
-}
 
 func V1PathRouter(app *fiber.App) fiber.Router {
 	return app.Group(paths.V1)
 }
 
 func HostAwareRoute(
-	normalHandlers []fiber.Handler,
-	hostHandlers []fiber.Handler,
+	normalHandler fiber.Handler,
+	hostHandler fiber.Handler,
 ) fiber.Handler {
 	return func(ctx fiber.Ctx) error {
 		hasAccountHost, ok := ctx.Locals("hasAccountHost").(bool)
 		ctx.Locals("hostAwareRoute", true)
 
 		if !ok || !hasAccountHost {
-			for _, handler := range normalHandlers {
-				if err := handler(ctx); err != nil {
-					return err
-				}
-				if ctx.Response().StatusCode() >= fiber.StatusBadRequest {
-					return nil
-				}
-			}
-
-			return nil
+			return normalHandler(ctx)
 		}
 
-		for _, handler := range hostHandlers {
-			if err := handler(ctx); err != nil {
-				return err
-			}
-			if ctx.Response().StatusCode() >= fiber.StatusBadRequest {
-				return nil
-			}
-		}
-
-		return nil
+		return hostHandler(ctx)
 	}
+}
+
+func nextHandler(ctx fiber.Ctx) error {
+	return ctx.Next()
 }

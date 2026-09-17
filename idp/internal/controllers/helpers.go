@@ -201,6 +201,8 @@ func dynamicRegistrationServiceError(
 	serviceErr *exceptions.ServiceError,
 ) error {
 	switch serviceErr.Code {
+	case exceptions.OAuthErrorInvalidRedirectURI:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRedirectURI)
 	case exceptions.CodeUnauthorized, exceptions.CodeForbidden:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnauthorizedClient)
 	case exceptions.CodeNotFound, exceptions.CodeValidation:

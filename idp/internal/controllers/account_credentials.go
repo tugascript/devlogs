@@ -85,8 +85,8 @@ func (c *Controllers) ListAccountCredentials(ctx fiber.Ctx) error {
 	}
 
 	queryParams := params.PaginationQueryParams{
-		Offset: fiber.Query[int](ctx, "offset", 0),
-		Limit:  fiber.Query[int](ctx, "limit", 20),
+		Offset: fiber.Query(ctx, "offset", 0),
+		Limit:  fiber.Query(ctx, "limit", 20),
 	}
 	if err := c.validate.StructCtx(ctx.Context(), &queryParams); err != nil {
 		return validateQueryParamsErrorResponse(logger, ctx, err)
@@ -243,8 +243,8 @@ func (c *Controllers) ListAccountCredentialsSecrets(ctx fiber.Ctx) error {
 	}
 
 	queryParams := params.PaginationQueryParams{
-		Offset: fiber.Query[int](ctx, "offset", 0),
-		Limit:  fiber.Query[int](ctx, "limit", 20),
+		Offset: fiber.Query(ctx, "offset", 0),
+		Limit:  fiber.Query(ctx, "limit", 20),
 	}
 	if err := c.validate.StructCtx(ctx.Context(), queryParams); err != nil {
 		return validateQueryParamsErrorResponse(logger, ctx, err)

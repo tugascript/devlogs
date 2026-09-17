@@ -8,8 +8,15 @@ package utils
 
 import (
 	"math/big"
+	"regexp"
 )
 
 func Base62Encode(bytes []byte) string {
 	return new(big.Int).SetBytes(bytes).Text(62)
+}
+
+var basicBase64URLRegex = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+func BasicBase64URLValidator(s string) bool {
+	return basicBase64URLRegex.MatchString(s)
 }
