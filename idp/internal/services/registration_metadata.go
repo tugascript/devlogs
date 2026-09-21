@@ -1,3 +1,9 @@
+// Copyright (c) 2026 Afonso Barracha
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 package services
 
 import (
@@ -19,25 +25,32 @@ import (
 )
 
 type prepareDynamicRegistrationOptions struct {
-	requestID                                        string
-	accountID                                        int32
-	accountPublicID                                  uuid.UUID
-	data                                             ApplicationRegistrationData
-	softwareStatement, backendDomain, frontendDomain string
-	app                                              bool
+	requestID         string
+	accountID         int32
+	accountPublicID   uuid.UUID
+	data              ApplicationRegistrationData
+	softwareStatement string
+	backendDomain     string
+	frontendDomain    string
+	app               bool
 }
 
 // Merge verified claims by presence, including explicit false, zero and empty arrays.
 // Unknown JWT claims are ignored by the typed metadata decoder.
-func mergeRegistrationMetadata(body ApplicationRegistrationData, statement tokens.SoftwareStatementClaims) (ApplicationRegistrationData, error) {
+func mergeRegistrationMetadata(
+	body ApplicationRegistrationData,
+	statement tokens.SoftwareStatementClaims,
+) (ApplicationRegistrationData, error) {
 	encoded, err := json.Marshal(body)
 	if err != nil {
 		return ApplicationRegistrationData{}, err
 	}
+
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(encoded, &fields); err != nil {
 		return ApplicationRegistrationData{}, err
 	}
+	// Preserve explicit empty arrays omitted by the claims JSON tags.
 	if body.ResponseTypes != nil {
 		fields["response_types"], _ = json.Marshal(body.ResponseTypes)
 	}
@@ -51,40 +64,58 @@ func mergeRegistrationMetadata(body ApplicationRegistrationData, statement token
 	if err != nil {
 		return ApplicationRegistrationData{}, err
 	}
+
 	var merged ApplicationRegistrationData
 	if err := json.Unmarshal(encoded, &merged); err != nil {
 		return ApplicationRegistrationData{}, err
 	}
+
 	return merged, nil
 }
 
-func (s *Services) prepareDynamicRegistration(ctx context.Context, opts prepareDynamicRegistrationOptions) (ApplicationRegistrationData, *exceptions.ServiceError) {
+func (s *Services) prepareDynamicRegistration(
+	ctx context.Context,
+	opts prepareDynamicRegistrationOptions,
+) (ApplicationRegistrationData, *exceptions.ServiceError) {
 	data := opts.data
-	var methods []database.SoftwareStatementVerificationMethod
+
+	var verificationMethods []database.SoftwareStatementVerificationMethod
 	allowedScopes := allowedAccountCredentialsScopes
 	if opts.app {
-		account, err := s.GetAccountByID(ctx, GetAccountByIDOptions{RequestID: opts.requestID, ID: opts.accountID})
+		account, err := s.GetAccountByID(ctx, GetAccountByIDOptions{
+			RequestID: opts.requestID,
+			ID:        opts.accountID,
+		})
 		if err != nil {
 			return data, err
 		}
 		opts.accountPublicID = account.PublicID
-		cfg, err := s.GetAndCacheAppDynamicRegistrationConfig(ctx, GetAndCacheAppDynamicRegistrationConfigOptions{RequestID: opts.requestID, AccountID: opts.accountID})
+		config, err := s.GetAndCacheAppDynamicRegistrationConfig(ctx, GetAndCacheAppDynamicRegistrationConfigOptions{
+			RequestID: opts.requestID,
+			AccountID: opts.accountID,
+		})
 		if err != nil {
 			return data, err
 		}
-		methods = cfg.SoftwareStatementVerificationMethods
-		if len(cfg.DefaultAllowedScopes) > 0 {
-			allowedScopes = utils.MapSlice(cfg.DefaultAllowedScopes, func(scope *database.Scopes) string { return string(*scope) })
+		verificationMethods = config.SoftwareStatementVerificationMethods
+		if len(config.DefaultAllowedScopes) > 0 {
+			allowedScopes = utils.MapSlice(config.DefaultAllowedScopes, func(scope *database.Scopes) string {
+				return string(*scope)
+			})
 		} else {
 			allowedScopes = allowedAppScopes
 		}
 	} else {
-		cfg, err := s.GetAndCacheAccountDynamicRegistrationConfig(ctx, GetAndCacheAccountDynamicRegistrationConfigOptions{RequestID: opts.requestID, AccountPublicID: opts.accountPublicID})
+		config, err := s.GetAndCacheAccountDynamicRegistrationConfig(ctx, GetAndCacheAccountDynamicRegistrationConfigOptions{
+			RequestID:       opts.requestID,
+			AccountPublicID: opts.accountPublicID,
+		})
 		if err != nil {
 			return data, err
 		}
-		methods = cfg.SoftwareStatementVerificationMethods
+		verificationMethods = config.SoftwareStatementVerificationMethods
 	}
+
 	if opts.softwareStatement != "" {
 		// This preview only locates the account's configured verification key/domain.
 		// No metadata from it is applied until signature verification succeeds.
@@ -101,15 +132,21 @@ func (s *Services) prepareDynamicRegistration(ctx context.Context, opts prepareD
 			jwksURI = claimJWKS
 		}
 		domain := registrationDomain(keyURI, data.RedirectURIs)
-		base, err := publicsuffix.EffectiveTLDPlusOne(domain)
+		baseDomain, err := publicsuffix.EffectiveTLDPlusOne(domain)
 		if err != nil {
 			return data, exceptions.NewInvalidTokenError("invalid software statement domain")
 		}
 		claims, standard, err := s.jwt.VerifySoftwareStatement(ctx, tokens.VerifySoftwareStatementOptions{
-			RequestID: opts.requestID, SoftwareStatement: opts.softwareStatement,
+			RequestID:         opts.requestID,
+			SoftwareStatement: opts.softwareStatement,
 			GetPublicJWK: s.buildDynamicRegistrationSoftwareStatementFunc(ctx, buildDynamicRegistrationSoftwareStatementFuncOptions{
-				requestID: opts.requestID, accountPublicID: opts.accountPublicID, verificationMethods: methods,
-				jwksURI: jwksURI, jwks: data.JWKs, domain: domain, baseDomain: base,
+				requestID:           opts.requestID,
+				accountPublicID:     opts.accountPublicID,
+				verificationMethods: verificationMethods,
+				jwksURI:             jwksURI,
+				jwks:                data.JWKs,
+				domain:              domain,
+				baseDomain:          baseDomain,
 			}),
 		})
 		if err != nil {
@@ -119,12 +156,19 @@ func (s *Services) prepareDynamicRegistration(ctx context.Context, opts prepareD
 			return data, exceptions.NewInvalidTokenError("invalid software statement")
 		}
 		if serviceErr := s.verifySoftwareStatementSTDClaims(ctx, verifySoftwareStatementSTDClaimsOptions{
-			requestID: opts.requestID, domain: domain, baseDomain: base, backendDomain: opts.backendDomain, frontendDomain: opts.frontendDomain, claims: &standard,
+			requestID:      opts.requestID,
+			domain:         domain,
+			baseDomain:     baseDomain,
+			backendDomain:  opts.backendDomain,
+			frontendDomain: opts.frontendDomain,
+			claims:         &standard,
 		}); serviceErr != nil {
 			return data, serviceErr
 		}
 		if serviceErr := s.validateSoftwareStatementClaims(ctx, validateSoftwareStatementClaimsOptions{
-			requestID: opts.requestID, claims: &claims, allowedScopes: utils.SliceToHashSet(allowedScopes),
+			requestID:     opts.requestID,
+			claims:        &claims,
+			allowedScopes: utils.SliceToHashSet(allowedScopes),
 		}); serviceErr != nil {
 			return data, exceptions.NewInvalidTokenError("invalid software statement")
 		}
@@ -133,6 +177,7 @@ func (s *Services) prepareDynamicRegistration(ctx context.Context, opts prepareD
 			return data, exceptions.NewInvalidTokenError("invalid software statement metadata")
 		}
 	}
+
 	if data.ApplicationType == "" {
 		if opts.app {
 			data.ApplicationType = "web"
@@ -142,9 +187,11 @@ func (s *Services) prepareDynamicRegistration(ctx context.Context, opts prepareD
 			data.ApplicationType = "native"
 		}
 	}
+
 	if data.ClientName == "" {
 		data.ClientName = "Client " + utils.Base62UUID()
 	}
+
 	if data.ClientURI == "" {
 		domain := registrationDomain("", data.RedirectURIs)
 		if domain == "" {
@@ -152,15 +199,17 @@ func (s *Services) prepareDynamicRegistration(ctx context.Context, opts prepareD
 		}
 		data.ClientURI = "https://" + domain
 	}
+
 	if data.Scope == "" && !opts.app {
 		data.Scope = "profile"
 	}
-	if err := normalizeRegistrationMetadata(&data); err != nil {
-		return data, err
+	if serviceErr := normalizeRegistrationMetadata(&data); serviceErr != nil {
+		return data, serviceErr
 	}
 	if err := s.validate.StructCtx(ctx, &data); err != nil {
 		return data, exceptions.NewValidationError("invalid client metadata")
 	}
+
 	return data, nil
 }
 
@@ -180,36 +229,57 @@ func normalizeRegistrationMetadata(data *ApplicationRegistrationData) *exception
 	if data.GrantTypes == nil {
 		data.GrantTypes = []string{"authorization_code"}
 	}
+
 	if data.ResponseTypes == nil {
 		data.ResponseTypes = []string{"code"}
 	}
+
 	if data.TokenEndpointAuthMethod == "" {
 		data.TokenEndpointAuthMethod = "client_secret_basic"
 	}
 	if len(data.GrantTypes) == 0 {
 		return exceptions.NewValidationError("grant_types must not be empty")
 	}
-	codeGrant := slices.Contains(data.GrantTypes, "authorization_code")
-	for _, response := range data.ResponseTypes {
-		if slices.Contains(strings.Fields(response), "code") && !codeGrant {
-			return exceptions.NewValidationError("code responses require authorization_code")
-		}
+	hasCodeGrant := slices.Contains(data.GrantTypes, "authorization_code")
+	hasCodeResponse := slices.ContainsFunc(data.ResponseTypes, func(response string) bool {
+		return slices.Contains(strings.Fields(response), "code")
+	})
+	if hasCodeResponse && !hasCodeGrant {
+		return exceptions.NewValidationError("code responses require authorization_code")
 	}
-	if codeGrant && !slices.ContainsFunc(data.ResponseTypes, func(response string) bool { return slices.Contains(strings.Fields(response), "code") }) {
+	if hasCodeGrant && !hasCodeResponse {
 		return exceptions.NewValidationError("authorization_code requires a code response")
 	}
-	if codeGrant && len(data.RedirectURIs) == 0 {
+	if hasCodeGrant && len(data.RedirectURIs) == 0 {
 		return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "redirect_uris is required for authorization_code")
 	}
-	for _, raw := range data.RedirectURIs {
+
+	if serviceErr := validateRegistrationRedirectURIs(data.RedirectURIs); serviceErr != nil {
+		return serviceErr
+	}
+
+	return validateRegistrationKeys(data)
+}
+
+func validateRegistrationRedirectURIs(redirectURIs []string) *exceptions.ServiceError {
+	for _, raw := range redirectURIs {
 		uri, err := url.Parse(raw)
-		if err != nil || uri.Scheme == "" || uri.User != nil || strings.Contains(raw, "#") || ((uri.Scheme == "https" || uri.Scheme == "http") && uri.Host == "") {
+		if err != nil || uri.Scheme == "" || uri.User != nil || strings.Contains(raw, "#") {
+			return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
+		}
+		if (uri.Scheme == "https" || uri.Scheme == "http") && uri.Host == "" {
 			return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
 		}
 	}
+
+	return nil
+}
+
+func validateRegistrationKeys(data *ApplicationRegistrationData) *exceptions.ServiceError {
 	if data.JWKs != nil && data.JWKsURI != "" {
 		return exceptions.NewValidationError("jwks and jwks_uri are mutually exclusive")
 	}
+
 	if data.JWKs != nil {
 		if len(data.JWKs.Keys) == 0 {
 			return exceptions.NewValidationError("jwks must contain keys")
@@ -236,6 +306,7 @@ func normalizeRegistrationMetadata(data *ApplicationRegistrationData) *exception
 			}
 		}
 	}
+
 	if data.JWKsURI != "" {
 		uri, err := url.Parse(data.JWKsURI)
 		if err != nil || uri.Scheme != "https" || uri.Host == "" || uri.User != nil || uri.Fragment != "" {
