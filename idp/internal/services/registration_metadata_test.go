@@ -1,9 +1,14 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"reflect"
 	"testing"
+
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
@@ -26,6 +31,13 @@ func TestRegistrationMetadataDefaultsAndValidation(t *testing.T) {
 		{name: "authorization code without code response", data: ApplicationRegistrationData{GrantTypes: []string{"authorization_code"}, ResponseTypes: []string{}}, errorCode: exceptions.CodeValidation},
 		{name: "both key sources", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/cb"}, JWKs: &utils.JWKSet{}, JWKsURI: "https://example.com/jwks"}, errorCode: exceptions.CodeValidation},
 		{name: "native custom scheme", data: ApplicationRegistrationData{RedirectURIs: []string{"com.example.app:/callback"}}},
+		{name: "remote HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"http://example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "uppercase remote HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"HTTP://example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "localhost lookalike", data: ApplicationRegistrationData{RedirectURIs: []string{"http://localhost.example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "private LAN HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"http://192.168.1.1/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "localhost HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"http://localhost:8080/callback"}}},
+		{name: "IPv4 loopback HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"http://127.0.0.1:8080/callback"}}},
+		{name: "IPv6 loopback HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"http://[::1]:8080/callback"}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -49,6 +61,56 @@ func TestRegistrationMetadataDefaultsAndValidation(t *testing.T) {
 			mapped, mapErr := mapRegistrationResponseTypes(tc.data.ResponseTypes)
 			if mapErr != nil || len(mapped) != len(tc.data.ResponseTypes) {
 				t.Fatalf("response types changed: %v %v", mapped, mapErr)
+			}
+		})
+	}
+}
+
+func TestSoftwareStatementIssuerClassification(t *testing.T) {
+	s := &Services{logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	for _, tc := range []struct{ name, issuer, want string }{
+		{"missing", "", exceptions.CodeInvalidToken},
+		{"unapproved", "https://other.example.net", exceptions.CodeUnauthorizedToken},
+		{"approved", "https://client.example.com", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := s.verifySoftwareStatementSTDClaims(context.Background(), verifySoftwareStatementSTDClaimsOptions{
+				domain: "client.example.com", baseDomain: "example.com", claims: &jwt.RegisteredClaims{Issuer: tc.issuer},
+			})
+			if tc.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || err.Code != tc.want {
+				t.Fatalf("error=%v, want %s", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestRegistrationRequiresVerifiedIATDomain(t *testing.T) {
+	s := &Services{logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	_, err := s.CreateAccountCredentialsRegistration(context.Background(), CreateAccountCredentialsRegistrationOptions{ClientURI: "https://client.example.com"})
+	if err == nil || err.Code != exceptions.OAuthErrorInvalidToken {
+		t.Fatalf("account error=%v", err)
+	}
+	_, err = s.CreateAppCredentialsRegistration(context.Background(), CreateAppCredentialsRegistrationOptions{IsAuthenticated: true, ClientURI: "https://client.example.com"})
+	if err == nil || err.Code != exceptions.OAuthErrorInvalidToken {
+		t.Fatalf("app error=%v", err)
+	}
+}
+
+func TestRegistrationRejectsOtherIATDomains(t *testing.T) {
+	s := &Services{logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	for _, domain := range []string{"sibling.example.com", "other.example.net", "client.example.com.attacker.net"} {
+		t.Run(domain, func(t *testing.T) {
+			// Reject before looking up domain approval in the database, even when
+			// both domains might otherwise be approved for this account.
+			_, err := s.checkClientRegistrationDomain(context.Background(), checkClientRegistrationDomainOptions{
+				iatDomain: "client.example.com", domain: domain,
+			})
+			if err == nil || err.Code != exceptions.CodeUnauthorized {
+				t.Fatalf("error=%v, want unauthorized", err)
 			}
 		})
 	}

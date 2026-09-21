@@ -49,6 +49,10 @@ func (s *Services) verifySoftwareStatementSTDClaims(
 	)
 	logger.InfoContext(ctx, "Verifying software statement standard claims")
 
+	if opts.claims.Issuer == "" {
+		return exceptions.NewInvalidTokenError("software statement issuer is required")
+	}
+
 	if opts.claims.Issuer != fmt.Sprintf("https://%s", opts.baseDomain) &&
 		opts.claims.Issuer != fmt.Sprintf("https://%s", opts.domain) {
 		logger.WarnContext(ctx, "Software statement issuer does not match client URI domain or base domain",

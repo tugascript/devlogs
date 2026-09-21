@@ -172,7 +172,7 @@ func (c *Controllers) DynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
 
 	if authHeader == "" {
 		logger.InfoContext(ctx.Context(), "No Authorization header found")
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
+		return bearerAuthenticationRequired(logger, ctx)
 	}
 
 	domain, accountClaims, serviceErr := c.services.ProcessAccountCredentialsRegistrationIATAuth(
@@ -186,7 +186,7 @@ func (c *Controllers) DynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
 
 	if serviceErr != nil {
 		logger.InfoContext(ctx.Context(), "Failed to process account credentials registration IAT auth", "serviceError", serviceErr)
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
 	}
 
 	ctx.Locals("account", accountClaims)
@@ -221,7 +221,7 @@ func (c *Controllers) AppDynamicRegistrationIATMiddleware(ctx fiber.Ctx) error {
 	)
 	if serviceErr != nil {
 		logger.InfoContext(ctx.Context(), "Failed to process app dynamic registration IAT auth", "serviceError", serviceErr)
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorAccessDenied)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
 	}
 
 	logger.DebugContext(ctx.Context(), "Processed app dynamic registration IAT auth successfully", "domain", domain, "account", accountClaims)

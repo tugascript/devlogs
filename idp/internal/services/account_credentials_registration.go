@@ -223,6 +223,8 @@ func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
 }
 
 type CreateAccountCredentialsRegistrationOptions struct {
+	// InitialAccessTokenDomain comes only from the verified IAT, never client metadata.
+	InitialAccessTokenDomain     string
 	RequestID                    string
 	AccountPublicID              uuid.UUID
 	AccountVersion               int32
@@ -314,7 +316,9 @@ func (s *Services) CreateAccountCredentialsRegistration(
 		TokenEndpointAuthSigningAlg:  opts.TokenEndpointAuthSigningAlg,
 		AccessTokenSigningAlg:        opts.AccessTokenSigningAlg,
 	}
-	iatDomain := registrationDomain(opts.ClientURI, opts.RedirectURIs)
+	if opts.InitialAccessTokenDomain == "" {
+		return dtos.AccountCredentialsDTO{}, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "initial access token domain is required")
+	}
 	data, preparationErr := s.prepareDynamicRegistration(ctx, prepareDynamicRegistrationOptions{
 		requestID: opts.RequestID, accountID: 0, accountPublicID: opts.AccountPublicID,
 		data: data, softwareStatement: opts.SoftwareStatement,
@@ -437,7 +441,7 @@ func (s *Services) CreateAccountCredentialsRegistration(
 	_, serviceErr = s.checkClientRegistrationDomain(ctx, checkClientRegistrationDomainOptions{
 		requestID:              opts.RequestID,
 		accountPublicID:        opts.AccountPublicID,
-		iatDomain:              iatDomain,
+		iatDomain:              opts.InitialAccessTokenDomain,
 		domain:                 domain,
 		usages:                 accountCredentialsRegistrationUsages,
 		requireVerifiedDomains: slices.Contains(accountDRConfigDTO.RequireVerifiedDomainsCredentialsType, applicationType),
