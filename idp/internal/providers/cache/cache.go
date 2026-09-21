@@ -17,7 +17,12 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
 
-const logLayer string = utils.ProvidersLogLayer + "/cache"
+const (
+	logLayer string = utils.ProvidersLogLayer + "/cache"
+
+	csrfTokenByteLen  int = 16
+	sessionKeyByteLen int = 32
+)
 
 type Cache struct {
 	logger             *slog.Logger

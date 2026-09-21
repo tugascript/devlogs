@@ -61,24 +61,86 @@ func (r *Routes) OAuthRoutes(app *fiber.App) {
 		r.controllers.AppDynamicRegistrationIATSign,
 	)
 
-	// TODO: add host aware routes to all IAT oauth flow
 	// Dynamic Registration IAT Code Exchange flow
-	iatRouter.Get(paths.OAuthAuth, r.controllers.OAuthDynamicRegistrationIATAuth)
-	iatRouter.Post(paths.OAuthToken, r.controllers.OAuthDynamicRegistrationIATToken)
+	iatRouter.Get(
+		paths.OAuthAuth,
+		r.controllers.HostMiddleware,
+		HostAwareRoute(
+			r.controllers.OAuthDynamicRegistrationIATAuth,
+			r.controllers.AppsOAuthDynamicRegistrationIATAuth,
+		),
+	)
+	iatRouter.Post(
+		paths.OAuthToken,
+		r.controllers.HostMiddleware,
+		HostAwareRoute(
+			r.controllers.OAuthDynamicRegistrationIATToken,
+			r.controllers.AppsOAuthDynamicRegistrationIATToken,
+		),
+	)
 
 	// Dynamic Registration IAT Login flow
 	const loginRoute = paths.InitialAccessTokenSingle + paths.AuthLogin
-	iatRouter.Get(loginRoute, r.controllers.OAuthDynamicRegistrationIATLoginGet)
-	iatRouter.Post(loginRoute, r.controllers.OAuthDynamicRegistrationIATLoginPost)
+	iatRouter.Get(
+		loginRoute,
+		r.controllers.HostMiddleware,
+		HostAwareRoute(
+			r.controllers.OAuthDynamicRegistrationIATLoginGet,
+			r.controllers.AppsOAuthDynamicRegistrationIATLoginGet,
+		),
+	)
+	iatRouter.Post(
+		loginRoute,
+		r.controllers.HostMiddleware,
+		HostAwareRoute(
+			r.controllers.OAuthDynamicRegistrationIATLoginPost,
+			r.controllers.AppsOAuthDynamicRegistrationIATLoginPost,
+		),
+	)
 
 	// Dynamic Registration IAT 2FA flow
 	const twoFAAuthRoute = loginRoute + paths.Auth2FA
-	iatRouter.Get(twoFAAuthRoute, r.controllers.OAuthDynamicRegistrationIAT2FAGet)
-	iatRouter.Post(twoFAAuthRoute, r.controllers.OAuthDynamicRegistrationIAT2FAPost)
+	iatRouter.Get(
+		twoFAAuthRoute,
+		r.controllers.HostMiddleware,
+		HostAwareRoute(
+			r.controllers.OAuthDynamicRegistrationIAT2FAGet,
+			r.controllers.AppsOAuthDynamicRegistrationIAT2FAGet,
+		),
+	)
+	iatRouter.Post(
+		twoFAAuthRoute,
+		r.controllers.HostMiddleware,
+		HostAwareRoute(
+			r.controllers.OAuthDynamicRegistrationIAT2FAPost,
+			r.controllers.AppsOAuthDynamicRegistrationIAT2FAPost,
+		),
+	)
 
 	// Dynamic Registration IAT External Auth flow
 	const extAuthRoute = paths.InitialAccessTokenSingle + paths.InitialAccessTokenAuthEXT
-	iatRouter.Get(extAuthRoute+paths.InitialAccessTokenProvider, r.controllers.OAuthDynamicRegistrationIATExtAuthGet)
-	iatRouter.Post(extAuthRoute+paths.OAuthAppleCallback, r.controllers.OAuthDynamicRegistrationIATExtAppleCB)
-	iatRouter.Get(extAuthRoute+paths.OAuthCallback, r.controllers.OAuthDynamicRegistrationIATExtCB)
+	iatRouter.Get(
+		extAuthRoute+paths.InitialAccessTokenProvider,
+		r.controllers.HostMiddleware,
+		HostAwareRoute(
+			r.controllers.OAuthDynamicRegistrationIATExtAuthGet,
+			r.controllers.AppsOAuthDynamicRegistrationIATExtAuthGet,
+		),
+	)
+	iatRouter.Post(
+		extAuthRoute+paths.OAuthAppleCallback,
+		r.controllers.HostMiddleware,
+		HostAwareRoute(
+			r.controllers.OAuthDynamicRegistrationIATExtAppleCB,
+			r.controllers.AppsOAuthDynamicRegistrationIATExtAppleCB,
+		),
+	)
+	iatRouter.Get(
+		extAuthRoute+paths.OAuthCallback,
+		r.controllers.HostMiddleware,
+		HostAwareRoute(
+			r.controllers.OAuthDynamicRegistrationIATExtCB,
+			r.controllers.AppsOAuthDynamicRegistrationIATExtCB,
+		),
+	)
 }

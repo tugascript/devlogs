@@ -448,8 +448,8 @@ func BuildAccountDynamicRegistrationIATAuthTemplate(opts AccountDynamicRegistrat
 		baseTemplateBody += buildFormErrors(opts.Errors)
 	}
 
-	baseURL := paths.V1 + paths.AccountsBase + paths.CredentialsBase + paths.DynamicRegistrationBase +
-		paths.InitialAccessToken + "/" + opts.ACCClientID + paths.OAuthAuth
+	baseURL := paths.V1 + paths.AuthBase + paths.OAuthBase +
+		paths.InitialAccessToken + "/" + opts.ACCClientID
 	data := accountDynamicRegistrationLoginTemplateData{
 		Title:               baseAccountLoginTitle,
 		Header:              "OAuth Dynamic Client Registration Initial Access Token Login",
@@ -715,8 +715,8 @@ func BuildAccountDynamicRegistrationIAT2FATemplate(opts AccountDynamicRegistrati
 	}
 
 	data := accountDynamicRegistrationIAT2FAData{
-		TwoFAURL: paths.V1 + paths.AccountsBase + paths.CredentialsBase + paths.DynamicRegistrationBase +
-			paths.InitialAccessToken + "/" + opts.ACCClientID + paths.OAuthAuth + paths.AuthLogin + paths.Auth2FA,
+		TwoFAURL: paths.V1 + paths.AuthBase + paths.OAuthBase +
+			paths.InitialAccessToken + "/" + opts.ACCClientID + paths.AuthLogin + paths.Auth2FA,
 		ClientID:            opts.Domain,
 		RedirectURI:         opts.RedirectURI,
 		CodeChallenge:       opts.CodeChallenge,

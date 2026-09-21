@@ -28,11 +28,6 @@ import (
 
 const oauthDynamicRegistrationLocation string = "oauth_dynamic_registration_accounts"
 
-const (
-	oauthDynamicRegistrationIATPath     string = paths.V1 + paths.AuthBase + paths.OAuthBase + paths.InitialAccessToken
-	oauthDynamicRegistrationIATAuthPath string = oauthDynamicRegistrationIATPath + paths.OAuthAuth
-)
-
 type refreshTokenOAuthDynamicRegistrationIATLoginOptions struct {
 	requestID       string
 	refreshToken    string
@@ -212,18 +207,6 @@ func (s *Services) initiateOAuthDynamicRegistrationIATAuthAccounts(
 	return "", nil
 }
 
-func dynamicRegistrationIssuerDomain(hostUsername, backendDomain string) string {
-	if hostUsername == "" {
-		return backendDomain
-	}
-	return hostUsername + "." + backendDomain
-}
-
-func oauthDynamicRegistrationIATExtCallbackURL(issuerDomain, accClientID, provider string) string {
-	return "https://" + issuerDomain + oauthDynamicRegistrationIATPath + "/" + accClientID +
-		paths.InitialAccessTokenAuthEXT + "/" + provider + paths.InitialAccessTokenCallback
-}
-
 func (s *Services) checkIATRegistrationDomain(
 	ctx context.Context,
 	requestID string,
@@ -242,43 +225,6 @@ func (s *Services) checkIATRegistrationDomain(
 		return exceptions.NewForbiddenError()
 	}
 	return nil
-}
-
-type buildOAuthDynamicRegistrationIATLoginURLOptions struct {
-	accClientID     string
-	domain          string
-	state           string
-	challenge       string
-	challengeMethod string
-	redirectURI     string
-}
-
-func buildOAuthDynamicRegistrationIATLoginURL(opts buildOAuthDynamicRegistrationIATLoginURLOptions) string {
-	queryParams := make(url.Values)
-	queryParams.Add("client_id", opts.domain)
-	queryParams.Add("response_type", "code")
-	queryParams.Add("redirect_uri", opts.redirectURI)
-	queryParams.Add("state", opts.state)
-	queryParams.Add("code_challenge", opts.challenge)
-	if opts.challengeMethod != "" {
-		queryParams.Add("code_challenge_method", opts.challengeMethod)
-	}
-	return oauthDynamicRegistrationIATPath + "/" + opts.accClientID + paths.OAuthAuth + paths.AuthLogin + "?" + queryParams.Encode()
-}
-
-type buildOAuthDynamicRegistrationIATCallbackURLOptions struct {
-	redirectURI  string
-	code         string
-	state        string
-	issuerDomain string
-}
-
-func buildOAuthDynamicRegistrationIATCallbackURL(opts buildOAuthDynamicRegistrationIATCallbackURLOptions) string {
-	queryParams := make(url.Values)
-	queryParams.Add("code", opts.code)
-	queryParams.Add("state", opts.state)
-	queryParams.Add("iss", "https://"+opts.issuerDomain)
-	return opts.redirectURI + "?" + queryParams.Encode()
 }
 
 type generateOAuthDynamicRegistrationIATCallbackOptions struct {
@@ -613,17 +559,11 @@ func (s *Services) OAuthDynamicRegistrationIATAuthRender(
 		return "", exceptions.NewForbiddenError()
 	}
 
-	if data.Domain != opts.Domain {
-		logger.WarnContext(ctx, "OAuth Domain does not match", "dataDomain", data.Domain)
-		return "", exceptions.NewUnauthorizedError()
-	}
-	if data.State != opts.State {
-		logger.WarnContext(ctx, "OAuth State does not match")
-		return "", exceptions.NewUnauthorizedError()
-	}
-	if data.RedirectURI != opts.RedirectURI {
-		logger.WarnContext(ctx, "OAuth Redirect URI does not match")
-		return "", exceptions.NewUnauthorizedError()
+	if serviceErr := validateDynamicRegistrationRequest(
+		dynamicRegistrationRequest{domain: data.Domain, state: data.State, redirectURI: data.RedirectURI},
+		dynamicRegistrationRequest{domain: opts.Domain, state: opts.State, redirectURI: opts.RedirectURI},
+	); serviceErr != nil {
+		return "", serviceErr
 	}
 
 	csrfToken, err := s.cache.SaveAccountCredentialsDynamicRegistrationIATLoginCSRF(
@@ -769,60 +709,16 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 		return "", "", false, exceptions.NewNotFoundError()
 	}
 
-	if data.Domain != opts.Domain {
-		logger.WarnContext(ctx, "OAuth Domain does not match", "dataDomain", data.Domain)
-		return "", "", false, exceptions.NewUnauthorizedError()
-	}
-	if data.State != opts.State {
-		logger.WarnContext(ctx, "OAuth State does not match")
-		return "", "", false, exceptions.NewUnauthorizedError()
-	}
-	if data.RedirectURI != opts.RedirectURI {
-		logger.WarnContext(ctx, "OAuth Redirect URI does not match")
-		return "", "", false, exceptions.NewUnauthorizedError()
+	if serviceErr := validateDynamicRegistrationRequest(
+		dynamicRegistrationRequest{domain: data.Domain, state: data.State, redirectURI: data.RedirectURI},
+		dynamicRegistrationRequest{domain: opts.Domain, state: opts.State, redirectURI: opts.RedirectURI},
+	); serviceErr != nil {
+		return "", "", false, serviceErr
 	}
 
-	accountDTO, serviceErr := s.GetAccountByEmail(ctx, GetAccountByEmailOptions{
-		RequestID: opts.RequestID,
-		Email:     opts.Email,
-	})
+	accountDTO, serviceErr := s.authenticateDynamicRegistrationAccount(ctx, logger, opts.RequestID, opts.Email, opts.Password)
 	if serviceErr != nil {
-		if serviceErr.Code != exceptions.CodeNotFound {
-			return "", "", false, serviceErr
-		}
-
-		logger.WarnContext(ctx, "Account was not found", "error", serviceErr)
-		return "", "", false, exceptions.NewUnauthorizedError()
-	}
-	if _, err := s.database.FindAccountAuthProviderByAccountPublicIdAndProvider(
-		ctx,
-		database.FindAccountAuthProviderByAccountPublicIdAndProviderParams{
-			AccountPublicID: accountDTO.PublicID,
-			Provider:        database.AuthProviderLocal,
-		},
-	); err != nil {
-		serviceErr := exceptions.FromDBError(err)
-		if serviceErr.Code != exceptions.CodeNotFound {
-			logger.ErrorContext(ctx, "Failed to find account auth provider", "error", err)
-			return "", "", false, serviceErr
-		}
-
-		logger.WarnContext(ctx, "Account auth provider not found", "error", err)
-		return "", "", false, exceptions.NewUnauthorizedError()
-	}
-
-	passwordVerified, err := utils.Argon2CompareHash(opts.Password, accountDTO.Password())
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to verify password", "error", err)
-		return "", "", false, exceptions.NewInternalServerError()
-	}
-	if !passwordVerified {
-		logger.WarnContext(ctx, "Passwords do not match")
-		return "", "", false, exceptions.NewUnauthorizedError()
-	}
-	if !accountDTO.EmailVerified() {
-		logger.InfoContext(ctx, "Account is not confirmed")
-		return "", "", false, exceptions.NewForbiddenError()
+		return "", "", false, serviceErr
 	}
 
 	default2FAConfig, serviceErr := s.getDefaultAccount2FAConfigInternal(ctx, getDefaultAccount2FAConfigInternalOptions{
@@ -897,7 +793,7 @@ func (s *Services) OAuthDynamicRegistrationIATLogin(
 		if opts.CodeChallengeMethod != "" {
 			queryParams.Add("code_challenge_method", opts.CodeChallengeMethod)
 		}
-		return oauthDynamicRegistrationIATPath + "/" + opts.ACCClientID + paths.OAuthAuth +
+		return oauthDynamicRegistrationIATPath + "/" + opts.ACCClientID +
 			paths.AuthLogin + paths.Auth2FA + "?" + queryParams.Encode(), sessionID, false, nil
 	}
 
@@ -977,17 +873,11 @@ func (s *Services) OAuthDynamicRegistrationIAT2FARender(
 		logger.WarnContext(ctx, "Client IDs do not match", "sessionClientId", data.ClientID)
 		return "", exceptions.NewUnauthorizedError()
 	}
-	if data.Domain != opts.Domain {
-		logger.WarnContext(ctx, "OAuth Domain does not match", "dataDomain", data.Domain)
-		return "", exceptions.NewUnauthorizedError()
-	}
-	if data.State != opts.State {
-		logger.WarnContext(ctx, "OAuth State does not match")
-		return "", exceptions.NewUnauthorizedError()
-	}
-	if data.RedirectURI != opts.RedirectURI {
-		logger.WarnContext(ctx, "OAuth Redirect URI does not match")
-		return "", exceptions.NewUnauthorizedError()
+	if serviceErr := validateDynamicRegistrationRequest(
+		dynamicRegistrationRequest{domain: data.Domain, state: data.State, redirectURI: data.RedirectURI},
+		dynamicRegistrationRequest{domain: opts.Domain, state: opts.State, redirectURI: opts.RedirectURI},
+	); serviceErr != nil {
+		return "", serviceErr
 	}
 
 	csrfToken, err := s.cache.SaveAccountCredentialsDynamicRegistrationIAT2FACSRFToken(
@@ -1064,17 +954,6 @@ func (s *Services) OAuthDynamicRegistrationIAT2FAReRender(
 	}
 
 	return twoFAhtml, nil
-}
-
-func map2FATypeTokens(twoFAType string) (tokens.TwoFAType, *exceptions.ServiceError) {
-	switch twoFAType {
-	case TwoFactorTypeEmail:
-		return tokens.TwoFATypeEmail, nil
-	case TwoFactorTypeTotp:
-		return tokens.TwoFATypeTOTP, nil
-	default:
-		return "", exceptions.NewValidationError("invalid two factor type")
-	}
 }
 
 type OAuthDynamicRegistrationIATVerify2FACodeOptions struct {
@@ -1322,17 +1201,11 @@ func (s *Services) OAuthDynamicRegistrationIATExtGet(
 		return "", exceptions.NewNotFoundError()
 	}
 
-	if data.Domain != opts.Domain {
-		logger.WarnContext(ctx, "OAuth Domain does not match", "dataDomain", data.Domain)
-		return "", exceptions.NewUnauthorizedError()
-	}
-	if data.State != opts.State {
-		logger.WarnContext(ctx, "OAuth State does not match")
-		return "", exceptions.NewUnauthorizedError()
-	}
-	if data.RedirectURI != opts.RedirectURI {
-		logger.WarnContext(ctx, "OAuth Redirect URI does not match")
-		return "", exceptions.NewUnauthorizedError()
+	if serviceErr := validateDynamicRegistrationRequest(
+		dynamicRegistrationRequest{domain: data.Domain, state: data.State, redirectURI: data.RedirectURI},
+		dynamicRegistrationRequest{domain: opts.Domain, state: opts.State, redirectURI: opts.RedirectURI},
+	); serviceErr != nil {
+		return "", serviceErr
 	}
 
 	if err := s.cache.SaveAccountCredentialsDynamicRegistrationIATExtAuth(ctx, cache.SaveAccountCredentialsDynamicRegistrationIATExtAuthOptions{
