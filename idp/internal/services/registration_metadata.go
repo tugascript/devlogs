@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/url"
 	"slices"
 	"strings"
@@ -269,6 +270,9 @@ func validateRegistrationRedirectURIs(redirectURIs []string) *exceptions.Service
 		}
 		if (uri.Scheme == "https" || uri.Scheme == "http") && uri.Host == "" {
 			return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
+		}
+		if uri.Scheme == "http" && !strings.EqualFold(uri.Hostname(), "localhost") && !net.ParseIP(uri.Hostname()).IsLoopback() {
+			return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "HTTP redirect URIs must use localhost or a loopback IP address")
 		}
 	}
 

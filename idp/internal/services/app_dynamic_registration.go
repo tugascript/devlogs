@@ -298,6 +298,8 @@ func (s *Services) mapAppRegistrationDataToDBParams(
 }
 
 type CreateAppCredentialsRegistrationOptions struct {
+	// InitialAccessTokenDomain comes only from the verified IAT, never client metadata.
+	InitialAccessTokenDomain     string
 	RequestID                    string
 	AccountID                    int32
 	IsAuthenticated              bool
@@ -390,7 +392,9 @@ func (s *Services) CreateAppCredentialsRegistration(
 		TokenEndpointAuthSigningAlg:  opts.TokenEndpointAuthSigningAlg,
 		AccessTokenSigningAlg:        opts.AccessTokenSigningAlg,
 	}
-	iatDomain := registrationDomain(opts.ClientURI, opts.RedirectURIs)
+	if opts.IsAuthenticated && opts.InitialAccessTokenDomain == "" {
+		return dtos.AppDTO{}, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "initial access token domain is required")
+	}
 	data, preparationErr := s.prepareDynamicRegistration(ctx, prepareDynamicRegistrationOptions{
 		requestID: opts.RequestID, accountID: opts.AccountID, accountPublicID: uuid.Nil,
 		data: data, softwareStatement: opts.SoftwareStatement,
@@ -490,7 +494,7 @@ func (s *Services) CreateAppCredentialsRegistration(
 	if slices.Contains(appDRConfigDTO.RequireInitialAccessTokenAppTypes, appType) &&
 		!opts.IsAuthenticated {
 		logger.WarnContext(ctx, "App dynamic registration configuration requires initial access token")
-		return dtos.AppDTO{}, exceptions.NewUnauthorizedError()
+		return dtos.AppDTO{}, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "initial access token is required")
 	}
 
 	if !slices.Contains(appDRConfigDTO.AllowedAppTypes, appType) {
@@ -533,7 +537,7 @@ func (s *Services) CreateAppCredentialsRegistration(
 	_, serviceErr = s.checkClientRegistrationDomain(ctx, checkClientRegistrationDomainOptions{
 		requestID:              opts.RequestID,
 		accountPublicID:        accountDTO.PublicID,
-		iatDomain:              iatDomain,
+		iatDomain:              opts.InitialAccessTokenDomain,
 		usages:                 appDynamicRegistrationUsages,
 		domain:                 domain,
 		requireVerifiedDomains: slices.Contains(appDRConfigDTO.RequireVerifiedDomainsAppTypes, appType),

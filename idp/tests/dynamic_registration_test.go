@@ -357,9 +357,10 @@ func TestDynamicRegistration(t *testing.T) {
 func TestDynamicRegistrationIATHostIsolation(t *testing.T) {
 	cfg := GetTestConfig(t)
 
-	assertAccessDenied := func(t *testing.T, _ dcrSetup, res *http.Response) {
+	assertInvalidToken := func(t *testing.T, _ dcrSetup, res *http.Response) {
 		response := decodeJSONObject(t, res)
-		AssertEqual(t, jsonString(response["error"]), exceptions.OAuthErrorAccessDenied)
+		AssertEqual(t, jsonString(response["error"]), exceptions.OAuthErrorInvalidToken)
+		AssertEqual(t, res.Header.Get("WWW-Authenticate"), `Bearer error="invalid_token"`)
 	}
 	testCases := []TestRequestCase[dcrSetup]{
 		{
@@ -384,7 +385,7 @@ func TestDynamicRegistrationIATHostIsolation(t *testing.T) {
 			RequestBodyFn: func(setup dcrSetup) any { return setup.body },
 			HostFn:        func(setup dcrSetup) string { return setup.host },
 			ExpStatus:     http.StatusUnauthorized,
-			AssertFn:      assertAccessDenied,
+			AssertFn:      assertInvalidToken,
 		},
 		{
 			Name: "app IAT cannot register account credentials",
@@ -397,7 +398,7 @@ func TestDynamicRegistrationIATHostIsolation(t *testing.T) {
 			RequestBodyFn: func(setup dcrSetup) any { return setup.body },
 			HostFn:        func(setup dcrSetup) string { return setup.host },
 			ExpStatus:     http.StatusUnauthorized,
-			AssertFn:      assertAccessDenied,
+			AssertFn:      assertInvalidToken,
 		},
 	}
 
@@ -405,6 +406,55 @@ func TestDynamicRegistrationIATHostIsolation(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			PerformTestRequestCase(t, http.MethodPost, oauthRegisterPath(), tc)
 		})
+	}
+}
+
+func TestDynamicRegistrationIATDomainBinding(t *testing.T) {
+	for _, appClient := range []bool{false, true} {
+		for _, statement := range []bool{false, true} {
+			t.Run(fmt.Sprintf("app=%t/statement=%t", appClient, statement), func(t *testing.T) {
+				PerformTestRequestCase(t, http.MethodPost, oauthRegisterPath(), TestRequestCase[dcrSetup]{
+					ReqFn: func(t *testing.T) (dcrSetup, string) {
+						setup := setupDynamicRegistration(t, appClient, true, statement)
+						if statement {
+							// The signed client_uri must override this conflicting unsigned value.
+							setup.body["client_uri"] = "https://unsigned.example.net"
+						} else {
+							// Approve a second domain for this same account: the IAT must still
+							// authorize only its own domain, not every approved domain.
+							other := utils.Base62UUID() + ".example.com"
+							_, err := GetTestDatabase(t).CreateDynamicRegistrationDomain(context.Background(), database.CreateDynamicRegistrationDomainParams{
+								AccountID: setup.account.ID(), AccountPublicID: setup.account.PublicID, Domain: other,
+								VerificationMethod: database.DomainVerificationMethodDnsTxtRecord,
+								Usages:             []database.DynamicRegistrationUsage{database.DynamicRegistrationUsageApp, database.DynamicRegistrationUsageAccount},
+							})
+							if err != nil {
+								t.Fatal(err)
+							}
+							setup.body["client_uri"] = "https://" + other
+							setup.body["redirect_uris"] = []string{"https://" + other + "/callback/"}
+						}
+						return setup, setup.accessToken
+					},
+					RequestBodyFn: func(setup dcrSetup) any { return setup.body },
+					HostFn:        func(setup dcrSetup) string { return setup.host },
+					ExpStatus: func() int {
+						if statement {
+							return http.StatusCreated
+						}
+						return http.StatusUnauthorized
+					}(),
+					AssertFn: func(t *testing.T, setup dcrSetup, res *http.Response) {
+						if statement {
+							assertCreatedRegistration(t, setup, res)
+							return
+						}
+						response := decodeJSONObject(t, res)
+						AssertEqual(t, jsonString(response["error"]), exceptions.OAuthErrorUnauthorizedClient)
+					},
+				})
+			})
+		}
 	}
 }
 
@@ -452,6 +502,16 @@ func TestDynamicRegistrationSoftwareStatementFailures(t *testing.T) {
 			},
 			ExpStatus: http.StatusBadRequest,
 			AssertFn:  assertError(exceptions.OAuthErrorUnapprovedSoftwareStatement),
+		},
+		{
+			Name: "missing issuer",
+			ReqFn: func(t *testing.T) (dcrSetup, string) {
+				return buildRequest(signSoftwareStatement(t, goodPrivate, goodKid, jwt.MapClaims{
+					"client_name": setup.clientName, "client_uri": "https://" + setup.domain,
+				})), ""
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn:  assertError(exceptions.OAuthErrorInvalidSoftwareStatement),
 		},
 		{
 			Name: "issuer mismatch",

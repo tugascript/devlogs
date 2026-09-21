@@ -35,9 +35,11 @@ func (c *Controllers) OAuthDynamicRegistration(ctx fiber.Ctx) error {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)
 	}
 
+	iatDomain, _ := ctx.Locals("domain").(string)
 	accountCredentialsDTO, serviceErr := c.services.CreateAccountCredentialsRegistration(
 		ctx.Context(),
 		services.CreateAccountCredentialsRegistrationOptions{
+			InitialAccessTokenDomain:     iatDomain,
 			RequestID:                    requestID,
 			AccountPublicID:              accountClaims.AccountID,
 			AccountVersion:               accountClaims.AccountVersion,
@@ -117,9 +119,14 @@ func (c *Controllers) OAuthAppDynamicRegistration(ctx fiber.Ctx) error {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
 	}
 
+	var iatDomain string
+	if isAuthenticated {
+		iatDomain, _ = ctx.Locals("domain").(string)
+	}
 	appDTO, serviceErr := c.services.CreateAppCredentialsRegistration(
 		ctx.Context(),
 		services.CreateAppCredentialsRegistrationOptions{
+			InitialAccessTokenDomain:     iatDomain,
 			RequestID:                    requestID,
 			IsAuthenticated:              isAuthenticated,
 			AccountID:                    accountID,
@@ -164,6 +171,9 @@ func (c *Controllers) OAuthAppDynamicRegistration(ctx fiber.Ctx) error {
 		},
 	)
 	if serviceErr != nil {
+		if !isAuthenticated && serviceErr.Code == exceptions.OAuthErrorInvalidToken {
+			return bearerAuthenticationRequired(logger, ctx)
+		}
 		return dynamicRegistrationServiceError(logger, ctx, serviceErr)
 	}
 

@@ -129,8 +129,17 @@ func serviceErrorHTMLResponse(logger *slog.Logger, ctx fiber.Ctx, serviceErr *ex
 	return ctx.Status(status).Type("html").SendString(errHtml)
 }
 
+func bearerAuthenticationRequired(logger *slog.Logger, ctx fiber.Ctx) error {
+	ctx.Set(fiber.HeaderWWWAuthenticate, "Bearer")
+	logResponse(logger, ctx, fiber.StatusUnauthorized)
+	return ctx.Status(fiber.StatusUnauthorized).Send(nil)
+}
+
 func oauthErrorResponse(logger *slog.Logger, ctx fiber.Ctx, message string) error {
 	resErr := exceptions.NewOAuthError(message)
+	if message == exceptions.OAuthErrorInvalidToken {
+		ctx.Set(fiber.HeaderWWWAuthenticate, `Bearer error="invalid_token"`)
+	}
 
 	switch message {
 	case exceptions.OAuthErrorInvalidRequest, exceptions.OAuthErrorInvalidGrant,
@@ -203,6 +212,8 @@ func dynamicRegistrationServiceError(
 	switch serviceErr.Code {
 	case exceptions.OAuthErrorInvalidRedirectURI:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRedirectURI)
+	case exceptions.OAuthErrorInvalidToken:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
 	case exceptions.CodeUnauthorized, exceptions.CodeForbidden:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnauthorizedClient)
 	case exceptions.CodeNotFound, exceptions.CodeValidation:
