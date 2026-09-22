@@ -215,18 +215,12 @@ Enum credentials_usage {
     "user"
 }
 
-Enum secret_storage_mode {
-    "hashed" // Store secrets as hashes
-    "encrypted" // Store secrets encrypted with a data encryption key
-}
-
 Table credentials_secrets as CS {
     id serial [pk]
 
     secret_id varchar(22) [not null]
     client_secret text [not null]
-    storage_mode secret_storage_mode [not null]
-    dek_kid varchar(22) [null]
+    dek_kid varchar(22) [not null]
     is_revoked boolean [not null, default: false]
     usage credentials_usage [not null]
 
@@ -253,6 +247,8 @@ Table credentials_keys as CK {
 
     public_kid varchar(22) [not null]
     public_key jsonb [not null]
+    private_key text [not null]
+    dek_kid varchar(22) [not null]
     crypto_suite token_crypto_suite [not null]
     is_revoked boolean [not null, default: false]
     is_external boolean [not null, default: false]
@@ -268,10 +264,12 @@ Table credentials_keys as CK {
         (public_kid) [unique, name: 'credential_keys_public_kid_uidx']
         (expires_at) [name: 'credential_keys_expires_at_idx']
         (is_revoked, usage, expires_at) [name: 'credential_keys_is_revoked_usage_expires_at_idx']
+        (dek_kid) [name: 'credential_keys_dek_kid_idx']
         (public_kid, crypto_suite, usage, is_revoked, expires_at) [name: 'credential_keys_public_kid_crypto_suite_usage_is_revoked_expires_at_idx']
     }
 }
 Ref: CK.account_id > A.id [delete: cascade]
+Ref: CK.dek_kid > DEK.kid [delete: cascade, update: cascade]
 
 Table account_key_encryption_keys as AKEK {
     account_id integer [not null]

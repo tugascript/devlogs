@@ -277,7 +277,7 @@ func (s *Services) CreateAccountCredentials(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 	responseTypes := make([]database.ResponseType, 0)
-	if credentialsType == database.AccountCredentialsTypeMcp && transport != database.TransportStdio {
+	if credentialsType == database.AccountCredentialsTypeMcp {
 		responseTypes, serviceErr = mapResponseTypesWithDefault(nil)
 		if serviceErr != nil {
 			return dtos.AccountCredentialsDTO{}, serviceErr
@@ -452,14 +452,13 @@ func (s *Services) CreateAccountCredentials(
 		var secretID, secret string
 		var exp time.Time
 		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
-			requestID:   opts.RequestID,
-			accountID:   accountID,
-			storageMode: mapCCSecretStorageMode(opts.AuthMethod),
-			expiresIn:   s.appCCExpDays,
-			usage:       database.CredentialsUsageAccount,
-			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			requestID: opts.RequestID,
+			accountID: accountID,
+			expiresIn: s.appCCExpDays,
+			usage:     database.CredentialsUsageAccount,
+			dekFN: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
 				RequestID: opts.RequestID,
-				AccountID: accountID,
+				Queries:   qrs,
 			}),
 		})
 		if serviceErr != nil {
@@ -905,7 +904,6 @@ type createAccountCredentialsSecretOptions struct {
 	requestID            string
 	accountID            int32
 	accountPublicID      uuid.UUID
-	storageMode          database.SecretStorageMode
 	accountCredentialsID int32
 }
 
@@ -931,14 +929,13 @@ func (s *Services) createAccountCredentialsSecret(
 	}()
 
 	ccID, secretID, secret, exp, serviceErr := s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
-		requestID:   opts.requestID,
-		accountID:   opts.accountID,
-		storageMode: opts.storageMode,
-		expiresIn:   s.appCCExpDays,
-		usage:       database.CredentialsUsageAccount,
-		dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+		requestID: opts.requestID,
+		accountID: opts.accountID,
+		expiresIn: s.appCCExpDays,
+		usage:     database.CredentialsUsageAccount,
+		dekFN: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
 			RequestID: opts.requestID,
-			AccountID: opts.accountID,
+			Queries:   qrs,
 		}),
 	})
 	if serviceErr != nil {
@@ -994,7 +991,6 @@ func (s *Services) rotateAccountCredentialsSecret(
 			requestID:            opts.requestID,
 			accountID:            opts.accountID,
 			accountPublicID:      opts.accountPublicID,
-			storageMode:          mapCCSecretStorageMode(string(opts.authMethod)),
 			accountCredentialsID: opts.accountCredentialsID,
 		})
 	}
@@ -1005,7 +1001,6 @@ func (s *Services) rotateAccountCredentialsSecret(
 			requestID:            opts.requestID,
 			accountID:            opts.accountID,
 			accountPublicID:      opts.accountPublicID,
-			storageMode:          currentSecret.StorageMode,
 			accountCredentialsID: opts.accountCredentialsID,
 		})
 	}
@@ -1201,7 +1196,8 @@ func (s *Services) ListAccountCredentialsSecretsOrKeys(
 		})
 	}
 	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretBasic ||
-		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost {
+		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost ||
+		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretJwt {
 		return s.listAccountCredentialsSecrets(ctx, listAccountCredentialsSecretsOptions{
 			requestID:            opts.RequestID,
 			accountCredentialsID: accountCredentialsDTO.ID(),
@@ -1326,7 +1322,8 @@ func (s *Services) GetAccountCredentialsSecretOrKey(
 		})
 	}
 	if accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretBasic ||
-		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost {
+		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretPost ||
+		accountCredentialsDTO.TokenEndpointAuthMethod == database.AuthMethodClientSecretJwt {
 		return s.getAccountCredentialsSecretByID(ctx, getAccountCredentialsSecretByIDOptions{
 			requestID:            opts.RequestID,
 			accountCredentialsID: accountCredentialsDTO.ID(),

@@ -9,7 +9,6 @@ INSERT INTO "credentials_secrets" (
     "account_id",
     "secret_id",
     "client_secret",
-    "storage_mode",
     "dek_kid",
     "expires_at",
     "usage"
@@ -19,8 +18,7 @@ INSERT INTO "credentials_secrets" (
     $3,
     $4,
     $5,
-    $6,
-    $7
+    $6
 ) RETURNING "id";
 
 -- name: RevokeCredentialsSecret :one

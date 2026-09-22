@@ -404,7 +404,7 @@ func (c *Controllers) AccountOAuthToken(ctx fiber.Ctx) error {
 	logger := c.buildLogger(requestID, oauthLocation, "AccountOAuthToken")
 	logRequest(logger, ctx)
 
-	if ctx.Get("Content-Type") != "application/x-www-form-urlencoded" {
+	if ctx.Get(fiber.HeaderContentType) != "application/x-www-form-urlencoded" {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	}
 

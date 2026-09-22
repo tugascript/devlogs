@@ -9,6 +9,8 @@ package bodies
 import "github.com/tugascript/devlogs/idp/internal/utils"
 
 type OAuthDynamicClientRegistrationBody struct {
+	ClientID                     string        `json:"client_id,omitempty" validate:"omitempty"`
+	ClientSecret                 string        `json:"client_secret,omitempty" validate:"omitempty"`
 	RedirectURIs                 []string      `json:"redirect_uris,omitempty" validate:"omitempty,min=1,dive,uri"`
 	TokenEndpointAuthMethod      string        `json:"token_endpoint_auth_method,omitempty" validate:"omitempty,oneof=none client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
 	ResponseTypes                []string      `json:"response_types,omitempty" validate:"omitempty,dive,oneof=code 'code id_token'"`
