@@ -668,11 +668,10 @@ func (s *Services) CreateAppCredentialsRegistration(
 		var secret string
 		var exp time.Time
 		ccID, _, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
-			requestID:   opts.RequestID,
-			accountID:   opts.AccountID,
-			storageMode: mapCCSecretStorageMode(string(tokenEndpointAuthMethod)),
-			expiresIn:   s.appCCExpDays,
-			usage:       database.CredentialsUsageApp,
+			requestID: opts.RequestID,
+			accountID: opts.AccountID,
+			expiresIn: s.appCCExpDays,
+			usage:     database.CredentialsUsageApp,
 			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
 				RequestID: opts.RequestID,
 				AccountID: opts.AccountID,

@@ -31,6 +31,12 @@ func TestRegistrationErrorResponses(t *testing.T) {
 		{"unapproved statement", func(ctx fiber.Ctx) error {
 			return dynamicRegistrationServiceError(logger, ctx, exceptions.NewUnauthorizedTokenError("unapproved issuer"))
 		}, http.StatusBadRequest, "", exceptions.OAuthErrorUnapprovedSoftwareStatement},
+		{"invalid request metadata", func(ctx fiber.Ctx) error {
+			return dynamicRegistrationServiceError(logger, ctx, exceptions.NewError(exceptions.OAuthErrorInvalidRequest, "invalid request"))
+		}, http.StatusBadRequest, "", exceptions.OAuthErrorInvalidRequest},
+		{"invalid client authentication", func(ctx fiber.Ctx) error {
+			return dynamicRegistrationServiceError(logger, ctx, exceptions.NewError(exceptions.OAuthErrorInvalidClient, "invalid client"))
+		}, http.StatusUnauthorized, "", exceptions.OAuthErrorInvalidClient},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			app := fiber.New()
@@ -41,7 +47,7 @@ func TestRegistrationErrorResponses(t *testing.T) {
 			}
 			defer res.Body.Close()
 			if res.StatusCode != tc.status || res.Header.Get("WWW-Authenticate") != tc.challenge {
-				t.Fatalf("status=%d challenge=%q", res.StatusCode, res.Header.Get("WWW-Authenticate"))
+				t.Fatalf("status=%d (want %d) challenge=%q (want %q)", res.StatusCode, tc.status, res.Header.Get("WWW-Authenticate"), tc.challenge)
 			}
 			body, err := io.ReadAll(res.Body)
 			if err != nil {

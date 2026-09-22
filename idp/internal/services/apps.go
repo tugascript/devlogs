@@ -987,11 +987,10 @@ func (s *Services) CreateWebApp(
 		var secretID, secret string
 		var exp time.Time
 		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
-			requestID:   opts.RequestID,
-			accountID:   accountID,
-			storageMode: mapCCSecretStorageMode(opts.AuthMethod),
-			expiresIn:   s.appCCExpDays,
-			usage:       database.CredentialsUsageApp,
+			requestID: opts.RequestID,
+			accountID: accountID,
+			expiresIn: s.appCCExpDays,
+			usage:     database.CredentialsUsageApp,
 			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
 				RequestID: opts.RequestID,
 				AccountID: accountID,
@@ -1271,11 +1270,10 @@ func (s *Services) CreateBackendApp(
 		var secretID, secret string
 		var exp time.Time
 		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
-			requestID:   opts.RequestID,
-			accountID:   accountID,
-			storageMode: mapCCSecretStorageMode(opts.AuthMethod),
-			expiresIn:   s.appCCExpDays,
-			usage:       database.CredentialsUsageApp,
+			requestID: opts.RequestID,
+			accountID: accountID,
+			expiresIn: s.appCCExpDays,
+			usage:     database.CredentialsUsageApp,
 			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
 				RequestID: opts.RequestID,
 				AccountID: accountID,
@@ -1679,11 +1677,10 @@ func (s *Services) CreateServiceApp(
 		var secretID, secret string
 		var exp time.Time
 		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
-			requestID:   opts.RequestID,
-			accountID:   accountID,
-			storageMode: mapCCSecretStorageMode(opts.AuthMethod),
-			expiresIn:   s.appCCExpDays,
-			usage:       database.CredentialsUsageApp,
+			requestID: opts.RequestID,
+			accountID: accountID,
+			expiresIn: s.appCCExpDays,
+			usage:     database.CredentialsUsageApp,
 			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
 				RequestID: opts.RequestID,
 				AccountID: accountID,
@@ -1965,11 +1962,10 @@ func (s *Services) CreateMCPApp(
 		var secretID, secret string
 		var exp time.Time
 		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
-			requestID:   opts.RequestID,
-			accountID:   accountID,
-			storageMode: mapCCSecretStorageMode(opts.AuthMethod),
-			expiresIn:   s.appCCExpDays,
-			usage:       database.CredentialsUsageApp,
+			requestID: opts.RequestID,
+			accountID: accountID,
+			expiresIn: s.appCCExpDays,
+			usage:     database.CredentialsUsageApp,
 			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
 				RequestID: opts.RequestID,
 				AccountID: accountID,
@@ -3280,11 +3276,10 @@ func (s *Services) rotateAppSecret(
 	}()
 
 	id, secretID, secret, exp, serviceErr := s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
-		requestID:   opts.requestID,
-		accountID:   opts.accountID,
-		storageMode: mapCCSecretStorageMode(string(opts.authMethod)),
-		expiresIn:   s.accountCCExpDays,
-		usage:       database.CredentialsUsageApp,
+		requestID: opts.requestID,
+		accountID: opts.accountID,
+		expiresIn: s.accountCCExpDays,
+		usage:     database.CredentialsUsageApp,
 		dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
 			RequestID: opts.requestID,
 			AccountID: opts.accountID,

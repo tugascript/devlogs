@@ -32,7 +32,10 @@ func buildKEKPath(kekPath string, path string, keyID uuid.UUID) string {
 }
 
 func (e *Crypto) createTransitKey(ctx context.Context) (uuid.UUID, error) {
-	keyID := uuid.New()
+	keyID, err := uuid.NewV7()
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to generate UUID for transit key: %w", err)
+	}
 	if _, err := e.opLogical.WriteWithContext(ctx, buildKEKPath(e.kekPath, "keys", keyID), kekKeyConfig); err != nil {
 		return uuid.Nil, fmt.Errorf("failed to create transit key: %w", err)
 	}

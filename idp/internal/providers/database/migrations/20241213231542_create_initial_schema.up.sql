@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2026-09-14T01:24:14.048Z
+-- Generated at: 2026-09-21T22:02:21.631Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -70,11 +70,6 @@ CREATE TYPE "credentials_usage" AS ENUM (
   'account',
   'app',
   'user'
-);
-
-CREATE TYPE "secret_storage_mode" AS ENUM (
-  'hashed',
-  'encrypted'
 );
 
 CREATE TYPE "auth_method" AS ENUM (
@@ -312,8 +307,7 @@ CREATE TABLE "credentials_secrets" (
   "id" serial PRIMARY KEY,
   "secret_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
-  "storage_mode" secret_storage_mode NOT NULL,
-  "dek_kid" varchar(22),
+  "dek_kid" varchar(22) NOT NULL,
   "is_revoked" boolean NOT NULL DEFAULT false,
   "usage" credentials_usage NOT NULL,
   "account_id" integer NOT NULL,
@@ -326,6 +320,8 @@ CREATE TABLE "credentials_keys" (
   "id" serial PRIMARY KEY,
   "public_kid" varchar(22) NOT NULL,
   "public_key" jsonb NOT NULL,
+  "private_key" text NOT NULL,
+  "dek_kid" varchar(22) NOT NULL,
   "crypto_suite" token_crypto_suite NOT NULL,
   "is_revoked" boolean NOT NULL DEFAULT false,
   "is_external" boolean NOT NULL DEFAULT false,
@@ -886,6 +882,8 @@ CREATE INDEX "credential_keys_expires_at_idx" ON "credentials_keys" ("expires_at
 
 CREATE INDEX "credential_keys_is_revoked_usage_expires_at_idx" ON "credentials_keys" ("is_revoked", "usage", "expires_at");
 
+CREATE INDEX "credential_keys_dek_kid_idx" ON "credentials_keys" ("dek_kid");
+
 CREATE INDEX "credential_keys_public_kid_crypto_suite_usage_is_revoked_expires_at_idx" ON "credentials_keys" ("public_kid", "crypto_suite", "usage", "is_revoked", "expires_at");
 
 CREATE INDEX "account_key_encryption_keys_account_id_idx" ON "account_key_encryption_keys" ("account_id");
@@ -1199,6 +1197,8 @@ ALTER TABLE "credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "acc
 ALTER TABLE "credentials_secrets" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "credentials_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "credentials_keys" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "account_key_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

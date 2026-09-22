@@ -26,7 +26,7 @@ INSERT INTO "credentials_keys" (
     $4,
     $5,
     $6
-) RETURNING id, public_kid, public_key, crypto_suite, is_revoked, is_external, usage, account_id, expires_at, created_at, updated_at
+) RETURNING id, public_kid, public_key, private_key, dek_kid, crypto_suite, is_revoked, is_external, usage, account_id, expires_at, created_at, updated_at
 `
 
 type CreateCredentialsKeyParams struct {
@@ -57,6 +57,8 @@ func (q *Queries) CreateCredentialsKey(ctx context.Context, arg CreateCredential
 		&i.ID,
 		&i.PublicKid,
 		&i.PublicKey,
+		&i.PrivateKey,
+		&i.DekKid,
 		&i.CryptoSuite,
 		&i.IsRevoked,
 		&i.IsExternal,
@@ -79,7 +81,7 @@ func (q *Queries) DeleteAllCredentialsKeys(ctx context.Context) error {
 }
 
 const findCredentialsKeyByID = `-- name: FindCredentialsKeyByID :one
-SELECT id, public_kid, public_key, crypto_suite, is_revoked, is_external, usage, account_id, expires_at, created_at, updated_at FROM "credentials_keys"
+SELECT id, public_kid, public_key, private_key, dek_kid, crypto_suite, is_revoked, is_external, usage, account_id, expires_at, created_at, updated_at FROM "credentials_keys"
 WHERE "id" = $1
 LIMIT 1
 `
@@ -91,6 +93,8 @@ func (q *Queries) FindCredentialsKeyByID(ctx context.Context, id int32) (Credent
 		&i.ID,
 		&i.PublicKid,
 		&i.PublicKey,
+		&i.PrivateKey,
+		&i.DekKid,
 		&i.CryptoSuite,
 		&i.IsRevoked,
 		&i.IsExternal,
@@ -132,7 +136,7 @@ UPDATE "credentials_keys" SET
     "is_revoked" = true,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, public_kid, public_key, crypto_suite, is_revoked, is_external, usage, account_id, expires_at, created_at, updated_at
+RETURNING id, public_kid, public_key, private_key, dek_kid, crypto_suite, is_revoked, is_external, usage, account_id, expires_at, created_at, updated_at
 `
 
 func (q *Queries) RevokeCredentialsKey(ctx context.Context, id int32) (CredentialsKey, error) {
@@ -142,6 +146,8 @@ func (q *Queries) RevokeCredentialsKey(ctx context.Context, id int32) (Credentia
 		&i.ID,
 		&i.PublicKid,
 		&i.PublicKey,
+		&i.PrivateKey,
+		&i.DekKid,
 		&i.CryptoSuite,
 		&i.IsRevoked,
 		&i.IsExternal,

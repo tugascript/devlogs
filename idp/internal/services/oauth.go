@@ -16,7 +16,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
@@ -835,39 +834,6 @@ func (s *Services) JWTBearerAccountLogin(
 	})
 }
 
-type processAccountClientSecretOptions struct {
-	requestID    string
-	clientSecret string
-}
-
-func (s *Services) processAccountClientSecret(
-	ctx context.Context,
-	opts processAccountClientSecretOptions,
-) (string, string, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.requestID, oauthLocation, "processAccountClientSecret")
-	logger.InfoContext(ctx, "Processing account client secret...")
-	secret := strings.TrimSpace(opts.clientSecret)
-	if secret == "" {
-		logger.WarnContext(ctx, "Client secret is empty")
-		return "", "", exceptions.NewUnauthorizedError()
-	}
-
-	parts := strings.Split(secret, ".")
-	if len(parts) != 2 {
-		logger.WarnContext(ctx, "Client secret must be in the format 'secretID.secretValue'")
-		return "", "", exceptions.NewUnauthorizedError()
-	}
-
-	idLen := len(parts[0])
-	if idLen != 22 {
-		logger.WarnContext(ctx, "Client secret ID must be 22 characters long", "secretIdLength", idLen)
-		return "", "", exceptions.NewUnauthorizedError()
-	}
-
-	logger.InfoContext(ctx, "Successfully processed account client secret", "secretID", parts[0])
-	return parts[0], parts[1], nil
-}
-
 type ClientCredentialsAccountLoginOptions struct {
 	RequestID    string
 	ClientID     string
@@ -886,12 +852,12 @@ func (s *Services) ClientCredentialsAccountLogin(
 	)
 	logger.InfoContext(ctx, "Client credentials account logging in...")
 
-	secretID, secret, serviceErr := s.processAccountClientSecret(ctx, processAccountClientSecretOptions{
+	secretID, secret, serviceErr := s.processClientCredentialsSecret(ctx, processClientCredentialsSecretOptions{
 		requestID:    opts.RequestID,
 		clientSecret: opts.ClientSecret,
 	})
 	if serviceErr != nil {
-		logger.WarnContext(ctx, "Failed to process account client secret", "serviceError", serviceErr)
+		logger.WarnContext(ctx, "Failed to process client credentials secret", "serviceError", serviceErr)
 		return dtos.AuthDTO{}, serviceErr
 	}
 
@@ -932,14 +898,45 @@ func (s *Services) ClientCredentialsAccountLogin(
 		return dtos.AuthDTO{}, serviceErr
 	}
 
-	verified, err := utils.Argon2CompareHash(secret, secretEnt.ClientSecret)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to compare account credentials secret", "error", err)
-		return dtos.AuthDTO{}, exceptions.NewInternalServerError()
-	}
-	if !verified {
-		logger.WarnContext(ctx, "Account credentials secret is invalid")
-		return dtos.AuthDTO{}, exceptions.NewUnauthorizedError()
+	if serviceErr := s.verifyClientCredentialsSecret(ctx, verifyClientCredentialsSecretOptions{
+		requestID: opts.RequestID,
+		secret:    secret,
+		decryptWithDekOpts: crypto.DecryptWithDEKOptions{
+			RequestID: opts.RequestID,
+			GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+				RequestID: opts.RequestID,
+			}),
+			GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+				RequestID: opts.RequestID,
+			}),
+			StoreReEncryptedDataFn: func(
+				_ crypto.EntityID,
+				dekID crypto.DEKID,
+				ciphertext crypto.DEKCiphertext,
+			) *exceptions.ServiceError {
+				if err := s.database.UpdateCredentialsSecretClientSecret(
+					ctx,
+					database.UpdateCredentialsSecretClientSecretParams{
+						ID:           secretEnt.ID,
+						ClientSecret: ciphertext,
+						DekKid:       dekID,
+					},
+				); err != nil {
+					logger.ErrorContext(ctx, "Failed to update client credentials secret with re-encrypted DEK",
+						"error", err,
+					)
+					return exceptions.FromDBError(err)
+				}
+
+				logger.InfoContext(ctx, "Successfully updated client credentials secret with re-encrypted DEK")
+				return nil
+			},
+			EntityID:   secretID,
+			Ciphertext: secretEnt.ClientSecret,
+		},
+	}); serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to verify client credentials secret", "serviceError", serviceErr)
+		return dtos.AuthDTO{}, serviceErr
 	}
 
 	accountDTO, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{

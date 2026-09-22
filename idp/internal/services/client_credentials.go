@@ -12,17 +12,15 @@ import (
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
@@ -42,12 +40,11 @@ const (
 )
 
 type clientCredentialsSecretOptions struct {
-	requestID   string
-	accountID   int32
-	storageMode database.SecretStorageMode
-	expiresIn   time.Duration
-	usage       database.CredentialsUsage
-	dekFN       crypto.GetDEKtoEncrypt
+	requestID string
+	accountID int32
+	expiresIn time.Duration
+	usage     database.CredentialsUsage
+	dekFN     crypto.GetDEKtoEncrypt
 }
 
 func (s *Services) clientCredentialsSecret(
@@ -58,7 +55,6 @@ func (s *Services) clientCredentialsSecret(
 	logger := s.buildLogger(opts.requestID, clientCredentialsLocation, "clientCredentialsSecret").With(
 		"accountId", opts.accountID,
 		"usage", opts.usage,
-		"storageMode", opts.storageMode,
 	)
 	logger.InfoContext(ctx, "Generating client credentials secret...")
 
@@ -70,31 +66,6 @@ func (s *Services) clientCredentialsSecret(
 	}
 
 	exp := time.Now().Add(opts.expiresIn)
-	if opts.storageMode == database.SecretStorageModeHashed {
-		hashedSecret, err := utils.Argon2HashString(secret)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to hash secret", "error", err)
-			return 0, "", "", time.Time{}, exceptions.NewInternalServerError()
-		}
-
-		id, err := qrs.CreateCredentialsSecret(ctx, database.CreateCredentialsSecretParams{
-			AccountID:    opts.accountID,
-			SecretID:     secretID,
-			ClientSecret: hashedSecret,
-			StorageMode:  opts.storageMode,
-			DekKid:       pgtype.Text{Valid: false},
-			ExpiresAt:    exp,
-			Usage:        opts.usage,
-		})
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create credentials secret", "error", err)
-			return 0, "", "", time.Time{}, exceptions.FromDBError(err)
-		}
-
-		logger.InfoContext(ctx, "Created credentials secret with hashed storage mode", "secretId", secretID)
-		return id, secretID, secret, exp, nil
-	}
-
 	dekID, encryptedSecret, serviceErr := s.crypto.EncryptWithDEK(ctx, crypto.EncryptWithDEKOptions{
 		RequestID: opts.requestID,
 		GetDEKfn:  opts.dekFN,
@@ -109,8 +80,7 @@ func (s *Services) clientCredentialsSecret(
 		AccountID:    opts.accountID,
 		SecretID:     secretID,
 		ClientSecret: encryptedSecret,
-		StorageMode:  opts.storageMode,
-		DekKid:       pgtype.Text{String: dekID, Valid: true},
+		DekKid:       dekID,
 		ExpiresAt:    exp,
 		Usage:        opts.usage,
 	})
@@ -326,20 +296,14 @@ func (s *Services) BuildGetAccountClientCredentialsSecretFn(
 			logger.ErrorContext(ctx, "Failed to find client credentials secret", "error", err)
 			return nil, err
 		}
-		if secret.StorageMode != database.SecretStorageModeEncrypted {
-			logger.WarnContext(ctx, "Client credentials secret is not encrypted", "storageMode", secret.StorageMode)
-			return nil, errors.New("client credentials secret is not encrypted")
-		}
 
 		decryptedSecret, serviceErr := s.crypto.DecryptWithDEK(ctx, crypto.DecryptWithDEKOptions{
 			RequestID: requestID,
-			GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
+			GetDecryptDEKfn: s.BuildGetGlobalDecDEKFn(ctx, BuildGetGlobalDEKFnOptions{
 				RequestID: requestID,
-				AccountID: secret.AccountID,
 			}),
-			GetEncryptDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			GetEncryptDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
 				RequestID: requestID,
-				AccountID: secret.AccountID,
 			}),
 			StoreReEncryptedDataFn: func(
 				_ crypto.EntityID,
@@ -351,7 +315,7 @@ func (s *Services) BuildGetAccountClientCredentialsSecretFn(
 					database.UpdateCredentialsSecretClientSecretParams{
 						ID:           secret.ID,
 						ClientSecret: ciphertext,
-						DekKid:       pgtype.Text{Valid: true, String: dekID},
+						DekKid:       dekID,
 					},
 				); err != nil {
 					logger.ErrorContext(ctx, "Failed to update client credentials secret with re-encrypted DEK",
@@ -447,4 +411,83 @@ func (s *Services) ProcessClientCredentialsLoginData(
 		"authMethod", database.AuthMethodClientSecretBasic,
 	)
 	return clientID, decodedSlice[1], database.AuthMethodClientSecretBasic, nil
+}
+
+type processClientCredentialsSecretOptions struct {
+	requestID    string
+	clientSecret string
+}
+
+func (s *Services) processClientCredentialsSecret(
+	ctx context.Context,
+	opts processClientCredentialsSecretOptions,
+) (string, []byte, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.requestID, oauthLocation, "processClientCredentialsSecret")
+	logger.InfoContext(ctx, "Processing client credentials secret...")
+	secret := strings.TrimSpace(opts.clientSecret)
+	if secret == "" {
+		logger.WarnContext(ctx, "Client secret is empty")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	parts := strings.Split(secret, ".")
+	if len(parts) != 2 {
+		logger.WarnContext(ctx, "Client secret must be in the format 'secretID.secretValue'")
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	idLen := len(parts[0])
+	if idLen != 22 {
+		logger.WarnContext(ctx, "Client secret ID must be 22 characters long", "secretIdLength", idLen)
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	b64Secret := parts[1]
+	secretLen := len(b64Secret)
+	if secretLen < 40 {
+		logger.WarnContext(ctx, "Client secret value must be at least 40 characters long", "secretValueLength", secretLen)
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	secretBytes, err := utils.DecodeBase64Secret(b64Secret)
+	if err != nil {
+		logger.WarnContext(ctx, "Client secret value is not valid base64", "secretValue", b64Secret)
+		return "", nil, exceptions.NewUnauthorizedError()
+	}
+
+	logger.InfoContext(ctx, "Successfully processed client credentials secret", "secretID", parts[0])
+	return parts[0], secretBytes, nil
+}
+
+type verifyClientCredentialsSecretOptions struct {
+	requestID          string
+	secret             []byte
+	decryptWithDekOpts crypto.DecryptWithDEKOptions
+}
+
+func (s *Services) verifyClientCredentialsSecret(
+	ctx context.Context,
+	opts verifyClientCredentialsSecretOptions,
+) *exceptions.ServiceError {
+	logger := s.buildLogger(opts.requestID, oauthLocation, "verifyClientCredentialsSecret")
+	logger.InfoContext(ctx, "Verifying client credentials secret...")
+
+	decryptedSecret, serviceErr := s.crypto.DecryptWithDEK(ctx, opts.decryptWithDekOpts)
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to decrypt client credentials secret", "serviceError", serviceErr)
+		return serviceErr
+	}
+
+	decodedSecret, err := utils.DecodeBase64Secret(decryptedSecret)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to decode base64 encoded decrypted secret", "error", err)
+		return exceptions.NewInternalServerError()
+	}
+
+	if subtle.ConstantTimeCompare(opts.secret, decodedSecret) != 1 {
+		logger.WarnContext(ctx, "Client Credentials secrets do not match")
+		return exceptions.NewUnauthorizedError()
+	}
+
+	return nil
 }

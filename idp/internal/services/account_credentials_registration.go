@@ -537,14 +537,13 @@ func (s *Services) CreateAccountCredentialsRegistration(
 		var secretID, secret string
 		var exp time.Time
 		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
-			requestID:   opts.RequestID,
-			accountID:   accountID,
-			storageMode: mapCCSecretStorageMode(string(tokenEndpointAuthMethod)),
-			expiresIn:   s.appCCExpDays,
-			usage:       database.CredentialsUsageAccount,
-			dekFN: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			requestID: opts.RequestID,
+			accountID: accountID,
+			expiresIn: s.appCCExpDays,
+			usage:     database.CredentialsUsageAccount,
+			dekFN: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
 				RequestID: opts.RequestID,
-				AccountID: accountID,
+				Queries:   qrs,
 			}),
 		})
 		if serviceErr != nil {

@@ -39,7 +39,7 @@ func (q *Queries) FindDynamicRegistrationSoftwareStatementKeysByCredentialsKeyKI
 
 const findDynamicRegistrationSoftwareStatementKeysByRootDomainAndAccountPublicID = `-- name: FindDynamicRegistrationSoftwareStatementKeysByRootDomainAndAccountPublicID :one
 
-SELECT c.id, c.public_kid, c.public_key, c.crypto_suite, c.is_revoked, c.is_external, c.usage, c.account_id, c.expires_at, c.created_at, c.updated_at FROM "credentials_keys" AS "c"
+SELECT c.id, c.public_kid, c.public_key, c.private_key, c.dek_kid, c.crypto_suite, c.is_revoked, c.is_external, c.usage, c.account_id, c.expires_at, c.created_at, c.updated_at FROM "credentials_keys" AS "c"
 LEFT JOIN "dynamic_registration_software_statement_keys" AS "d" ON "c"."id" = "d"."credentials_key_id"
 WHERE "d"."root_domain" = $1 AND "d"."account_public_id" = $2
 LIMIT 1
@@ -62,6 +62,8 @@ func (q *Queries) FindDynamicRegistrationSoftwareStatementKeysByRootDomainAndAcc
 		&i.ID,
 		&i.PublicKid,
 		&i.PublicKey,
+		&i.PrivateKey,
+		&i.DekKid,
 		&i.CryptoSuite,
 		&i.IsRevoked,
 		&i.IsExternal,

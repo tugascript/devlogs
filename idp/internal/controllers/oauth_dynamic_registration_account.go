@@ -208,7 +208,8 @@ func (c *Controllers) OAuthDynamicRegistrationGet(ctx fiber.Ctx) error {
 	}
 
 	dto, serviceErr := c.services.GetRegisteredAccountCredentials(ctx.Context(), services.GetRegisteredClientOptions{
-		RequestID: requestID, AccountPublicID: accountClaims.AccountID, ClientID: tokenClientID, BackendDomain: c.backendDomain,
+		RequestID: requestID, AccountPublicID: accountClaims.AccountID, ClientID: tokenClientID,
+		BackendDomain: c.backendDomain,
 	})
 	if serviceErr != nil {
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
@@ -260,7 +261,9 @@ func (c *Controllers) OAuthDynamicRegistrationUpdate(ctx fiber.Ctx) error {
 	}
 
 	dto, serviceErr := c.services.UpdateRegisteredAccountCredentials(ctx.Context(), services.UpdateRegisteredClientOptions{
-		ClientID: tokenClientID,
+		ClientID:              tokenClientID,
+		SubmittedClientID:     body.ClientID,
+		SubmittedClientSecret: body.ClientSecret,
 		CreateAccountCredentialsRegistrationOptions: services.CreateAccountCredentialsRegistrationOptions{
 			RequestID: requestID, AccountPublicID: accountClaims.AccountID, AccountVersion: accountClaims.AccountVersion,
 			ApplicationType: body.ApplicationType, RedirectURIs: body.RedirectURIs, TokenEndpointAuthMethod: body.TokenEndpointAuthMethod,
@@ -303,7 +306,10 @@ func (c *Controllers) OAuthAppDynamicRegistrationUpdate(ctx fiber.Ctx) error {
 	}
 
 	dto, serviceErr := c.services.UpdateRegisteredApp(ctx.Context(), services.UpdateRegisteredAppOptions{
-		ClientID: tokenClientID, HostUsername: username,
+		ClientID:              tokenClientID,
+		SubmittedClientID:     body.ClientID,
+		SubmittedClientSecret: body.ClientSecret,
+		HostUsername:          username,
 		CreateAppCredentialsRegistrationOptions: services.CreateAppCredentialsRegistrationOptions{
 			RequestID: requestID, AccountID: accountID, ApplicationType: body.ApplicationType, RedirectURIs: body.RedirectURIs,
 			TokenEndpointAuthMethod: body.TokenEndpointAuthMethod, GrantTypes: body.GrantTypes, ResponseTypes: body.ResponseTypes,

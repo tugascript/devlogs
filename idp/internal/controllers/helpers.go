@@ -2,8 +2,7 @@
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at https://mozilla.org/MPL/2.0/.
-
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.\n
 package controllers
 
 import (
@@ -149,7 +148,8 @@ func oauthErrorResponse(logger *slog.Logger, ctx fiber.Ctx, message string) erro
 		exceptions.OAuthErrorUnsupportedResponseType:
 		logResponse(logger, ctx, fiber.StatusBadRequest)
 		return ctx.Status(fiber.StatusBadRequest).JSON(&resErr)
-	case exceptions.OAuthErrorUnauthorizedClient, exceptions.OAuthErrorAccessDenied, exceptions.OAuthErrorInvalidToken:
+	case exceptions.OAuthErrorUnauthorizedClient, exceptions.OAuthErrorAccessDenied,
+		exceptions.OAuthErrorInvalidToken, exceptions.OAuthErrorInvalidClient:
 		logResponse(logger, ctx, fiber.StatusUnauthorized)
 		return ctx.Status(fiber.StatusUnauthorized).JSON(&resErr)
 	case exceptions.OAuthErrorServerError:
@@ -210,6 +210,10 @@ func dynamicRegistrationServiceError(
 	serviceErr *exceptions.ServiceError,
 ) error {
 	switch serviceErr.Code {
+	case exceptions.OAuthErrorInvalidRequest:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+	case exceptions.OAuthErrorInvalidClient:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClient)
 	case exceptions.OAuthErrorInvalidRedirectURI:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRedirectURI)
 	case exceptions.OAuthErrorInvalidToken:

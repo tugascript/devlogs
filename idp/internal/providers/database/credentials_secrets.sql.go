@@ -8,8 +8,6 @@ package database
 import (
 	"context"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createCredentialsSecret = `-- name: CreateCredentialsSecret :one
@@ -18,7 +16,6 @@ INSERT INTO "credentials_secrets" (
     "account_id",
     "secret_id",
     "client_secret",
-    "storage_mode",
     "dek_kid",
     "expires_at",
     "usage"
@@ -28,8 +25,7 @@ INSERT INTO "credentials_secrets" (
     $3,
     $4,
     $5,
-    $6,
-    $7
+    $6
 ) RETURNING "id"
 `
 
@@ -37,8 +33,7 @@ type CreateCredentialsSecretParams struct {
 	AccountID    int32
 	SecretID     string
 	ClientSecret string
-	StorageMode  SecretStorageMode
-	DekKid       pgtype.Text
+	DekKid       string
 	ExpiresAt    time.Time
 	Usage        CredentialsUsage
 }
@@ -53,7 +48,6 @@ func (q *Queries) CreateCredentialsSecret(ctx context.Context, arg CreateCredent
 		arg.AccountID,
 		arg.SecretID,
 		arg.ClientSecret,
-		arg.StorageMode,
 		arg.DekKid,
 		arg.ExpiresAt,
 		arg.Usage,
@@ -73,7 +67,7 @@ func (q *Queries) DeleteAllCredentialsSecrets(ctx context.Context) error {
 }
 
 const findValidCredentialsSecretBySecretID = `-- name: FindValidCredentialsSecretBySecretID :one
-SELECT id, secret_id, client_secret, storage_mode, dek_kid, is_revoked, usage, account_id, expires_at, created_at, updated_at FROM "credentials_secrets"
+SELECT id, secret_id, client_secret, dek_kid, is_revoked, usage, account_id, expires_at, created_at, updated_at FROM "credentials_secrets"
 WHERE
     "secret_id" = $1 AND
     "is_revoked" = false AND
@@ -88,7 +82,6 @@ func (q *Queries) FindValidCredentialsSecretBySecretID(ctx context.Context, secr
 		&i.ID,
 		&i.SecretID,
 		&i.ClientSecret,
-		&i.StorageMode,
 		&i.DekKid,
 		&i.IsRevoked,
 		&i.Usage,
@@ -105,7 +98,7 @@ UPDATE "credentials_secrets" SET
     "is_revoked" = true,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, secret_id, client_secret, storage_mode, dek_kid, is_revoked, usage, account_id, expires_at, created_at, updated_at
+RETURNING id, secret_id, client_secret, dek_kid, is_revoked, usage, account_id, expires_at, created_at, updated_at
 `
 
 func (q *Queries) RevokeCredentialsSecret(ctx context.Context, id int32) (CredentialsSecret, error) {
@@ -115,7 +108,6 @@ func (q *Queries) RevokeCredentialsSecret(ctx context.Context, id int32) (Creden
 		&i.ID,
 		&i.SecretID,
 		&i.ClientSecret,
-		&i.StorageMode,
 		&i.DekKid,
 		&i.IsRevoked,
 		&i.Usage,
@@ -138,7 +130,7 @@ WHERE "id" = $1
 type UpdateCredentialsSecretClientSecretParams struct {
 	ID           int32
 	ClientSecret string
-	DekKid       pgtype.Text
+	DekKid       string
 }
 
 func (q *Queries) UpdateCredentialsSecretClientSecret(ctx context.Context, arg UpdateCredentialsSecretClientSecretParams) error {
