@@ -16,6 +16,8 @@ INSERT INTO "credentials_keys" (
     "account_id",
     "public_kid",
     "public_key",
+    "private_key",
+    "dek_kid",
     "crypto_suite",
     "expires_at",
     "usage"
@@ -25,7 +27,9 @@ INSERT INTO "credentials_keys" (
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7,
+    $8
 ) RETURNING id, public_kid, public_key, private_key, dek_kid, crypto_suite, is_revoked, is_external, usage, account_id, expires_at, created_at, updated_at
 `
 
@@ -33,6 +37,8 @@ type CreateCredentialsKeyParams struct {
 	AccountID   int32
 	PublicKid   string
 	PublicKey   []byte
+	PrivateKey  string
+	DekKid      string
 	CryptoSuite TokenCryptoSuite
 	ExpiresAt   time.Time
 	Usage       CredentialsUsage
@@ -48,6 +54,8 @@ func (q *Queries) CreateCredentialsKey(ctx context.Context, arg CreateCredential
 		arg.AccountID,
 		arg.PublicKid,
 		arg.PublicKey,
+		arg.PrivateKey,
+		arg.DekKid,
 		arg.CryptoSuite,
 		arg.ExpiresAt,
 		arg.Usage,

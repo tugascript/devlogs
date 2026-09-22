@@ -218,10 +218,31 @@ func (s *Services) clientCredentialsKey(
 		return database.CreateCredentialsKeyParams{}, nil, serviceErr
 	}
 
+	privateKeyJSON, err := privJwk.MarshalJSON()
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to marshal client credentials private key", "error", err)
+		return database.CreateCredentialsKeyParams{}, nil, exceptions.NewInternalServerError()
+	}
+	defer utils.WipeBytes(ctx, logger, privateKeyJSON)
+
+	dekID, encryptedPrivateKey, serviceErr := s.crypto.EncryptWithDEK(ctx, crypto.EncryptWithDEKOptions{
+		RequestID: opts.requestID,
+		GetDEKfn: s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{
+			RequestID: opts.requestID,
+		}),
+		PlainText: string(privateKeyJSON),
+	})
+	if serviceErr != nil {
+		logger.ErrorContext(ctx, "Failed to encrypt client credentials private key", "serviceError", serviceErr)
+		return database.CreateCredentialsKeyParams{}, nil, serviceErr
+	}
+
 	return database.CreateCredentialsKeyParams{
 		AccountID:   opts.accountID,
 		PublicKid:   kid,
 		PublicKey:   jsonJwk,
+		PrivateKey:  encryptedPrivateKey,
+		DekKid:      dekID,
 		ExpiresAt:   time.Now().Add(opts.expiresIn),
 		Usage:       opts.usage,
 		CryptoSuite: cryptoSuite,

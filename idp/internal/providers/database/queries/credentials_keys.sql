@@ -9,6 +9,8 @@ INSERT INTO "credentials_keys" (
     "account_id",
     "public_kid",
     "public_key",
+    "private_key",
+    "dek_kid",
     "crypto_suite",
     "expires_at",
     "usage"
@@ -18,7 +20,9 @@ INSERT INTO "credentials_keys" (
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7,
+    $8
 ) RETURNING *;
 
 -- name: RevokeCredentialsKey :one
