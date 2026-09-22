@@ -28,7 +28,7 @@ pull request:
 
 Please update the file headers for new files with your information, adhering to the Mozilla Public License 2.0 license:
 
-```go
+```md
 // Copyright (c) <year> <your name>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
