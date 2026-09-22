@@ -19,7 +19,6 @@ import (
 	"log/slog"
 	"math/big"
 	"slices"
-	"unsafe"
 )
 
 type SupportedCryptoSuite string
@@ -132,7 +131,7 @@ func validateCommonJWKFields(kid, use string, keyOps []string) error {
 		return fmt.Errorf("use must be 'sig' or 'enc'")
 	}
 	if keyOps != nil && (slices.ContainsFunc(keyOps, func(keyOp string) bool {
-		return keyOp == sign || keyOp == verify
+		return keyOp != sign && keyOp != verify
 	})) {
 		return fmt.Errorf("key operation should be sign or verify")
 	}
@@ -341,26 +340,13 @@ func (j *RS256JWK) Validate() error {
 	return nil
 }
 
-func bigIntToPaddedBytes(n *big.Int, length int) []byte {
-	bytes := n.Bytes()
-	if len(bytes) >= length {
-		return bytes
-	}
-
-	paddedBytes := make([]byte, length)
-	copy(paddedBytes[length-len(bytes):], bytes)
-	return paddedBytes
-}
-
 func ExtractECDSAKeyID(pub *ecdsa.PublicKey) string {
-	curveBits := pub.Curve.Params().BitSize
-	byteLen := (curveBits + 7) / 8
-
-	xBytes := bigIntToPaddedBytes(pub.X, byteLen)
-	yBytes := bigIntToPaddedBytes(pub.Y, byteLen)
-	keyBytes := append(xBytes, yBytes...)
-
-	return extractKeyID(keyBytes)
+	raw, err := pub.Bytes()
+	if err != nil {
+		return ""
+	}
+	// Preserve the existing KID: hash the coordinates without the SEC1 prefix.
+	return extractKeyID(raw[1:])
 }
 
 func ExtractEd25519KeyID(pub ed25519.PublicKey) string {
@@ -391,7 +377,7 @@ func EncodeEd25519JwkPrivate(
 		Use:    useSig,
 		Alg:    algEdDSA,
 		Kid:    kid,
-		D:      base64.RawURLEncoding.EncodeToString(privateKey),
+		D:      base64.RawURLEncoding.EncodeToString(privateKey.Seed()),
 		KeyOps: []string{sign, verify},
 	}
 }
@@ -406,19 +392,24 @@ func DecodeEd25519Jwk(jwk *Ed25519JWK) (ed25519.PublicKey, error) {
 }
 
 func DecodeEd25519JwkPrivate(jwk *Ed25519JWK) (ed25519.PrivateKey, error) {
-	if jwk.D == "" {
-		return nil, fmt.Errorf("private key not available in JWK")
+	if jwk == nil || jwk.Kty != okpKty || jwk.Crv != ed25519Crv {
+		return nil, fmt.Errorf("expected an Ed25519 JWK")
 	}
-
-	privateKey, err := base64.RawURLEncoding.DecodeString(jwk.D)
+	d, err := base64.RawURLEncoding.DecodeString(jwk.D)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode private key: %w", err)
 	}
-
-	if len(privateKey) != ed25519.PrivateKeySize {
-		return nil, fmt.Errorf("invalid private key size")
+	if len(d) != ed25519.SeedSize {
+		return nil, fmt.Errorf("Ed25519 private key seed must be 32 bytes")
 	}
-
+	privateKey := ed25519.NewKeyFromSeed(d)
+	publicKey, err := DecodeEd25519Jwk(jwk)
+	if err != nil {
+		return nil, err
+	}
+	if !privateKey.Public().(ed25519.PublicKey).Equal(publicKey) {
+		return nil, fmt.Errorf("JWK public key does not match private key")
+	}
 	return privateKey, nil
 }
 
@@ -582,8 +573,6 @@ func JsonToJWK(jsonBytes []byte) (JWK, error) {
 	}
 }
 
-// TODO: fix me
-
 //go:noinline
 func WipeBytes(ctx context.Context, logger *slog.Logger, data []byte) {
 	if len(data) == 0 {
@@ -597,30 +586,10 @@ func WipeBytes(ctx context.Context, logger *slog.Logger, data []byte) {
 	}
 }
 
-func WipeBigInt(ctx context.Context, logger *slog.Logger, bi *big.Int) {
-	if bi == nil {
-		return
-	}
-
-	words := bi.Bits()
-	if len(words) == 0 {
-		return
-	}
-
-	byteSlice := (*[1 << 30]byte)(unsafe.Pointer(&words[0]))[:len(words)*int(unsafe.Sizeof(words[0]))]
-	WipeBytes(ctx, logger, byteSlice)
-	bi.SetInt64(0)
-}
-
-func WipeES256PrivateKey(ctx context.Context, logger *slog.Logger, privKey *ecdsa.PrivateKey) {
+// WipeES256PrivateKey releases this key's references. Go does not expose a
+// supported API to zero the private scalar or its internal cached copies.
+func WipeES256PrivateKey(_ context.Context, _ *slog.Logger, privKey *ecdsa.PrivateKey) {
 	if privKey != nil {
-		WipeBigInt(ctx, logger, privKey.D)
-		WipeBigInt(ctx, logger, privKey.X)
-		WipeBigInt(ctx, logger, privKey.Y)
-		privKey.PublicKey = ecdsa.PublicKey{}
-		privKey.Curve = nil
-		privKey.X = nil
-		privKey.Y = nil
-		privKey.D = nil
+		*privKey = ecdsa.PrivateKey{}
 	}
 }

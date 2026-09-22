@@ -12,11 +12,7 @@ import (
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
-	"encoding/base64"
 	"errors"
-	"fmt"
-	"math/big"
-	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 
@@ -49,10 +45,6 @@ type getDecryptedPrivateKeyOptions struct {
 	storeReEncDataFn StoreReEncryptedData
 }
 
-func encodeEd25519PrivateKeyBytes(privKey ed25519.PrivateKey) string {
-	return base64.RawURLEncoding.EncodeToString(privKey)
-}
-
 func (e *Crypto) GenerateEd25519KeyPair(
 	ctx context.Context,
 	opts GenerateKeyPairOptions,
@@ -71,12 +63,20 @@ func (e *Crypto) GenerateEd25519KeyPair(
 	}
 	defer utils.WipeBytes(ctx, logger, priv)
 
+	kid := utils.ExtractEd25519KeyID(pub)
+	privateJWK := utils.EncodeEd25519JwkPrivate(priv, pub, kid)
+	privateJSON, err := privateJWK.MarshalJSON()
+	if err != nil {
+		return KeyPair{}, exceptions.NewInternalServerError()
+	}
+	defer utils.WipeBytes(ctx, logger, privateJSON)
+
 	dekID, encryptedKey, serviceErr := e.EncryptWithDEK(
 		ctx,
 		EncryptWithDEKOptions{
 			RequestID: opts.RequestID,
 			GetDEKfn:  opts.GetDEKfn,
-			PlainText: encodeEd25519PrivateKeyBytes(priv),
+			PlainText: string(privateJSON),
 		},
 	)
 	if serviceErr != nil {
@@ -84,7 +84,6 @@ func (e *Crypto) GenerateEd25519KeyPair(
 		return KeyPair{}, serviceErr
 	}
 
-	kid := utils.ExtractEd25519KeyID(pub)
 	publicJwk := utils.EncodeEd25519Jwk(pub, kid)
 	if _, err := opts.StoreFN(dekID, utils.SupportedCryptoSuiteEd25519, kid, encryptedKey, &publicJwk); err != nil {
 		logger.ErrorContext(ctx, "Failed to store private key", "error", err)
@@ -100,20 +99,16 @@ func (e *Crypto) GenerateEd25519KeyPair(
 
 type GetEncryptedJWKPrivKey = func(kid string) (string, utils.SupportedCryptoSuite, error)
 
-func decodeEd25519PrivateKeyBytes(
-	bytes string,
-) (ed25519.PrivateKey, error) {
-	decodedBytes, err := base64.RawURLEncoding.DecodeString(bytes)
+func decodeEd25519PrivateKeyJSON(data string) (ed25519.PrivateKey, error) {
+	jwk, err := utils.JsonToJWK([]byte(data))
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode Ed25519 private key: %w", err)
+		return nil, err
 	}
-
-	if len(decodedBytes) != ed25519.PrivateKeySize {
-		return nil, fmt.Errorf("invalid Ed25519 private key size: expected %d, got %d",
-			ed25519.PrivateKeySize, len(decodedBytes))
+	key, ok := jwk.(*utils.Ed25519JWK)
+	if !ok {
+		return nil, errors.New("expected an Ed25519 JWK")
 	}
-
-	return decodedBytes, nil
+	return utils.DecodeEd25519JwkPrivate(key)
 }
 
 func (e *Crypto) getDecryptedEd25519PrivateKey(
@@ -127,7 +122,7 @@ func (e *Crypto) getDecryptedEd25519PrivateKey(
 	}).With("jwkKid", opts.jwkKID)
 	logger.DebugContext(ctx, "Getting decrypted Ed25519 private key...")
 
-	base64PrivKey, serviceErr := e.DecryptWithDEK(
+	privateKeyData, serviceErr := e.DecryptWithDEK(
 		ctx,
 		DecryptWithDEKOptions{
 			RequestID:              opts.requestID,
@@ -143,7 +138,7 @@ func (e *Crypto) getDecryptedEd25519PrivateKey(
 		return nil, serviceErr
 	}
 
-	privKey, err := decodeEd25519PrivateKeyBytes(base64PrivKey)
+	privKey, err := decodeEd25519PrivateKeyJSON(privateKeyData)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decode private key", "error", err)
 		return nil, exceptions.NewInternalServerError()
@@ -151,15 +146,6 @@ func (e *Crypto) getDecryptedEd25519PrivateKey(
 
 	logger.DebugContext(ctx, "Ed25519 private key decrypted and cached")
 	return privKey, nil
-}
-
-func encodeES256PrivateKeyBytes(privKey *ecdsa.PrivateKey) string {
-	pubKey := privKey.Public().(*ecdsa.PublicKey)
-	return fmt.Sprintf("%s.%s.%s",
-		base64.RawURLEncoding.EncodeToString(privKey.D.Bytes()),
-		base64.RawURLEncoding.EncodeToString(pubKey.X.Bytes()),
-		base64.RawURLEncoding.EncodeToString(pubKey.Y.Bytes()),
-	)
 }
 
 func (e *Crypto) GenerateES256KeyPair(
@@ -180,13 +166,22 @@ func (e *Crypto) GenerateES256KeyPair(
 	}
 	defer utils.WipeES256PrivateKey(ctx, logger, priv)
 
-	encodedPrivateKey := encodeES256PrivateKeyBytes(priv)
+	kid := utils.ExtractECDSAKeyID(&priv.PublicKey)
+	privateJWK, err := utils.EncodeP256JwkPrivate(priv, kid)
+	if err != nil {
+		return KeyPair{}, exceptions.NewInternalServerError()
+	}
+	privateJSON, err := privateJWK.MarshalJSON()
+	if err != nil {
+		return KeyPair{}, exceptions.NewInternalServerError()
+	}
+	defer utils.WipeBytes(ctx, logger, privateJSON)
 	dekID, encryptedPrivateKey, serviceErr := e.EncryptWithDEK(
 		ctx,
 		EncryptWithDEKOptions{
 			RequestID: opts.RequestID,
 			GetDEKfn:  opts.GetDEKfn,
-			PlainText: encodedPrivateKey,
+			PlainText: string(privateJSON),
 		},
 	)
 	if serviceErr != nil {
@@ -194,7 +189,6 @@ func (e *Crypto) GenerateES256KeyPair(
 		return KeyPair{}, serviceErr
 	}
 
-	kid := utils.ExtractECDSAKeyID(priv.Public().(*ecdsa.PublicKey))
 	publicJwk, err := utils.EncodeP256Jwk(&priv.PublicKey, kid)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to encode JWK", "error", err)
@@ -213,44 +207,16 @@ func (e *Crypto) GenerateES256KeyPair(
 	}, nil
 }
 
-func decodeES256PrivateKeyBytes(bytes string) (*ecdsa.PrivateKey, error) {
-	parts := strings.Split(bytes, ".")
-	if len(parts) != 3 {
-		return nil, errors.New("invalid key format")
-	}
-
-	d, err := base64.RawURLEncoding.DecodeString(parts[0])
+func decodeES256PrivateKeyJSON(data string) (*ecdsa.PrivateKey, error) {
+	jwk, err := utils.JsonToJWK([]byte(data))
 	if err != nil {
 		return nil, err
 	}
-	if len(d) == 0 {
-		return nil, errors.New("invalid D value in key")
+	key, ok := jwk.(*utils.ES256JWK)
+	if !ok {
+		return nil, errors.New("expected an ES256 JWK")
 	}
-
-	x, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return nil, err
-	}
-	if len(x) == 0 {
-		return nil, errors.New("invalid X value in key")
-	}
-
-	y, err := base64.RawURLEncoding.DecodeString(parts[2])
-	if err != nil {
-		return nil, err
-	}
-	if len(y) == 0 {
-		return nil, errors.New("invalid Y value in key")
-	}
-
-	return &ecdsa.PrivateKey{
-		D: new(big.Int).SetBytes(d),
-		PublicKey: ecdsa.PublicKey{
-			Curve: elliptic.P256(),
-			X:     new(big.Int).SetBytes(x),
-			Y:     new(big.Int).SetBytes(y),
-		},
-	}, nil
+	return utils.DecodeP256JwkPrivate(key)
 }
 
 func (e *Crypto) getDecryptedES256PrivateKey(
@@ -264,7 +230,7 @@ func (e *Crypto) getDecryptedES256PrivateKey(
 	}).With("jwkKID", opts.jwkKID)
 	logger.DebugContext(ctx, "Getting decrypted ES256 private key...")
 
-	base64PrivKey, serviceErr := e.DecryptWithDEK(
+	privateKeyData, serviceErr := e.DecryptWithDEK(
 		ctx,
 		DecryptWithDEKOptions{
 			RequestID:              opts.requestID,
@@ -280,7 +246,7 @@ func (e *Crypto) getDecryptedES256PrivateKey(
 		return nil, serviceErr
 	}
 
-	privKey, err := decodeES256PrivateKeyBytes(base64PrivKey)
+	privKey, err := decodeES256PrivateKeyJSON(privateKeyData)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to decode private key", "error", err)
 		return nil, exceptions.NewInternalServerError()
