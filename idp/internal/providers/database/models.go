@@ -1420,6 +1420,8 @@ type AccountAuthProvider struct {
 }
 
 type AccountCredential struct {
+	RegistrationTokenJti         pgtype.UUID
+	SoftwareStatement            string
 	ID                           int32
 	AccountID                    int32
 	AccountPublicID              uuid.UUID
@@ -1553,6 +1555,8 @@ type AccountTotp struct {
 }
 
 type App struct {
+	RegistrationTokenJti         pgtype.UUID
+	SoftwareStatement            string
 	ID                           int32
 	AccountID                    int32
 	AccountPublicID              uuid.UUID

@@ -16,7 +16,8 @@ import (
 )
 
 type Database struct {
-	connPool *pgxpool.Pool
+	transaction pgx.Tx
+	connPool    *pgxpool.Pool
 	*Queries
 }
 
@@ -27,7 +28,23 @@ func NewDatabase(connPool *pgxpool.Pool) *Database {
 	}
 }
 
+// InTransaction returns a copy bound to tx without changing the shared database.
+func (d *Database) InTransaction(tx pgx.Tx) *Database {
+	return &Database{
+		transaction: tx,
+		connPool:    d.connPool,
+		Queries:     New(tx),
+	}
+}
+
 func (d *Database) BeginTx(ctx context.Context) (*Queries, pgx.Tx, error) {
+	if d.transaction != nil {
+		tx, err := d.transaction.Begin(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		return d.WithTx(tx), tx, nil
+	}
 	txn, err := d.connPool.BeginTx(ctx, pgx.TxOptions{
 		DeferrableMode: pgx.Deferrable,
 		IsoLevel:       pgx.ReadCommitted,

@@ -257,7 +257,7 @@ func setupDynamicRegistration(t *testing.T, appClient, bounded, statement bool) 
 	}
 }
 
-func assertCreatedRegistration(t *testing.T, setup dcrSetup, res *http.Response) (clientID, rat, registrationURI string) {
+func assertCreatedRegistration(t *testing.T, setup dcrSetup, res *http.Response) (clientID, rat, registrationURI, secret string) {
 	t.Helper()
 	response := decodeJSONObject(t, res)
 	clientID = jsonString(response["client_id"])
@@ -265,6 +265,10 @@ func assertCreatedRegistration(t *testing.T, setup dcrSetup, res *http.Response)
 	scope := jsonString(response["scope"])
 	version := jsonString(response["software_version"])
 	returnedStatement := jsonString(response["software_statement"])
+	secret = jsonString(response["client_secret"])
+	if parts := strings.Split(secret, "."); len(parts) != 2 || len(parts[0]) != 22 {
+		t.Fatal("registration did not return a usable secretID.secretValue credential")
+	}
 	rat = jsonString(response["registration_access_token"])
 	registrationURI = jsonString(response["registration_client_uri"])
 	if clientID == "" || returnedName != setup.clientName || returnedStatement != setup.statement {
@@ -316,7 +320,7 @@ func assertCreatedRegistration(t *testing.T, setup dcrSetup, res *http.Response)
 			t.Fatalf("creation_method=%q", row.CreationMethod)
 		}
 	}
-	return clientID, rat, registrationURI
+	return clientID, rat, registrationURI, secret
 }
 
 // Exercise the actual HTTP route, IAT verification, software-statement trust,
@@ -566,10 +570,10 @@ func TestRFC7592ClientConfiguration(t *testing.T) {
 				HostFn:        func(setup dcrSetup) string { return setup.host },
 				ExpStatus:     http.StatusCreated,
 				AssertFn: func(t *testing.T, setup dcrSetup, res *http.Response) {
-					var registrationURI string
-					clientID, rat, registrationURI = assertCreatedRegistration(t, setup, res)
+					var registrationURI, secret string
+					clientID, rat, registrationURI, secret = assertCreatedRegistration(t, setup, res)
 					AssertEqual(t, registrationURI, requestURL(setup.host, oauthRegisterClientPath(clientID)))
-					assertRFC7592Lifecycle(t, setup, clientID, rat, cfg.BackendDomain())
+					assertRFC7592Lifecycle(t, setup, clientID, rat, secret, cfg.BackendDomain())
 				},
 			}
 			PerformTestRequestCase(t, http.MethodPost, oauthRegisterPath(), createCase)
@@ -602,7 +606,7 @@ type rfc7592Request struct {
 	body  any
 }
 
-func assertRFC7592Lifecycle(t *testing.T, setup dcrSetup, clientID, rat, backendDomain string) {
+func assertRFC7592Lifecycle(t *testing.T, setup dcrSetup, clientID, rat, secret, backendDomain string) {
 	t.Helper()
 	updatedName := "Updated " + setup.clientName
 	crossHost := backendDomain
@@ -610,6 +614,25 @@ func assertRFC7592Lifecycle(t *testing.T, setup dcrSetup, clientID, rat, backend
 		crossHost = setup.account.Username + "." + backendDomain
 	}
 	clientPath := oauthRegisterClientPath(clientID)
+
+	for _, tc := range []struct {
+		name  string
+		field string
+		value any
+	}{
+		{"empty secret", "client_secret", ""}, {"null secret", "client_secret", nil}, {"wrong secret", "client_secret", "not-the-secret"},
+		{"auth transition", "token_endpoint_auth_method", "none"}, {"wrong ID", "client_id", "another-client"},
+		{"server token field", "registration_access_token", rat},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := cloneMap(setup.body)
+			body["client_id"] = clientID
+			body[tc.field] = tc.value
+			res := performTestRequest(t, GetTestServer(t).App, 0, http.MethodPut, clientPath, setup.host, "Bearer", rat, "application/json", CreateTestJSONRequestBody(t, body))
+			defer res.Body.Close()
+			AssertTestStatusCode(t, res, http.StatusBadRequest)
+		})
+	}
 
 	testCases := []TestRequestCase[rfc7592Request]{
 		{
@@ -623,12 +646,9 @@ func assertRFC7592Lifecycle(t *testing.T, setup dcrSetup, clientID, rat, backend
 				AssertEqual(t, res.Header.Get("Cache-Control"), "no-store")
 				AssertEqual(t, jsonString(body["client_id"]), clientID)
 				AssertEqual(t, jsonString(body["client_name"]), req.setup.clientName)
-				if _, ok := body["client_secret"]; ok {
-					t.Fatal("GET must not return client_secret")
-				}
-				if _, ok := body["registration_access_token"]; ok {
-					t.Fatal("GET must not return registration_access_token")
-				}
+				AssertEqual(t, jsonString(body["client_secret"]), secret)
+				AssertEqual(t, jsonString(body["registration_access_token"]), rat)
+				AssertEqual(t, jsonString(body["registration_client_uri"]), requestURL(setup.host, clientPath))
 			},
 			Method: http.MethodGet,
 		},
@@ -637,14 +657,19 @@ func assertRFC7592Lifecycle(t *testing.T, setup dcrSetup, clientID, rat, backend
 			ReqFn: func(t *testing.T) (rfc7592Request, string) {
 				body := cloneMap(setup.body)
 				body["client_name"] = updatedName
+				body["client_id"] = clientID
+				body["client_secret"] = secret
+				delete(body, "logo_uri")
 				return rfc7592Request{setup: setup, host: setup.host, path: clientPath, body: body}, rat
 			},
 			ExpStatus: http.StatusOK,
 			AssertFn: func(t *testing.T, _ rfc7592Request, res *http.Response) {
 				body := decodeJSONObject(t, res)
 				AssertEqual(t, jsonString(body["client_name"]), updatedName)
-				if _, ok := body["client_secret"]; ok {
-					t.Fatal("PUT must not return client_secret")
+				AssertEqual(t, jsonString(body["client_secret"]), secret)
+				AssertEqual(t, jsonString(body["registration_access_token"]), rat)
+				if jsonString(body["logo_uri"]) != "" {
+					t.Fatal("omitted metadata was not cleared")
 				}
 			},
 			Method: http.MethodPut,

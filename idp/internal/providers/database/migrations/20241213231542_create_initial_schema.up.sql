@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2026-09-21T22:02:21.631Z
+-- Generated at: 2026-09-22T07:32:32.147Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -365,6 +365,8 @@ CREATE TABLE "account_totps" (
 );
 
 CREATE TABLE "account_credentials" (
+  "registration_token_jti" uuid UNIQUE,
+  "software_statement" text NOT NULL DEFAULT '',
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "account_public_id" uuid NOT NULL,
@@ -541,6 +543,8 @@ CREATE TABLE "user_credentials_keys" (
 );
 
 CREATE TABLE "apps" (
+  "registration_token_jti" uuid UNIQUE,
+  "software_statement" text NOT NULL DEFAULT '',
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
   "account_public_id" uuid NOT NULL,
@@ -1217,6 +1221,8 @@ ALTER TABLE "account_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts"
 ALTER TABLE "account_totps" ADD FOREIGN KEY ("totp_id") REFERENCES "totps" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+
+ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE;
 
 ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
 

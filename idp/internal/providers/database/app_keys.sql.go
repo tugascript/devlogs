@@ -87,6 +87,33 @@ func (q *Queries) FindAppKeyByAppIDAndPublicKID(ctx context.Context, arg FindApp
 	return i, err
 }
 
+const findCurrentAppKey = `-- name: FindCurrentAppKey :one
+SELECT c.id, c.public_kid, c.public_key, c.private_key, c.dek_kid, c.crypto_suite, c.is_revoked, c.is_external, c.usage, c.account_id, c.expires_at, c.created_at, c.updated_at FROM credentials_keys c JOIN app_keys a ON a.credentials_key_id = c.id
+WHERE a.app_id = $1 AND NOT c.is_revoked AND c.expires_at > now()
+ORDER BY c.created_at DESC, c.id DESC LIMIT 1
+`
+
+func (q *Queries) FindCurrentAppKey(ctx context.Context, appID int32) (CredentialsKey, error) {
+	row := q.db.QueryRow(ctx, findCurrentAppKey, appID)
+	var i CredentialsKey
+	err := row.Scan(
+		&i.ID,
+		&i.PublicKid,
+		&i.PublicKey,
+		&i.PrivateKey,
+		&i.DekKid,
+		&i.CryptoSuite,
+		&i.IsRevoked,
+		&i.IsExternal,
+		&i.Usage,
+		&i.AccountID,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const findPaginatedAppKeysByAppID = `-- name: FindPaginatedAppKeysByAppID :many
 SELECT ckr.id, ckr.public_kid, ckr.public_key, ckr.private_key, ckr.dek_kid, ckr.crypto_suite, ckr.is_revoked, ckr.is_external, ckr.usage, ckr.account_id, ckr.expires_at, ckr.created_at, ckr.updated_at FROM "credentials_keys" "ckr"
 LEFT JOIN "app_keys" "ak" ON "ak"."credentials_key_id" = "ckr"."id"

@@ -44,7 +44,7 @@ func (t *Tokens) CreateAccessToken(opts AccountAccessTokenOptions) (*jwt.Token, 
 	return accesToken, err
 }
 
-func (t *Tokens) VerifyAccessToken(token string, getPublicJWK GetPublicJWK) (AccountClaims, []AccountScope, error) {
+func (t *Tokens) VerifyAccessToken(token string, getPublicJWK GetPublicJWK, validateClient ...func(string, AccountClaims) error) (AccountClaims, []AccountScope, error) {
 	claims, err := verifyAuthToken(token, buildVerifyKey(utils.SupportedCryptoSuiteES256, getPublicJWK))
 	if err != nil {
 		return AccountClaims{}, nil, err
@@ -55,6 +55,11 @@ func (t *Tokens) VerifyAccessToken(token string, getPublicJWK GetPublicJWK) (Acc
 		return AccountClaims{}, nil, err
 	}
 
+	for _, validate := range validateClient {
+		if err := validate(claims.Subject, claims.AccountClaims); err != nil {
+			return AccountClaims{}, nil, err
+		}
+	}
 	return claims.AccountClaims, scopes, nil
 }
 

@@ -397,6 +397,8 @@ Enum creation_method {
 }
 
 Table account_credentials as AC {
+    registration_token_jti uuid [unique]
+    software_statement text [not null, default: '']
     id serial [pk]
 
     account_id integer [not null]
@@ -482,6 +484,7 @@ Table account_credentials_secrets as ACS {
         (account_credentials_id, secret_id) [name: 'account_credential_secrets_account_credentials_id_secret_id_idx']
     }
 }
+Ref: ACS.account_credentials_id > AC.id [delete: cascade]
 Ref: ACS.account_id > A.id [delete: cascade]
 Ref: ACS.credentials_secret_id > CS.id [delete: cascade]
 
@@ -817,6 +820,8 @@ Enum session_type {
 }
 
 Table apps as APP {
+    registration_token_jti uuid [unique]
+    software_statement text [not null, default: '']
     id serial [pk]
     account_id integer [not null]
 

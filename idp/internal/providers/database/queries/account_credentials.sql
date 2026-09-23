@@ -185,3 +185,20 @@ LIMIT 1;
 
 -- name: DeleteAllAccountCredentials :exec
 DELETE FROM "account_credentials";
+
+-- name: LockRegisteredAccountCredentials :one
+SELECT * FROM account_credentials WHERE client_id = $1 AND account_public_id = $2 FOR UPDATE;
+
+-- name: SetAccountCredentialsRegistrationState :exec
+UPDATE account_credentials SET registration_token_jti = $2, software_statement = $3 WHERE id = $1;
+
+-- name: RevokeRegisteredAccountCredentialsSecrets :exec
+UPDATE credentials_secrets SET is_revoked = true, updated_at = now()
+WHERE id IN (SELECT credentials_secret_id FROM account_credentials_secrets WHERE account_credentials_id = $1);
+
+-- name: RevokeRegisteredAccountCredentialsKeys :exec
+UPDATE credentials_keys SET is_revoked = true, updated_at = now()
+WHERE id IN (SELECT credentials_key_id FROM account_credentials_keys WHERE account_credentials_id = $1);
+
+-- name: DeleteRegisteredAccountCredentialsGrants :exec
+DELETE FROM grants WHERE account_id = $1 AND granted_client_id = $2;

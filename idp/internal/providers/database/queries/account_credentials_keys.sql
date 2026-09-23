@@ -47,6 +47,7 @@ WHERE
     "ack"."account_credentials_id" = $1 AND 
     "ckr"."is_revoked" = false AND 
     "ckr"."expires_at" > now()
+ORDER BY "ckr"."created_at" DESC, "ckr"."id" DESC
 LIMIT 1;
 
 -- name: FindAccountCredentialKeyByAccountCredentialIDAndPublicKID :one

@@ -35,3 +35,8 @@ WHERE
     "as"."app_id" = $1 AND 
     "csr"."secret_id" = $2
 LIMIT 1;
+
+-- name: FindCurrentAppSecret :one
+SELECT c.* FROM credentials_secrets c JOIN app_secrets a ON a.credentials_secret_id = c.id
+WHERE a.app_id = $1 AND NOT c.is_revoked AND c.expires_at > now()
+ORDER BY c.created_at DESC, c.id DESC LIMIT 1;

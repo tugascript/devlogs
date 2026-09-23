@@ -35,3 +35,8 @@ WHERE
     "ak"."app_id" = $1 AND 
     "ckr"."public_kid" = $2
 LIMIT 1;
+
+-- name: FindCurrentAppKey :one
+SELECT c.* FROM credentials_keys c JOIN app_keys a ON a.credentials_key_id = c.id
+WHERE a.app_id = $1 AND NOT c.is_revoked AND c.expires_at > now()
+ORDER BY c.created_at DESC, c.id DESC LIMIT 1;

@@ -19,8 +19,6 @@ import (
 
 const dynamicRegistrationIATLocation = "dynamic_registration_iat"
 
-const registrationAccessTokenTTLSeconds int64 = 10 * 365 * 24 * 60 * 60
-
 type DynamicRegistrationUsage string
 
 const (
@@ -90,19 +88,21 @@ func (t *Tokens) DynamicRegistrationIAT(
 
 func (t *Tokens) DynamicRegistrationAccessToken(opts DynamicRegistrationIATOptions) *jwt.Token {
 	opts.TokenUse = DynamicRegistrationTokenUseRegistration
-	if opts.TTL == 0 {
-		opts.TTL = registrationAccessTokenTTLSeconds
-	}
-	return t.DynamicRegistrationIAT(opts)
+	token := t.DynamicRegistrationIAT(opts)
+	claims := token.Claims.(dynamicRegistrationTokenClaims)
+	claims.ExpiresAt = nil
+	token.Claims = claims
+	return token
 }
 
 type VerifyDynamicRegistrationIATOptions struct {
-	RequestID    string
-	IAT          string
-	IssuerDomain string
-	Usage        DynamicRegistrationUsage
-	TokenUse     DynamicRegistrationTokenUse
-	GetPublicJWK GetPublicJWK
+	RequestID            string
+	IAT                  string
+	IssuerDomain         string
+	Usage                DynamicRegistrationUsage
+	TokenUse             DynamicRegistrationTokenUse
+	GetPublicJWK         GetPublicJWK
+	ValidateRegistration func(clientID string, account AccountClaims, jti string, hasExpiry bool) error
 }
 
 func (t *Tokens) VerifyDynamicRegistrationIAT(
@@ -120,6 +120,10 @@ func (t *Tokens) VerifyDynamicRegistrationIAT(
 		opts.TokenUse = DynamicRegistrationTokenUseInitialAccess
 	}
 
+	parserOptions := []jwt.ParserOption{jwt.WithValidMethods([]string{jwt.SigningMethodEdDSA.Alg()}), jwt.WithIssuer("https://" + opts.IssuerDomain), jwt.WithAudience("https://" + opts.IssuerDomain), jwt.WithIssuedAt()}
+	if opts.TokenUse != DynamicRegistrationTokenUseRegistration {
+		parserOptions = append(parserOptions, jwt.WithExpirationRequired())
+	}
 	claims := new(dynamicRegistrationTokenClaims)
 	if _, err := jwt.ParseWithClaims(opts.IAT, claims, func(token *jwt.Token) (interface{}, error) {
 		kid, err := extractTokenKID(token)
@@ -135,10 +139,7 @@ func (t *Tokens) VerifyDynamicRegistrationIAT(
 		}
 
 		return jwk.ToUsableKey()
-	}, jwt.WithValidMethods([]string{jwt.SigningMethodEdDSA.Alg()}),
-		jwt.WithIssuer("https://"+opts.IssuerDomain),
-		jwt.WithAudience("https://"+opts.IssuerDomain),
-		jwt.WithExpirationRequired(), jwt.WithIssuedAt()); err != nil {
+	}, parserOptions...); err != nil {
 		logger.WarnContext(ctx, "Failed to verify dynamic registration token", "error", err)
 		return "", AccountClaims{}, err
 	}
@@ -153,14 +154,18 @@ func (t *Tokens) VerifyDynamicRegistrationIAT(
 		return "", AccountClaims{}, errors.New("registration token use mismatch")
 	}
 
+	if opts.TokenUse == DynamicRegistrationTokenUseRegistration {
+		if opts.ValidateRegistration == nil {
+			return "", AccountClaims{}, errors.New("registration token state validator required")
+		}
+		if err := opts.ValidateRegistration(claims.Subject, claims.AccountClaims, claims.ID, claims.ExpiresAt != nil); err != nil {
+			return "", AccountClaims{}, err
+		}
+	}
 	logger.InfoContext(ctx, "Verified dynamic registration token successfully")
 	return claims.Subject, claims.AccountClaims, nil
 }
 
 func (t *Tokens) GetDynamicRegistrationTTL() int64 {
 	return t.dynamicRegistrationTTL
-}
-
-func (t *Tokens) GetRegistrationAccessTokenTTL() int64 {
-	return registrationAccessTokenTTLSeconds
 }

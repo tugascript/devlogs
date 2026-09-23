@@ -21,6 +21,15 @@ func TestRegistrationErrorResponses(t *testing.T) {
 		status          int
 		challenge, code string
 	}{
+		{"forbidden management", func(ctx fiber.Ctx) error {
+			return dynamicRegistrationServiceError(logger, ctx, exceptions.NewError(exceptions.CodeForbidden, "denied"))
+		}, http.StatusForbidden, "", exceptions.OAuthErrorAccessDenied},
+		{"infrastructure failure", func(ctx fiber.Ctx) error {
+			return dynamicRegistrationServiceError(logger, ctx, exceptions.NewInternalServerError())
+		}, http.StatusInternalServerError, "", exceptions.OAuthErrorServerError},
+		{"invalid secret metadata", func(ctx fiber.Ctx) error {
+			return dynamicRegistrationServiceError(logger, ctx, exceptions.NewError(exceptions.OAuthErrorInvalidClientMetadata, "invalid secret"))
+		}, http.StatusBadRequest, "", exceptions.OAuthErrorInvalidClientMetadata},
 		{"missing IAT", c.DynamicRegistrationIATMiddleware, http.StatusUnauthorized, "Bearer", ""},
 		{"invalid IAT", func(ctx fiber.Ctx) error {
 			return dynamicRegistrationServiceError(logger, ctx, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "invalid IAT"))

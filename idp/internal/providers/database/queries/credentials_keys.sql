@@ -56,3 +56,6 @@ DELETE FROM "credentials_keys";
 SELECT * FROM "credentials_keys"
 WHERE "id" = $1
 LIMIT 1;
+
+-- name: UpdateCredentialsKeyPrivateKey :exec
+UPDATE credentials_keys SET private_key = $2, dek_kid = $3 WHERE id = $1;

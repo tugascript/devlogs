@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
@@ -83,5 +84,55 @@ func TestDynamicRegistrationIATBindings(t *testing.T) {
 				t.Fatalf("incorrect bindings: %s, %+v", domain, account)
 			}
 		})
+	}
+}
+
+func TestRegistrationAccessTokenHasNoExpiryAndRequiresStateValidation(t *testing.T) {
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jwk := utils.EncodeEd25519Jwk(public, "test")
+	provider := &Tokens{logger: slog.New(slog.NewTextHandler(io.Discard, nil)), dynamicRegistrationTTL: 300}
+	id, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	account := uuid.New()
+	token := provider.DynamicRegistrationAccessToken(DynamicRegistrationIATOptions{AccountPublicID: account, AccountVersion: 1, IssuerDomain: "id.example.com", Subject: "client", JTI: id.String(), Usage: DynamicRegistrationUsageAccount})
+	claims := token.Claims.(dynamicRegistrationTokenClaims)
+	if claims.ExpiresAt != nil {
+		t.Fatal("registration token must not expire")
+	}
+	token.Header["kid"] = "test"
+	signed, err := token.SignedString(private)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := VerifyDynamicRegistrationIATOptions{IAT: signed, IssuerDomain: "id.example.com", Usage: DynamicRegistrationUsageAccount, TokenUse: DynamicRegistrationTokenUseRegistration, GetPublicJWK: func(string, utils.SupportedCryptoSuite) (utils.JWK, error) { return &jwk, nil }}
+	if _, _, err := provider.VerifyDynamicRegistrationIAT(context.Background(), opts); err == nil {
+		t.Fatal("missing state validator accepted")
+	}
+	called := false
+	opts.ValidateRegistration = func(client string, a AccountClaims, jti string, expiry bool) error {
+		called = true
+		if client != "client" || a.AccountID != account || jti != id.String() || expiry {
+			t.Fatal("incorrect state validation bindings")
+		}
+		return nil
+	}
+	if _, _, err := provider.VerifyDynamicRegistrationIAT(context.Background(), opts); err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("state validator not called")
+	}
+	opts.ValidateRegistration = func(string, AccountClaims, string, bool) error { return fmt.Errorf("revoked") }
+	if _, _, err := provider.VerifyDynamicRegistrationIAT(context.Background(), opts); err == nil {
+		t.Fatal("revoked token accepted")
+	}
+	opts.TokenUse = DynamicRegistrationTokenUseInitialAccess
+	if _, _, err := provider.VerifyDynamicRegistrationIAT(context.Background(), opts); err == nil {
+		t.Fatal("registration token accepted as initial-access token")
 	}
 }

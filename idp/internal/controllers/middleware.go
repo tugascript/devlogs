@@ -248,7 +248,7 @@ func (c *Controllers) DynamicRegistrationAccessTokenMiddleware(ctx fiber.Ctx) er
 		},
 	)
 	if serviceErr != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+		return dynamicRegistrationServiceError(logger, ctx, serviceErr)
 	}
 
 	ctx.Locals("account", accountClaims)
@@ -261,7 +261,7 @@ func (c *Controllers) AppDynamicRegistrationAccessTokenMiddleware(ctx fiber.Ctx)
 	logger := c.buildLogger(requestID, middlewareLocation, "AppDynamicRegistrationAccessTokenMiddleware")
 	username, accountID, serviceErr := getHostAccount(ctx)
 	if serviceErr != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+		return dynamicRegistrationServiceError(logger, ctx, serviceErr)
 	}
 
 	authHeader := ctx.Get("Authorization")
@@ -279,7 +279,7 @@ func (c *Controllers) AppDynamicRegistrationAccessTokenMiddleware(ctx fiber.Ctx)
 		},
 	)
 	if serviceErr != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+		return dynamicRegistrationServiceError(logger, ctx, serviceErr)
 	}
 
 	ctx.Locals("account", accountClaims)

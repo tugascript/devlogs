@@ -210,6 +210,8 @@ func dynamicRegistrationServiceError(
 	serviceErr *exceptions.ServiceError,
 ) error {
 	switch serviceErr.Code {
+	case exceptions.OAuthErrorInvalidClientMetadata:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)
 	case exceptions.OAuthErrorInvalidRequest:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
 	case exceptions.OAuthErrorInvalidClient:
@@ -218,7 +220,11 @@ func dynamicRegistrationServiceError(
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRedirectURI)
 	case exceptions.OAuthErrorInvalidToken:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
-	case exceptions.CodeUnauthorized, exceptions.CodeForbidden:
+	case exceptions.CodeForbidden:
+		return ctx.Status(fiber.StatusForbidden).JSON(exceptions.NewOAuthError(exceptions.OAuthErrorAccessDenied))
+	case exceptions.CodeUnauthorized:
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+	case exceptions.OAuthErrorUnauthorizedClient:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnauthorizedClient)
 	case exceptions.CodeNotFound, exceptions.CodeValidation:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)

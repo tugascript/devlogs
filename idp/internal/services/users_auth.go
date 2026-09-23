@@ -102,6 +102,9 @@ func (s *Services) ProcessUserAuthHeader(
 		return tokens.UserAuthClaims{}, tokens.AppClaims{}, nil, exceptions.NewUnauthorizedError()
 	}
 
+	if _, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{RequestID: opts.RequestID, ClientID: appClaims.ClientID, Version: appClaims.Version, AccountID: opts.AccountID}); serviceErr != nil {
+		return tokens.UserAuthClaims{}, tokens.AppClaims{}, nil, serviceErr
+	}
 	return userClaims, appClaims, scopes, nil
 }
 

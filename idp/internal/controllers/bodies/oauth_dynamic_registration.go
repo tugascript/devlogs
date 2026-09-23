@@ -9,6 +9,7 @@ package bodies
 import "github.com/tugascript/devlogs/idp/internal/utils"
 
 type OAuthDynamicClientRegistrationBody struct {
+	ClientSecretPresent          bool          `json:"-"`
 	ClientID                     string        `json:"client_id,omitempty" validate:"omitempty"`
 	ClientSecret                 string        `json:"client_secret,omitempty" validate:"omitempty"`
 	RedirectURIs                 []string      `json:"redirect_uris,omitempty" validate:"omitempty,min=1,dive,uri"`
