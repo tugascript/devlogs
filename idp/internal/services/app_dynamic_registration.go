@@ -343,8 +343,18 @@ type CreateAppCredentialsRegistrationOptions struct {
 	AccessTokenSigningAlg        string
 }
 
-func (s *Services) CreateAppCredentialsRegistration(
+func (s *Services) CreateAppCredentialsRegistration(ctx context.Context, opts CreateAppCredentialsRegistrationOptions) (dtos.AppDTO, *exceptions.ServiceError) {
+	if opts.IsAuthenticated && opts.InitialAccessTokenDomain == "" {
+		return dtos.AppDTO{}, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "initial access token domain is required")
+	}
+	return registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (dtos.AppDTO, *exceptions.ServiceError) {
+		return s.createAppCredentialsRegistration(ctx, qrs, opts)
+	})
+}
+
+func (s *Services) createAppCredentialsRegistration(
 	ctx context.Context,
+	qrs *database.Queries,
 	opts CreateAppCredentialsRegistrationOptions,
 ) (dtos.AppDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(
@@ -607,16 +617,6 @@ func (s *Services) CreateAppCredentialsRegistration(
 		return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, "", time.Time{}, nil)
 	}
 
-	qrs, txn, err := s.database.BeginTx(ctx)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-		return dtos.AppDTO{}, exceptions.FromDBError(err)
-	}
-	defer func() {
-		logger.DebugContext(ctx, "Finalizing transaction")
-		s.database.FinalizeTx(ctx, txn, err, serviceErr)
-	}()
-
 	app, err := qrs.CreateRegisteredApp(ctx, params)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create app", "error", err)
@@ -665,9 +665,9 @@ func (s *Services) CreateAppCredentialsRegistration(
 		return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, "", dbPrms.ExpiresAt, jwk)
 	case database.AuthMethodClientSecretBasic, database.AuthMethodClientSecretPost, database.AuthMethodClientSecretJwt:
 		var ccID int32
-		var secret string
+		var secretID, secret string
 		var exp time.Time
-		ccID, _, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
+		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
 			requestID: opts.RequestID,
 			accountID: opts.AccountID,
 			expiresIn: s.appCCExpDays,
@@ -693,10 +693,10 @@ func (s *Services) CreateAppCredentialsRegistration(
 		}
 
 		if appType == database.AppTypeBackend || appType == database.AppTypeService {
-			return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, secret, exp, nil)
+			return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, secretID+"."+secret, exp, nil)
 		}
 
-		return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, secret, exp, nil)
+		return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, secretID+"."+secret, exp, nil)
 	default:
 		logger.ErrorContext(ctx, "Invalid token endpoint auth method", "tokenEndpointAuthMethod", tokenEndpointAuthMethod)
 		serviceErr = exceptions.NewInternalServerError()
@@ -714,12 +714,9 @@ func (s *Services) finalizeRegisteredApp(
 	key utils.JWK,
 ) (dtos.AppDTO, *exceptions.ServiceError) {
 	dto := dtos.MapRegisteredApp(app, opts.SoftwareStatement, secret, expiry, key)
-	token, serviceErr := s.CreateAppCredentialsRegistrationAccessToken(ctx, CreateAppCredentialsRegistrationAccessTokenOptions{
-		RequestID:       opts.RequestID,
-		AccountPublicID: accountDTO.PublicID,
-		AccountVersion:  accountDTO.Version(),
-		ClientID:        app.ClientID,
-		BackendDomain:   opts.BackendDomain,
+	token, serviceErr := s.registrationResponseToken(ctx, registrationStateOptions{
+		RequestID: opts.RequestID, AccountPublicID: accountDTO.PublicID, AccountVersion: accountDTO.Version(),
+		ClientID: app.ClientID, BackendDomain: opts.BackendDomain, ID: app.ID, Statement: opts.SoftwareStatement, App: true,
 	})
 	if serviceErr != nil {
 		return dtos.AppDTO{}, serviceErr

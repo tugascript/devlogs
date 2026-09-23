@@ -47,3 +47,19 @@ func TestOAuthIATRoutesRejectUnknownHosts(t *testing.T) {
 		})
 	}
 }
+
+func TestRegistrationUnsupportedMethods(t *testing.T) {
+	ctrl := controllers.NewControllers(slog.New(slog.NewTextHandler(io.Discard, nil)), nil, validator.New(), "example.com", "id.example.com", "session")
+	app := fiber.New()
+	NewRoutes(ctrl).OAuthRoutes(app)
+	for _, method := range []string{"POST", "PATCH"} {
+		res, err := app.Test(httptest.NewRequest(method, "https://id.example.com"+paths.V1+paths.AuthBase+paths.OAuthBase+paths.OAuthRegister+"/client", nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if res.StatusCode != 405 || res.Header.Get("Allow") != "GET, PUT, DELETE" {
+			t.Fatalf("%s: status=%d allow=%q", method, res.StatusCode, res.Header.Get("Allow"))
+		}
+	}
+}

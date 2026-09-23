@@ -22,6 +22,8 @@ import (
 )
 
 type Services struct {
+	// Key material is committed independently so a registration rollback never leaves cached, uncommitted keys.
+	registrationKeyServices       *Services
 	logger                        *slog.Logger
 	database                      *database.Database
 	cache                         *cache.Cache

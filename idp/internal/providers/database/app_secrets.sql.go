@@ -84,6 +84,30 @@ func (q *Queries) FindAppSecretByAppIDAndSecretID(ctx context.Context, arg FindA
 	return i, err
 }
 
+const findCurrentAppSecret = `-- name: FindCurrentAppSecret :one
+SELECT c.id, c.secret_id, c.client_secret, c.dek_kid, c.is_revoked, c.usage, c.account_id, c.expires_at, c.created_at, c.updated_at FROM credentials_secrets c JOIN app_secrets a ON a.credentials_secret_id = c.id
+WHERE a.app_id = $1 AND NOT c.is_revoked AND c.expires_at > now()
+ORDER BY c.created_at DESC, c.id DESC LIMIT 1
+`
+
+func (q *Queries) FindCurrentAppSecret(ctx context.Context, appID int32) (CredentialsSecret, error) {
+	row := q.db.QueryRow(ctx, findCurrentAppSecret, appID)
+	var i CredentialsSecret
+	err := row.Scan(
+		&i.ID,
+		&i.SecretID,
+		&i.ClientSecret,
+		&i.DekKid,
+		&i.IsRevoked,
+		&i.Usage,
+		&i.AccountID,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const findPaginatedAppSecretsByAppID = `-- name: FindPaginatedAppSecretsByAppID :many
 SELECT csr.id, csr.secret_id, csr.client_secret, csr.dek_kid, csr.is_revoked, csr.usage, csr.account_id, csr.expires_at, csr.created_at, csr.updated_at FROM "credentials_secrets" "csr"
 LEFT JOIN "app_secrets" "as" ON "as"."credentials_secret_id" = "csr"."id"

@@ -472,7 +472,7 @@ func (s *Services) processClientCredentialsSecret(
 
 	secretBytes, err := utils.DecodeBase64Secret(b64Secret)
 	if err != nil {
-		logger.WarnContext(ctx, "Client secret value is not valid base64", "secretValue", b64Secret)
+		logger.WarnContext(ctx, "Client secret value is not valid base64")
 		return "", nil, exceptions.NewUnauthorizedError()
 	}
 

@@ -3,13 +3,17 @@ package services
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/google/uuid"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/cache"
 	"github.com/tugascript/devlogs/idp/internal/providers/crypto"
 	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/services/dtos"
@@ -19,24 +23,27 @@ import (
 const oauthDynamicRegistrationConfigLocation = "oauth_dynamic_registration_config"
 
 type GetRegisteredClientOptions struct {
-	RequestID       string
-	AccountPublicID uuid.UUID
-	ClientID        string
-	BackendDomain   string
-	HostUsername    string
+	RegistrationToken string
+	RequestID         string
+	AccountPublicID   uuid.UUID
+	ClientID          string
+	BackendDomain     string
+	HostUsername      string
 }
 
 func (s *Services) getActiveAccountCredentialSecretAndKey(
 	ctx context.Context,
 	requestID string,
-	accountCredID int32,
-	authMethod database.AuthMethod,
+	row *database.AccountCredential,
 ) (string, time.Time, utils.JWK, *exceptions.ServiceError) {
-	switch authMethod {
+	switch row.TokenEndpointAuthMethod {
 	case database.AuthMethodClientSecretBasic, database.AuthMethodClientSecretPost, database.AuthMethodClientSecretJwt:
-		secretEnt, err := s.database.FindCurrentAccountCredentialSecretByAccountCredentialID(ctx, accountCredID)
+		secretEnt, err := s.database.FindCurrentAccountCredentialSecretByAccountCredentialID(ctx, row.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return s.replaceRegistrationSecret(ctx, requestID, row.AccountID, row.AccountPublicID, row.ID, false)
+		}
 		if err != nil {
-			return "", time.Time{}, nil, nil
+			return "", time.Time{}, nil, exceptions.FromDBError(err)
 		}
 		decryptedSecret, decryptErr := s.crypto.DecryptWithDEK(ctx, crypto.DecryptWithDEKOptions{
 			RequestID: requestID,
@@ -71,12 +78,15 @@ func (s *Services) getActiveAccountCredentialSecretAndKey(
 		}
 		return fmt.Sprintf("%s.%s", secretEnt.SecretID, decryptedSecret), secretEnt.ExpiresAt, nil, nil
 	case database.AuthMethodPrivateKeyJwt:
-		keyEnt, err := s.database.FindCurrentAccountCredentialKeyByAccountCredentialID(ctx, accountCredID)
-		if err != nil {
+		if row.JwksUri.Valid || len(row.Jwks) > 0 {
 			return "", time.Time{}, nil, nil
 		}
-		jwk, _ := utils.JsonToJWK(keyEnt.PublicKey)
-		return "", keyEnt.ExpiresAt, jwk, nil
+		keyEnt, err := s.database.FindCurrentAccountCredentialKeyByAccountCredentialID(ctx, row.ID)
+		if err != nil {
+			return "", time.Time{}, nil, exceptions.FromDBError(err)
+		}
+		key, serviceErr := s.registrationPrivateKey(ctx, requestID, keyEnt)
+		return "", keyEnt.ExpiresAt, key, serviceErr
 	default:
 		return "", time.Time{}, nil, nil
 	}
@@ -85,40 +95,26 @@ func (s *Services) getActiveAccountCredentialSecretAndKey(
 func (s *Services) getActiveAppSecretAndKey(
 	ctx context.Context,
 	requestID string,
-	accountID int32,
-	appID int32,
-	authMethod database.AuthMethod,
+	row *database.App,
 ) (string, time.Time, utils.JWK, *exceptions.ServiceError) {
-	switch authMethod {
+	switch row.TokenEndpointAuthMethod {
 	case database.AuthMethodClientSecretBasic, database.AuthMethodClientSecretPost, database.AuthMethodClientSecretJwt:
-		secrets, err := s.database.FindPaginatedAppSecretsByAppID(ctx, database.FindPaginatedAppSecretsByAppIDParams{
-			AppID:  appID,
-			Offset: 0,
-			Limit:  10,
-		})
-		if err != nil || len(secrets) == 0 {
-			return "", time.Time{}, nil, nil
+		activeSecret, err := s.database.FindCurrentAppSecret(ctx, row.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return s.replaceRegistrationSecret(ctx, requestID, row.AccountID, row.AccountPublicID, row.ID, true)
 		}
-		var activeSecret *database.CredentialsSecret
-		now := time.Now()
-		for i := range secrets {
-			if !secrets[i].IsRevoked && secrets[i].ExpiresAt.After(now) {
-				activeSecret = &secrets[i]
-				break
-			}
-		}
-		if activeSecret == nil {
-			return "", time.Time{}, nil, nil
+		if err != nil {
+			return "", time.Time{}, nil, exceptions.FromDBError(err)
 		}
 		decryptedSecret, decryptErr := s.crypto.DecryptWithDEK(ctx, crypto.DecryptWithDEKOptions{
 			RequestID: requestID,
 			GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
 				RequestID: requestID,
-				AccountID: accountID,
+				AccountID: row.AccountID,
 			}),
 			GetEncryptDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
 				RequestID: requestID,
-				AccountID: accountID,
+				AccountID: row.AccountID,
 			}),
 			StoreReEncryptedDataFn: func(
 				_ crypto.EntityID,
@@ -145,28 +141,25 @@ func (s *Services) getActiveAppSecretAndKey(
 		}
 		return fmt.Sprintf("%s.%s", activeSecret.SecretID, decryptedSecret), activeSecret.ExpiresAt, nil, nil
 	case database.AuthMethodPrivateKeyJwt:
-		keys, err := s.database.FindPaginatedAppKeysByAppID(ctx, database.FindPaginatedAppKeysByAppIDParams{
-			AppID:  appID,
-			Offset: 0,
-			Limit:  10,
-		})
-		if err != nil || len(keys) == 0 {
+		if row.JwksUri.Valid || len(row.Jwks) > 0 {
 			return "", time.Time{}, nil, nil
 		}
-		now := time.Now()
-		for i := range keys {
-			if !keys[i].IsRevoked && keys[i].ExpiresAt.After(now) {
-				jwk, _ := utils.JsonToJWK(keys[i].PublicKey)
-				return "", keys[i].ExpiresAt, jwk, nil
-			}
+		keyEnt, err := s.database.FindCurrentAppKey(ctx, row.ID)
+		if err != nil {
+			return "", time.Time{}, nil, exceptions.FromDBError(err)
 		}
-		return "", time.Time{}, nil, nil
+		key, serviceErr := s.registrationPrivateKey(ctx, requestID, keyEnt)
+		return "", keyEnt.ExpiresAt, key, serviceErr
 	default:
 		return "", time.Time{}, nil, nil
 	}
 }
 
-func (s *Services) GetRegisteredAccountCredentials(
+func (s *Services) GetRegisteredAccountCredentials(ctx context.Context, opts GetRegisteredClientOptions) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
+	return s.getRegisteredAccountCredentials(ctx, opts)
+}
+
+func (s *Services) getRegisteredAccountCredentials(
 	ctx context.Context,
 	opts GetRegisteredClientOptions,
 ) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
@@ -177,8 +170,7 @@ func (s *Services) GetRegisteredAccountCredentials(
 	secret, exp, key, serviceErr := s.getActiveAccountCredentialSecretAndKey(
 		ctx,
 		opts.RequestID,
-		row.ID,
-		row.TokenEndpointAuthMethod,
+		row,
 	)
 	if serviceErr != nil {
 		return nil, serviceErr
@@ -190,17 +182,15 @@ func (s *Services) GetRegisteredAccountCredentials(
 	if serviceErr != nil {
 		return nil, serviceErr
 	}
-	token, serviceErr := s.CreateAccountCredentialsRegistrationAccessToken(ctx, CreateAccountCredentialsRegistrationAccessTokenOptions{
-		RequestID:       opts.RequestID,
-		AccountPublicID: opts.AccountPublicID,
-		AccountVersion:  account.Version(),
-		ClientID:        row.ClientID,
-		BackendDomain:   opts.BackendDomain,
+	token, serviceErr := s.registrationResponseToken(ctx, registrationStateOptions{
+		RequestID: opts.RequestID, AccountPublicID: opts.AccountPublicID, AccountVersion: account.Version(),
+		ClientID: row.ClientID, BackendDomain: opts.BackendDomain, ID: row.ID, AccountID: row.AccountID,
+		Statement: row.SoftwareStatement, Stored: row.RegistrationTokenJti, Token: opts.RegistrationToken, App: false,
 	})
 	if serviceErr != nil {
 		return nil, serviceErr
 	}
-	dto, serviceErr := dtos.MapRegisteredAccountCredentials(row, "", secret, exp, key)
+	dto, serviceErr := dtos.MapRegisteredAccountCredentials(row, row.SoftwareStatement, secret, exp, key)
 	if serviceErr != nil {
 		return nil, exceptions.NewUnauthorizedError()
 	}
@@ -208,7 +198,11 @@ func (s *Services) GetRegisteredAccountCredentials(
 	return dto.Registration, nil
 }
 
-func (s *Services) GetRegisteredApp(
+func (s *Services) GetRegisteredApp(ctx context.Context, opts GetRegisteredClientOptions) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
+	return s.getRegisteredApp(ctx, opts)
+}
+
+func (s *Services) getRegisteredApp(
 	ctx context.Context,
 	opts GetRegisteredClientOptions,
 ) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
@@ -217,7 +211,7 @@ func (s *Services) GetRegisteredApp(
 		return nil, serviceErr
 	}
 	secret, exp, key, serviceErr := s.getActiveAppSecretAndKey(
-		ctx, opts.RequestID, row.AccountID, row.ID, row.TokenEndpointAuthMethod,
+		ctx, opts.RequestID, row,
 	)
 	if serviceErr != nil {
 		return nil, serviceErr
@@ -229,44 +223,95 @@ func (s *Services) GetRegisteredApp(
 	if serviceErr != nil {
 		return nil, serviceErr
 	}
-	token, serviceErr := s.CreateAppCredentialsRegistrationAccessToken(ctx, CreateAppCredentialsRegistrationAccessTokenOptions{
-		RequestID:       opts.RequestID,
-		AccountPublicID: opts.AccountPublicID,
-		AccountVersion:  account.Version(),
-		ClientID:        row.ClientID,
-		BackendDomain:   opts.BackendDomain,
+	token, serviceErr := s.registrationResponseToken(ctx, registrationStateOptions{
+		RequestID: opts.RequestID, AccountPublicID: opts.AccountPublicID, AccountVersion: account.Version(),
+		ClientID: row.ClientID, BackendDomain: opts.BackendDomain, ID: row.ID, AccountID: row.AccountID,
+		Statement: row.SoftwareStatement, Stored: row.RegistrationTokenJti, Token: opts.RegistrationToken, App: true,
+		HostUsername: opts.HostUsername,
 	})
 	if serviceErr != nil {
 		return nil, serviceErr
 	}
-	dto := dtos.MapRegisteredApp(row, "", secret, exp, key)
+	dto := dtos.MapRegisteredApp(row, row.SoftwareStatement, secret, exp, key)
 	issuer := dynamicRegistrationIssuerDomain(opts.HostUsername, opts.BackendDomain)
 	dto.Registration.WithRegistrationAccess(token, dtos.RegistrationClientURI(issuer, row.ClientID))
 	return dto.Registration, nil
 }
 
-func (s *Services) DeleteRegisteredAccountCredentials(
+func (s *Services) DeleteRegisteredAccountCredentials(ctx context.Context, opts GetRegisteredClientOptions) *exceptions.ServiceError {
+	_, err := registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (struct{}, *exceptions.ServiceError) {
+		return struct{}{}, s.deleteRegisteredAccountCredentials(ctx, qrs, opts)
+	})
+	if err == nil {
+		if cacheErr := s.cache.DeleteResponse(ctx, cache.DeleteResponseOptions{RequestID: opts.RequestID, Key: fmt.Sprintf("%s:%s", accountCredentialsKeysCacheKeyPrefix, opts.AccountPublicID)}); cacheErr != nil {
+			s.logger.WarnContext(ctx, "Failed to invalidate deleted client key discovery cache", "error", cacheErr)
+		}
+	}
+	return err
+}
+func (s *Services) deleteRegisteredAccountCredentials(
 	ctx context.Context,
+	qrs *database.Queries,
 	opts GetRegisteredClientOptions,
 ) *exceptions.ServiceError {
-	if _, serviceErr := s.findRegisteredAccountCredential(ctx, opts); serviceErr != nil {
+	row, serviceErr := s.findRegisteredAccountCredential(ctx, opts)
+	if serviceErr != nil {
 		return serviceErr
 	}
-	if err := s.database.DeleteAccountCredentials(ctx, opts.ClientID); err != nil {
+	// The middleware authenticated before the lock; check state again under it.
+	var authErr *exceptions.ServiceError
+	_, _, authErr = s.ProcessAccountCredentialsRegistrationAccessToken(ctx, ProcessAccountCredentialsRegistrationAccessTokenOptions{AuthHeader: "Bearer " + opts.RegistrationToken, IssuerDomain: opts.BackendDomain, RequestID: opts.RequestID})
+	if authErr != nil {
+		return authErr
+	}
+	if err := qrs.RevokeRegisteredAccountCredentialsSecrets(ctx, row.ID); err != nil {
+		return exceptions.FromDBError(err)
+	}
+	if err := qrs.RevokeRegisteredAccountCredentialsKeys(ctx, row.ID); err != nil {
+		return exceptions.FromDBError(err)
+	}
+	if err := qrs.DeleteRegisteredAccountCredentialsGrants(ctx, database.DeleteRegisteredAccountCredentialsGrantsParams{AccountID: row.AccountID, GrantedClientID: row.ClientID}); err != nil {
+		return exceptions.FromDBError(err)
+	}
+
+	if err := qrs.DeleteAccountCredentials(ctx, opts.ClientID); err != nil {
 		return exceptions.FromDBError(err)
 	}
 	return nil
 }
 
-func (s *Services) DeleteRegisteredApp(
+func (s *Services) DeleteRegisteredApp(ctx context.Context, opts GetRegisteredClientOptions) *exceptions.ServiceError {
+	_, err := registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (struct{}, *exceptions.ServiceError) {
+		return struct{}{}, s.deleteRegisteredApp(ctx, qrs, opts)
+	})
+	return err
+}
+func (s *Services) deleteRegisteredApp(
 	ctx context.Context,
+	qrs *database.Queries,
 	opts GetRegisteredClientOptions,
 ) *exceptions.ServiceError {
 	row, serviceErr := s.findRegisteredApp(ctx, opts)
 	if serviceErr != nil {
 		return serviceErr
 	}
-	if err := s.database.DeleteApp(ctx, row.ID); err != nil {
+	// The middleware authenticated before the lock; check state again under it.
+	var authErr *exceptions.ServiceError
+	_, _, authErr = s.ProcessAppDynamicRegistrationAccessToken(ctx, ProcessAppDynamicRegistrationAccessTokenOptions{AuthHeader: "Bearer " + opts.RegistrationToken, AccountID: row.AccountID, IssuerDomain: dynamicRegistrationIssuerDomain(opts.HostUsername, opts.BackendDomain), RequestID: opts.RequestID})
+	if authErr != nil {
+		return authErr
+	}
+	if err := qrs.RevokeRegisteredAppSecrets(ctx, row.ID); err != nil {
+		return exceptions.FromDBError(err)
+	}
+	if err := qrs.RevokeRegisteredAppKeys(ctx, row.ID); err != nil {
+		return exceptions.FromDBError(err)
+	}
+	if err := qrs.DeleteRegisteredAppGrants(ctx, database.DeleteRegisteredAppGrantsParams{AccountID: row.AccountID, GrantedClientID: row.ClientID}); err != nil {
+		return exceptions.FromDBError(err)
+	}
+
+	if err := qrs.DeleteApp(ctx, row.ID); err != nil {
 		return exceptions.FromDBError(err)
 	}
 	return nil
@@ -276,12 +321,12 @@ func (s *Services) findRegisteredAccountCredential(
 	ctx context.Context,
 	opts GetRegisteredClientOptions,
 ) (*database.AccountCredential, *exceptions.ServiceError) {
-	row, err := s.database.FindAccountCredentialsByAccountPublicIDAndClientID(ctx, database.FindAccountCredentialsByAccountPublicIDAndClientIDParams{
+	row, err := s.database.LockRegisteredAccountCredentials(ctx, database.LockRegisteredAccountCredentialsParams{
 		AccountPublicID: opts.AccountPublicID,
 		ClientID:        opts.ClientID,
 	})
 	if err != nil {
-		return nil, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "client not found")
+		return nil, registrationLookupError(err)
 	}
 	return &row, nil
 }
@@ -290,25 +335,34 @@ func (s *Services) findRegisteredApp(
 	ctx context.Context,
 	opts GetRegisteredClientOptions,
 ) (*database.App, *exceptions.ServiceError) {
-	row, err := s.database.FindAppByClientIDAndAccountPublicID(ctx, database.FindAppByClientIDAndAccountPublicIDParams{
+	row, err := s.database.LockRegisteredApp(ctx, database.LockRegisteredAppParams{
 		AccountPublicID: opts.AccountPublicID,
 		ClientID:        opts.ClientID,
 	})
 	if err != nil {
-		return nil, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "client not found")
+		return nil, registrationLookupError(err)
 	}
 	return &row, nil
 }
 
 type UpdateRegisteredClientOptions struct {
 	CreateAccountCredentialsRegistrationOptions
-	ClientID              string
-	SubmittedClientID     string
-	SubmittedClientSecret string
+	ClientID                     string
+	SubmittedClientID            string
+	SubmittedClientSecret        string
+	SubmittedClientSecretPresent bool
+	RegistrationToken            string
 }
 
-func (s *Services) UpdateRegisteredAccountCredentials(
+func (s *Services) UpdateRegisteredAccountCredentials(ctx context.Context, opts UpdateRegisteredClientOptions) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
+	return registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
+		return s.updateRegisteredAccountCredentials(ctx, qrs, opts)
+	})
+}
+
+func (s *Services) updateRegisteredAccountCredentials(
 	ctx context.Context,
+	qrs *database.Queries,
 	opts UpdateRegisteredClientOptions,
 ) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, oauthDynamicRegistrationConfigLocation, "UpdateRegisteredAccountCredentials")
@@ -324,18 +378,21 @@ func (s *Services) UpdateRegisteredAccountCredentials(
 	currentSecret, exp, key, serviceErr := s.getActiveAccountCredentialSecretAndKey(
 		ctx,
 		opts.RequestID,
-		existing.ID,
-		existing.TokenEndpointAuthMethod,
+		existing,
 	)
 	if serviceErr != nil {
 		return nil, serviceErr
 	}
-	if opts.SubmittedClientSecret != "" {
+	if opts.SubmittedClientSecretPresent || opts.SubmittedClientSecret != "" {
 		if currentSecret == "" || subtle.ConstantTimeCompare([]byte(opts.SubmittedClientSecret), []byte(currentSecret)) != 1 {
-			return nil, exceptions.NewError(exceptions.OAuthErrorInvalidClient, "invalid client secret")
+			return nil, exceptions.NewError(exceptions.OAuthErrorInvalidClientMetadata, "invalid client secret")
 		}
 	}
 	data := registrationDataFromAccountOptions(opts.CreateAccountCredentialsRegistrationOptions)
+	if data.TokenEndpointAuthMethod != "" && data.TokenEndpointAuthMethod != string(existing.TokenEndpointAuthMethod) {
+		return nil, exceptions.NewValidationError("token_endpoint_auth_method cannot be changed")
+	}
+	data.TokenEndpointAuthMethod = string(existing.TokenEndpointAuthMethod)
 	data.ApplicationType = string(existing.CredentialsType)
 	data, preparationErr := s.prepareDynamicRegistration(ctx, prepareDynamicRegistrationOptions{
 		requestID: opts.RequestID, accountPublicID: opts.AccountPublicID, data: data,
@@ -344,6 +401,9 @@ func (s *Services) UpdateRegisteredAccountCredentials(
 	})
 	if preparationErr != nil {
 		return nil, preparationErr
+	}
+	if data.TokenEndpointAuthMethod != string(existing.TokenEndpointAuthMethod) {
+		return nil, exceptions.NewValidationError("token_endpoint_auth_method cannot be changed")
 	}
 	if data.ApplicationType != string(existing.CredentialsType) {
 		return nil, exceptions.NewValidationError("application_type cannot be changed")
@@ -374,7 +434,7 @@ func (s *Services) UpdateRegisteredAccountCredentials(
 	if serviceErr != nil {
 		return nil, serviceErr
 	}
-	updated, err := s.database.UpdateRegisteredAccountCredentials(ctx, database.UpdateRegisteredAccountCredentialsParams{
+	updated, err := qrs.UpdateRegisteredAccountCredentials(ctx, database.UpdateRegisteredAccountCredentialsParams{
 		ID: existing.ID, Domain: params.Domain, Transport: params.Transport, RedirectUris: params.RedirectUris,
 		TokenEndpointAuthMethod: params.TokenEndpointAuthMethod, GrantTypes: params.GrantTypes, ResponseTypes: params.ResponseTypes,
 		ClientName: params.ClientName, ClientUri: params.ClientUri, LogoUri: params.LogoUri, Scopes: params.Scopes,
@@ -397,12 +457,10 @@ func (s *Services) UpdateRegisteredAccountCredentials(
 	if serviceErr != nil {
 		return nil, serviceErr
 	}
-	token, serviceErr := s.CreateAccountCredentialsRegistrationAccessToken(ctx, CreateAccountCredentialsRegistrationAccessTokenOptions{
-		RequestID:       opts.RequestID,
-		AccountPublicID: opts.AccountPublicID,
-		AccountVersion:  opts.AccountVersion,
-		ClientID:        updated.ClientID,
-		BackendDomain:   opts.BackendDomain,
+	token, serviceErr := s.registrationResponseToken(ctx, registrationStateOptions{
+		RequestID: opts.RequestID, AccountPublicID: opts.AccountPublicID, AccountVersion: opts.AccountVersion,
+		ClientID: updated.ClientID, BackendDomain: opts.BackendDomain, ID: updated.ID, AccountID: updated.AccountID,
+		Statement: opts.SoftwareStatement, Stored: existing.RegistrationTokenJti, Token: opts.RegistrationToken, App: false,
 	})
 	if serviceErr != nil {
 		return nil, serviceErr
@@ -413,14 +471,23 @@ func (s *Services) UpdateRegisteredAccountCredentials(
 
 type UpdateRegisteredAppOptions struct {
 	CreateAppCredentialsRegistrationOptions
-	ClientID              string
-	SubmittedClientID     string
-	SubmittedClientSecret string
-	HostUsername          string
+	ClientID                     string
+	SubmittedClientID            string
+	SubmittedClientSecret        string
+	SubmittedClientSecretPresent bool
+	RegistrationToken            string
+	HostUsername                 string
 }
 
-func (s *Services) UpdateRegisteredApp(
+func (s *Services) UpdateRegisteredApp(ctx context.Context, opts UpdateRegisteredAppOptions) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
+	return registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
+		return s.updateRegisteredApp(ctx, qrs, opts)
+	})
+}
+
+func (s *Services) updateRegisteredApp(
 	ctx context.Context,
+	qrs *database.Queries,
 	opts UpdateRegisteredAppOptions,
 ) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, oauthDynamicRegistrationConfigLocation, "UpdateRegisteredApp")
@@ -438,17 +505,21 @@ func (s *Services) UpdateRegisteredApp(
 		return nil, serviceErr
 	}
 	currentSecret, exp, key, serviceErr := s.getActiveAppSecretAndKey(
-		ctx, opts.RequestID, existing.AccountID, existing.ID, existing.TokenEndpointAuthMethod,
+		ctx, opts.RequestID, existing,
 	)
 	if serviceErr != nil {
 		return nil, serviceErr
 	}
-	if opts.SubmittedClientSecret != "" {
+	if opts.SubmittedClientSecretPresent || opts.SubmittedClientSecret != "" {
 		if currentSecret == "" || subtle.ConstantTimeCompare([]byte(opts.SubmittedClientSecret), []byte(currentSecret)) != 1 {
-			return nil, exceptions.NewError(exceptions.OAuthErrorInvalidClient, "invalid client secret")
+			return nil, exceptions.NewError(exceptions.OAuthErrorInvalidClientMetadata, "invalid client secret")
 		}
 	}
 	data := registrationDataFromAppOptions(opts.CreateAppCredentialsRegistrationOptions)
+	if data.TokenEndpointAuthMethod != "" && data.TokenEndpointAuthMethod != string(existing.TokenEndpointAuthMethod) {
+		return nil, exceptions.NewValidationError("token_endpoint_auth_method cannot be changed")
+	}
+	data.TokenEndpointAuthMethod = string(existing.TokenEndpointAuthMethod)
 	data.ApplicationType = string(existing.AppType)
 	data, preparationErr := s.prepareDynamicRegistration(ctx, prepareDynamicRegistrationOptions{
 		requestID: opts.RequestID, accountID: opts.AccountID, data: data,
@@ -457,6 +528,9 @@ func (s *Services) UpdateRegisteredApp(
 	})
 	if preparationErr != nil {
 		return nil, preparationErr
+	}
+	if data.TokenEndpointAuthMethod != string(existing.TokenEndpointAuthMethod) {
+		return nil, exceptions.NewValidationError("token_endpoint_auth_method cannot be changed")
 	}
 	if data.ApplicationType != string(existing.AppType) {
 		return nil, exceptions.NewValidationError("application_type cannot be changed")
@@ -484,7 +558,7 @@ func (s *Services) UpdateRegisteredApp(
 	if serviceErr != nil {
 		return nil, serviceErr
 	}
-	updated, err := s.database.UpdateRegisteredApp(ctx, database.UpdateRegisteredAppParams{
+	updated, err := qrs.UpdateRegisteredApp(ctx, database.UpdateRegisteredAppParams{
 		ID: existing.ID, ClientName: params.ClientName, ClientUri: params.ClientUri, UsernameColumn: params.UsernameColumn,
 		TokenEndpointAuthMethod: params.TokenEndpointAuthMethod, GrantTypes: params.GrantTypes, LogoUri: params.LogoUri,
 		TosUri: params.TosUri, PolicyUri: params.PolicyUri, Contacts: params.Contacts, SoftwareID: params.SoftwareID,
@@ -506,12 +580,11 @@ func (s *Services) UpdateRegisteredApp(
 		return nil, exceptions.FromDBError(err)
 	}
 	dto := dtos.MapRegisteredApp(&updated, opts.SoftwareStatement, currentSecret, exp, key)
-	token, serviceErr := s.CreateAppCredentialsRegistrationAccessToken(ctx, CreateAppCredentialsRegistrationAccessTokenOptions{
-		RequestID:       opts.RequestID,
-		AccountPublicID: account.PublicID,
-		AccountVersion:  account.Version(),
-		ClientID:        updated.ClientID,
-		BackendDomain:   opts.BackendDomain,
+	token, serviceErr := s.registrationResponseToken(ctx, registrationStateOptions{
+		RequestID: opts.RequestID, AccountPublicID: account.PublicID, AccountVersion: account.Version(),
+		ClientID: updated.ClientID, BackendDomain: opts.BackendDomain, ID: updated.ID, AccountID: updated.AccountID,
+		Statement: opts.SoftwareStatement, Stored: existing.RegistrationTokenJti, Token: opts.RegistrationToken, App: true,
+		HostUsername: opts.HostUsername,
 	})
 	if serviceErr != nil {
 		return nil, serviceErr

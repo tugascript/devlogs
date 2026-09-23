@@ -267,8 +267,18 @@ type CreateAccountCredentialsRegistrationOptions struct {
 	AccessTokenSigningAlg        string
 }
 
-func (s *Services) CreateAccountCredentialsRegistration(
+func (s *Services) CreateAccountCredentialsRegistration(ctx context.Context, opts CreateAccountCredentialsRegistrationOptions) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+	if opts.InitialAccessTokenDomain == "" {
+		return dtos.AccountCredentialsDTO{}, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "initial access token domain is required")
+	}
+	return registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+		return s.createAccountCredentialsRegistration(ctx, qrs, opts)
+	})
+}
+
+func (s *Services) createAccountCredentialsRegistration(
 	ctx context.Context,
+	qrs *database.Queries,
 	opts CreateAccountCredentialsRegistrationOptions,
 ) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(
@@ -319,11 +329,18 @@ func (s *Services) CreateAccountCredentialsRegistration(
 	if opts.InitialAccessTokenDomain == "" {
 		return dtos.AccountCredentialsDTO{}, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "initial access token domain is required")
 	}
-	data, preparationErr := s.prepareDynamicRegistration(ctx, prepareDynamicRegistrationOptions{
-		requestID: opts.RequestID, accountID: 0, accountPublicID: opts.AccountPublicID,
-		data: data, softwareStatement: opts.SoftwareStatement,
-		backendDomain: opts.BackendDomain, frontendDomain: opts.FrontendDomain, app: false,
-	})
+	data, preparationErr := s.prepareDynamicRegistration(ctx,
+		prepareDynamicRegistrationOptions{
+			requestID:         opts.RequestID,
+			accountID:         0,
+			accountPublicID:   opts.AccountPublicID,
+			data:              data,
+			softwareStatement: opts.SoftwareStatement,
+			backendDomain:     opts.BackendDomain,
+			frontendDomain:    opts.FrontendDomain,
+			app:               false,
+		},
+	)
 	if preparationErr != nil {
 		return dtos.AccountCredentialsDTO{}, preparationErr
 	}
@@ -478,16 +495,6 @@ func (s *Services) CreateAccountCredentialsRegistration(
 		return s.finalizeAccountCredentialsRegistration(ctx, opts, &accountCredentials, "", time.Time{}, nil)
 	}
 
-	qrs, txn, err := s.database.BeginTx(ctx)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to start transaction", "error", err)
-		return dtos.AccountCredentialsDTO{}, exceptions.FromDBError(err)
-	}
-	defer func() {
-		logger.DebugContext(ctx, "Finalizing transaction")
-		s.database.FinalizeTx(ctx, txn, err, serviceErr)
-	}()
-
 	accountCredentials, err := qrs.CreateAccountCredentials(ctx, params)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to create account credentials", "error", err)
@@ -563,7 +570,7 @@ func (s *Services) CreateAccountCredentialsRegistration(
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
-		return s.finalizeAccountCredentialsRegistration(ctx, opts, &accountCredentials, secret, exp, nil)
+		return s.finalizeAccountCredentialsRegistration(ctx, opts, &accountCredentials, secretID+"."+secret, exp, nil)
 	default:
 		logger.ErrorContext(ctx, "Invalid token endpoint auth method", "tokenEndpointAuthMethod", tokenEndpointAuthMethod)
 		serviceErr = exceptions.NewInternalServerError()
@@ -583,12 +590,9 @@ func (s *Services) finalizeAccountCredentialsRegistration(
 	if serviceErr != nil {
 		return dto, serviceErr
 	}
-	token, serviceErr := s.CreateAccountCredentialsRegistrationAccessToken(ctx, CreateAccountCredentialsRegistrationAccessTokenOptions{
-		RequestID:       opts.RequestID,
-		AccountPublicID: opts.AccountPublicID,
-		AccountVersion:  opts.AccountVersion,
-		ClientID:        row.ClientID,
-		BackendDomain:   opts.BackendDomain,
+	token, serviceErr := s.registrationResponseToken(ctx, registrationStateOptions{
+		RequestID: opts.RequestID, AccountPublicID: opts.AccountPublicID, AccountVersion: opts.AccountVersion,
+		ClientID: row.ClientID, BackendDomain: opts.BackendDomain, ID: row.ID, Statement: opts.SoftwareStatement,
 	})
 	if serviceErr != nil {
 		return dtos.AccountCredentialsDTO{}, serviceErr

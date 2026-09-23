@@ -147,6 +147,7 @@ func (s *Services) ProcessAppDynamicRegistrationIATAuth(
 }
 
 type CreateAppCredentialsRegistrationAccessTokenOptions struct {
+	JTI             uuid.UUID
 	RequestID       string
 	AccountPublicID uuid.UUID
 	AccountVersion  int32
@@ -158,6 +159,9 @@ func (s *Services) CreateAppCredentialsRegistrationAccessToken(
 	ctx context.Context,
 	opts CreateAppCredentialsRegistrationAccessTokenOptions,
 ) (string, *exceptions.ServiceError) {
+	if opts.JTI.Version() != 7 {
+		return "", exceptions.NewInternalServerError()
+	}
 	logger := s.buildLogger(opts.RequestID, appDynamicRegistrationIATLocation, "CreateAppCredentialsRegistrationAccessToken").With(
 		"accountPublicId", opts.AccountPublicID,
 		"clientId", opts.ClientID,
@@ -182,10 +186,9 @@ func (s *Services) CreateAppCredentialsRegistrationAccessToken(
 			AccountVersion:  opts.AccountVersion,
 			IssuerDomain:    fmt.Sprintf("%s.%s", accountDTO.Username, opts.BackendDomain),
 			Subject:         opts.ClientID,
-			JTI:             utils.Base62UUID(),
+			JTI:             opts.JTI.String(),
 			Usage:           tokens.DynamicRegistrationUsageApp,
 			TokenUse:        tokens.DynamicRegistrationTokenUseRegistration,
-			TTL:             s.jwt.GetRegistrationAccessTokenTTL(),
 		}),
 		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, BuildGetEncryptedAccountJWKFnOptions{
 			RequestID: opts.RequestID,
@@ -235,24 +238,18 @@ func (s *Services) ProcessAppDynamicRegistrationAccessToken(
 	clientID, accountClaims, err := s.jwt.VerifyDynamicRegistrationIAT(
 		ctx,
 		tokens.VerifyDynamicRegistrationIATOptions{
-			RequestID:    opts.RequestID,
-			IAT:          token,
-			IssuerDomain: opts.IssuerDomain,
-			Usage:        tokens.DynamicRegistrationUsageApp,
-			TokenUse:     tokens.DynamicRegistrationTokenUseRegistration,
-			GetPublicJWK: s.BuildGetAccountPublicKeyFn(
-				ctx,
-				BuildGetAccountPublicKeyFnOptions{
-					RequestID: opts.RequestID,
-					AccountID: opts.AccountID,
-					KeyType:   database.TokenKeyTypeDynamicRegistration,
-				},
-			),
+			RequestID:            opts.RequestID,
+			IAT:                  token,
+			IssuerDomain:         opts.IssuerDomain,
+			Usage:                tokens.DynamicRegistrationUsageApp,
+			TokenUse:             tokens.DynamicRegistrationTokenUseRegistration,
+			ValidateRegistration: s.registrationTokenValidator(ctx, true),
+			GetPublicJWK:         s.registrationPublicKey(ctx, opts.AccountID),
 		},
 	)
 	if err != nil {
 		logger.WarnContext(ctx, "Failed to verify app registration access token", "error", err)
-		return "", tokens.AccountClaims{}, exceptions.NewUnauthorizedError()
+		return "", tokens.AccountClaims{}, registrationVerificationError(err)
 	}
 
 	return clientID, accountClaims, nil

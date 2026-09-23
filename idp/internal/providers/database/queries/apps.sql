@@ -222,3 +222,20 @@ LIMIT 1;
 
 -- name: DeleteAllApps :exec
 DELETE FROM "apps";
+
+-- name: LockRegisteredApp :one
+SELECT * FROM apps WHERE client_id = $1 AND account_public_id = $2 FOR UPDATE;
+
+-- name: SetAppRegistrationState :exec
+UPDATE apps SET registration_token_jti = $2, software_statement = $3 WHERE id = $1;
+
+-- name: RevokeRegisteredAppSecrets :exec
+UPDATE credentials_secrets SET is_revoked = true, updated_at = now()
+WHERE id IN (SELECT credentials_secret_id FROM app_secrets WHERE app_id = $1);
+
+-- name: RevokeRegisteredAppKeys :exec
+UPDATE credentials_keys SET is_revoked = true, updated_at = now()
+WHERE id IN (SELECT credentials_key_id FROM app_keys WHERE app_id = $1);
+
+-- name: DeleteRegisteredAppGrants :exec
+DELETE FROM grants WHERE account_id = $1 AND granted_client_id = $2;

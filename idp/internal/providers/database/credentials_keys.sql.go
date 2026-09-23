@@ -186,3 +186,18 @@ func (q *Queries) UpdateCredentialsKeyExpiresAtAndCreatedAt(ctx context.Context,
 	_, err := q.db.Exec(ctx, updateCredentialsKeyExpiresAtAndCreatedAt, arg.PublicKid, arg.ExpiresAt, arg.CreatedAt)
 	return err
 }
+
+const updateCredentialsKeyPrivateKey = `-- name: UpdateCredentialsKeyPrivateKey :exec
+UPDATE credentials_keys SET private_key = $2, dek_kid = $3 WHERE id = $1
+`
+
+type UpdateCredentialsKeyPrivateKeyParams struct {
+	ID         int32
+	PrivateKey string
+	DekKid     string
+}
+
+func (q *Queries) UpdateCredentialsKeyPrivateKey(ctx context.Context, arg UpdateCredentialsKeyPrivateKeyParams) error {
+	_, err := q.db.Exec(ctx, updateCredentialsKeyPrivateKey, arg.ID, arg.PrivateKey, arg.DekKid)
+	return err
+}

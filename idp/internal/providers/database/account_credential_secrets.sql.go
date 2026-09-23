@@ -140,6 +140,7 @@ WHERE
     "acs"."account_credentials_id" = $1 AND 
     "csr"."is_revoked" = false AND 
     "csr"."expires_at" > now()
+ORDER BY "csr"."created_at" DESC, "csr"."id" DESC
 LIMIT 1
 `
 

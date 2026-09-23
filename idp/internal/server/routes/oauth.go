@@ -53,6 +53,11 @@ func (r *Routes) OAuthRoutes(app *fiber.App) {
 		HostAwareRoute(r.controllers.OAuthDynamicRegistrationDelete, r.controllers.OAuthAppDynamicRegistrationDelete),
 	)
 
+	router.All(paths.OAuthRegisterClient, func(ctx fiber.Ctx) error {
+		ctx.Set(fiber.HeaderAllow, "GET, PUT, DELETE")
+		return ctx.SendStatus(fiber.StatusMethodNotAllowed)
+	})
+
 	// Initial Access Token (IAT) routes
 	iatRouter := router.Group(paths.InitialAccessToken, r.controllers.HostMiddleware)
 	iatRouter.Post(

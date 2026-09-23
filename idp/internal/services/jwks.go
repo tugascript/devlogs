@@ -163,6 +163,10 @@ func (s *Services) BuildGetGlobalEncryptedJWKFn(
 	ctx context.Context,
 	opts BuildEncryptedJWKFnOptions,
 ) crypto.GetEncryptedJWK {
+	if s.registrationKeyServices != nil {
+		return s.registrationKeyServices.BuildGetGlobalEncryptedJWKFn(ctx, opts)
+	}
+
 	logger := s.buildLogger(opts.RequestID, jwkLocation, "BuildGetGlobalEncryptedJWKFn").With(
 		"keyType", opts.KeyType,
 	)
@@ -494,6 +498,10 @@ func (s *Services) BuildGetEncryptedAccountJWKFn(
 	ctx context.Context,
 	opts BuildGetEncryptedAccountJWKFnOptions,
 ) crypto.GetEncryptedJWK {
+	if s.registrationKeyServices != nil {
+		return s.registrationKeyServices.BuildGetEncryptedAccountJWKFn(ctx, opts)
+	}
+
 	logger := s.buildLogger(opts.RequestID, jwkLocation, "BuildGetEncryptedAccountJWKFn").With(
 		"keyType", opts.KeyType, "AccountID", opts.AccountID,
 	)

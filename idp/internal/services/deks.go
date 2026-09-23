@@ -98,6 +98,11 @@ func (s *Services) BuildGetEncGlobalDEKFn(
 	ctx context.Context,
 	opts BuildGetGlobalDEKFnOptions,
 ) crypto.GetDEKtoEncrypt {
+	if s.registrationKeyServices != nil {
+		opts.Queries = nil
+		return s.registrationKeyServices.BuildGetEncGlobalDEKFn(ctx, opts)
+	}
+
 	logger := s.buildLogger(opts.RequestID, deksLocation, "BuildGetEncGlobalDEKFn")
 	logger.InfoContext(ctx, "Build GetDEKtoEncrypt function...")
 	return func() (crypto.DEKID, crypto.EncryptedDEK, uuid.UUID, *exceptions.ServiceError) {
@@ -291,6 +296,11 @@ func (s *Services) BuildGetEncAccountDEKfn(
 	ctx context.Context,
 	opts BuildGetEncAccountDEKOptions,
 ) crypto.GetDEKtoEncrypt {
+	if s.registrationKeyServices != nil {
+		opts.Queries = nil
+		return s.registrationKeyServices.BuildGetEncAccountDEKfn(ctx, opts)
+	}
+
 	logger := s.buildLogger(opts.RequestID, deksLocation, "BuildGetEncAccountDEKfn").With(
 		"accountId", opts.AccountID,
 	)

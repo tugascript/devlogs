@@ -143,7 +143,7 @@ INSERT INTO "account_credentials" (
     $38,
     $39,
     $40
-) RETURNING id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at
+) RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at
 `
 
 type CreateAccountCredentialsParams struct {
@@ -234,6 +234,8 @@ func (q *Queries) CreateAccountCredentials(ctx context.Context, arg CreateAccoun
 	)
 	var i AccountCredential
 	err := row.Scan(
+		&i.RegistrationTokenJti,
+		&i.SoftwareStatement,
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,
@@ -301,8 +303,22 @@ func (q *Queries) DeleteAllAccountCredentials(ctx context.Context) error {
 	return err
 }
 
+const deleteRegisteredAccountCredentialsGrants = `-- name: DeleteRegisteredAccountCredentialsGrants :exec
+DELETE FROM grants WHERE account_id = $1 AND granted_client_id = $2
+`
+
+type DeleteRegisteredAccountCredentialsGrantsParams struct {
+	AccountID       int32
+	GrantedClientID string
+}
+
+func (q *Queries) DeleteRegisteredAccountCredentialsGrants(ctx context.Context, arg DeleteRegisteredAccountCredentialsGrantsParams) error {
+	_, err := q.db.Exec(ctx, deleteRegisteredAccountCredentialsGrants, arg.AccountID, arg.GrantedClientID)
+	return err
+}
+
 const findAccountCredentialsByAccountPublicIDAndClientID = `-- name: FindAccountCredentialsByAccountPublicIDAndClientID :one
-SELECT id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at FROM "account_credentials"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at FROM "account_credentials"
 WHERE "account_public_id" = $1 AND "client_id" = $2
 LIMIT 1
 `
@@ -316,6 +332,8 @@ func (q *Queries) FindAccountCredentialsByAccountPublicIDAndClientID(ctx context
 	row := q.db.QueryRow(ctx, findAccountCredentialsByAccountPublicIDAndClientID, arg.AccountPublicID, arg.ClientID)
 	var i AccountCredential
 	err := row.Scan(
+		&i.RegistrationTokenJti,
+		&i.SoftwareStatement,
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,
@@ -366,7 +384,7 @@ func (q *Queries) FindAccountCredentialsByAccountPublicIDAndClientID(ctx context
 
 const findAccountCredentialsByClientID = `-- name: FindAccountCredentialsByClientID :one
 
-SELECT id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at FROM "account_credentials"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at FROM "account_credentials"
 WHERE "client_id" = $1
 LIMIT 1
 `
@@ -380,6 +398,8 @@ func (q *Queries) FindAccountCredentialsByClientID(ctx context.Context, clientID
 	row := q.db.QueryRow(ctx, findAccountCredentialsByClientID, clientID)
 	var i AccountCredential
 	err := row.Scan(
+		&i.RegistrationTokenJti,
+		&i.SoftwareStatement,
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,
@@ -429,7 +449,7 @@ func (q *Queries) FindAccountCredentialsByClientID(ctx context.Context, clientID
 }
 
 const findPaginatedAccountCredentialsByAccountPublicID = `-- name: FindPaginatedAccountCredentialsByAccountPublicID :many
-SELECT id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at FROM "account_credentials"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at FROM "account_credentials"
 WHERE "account_public_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3
@@ -451,6 +471,8 @@ func (q *Queries) FindPaginatedAccountCredentialsByAccountPublicID(ctx context.C
 	for rows.Next() {
 		var i AccountCredential
 		if err := rows.Scan(
+			&i.RegistrationTokenJti,
+			&i.SoftwareStatement,
 			&i.ID,
 			&i.AccountID,
 			&i.AccountPublicID,
@@ -506,6 +528,104 @@ func (q *Queries) FindPaginatedAccountCredentialsByAccountPublicID(ctx context.C
 	return items, nil
 }
 
+const lockRegisteredAccountCredentials = `-- name: LockRegisteredAccountCredentials :one
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at FROM account_credentials WHERE client_id = $1 AND account_public_id = $2 FOR UPDATE
+`
+
+type LockRegisteredAccountCredentialsParams struct {
+	ClientID        string
+	AccountPublicID uuid.UUID
+}
+
+func (q *Queries) LockRegisteredAccountCredentials(ctx context.Context, arg LockRegisteredAccountCredentialsParams) (AccountCredential, error) {
+	row := q.db.QueryRow(ctx, lockRegisteredAccountCredentials, arg.ClientID, arg.AccountPublicID)
+	var i AccountCredential
+	err := row.Scan(
+		&i.RegistrationTokenJti,
+		&i.SoftwareStatement,
+		&i.ID,
+		&i.AccountID,
+		&i.AccountPublicID,
+		&i.Domain,
+		&i.CreationMethod,
+		&i.Transport,
+		&i.Version,
+		&i.ClientID,
+		&i.RedirectUris,
+		&i.TokenEndpointAuthMethod,
+		&i.GrantTypes,
+		&i.ResponseTypes,
+		&i.ClientName,
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.Scopes,
+		&i.Contacts,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.CredentialsType,
+		&i.SectorIdentifierUri,
+		&i.SubjectType,
+		&i.IDTokenSignedResponseAlg,
+		&i.IDTokenEncryptedResponseAlg,
+		&i.IDTokenEncryptedResponseEnc,
+		&i.UserinfoSignedResponseAlg,
+		&i.UserinfoEncryptedResponseAlg,
+		&i.UserinfoEncryptedResponseEnc,
+		&i.RequestObjectSigningAlg,
+		&i.RequestObjectEncryptionAlg,
+		&i.RequestObjectEncryptionEnc,
+		&i.TokenEndpointAuthSigningAlg,
+		&i.DefaultMaxAge,
+		&i.RequireAuthTime,
+		&i.DefaultAcrValues,
+		&i.InitiateLoginUri,
+		&i.RequestUris,
+		&i.AccessTokenSigningAlg,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const revokeRegisteredAccountCredentialsKeys = `-- name: RevokeRegisteredAccountCredentialsKeys :exec
+UPDATE credentials_keys SET is_revoked = true, updated_at = now()
+WHERE id IN (SELECT credentials_key_id FROM account_credentials_keys WHERE account_credentials_id = $1)
+`
+
+func (q *Queries) RevokeRegisteredAccountCredentialsKeys(ctx context.Context, accountCredentialsID int32) error {
+	_, err := q.db.Exec(ctx, revokeRegisteredAccountCredentialsKeys, accountCredentialsID)
+	return err
+}
+
+const revokeRegisteredAccountCredentialsSecrets = `-- name: RevokeRegisteredAccountCredentialsSecrets :exec
+UPDATE credentials_secrets SET is_revoked = true, updated_at = now()
+WHERE id IN (SELECT credentials_secret_id FROM account_credentials_secrets WHERE account_credentials_id = $1)
+`
+
+func (q *Queries) RevokeRegisteredAccountCredentialsSecrets(ctx context.Context, accountCredentialsID int32) error {
+	_, err := q.db.Exec(ctx, revokeRegisteredAccountCredentialsSecrets, accountCredentialsID)
+	return err
+}
+
+const setAccountCredentialsRegistrationState = `-- name: SetAccountCredentialsRegistrationState :exec
+UPDATE account_credentials SET registration_token_jti = $2, software_statement = $3 WHERE id = $1
+`
+
+type SetAccountCredentialsRegistrationStateParams struct {
+	ID                   int32
+	RegistrationTokenJti pgtype.UUID
+	SoftwareStatement    string
+}
+
+func (q *Queries) SetAccountCredentialsRegistrationState(ctx context.Context, arg SetAccountCredentialsRegistrationStateParams) error {
+	_, err := q.db.Exec(ctx, setAccountCredentialsRegistrationState, arg.ID, arg.RegistrationTokenJti, arg.SoftwareStatement)
+	return err
+}
+
 const updateAccountCredentials = `-- name: UpdateAccountCredentials :one
 UPDATE "account_credentials" SET
     "scopes" = $2,
@@ -522,7 +642,7 @@ UPDATE "account_credentials" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at
+RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at
 `
 
 type UpdateAccountCredentialsParams struct {
@@ -557,6 +677,8 @@ func (q *Queries) UpdateAccountCredentials(ctx context.Context, arg UpdateAccoun
 	)
 	var i AccountCredential
 	err := row.Scan(
+		&i.RegistrationTokenJti,
+		&i.SoftwareStatement,
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,
@@ -645,7 +767,7 @@ UPDATE "account_credentials" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at
+RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, domain, creation_method, transport, version, client_id, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, credentials_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, created_at, updated_at
 `
 
 type UpdateRegisteredAccountCredentialsParams struct {
@@ -728,6 +850,8 @@ func (q *Queries) UpdateRegisteredAccountCredentials(ctx context.Context, arg Up
 	)
 	var i AccountCredential
 	err := row.Scan(
+		&i.RegistrationTokenJti,
+		&i.SoftwareStatement,
 		&i.ID,
 		&i.AccountID,
 		&i.AccountPublicID,

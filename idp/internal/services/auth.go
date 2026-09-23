@@ -58,6 +58,13 @@ func (s *Services) ProcessAccountAuthHeader(
 			RequestID: opts.RequestID,
 			KeyType:   database.TokenKeyTypeAccess,
 		}),
+		func(subject string, account tokens.AccountClaims) error {
+			if subject == account.AccountID.String() {
+				return nil
+			}
+			_, err := s.database.FindAccountCredentialsByAccountPublicIDAndClientID(ctx, database.FindAccountCredentialsByAccountPublicIDAndClientIDParams{ClientID: subject, AccountPublicID: account.AccountID})
+			return err
+		},
 	)
 	if err != nil {
 		logger.WarnContext(ctx, "Failed to verify access token", "error", err)
