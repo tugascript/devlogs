@@ -2,7 +2,8 @@
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at https://mozilla.org/MPL/2.0/.\n
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 package controllers
 
 import (
@@ -134,8 +135,15 @@ func bearerAuthenticationRequired(logger *slog.Logger, ctx fiber.Ctx) error {
 	return ctx.Status(fiber.StatusUnauthorized).Send(nil)
 }
 
-func oauthErrorResponse(logger *slog.Logger, ctx fiber.Ctx, message string) error {
-	resErr := exceptions.NewOAuthError(message)
+func oauthErrorResponse(logger *slog.Logger, ctx fiber.Ctx, message string, description ...string) error {
+	var desc string
+	if len(description) > 0 {
+		desc = description[0]
+	}
+	resErr := exceptions.OAuthErrorResponse{
+		Error:            message,
+		ErrorDescription: desc,
+	}
 	if message == exceptions.OAuthErrorInvalidToken {
 		ctx.Set(fiber.HeaderWWWAuthenticate, `Bearer error="invalid_token"`)
 	}
@@ -157,7 +165,10 @@ func oauthErrorResponse(logger *slog.Logger, ctx fiber.Ctx, message string) erro
 		return ctx.Status(fiber.StatusInternalServerError).JSON(&resErr)
 	default:
 		logResponse(logger, ctx, fiber.StatusBadRequest)
-		resErr = exceptions.NewOAuthError(exceptions.OAuthErrorInvalidRequest)
+		resErr = exceptions.OAuthErrorResponse{
+			Error:            exceptions.OAuthErrorInvalidRequest,
+			ErrorDescription: desc,
+		}
 		return ctx.Status(fiber.StatusBadRequest).JSON(&resErr)
 	}
 }
@@ -209,30 +220,37 @@ func dynamicRegistrationServiceError(
 	ctx fiber.Ctx,
 	serviceErr *exceptions.ServiceError,
 ) error {
+	var desc string
+	if serviceErr != nil {
+		desc = serviceErr.Message
+	}
 	switch serviceErr.Code {
 	case exceptions.OAuthErrorInvalidClientMetadata:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata, desc)
 	case exceptions.OAuthErrorInvalidRequest:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRequest, desc)
 	case exceptions.OAuthErrorInvalidClient:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClient)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClient, desc)
 	case exceptions.OAuthErrorInvalidRedirectURI:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRedirectURI)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidRedirectURI, desc)
 	case exceptions.OAuthErrorInvalidToken:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken, desc)
 	case exceptions.CodeForbidden:
-		return ctx.Status(fiber.StatusForbidden).JSON(exceptions.NewOAuthError(exceptions.OAuthErrorAccessDenied))
+		return ctx.Status(fiber.StatusForbidden).JSON(exceptions.OAuthErrorResponse{
+			Error:            exceptions.OAuthErrorAccessDenied,
+			ErrorDescription: desc,
+		})
 	case exceptions.CodeUnauthorized:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken, desc)
 	case exceptions.OAuthErrorUnauthorizedClient:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnauthorizedClient)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnauthorizedClient, desc)
 	case exceptions.CodeNotFound, exceptions.CodeValidation:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata, desc)
 	case exceptions.CodeInvalidToken:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidSoftwareStatement)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidSoftwareStatement, desc)
 	case exceptions.CodeUnauthorizedToken:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnapprovedSoftwareStatement)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnapprovedSoftwareStatement, desc)
 	default:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError, desc)
 	}
 }

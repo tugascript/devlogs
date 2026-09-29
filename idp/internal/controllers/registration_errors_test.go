@@ -80,3 +80,27 @@ func TestRegistrationErrorResponses(t *testing.T) {
 		})
 	}
 }
+
+func TestRegistrationErrorDescription(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	app := fiber.New()
+	app.Post("/register", func(ctx fiber.Ctx) error {
+		return dynamicRegistrationServiceError(logger, ctx, exceptions.NewError(exceptions.OAuthErrorInvalidClientMetadata, "sector_identifier_uri must be an HTTPS URL"))
+	})
+	res, err := app.Test(httptest.NewRequest(http.MethodPost, "/register", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	var payload exceptions.OAuthErrorResponse
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Error != exceptions.OAuthErrorInvalidClientMetadata {
+		t.Fatalf("error=%q, want %q", payload.Error, exceptions.OAuthErrorInvalidClientMetadata)
+	}
+	if payload.ErrorDescription != "sector_identifier_uri must be an HTTPS URL" {
+		t.Fatalf("error_description=%q, want %q", payload.ErrorDescription, "sector_identifier_uri must be an HTTPS URL")
+	}
+}

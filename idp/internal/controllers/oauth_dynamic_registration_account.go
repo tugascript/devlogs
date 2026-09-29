@@ -35,7 +35,7 @@ func (c *Controllers) OAuthDynamicRegistration(ctx fiber.Ctx) error {
 
 	body := new(bodies.OAuthDynamicClientRegistrationBody)
 	if err := ctx.Bind().Body(body); err != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata, err.Error())
 	}
 
 	iatDomain, _ := ctx.Locals("domain").(string)
@@ -107,23 +107,23 @@ func (c *Controllers) OAuthAppDynamicRegistration(ctx fiber.Ctx) error {
 
 	body := new(bodies.OAuthDynamicClientRegistrationBody)
 	if err := ctx.Bind().Body(body); err != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata, err.Error())
 	}
 
-	isAuthenticated, ok := ctx.Locals("isAuthenticated").(bool)
+	isAuthenticaed, ok := ctx.Locals("isAuthenticated").(bool)
 	if !ok {
 		logger.ErrorContext(ctx.Context(), "isAuthenticated should be set in context by middleware")
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
 	}
 
 	account, ok := ctx.Locals("account").(tokens.AccountClaims)
-	if isAuthenticated && !ok {
+	if isAuthenticaed && !ok {
 		logger.ErrorContext(ctx.Context(), "account should be set in context by middleware")
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
 	}
 
 	var iatDomain string
-	if isAuthenticated {
+	if isAuthenticaed {
 		iatDomain, _ = ctx.Locals("domain").(string)
 	}
 	appDTO, serviceErr := c.services.CreateAppCredentialsRegistration(
@@ -131,7 +131,7 @@ func (c *Controllers) OAuthAppDynamicRegistration(ctx fiber.Ctx) error {
 		services.CreateAppCredentialsRegistrationOptions{
 			InitialAccessTokenDomain:     iatDomain,
 			RequestID:                    requestID,
-			IsAuthenticated:              isAuthenticated,
+			IsAuthenticated:              isAuthenticaed,
 			AccountID:                    accountID,
 			AccountVersion:               account.AccountVersion,
 			ApplicationType:              body.ApplicationType,
@@ -174,7 +174,7 @@ func (c *Controllers) OAuthAppDynamicRegistration(ctx fiber.Ctx) error {
 		},
 	)
 	if serviceErr != nil {
-		if !isAuthenticated && serviceErr.Code == exceptions.OAuthErrorInvalidToken {
+		if !isAuthenticaed && serviceErr.Code == exceptions.OAuthErrorInvalidToken {
 			return bearerAuthenticationRequired(logger, ctx)
 		}
 		return dynamicRegistrationServiceError(logger, ctx, serviceErr)
@@ -290,7 +290,7 @@ func (c *Controllers) OAuthDynamicRegistrationUpdate(ctx fiber.Ctx) error {
 	}
 	body, err := c.bindRegistrationBody(ctx)
 	if err != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata, err.Error())
 	}
 
 	dto, serviceErr := c.services.UpdateRegisteredAccountCredentials(ctx.Context(), services.UpdateRegisteredClientOptions{
@@ -337,7 +337,7 @@ func (c *Controllers) OAuthAppDynamicRegistrationUpdate(ctx fiber.Ctx) error {
 	}
 	body, err := c.bindRegistrationBody(ctx)
 	if err != nil {
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata, err.Error())
 	}
 
 	dto, serviceErr := c.services.UpdateRegisteredApp(ctx.Context(), services.UpdateRegisteredAppOptions{

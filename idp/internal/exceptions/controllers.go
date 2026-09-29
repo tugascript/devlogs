@@ -300,9 +300,14 @@ func NewRequestErrorStatus(code string) int {
 }
 
 type OAuthErrorResponse struct {
-	Error string `json:"error"`
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description,omitempty"`
 }
 
 func NewOAuthError(message string) OAuthErrorResponse {
 	return OAuthErrorResponse{Error: message}
+}
+
+func NewOAuthErrorWithDescription(message string, description string) OAuthErrorResponse {
+	return OAuthErrorResponse{Error: message, ErrorDescription: description}
 }

@@ -25,17 +25,18 @@
   - service
   - mcp
 - Add support for multiple 2FA types
+- Make refresh tokens whitelisted not blacklisted
+- Add grants to control refresh token
 
 ### IDP On-Going
 
 - Add OAuth Dynamic Registration for:
   - accounts
   - apps
-- Make refresh tokens whitelisted not blacklisted
-- Add grants to control refresh token
 
 ### IDP Todo
 
+- OAuth Client ID Metadata Document
 - User authentication for each app type:
   - web
   - native & spa
