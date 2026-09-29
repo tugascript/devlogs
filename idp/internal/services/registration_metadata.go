@@ -10,10 +10,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -24,6 +27,37 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
+
+const registrationMetadataLocation = "registration_metadata"
+
+var sectorIdentifierHTTPClient = &http.Client{
+	Timeout: 10 * time.Second,
+}
+
+var fetchSectorIdentifierURIs = func(ctx context.Context, uri string) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := sectorIdentifierHTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	limited := http.MaxBytesReader(nil, resp.Body, 128*1024)
+	var redirects []string
+	if err := json.NewDecoder(limited).Decode(&redirects); err != nil {
+		return nil, err
+	}
+	return redirects, nil
+}
 
 type prepareDynamicRegistrationOptions struct {
 	requestID         string
@@ -78,6 +112,20 @@ func (s *Services) prepareDynamicRegistration(
 	ctx context.Context,
 	opts prepareDynamicRegistrationOptions,
 ) (ApplicationRegistrationData, *exceptions.ServiceError) {
+	logger := s.buildLogger(
+		opts.requestID,
+		registrationMetadataLocation,
+		"prepareDynamicRegistration",
+	).With(
+		"app", opts.app,
+	)
+	if opts.app {
+		logger = logger.With("accountID", opts.accountID)
+	} else {
+		logger = logger.With("accountPublicID", opts.accountPublicID)
+	}
+	logger.InfoContext(ctx, "Preparing dynamic registration metadata...")
+
 	data := opts.data
 
 	var verificationMethods []database.SoftwareStatementVerificationMethod
@@ -88,6 +136,7 @@ func (s *Services) prepareDynamicRegistration(
 			ID:        opts.accountID,
 		})
 		if err != nil {
+			logger.ErrorContext(ctx, "Failed to get account by ID", "serviceError", err)
 			return data, err
 		}
 		opts.accountPublicID = account.PublicID
@@ -96,6 +145,7 @@ func (s *Services) prepareDynamicRegistration(
 			AccountID: opts.accountID,
 		})
 		if err != nil {
+			logger.ErrorContext(ctx, "Failed to get and cache app dynamic registration config", "serviceError", err)
 			return data, err
 		}
 		verificationMethods = config.SoftwareStatementVerificationMethods
@@ -112,16 +162,19 @@ func (s *Services) prepareDynamicRegistration(
 			AccountPublicID: opts.accountPublicID,
 		})
 		if err != nil {
+			logger.ErrorContext(ctx, "Failed to get and cache account dynamic registration config", "serviceError", err)
 			return data, err
 		}
 		verificationMethods = config.SoftwareStatementVerificationMethods
 	}
 
 	if opts.softwareStatement != "" {
+		logger.InfoContext(ctx, "Processing software statement...")
 		// This preview only locates the account's configured verification key/domain.
 		// No metadata from it is applied until signature verification succeeds.
 		var preview jwt.MapClaims
 		if _, _, err := jwt.NewParser().ParseUnverified(opts.softwareStatement, &preview); err != nil {
+			logger.WarnContext(ctx, "Failed to parse unverified software statement", "error", err)
 			return data, exceptions.NewInvalidTokenError("invalid software statement")
 		}
 		keyURI := data.ClientURI
@@ -135,6 +188,7 @@ func (s *Services) prepareDynamicRegistration(
 		domain := registrationDomain(keyURI, data.RedirectURIs)
 		baseDomain, err := publicsuffix.EffectiveTLDPlusOne(domain)
 		if err != nil {
+			logger.WarnContext(ctx, "Failed to parse software statement base domain", "domain", domain, "error", err)
 			return data, exceptions.NewInvalidTokenError("invalid software statement domain")
 		}
 		claims, standard, err := s.jwt.VerifySoftwareStatement(ctx, tokens.VerifySoftwareStatementOptions{
@@ -152,8 +206,10 @@ func (s *Services) prepareDynamicRegistration(
 		})
 		if err != nil {
 			if errors.Is(err, errUnapprovedSoftwareStatement) {
+				logger.WarnContext(ctx, "Software statement is not approved", "error", err)
 				return data, exceptions.NewUnauthorizedTokenError("unapproved software statement")
 			}
+			logger.WarnContext(ctx, "Failed to verify software statement", "error", err)
 			return data, exceptions.NewInvalidTokenError("invalid software statement")
 		}
 		if serviceErr := s.verifySoftwareStatementSTDClaims(ctx, verifySoftwareStatementSTDClaimsOptions{
@@ -164,6 +220,7 @@ func (s *Services) prepareDynamicRegistration(
 			frontendDomain: opts.frontendDomain,
 			claims:         &standard,
 		}); serviceErr != nil {
+			logger.WarnContext(ctx, "Software statement standard claims verification failed", "serviceError", serviceErr)
 			return data, serviceErr
 		}
 		if serviceErr := s.validateSoftwareStatementClaims(ctx, validateSoftwareStatementClaimsOptions{
@@ -171,12 +228,15 @@ func (s *Services) prepareDynamicRegistration(
 			claims:        &claims,
 			allowedScopes: utils.SliceToHashSet(allowedScopes),
 		}); serviceErr != nil {
+			logger.WarnContext(ctx, "Software statement claims validation failed", "serviceError", serviceErr)
 			return data, exceptions.NewInvalidTokenError("invalid software statement")
 		}
 		data, err = mergeRegistrationMetadata(data, claims)
 		if err != nil {
+			logger.WarnContext(ctx, "Failed to merge software statement metadata", "error", err)
 			return data, exceptions.NewInvalidTokenError("invalid software statement metadata")
 		}
+		logger.DebugContext(ctx, "Software statement verified and merged successfully")
 	}
 
 	if data.ApplicationType == "" {
@@ -196,6 +256,7 @@ func (s *Services) prepareDynamicRegistration(
 	if data.ClientURI == "" {
 		domain := registrationDomain("", data.RedirectURIs)
 		if domain == "" {
+			logger.WarnContext(ctx, "Failed to determine client domain from redirect URIs")
 			return data, exceptions.NewValidationError("a client domain could not be determined")
 		}
 		data.ClientURI = "https://" + domain
@@ -205,13 +266,84 @@ func (s *Services) prepareDynamicRegistration(
 		data.Scope = "profile"
 	}
 	if serviceErr := normalizeRegistrationMetadata(&data); serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to normalize registration metadata", "serviceError", serviceErr)
 		return data, serviceErr
 	}
+
+	if serviceErr := s.validateSectorIdentifier(ctx, opts.requestID, data.SectorIdentifierURI, data.RedirectURIs, data.SubjectType); serviceErr != nil {
+		logger.WarnContext(ctx, "Sector identifier validation failed", "serviceError", serviceErr)
+		return data, serviceErr
+	}
+
 	if err := s.validate.StructCtx(ctx, &data); err != nil {
+		logger.WarnContext(ctx, "Validation failed for dynamic registration metadata", "error", err)
 		return data, exceptions.NewValidationError("invalid client metadata")
 	}
 
+	logger.InfoContext(ctx, "Dynamic registration metadata prepared successfully",
+		"clientURI", data.ClientURI,
+		"applicationType", data.ApplicationType,
+	)
 	return data, nil
+}
+
+func (s *Services) validateSectorIdentifier(
+	ctx context.Context,
+	requestID string,
+	sectorIdentifierURI string,
+	redirectURIs []string,
+	subjectType string,
+) *exceptions.ServiceError {
+	logger := s.buildLogger(requestID, registrationMetadataLocation, "validateSectorIdentifier")
+	if sectorIdentifierURI == "" {
+		if subjectType == SubjectTypePairwise && len(redirectURIs) > 1 {
+			var firstHost string
+			for _, r := range redirectURIs {
+				parsed, err := url.Parse(r)
+				if err != nil || parsed.Host == "" {
+					logger.WarnContext(ctx, "Failed to parse redirect URI for pairwise host comparison", "uri", r, "error", err)
+					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
+				}
+				if firstHost == "" {
+					firstHost = parsed.Host
+				} else if !strings.EqualFold(firstHost, parsed.Host) {
+					logger.WarnContext(ctx, "Pairwise subject type redirect URIs have different host components",
+						"firstHost", firstHost,
+						"host", parsed.Host,
+					)
+					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "all redirect_uris must have the same host component for pairwise subject type when sector_identifier_uri is omitted")
+				}
+			}
+		}
+		return nil
+	}
+
+	logger.InfoContext(ctx, "Validating sector identifier URI", "sectorIdentifierURI", sectorIdentifierURI)
+	parsed, err := url.Parse(sectorIdentifierURI)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
+		logger.WarnContext(ctx, "Invalid sector_identifier_uri format", "sectorIdentifierURI", sectorIdentifierURI, "error", err)
+		return exceptions.NewError(exceptions.OAuthErrorInvalidClientMetadata, "sector_identifier_uri must be an HTTPS URL without userinfo or fragment")
+	}
+
+	sectorRedirects, err := fetchSectorIdentifierURIs(ctx, sectorIdentifierURI)
+	if err != nil {
+		logger.WarnContext(ctx, "Failed to fetch sector_identifier_uri", "sectorIdentifierURI", sectorIdentifierURI, "error", err)
+		return exceptions.NewError(exceptions.OAuthErrorInvalidClientMetadata, "failed to fetch or parse sector_identifier_uri")
+	}
+
+	sectorSet := utils.SliceToHashSet(sectorRedirects)
+	for _, redirectURI := range redirectURIs {
+		if !sectorSet.Contains(redirectURI) {
+			logger.WarnContext(ctx, "redirect_uri not found in sector_identifier_uri list",
+				"redirectURI", redirectURI,
+				"sectorIdentifierURI", sectorIdentifierURI,
+			)
+			return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "redirect_uris must be included in sector_identifier_uri")
+		}
+	}
+
+	logger.InfoContext(ctx, "Sector identifier URI validated successfully")
+	return nil
 }
 
 func registrationDomain(clientURI string, redirects []string) string {

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"reflect"
@@ -130,5 +131,129 @@ func TestSoftwareStatementMergeUsesPresence(t *testing.T) {
 	}
 	if merged.ClientURI != body.ClientURI || merged.ResponseTypes == nil {
 		t.Fatal("omitted statement fields did not preserve body metadata")
+	}
+}
+
+func TestSectorIdentifierValidation(t *testing.T) {
+	s := &Services{logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	origFetch := fetchSectorIdentifierURIs
+	defer func() { fetchSectorIdentifierURIs = origFetch }()
+
+	fetchSectorIdentifierURIs = func(ctx context.Context, uri string) ([]string, error) {
+		if uri == "https://sector.example.com/redirects.json" {
+			return []string{
+				"https://client.example.com/callback",
+				"https://client.example.com/callback2",
+			}, nil
+		}
+		if uri == "https://sector.example.com/error.json" {
+			return nil, errors.New("network failure")
+		}
+		return nil, errors.New("not found")
+	}
+
+	for _, tc := range []struct {
+		name                string
+		sectorIdentifierURI string
+		redirectURIs        []string
+		subjectType         string
+		wantCode            string
+	}{
+		{
+			name:                "empty sector URI with pairwise subject and single redirect",
+			sectorIdentifierURI: "",
+			redirectURIs:        []string{"https://client.example.com/callback"},
+			subjectType:         "pairwise",
+			wantCode:            "",
+		},
+		{
+			name:                "empty sector URI with pairwise subject and same host redirects",
+			sectorIdentifierURI: "",
+			redirectURIs: []string{
+				"https://client.example.com/callback",
+				"https://client.example.com/callback2",
+			},
+			subjectType: "pairwise",
+			wantCode:    "",
+		},
+		{
+			name:                "empty sector URI with pairwise subject and different host redirects",
+			sectorIdentifierURI: "",
+			redirectURIs: []string{
+				"https://client.example.com/callback",
+				"https://other.example.net/callback",
+			},
+			subjectType: "pairwise",
+			wantCode:    exceptions.OAuthErrorInvalidRedirectURI,
+		},
+		{
+			name:                "non-HTTPS sector URI",
+			sectorIdentifierURI: "http://sector.example.com/redirects.json",
+			redirectURIs:        []string{"https://client.example.com/callback"},
+			subjectType:         "pairwise",
+			wantCode:            exceptions.OAuthErrorInvalidClientMetadata,
+		},
+		{
+			name:                "sector URI with fragment",
+			sectorIdentifierURI: "https://sector.example.com/redirects.json#fragment",
+			redirectURIs:        []string{"https://client.example.com/callback"},
+			subjectType:         "pairwise",
+			wantCode:            exceptions.OAuthErrorInvalidClientMetadata,
+		},
+		{
+			name:                "sector URI fetch error",
+			sectorIdentifierURI: "https://sector.example.com/error.json",
+			redirectURIs:        []string{"https://client.example.com/callback"},
+			subjectType:         "pairwise",
+			wantCode:            exceptions.OAuthErrorInvalidClientMetadata,
+		},
+		{
+			name:                "sector URI missing redirect URI",
+			sectorIdentifierURI: "https://sector.example.com/redirects.json",
+			redirectURIs: []string{
+				"https://client.example.com/callback",
+				"https://not-in-sector.example.com/callback",
+			},
+			subjectType: "pairwise",
+			wantCode:    exceptions.OAuthErrorInvalidRedirectURI,
+		},
+		{
+			name:                "sector URI matching all redirect URIs",
+			sectorIdentifierURI: "https://sector.example.com/redirects.json",
+			redirectURIs: []string{
+				"https://client.example.com/callback",
+				"https://client.example.com/callback2",
+			},
+			subjectType: "pairwise",
+			wantCode:    "",
+		},
+		{
+			name:                "sector URI matching with public subject type",
+			sectorIdentifierURI: "https://sector.example.com/redirects.json",
+			redirectURIs: []string{
+				"https://client.example.com/callback",
+			},
+			subjectType: "public",
+			wantCode:    "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := s.validateSectorIdentifier(
+				context.Background(),
+				"req-1",
+				tc.sectorIdentifierURI,
+				tc.redirectURIs,
+				tc.subjectType,
+			)
+			if tc.wantCode == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			} else {
+				if err == nil || err.Code != tc.wantCode {
+					t.Fatalf("got err=%v, want code %s", err, tc.wantCode)
+				}
+			}
+		})
 	}
 }
