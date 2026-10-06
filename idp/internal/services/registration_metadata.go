@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -92,9 +93,7 @@ func mergeRegistrationMetadata(
 	if body.GrantTypes != nil {
 		fields["grant_types"], _ = json.Marshal(body.GrantTypes)
 	}
-	for name, value := range statement.RawMetadata {
-		fields[name] = value
-	}
+	maps.Copy(fields, statement.RawMetadata)
 	encoded, err = json.Marshal(fields)
 	if err != nil {
 		return ApplicationRegistrationData{}, err
@@ -137,7 +136,7 @@ func (s *Services) prepareDynamicRegistration(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get account by ID", "serviceError", err)
-			return data, err
+			return data, exceptions.NewInternalServerError()
 		}
 		opts.accountPublicID = account.PublicID
 		config, err := s.GetAndCacheAppDynamicRegistrationConfig(ctx, GetAndCacheAppDynamicRegistrationConfigOptions{
@@ -146,7 +145,7 @@ func (s *Services) prepareDynamicRegistration(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get and cache app dynamic registration config", "serviceError", err)
-			return data, err
+			return data, exceptions.NewInternalServerError()
 		}
 		verificationMethods = config.SoftwareStatementVerificationMethods
 		if len(config.DefaultAllowedScopes) > 0 {
@@ -163,7 +162,7 @@ func (s *Services) prepareDynamicRegistration(
 		})
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get and cache account dynamic registration config", "serviceError", err)
-			return data, err
+			return data, exceptions.NewInternalServerError()
 		}
 		verificationMethods = config.SoftwareStatementVerificationMethods
 	}
