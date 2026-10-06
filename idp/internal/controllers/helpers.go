@@ -220,10 +220,10 @@ func dynamicRegistrationServiceError(
 	ctx fiber.Ctx,
 	serviceErr *exceptions.ServiceError,
 ) error {
-	var desc string
-	if serviceErr != nil {
-		desc = serviceErr.Message
+	if serviceErr == nil {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError, "Unable to process dynamic registration request")
 	}
+	desc := serviceErr.Message
 	switch serviceErr.Code {
 	case exceptions.OAuthErrorInvalidClientMetadata:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata, desc)
@@ -251,6 +251,7 @@ func dynamicRegistrationServiceError(
 	case exceptions.CodeUnauthorizedToken:
 		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorUnapprovedSoftwareStatement, desc)
 	default:
-		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError, desc)
+		logger.ErrorContext(ctx.Context(), "Dynamic registration failed", "serviceError", serviceErr)
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError, "Unable to process dynamic registration request")
 	}
 }
