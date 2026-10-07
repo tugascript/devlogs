@@ -67,6 +67,44 @@ var fetchSectorIdentifierURIs = func(ctx context.Context, uri string) ([]string,
 	return redirects, nil
 }
 
+var lookupSectorIdentifierIPs = func(ctx context.Context, host string) ([]net.IPAddr, error) {
+	return net.DefaultResolver.LookupIPAddr(ctx, host)
+}
+
+func isBlockedSectorIdentifierIP(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	return ip.IsUnspecified() || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast()
+}
+
+func validateSectorIdentifierHost(ctx context.Context, host string) error {
+	if host == "" {
+		return fmt.Errorf("empty host")
+	}
+
+	if ip := net.ParseIP(host); ip != nil {
+		if isBlockedSectorIdentifierIP(ip) {
+			return fmt.Errorf("host resolves to a non-public address: %s", ip)
+		}
+		return nil
+	}
+
+	ips, err := lookupSectorIdentifierIPs(ctx, host)
+	if err != nil {
+		return fmt.Errorf("host resolution failed: %w", err)
+	}
+	if len(ips) == 0 {
+		return fmt.Errorf("host resolved to no addresses")
+	}
+	for _, addr := range ips {
+		if isBlockedSectorIdentifierIP(addr.IP) {
+			return fmt.Errorf("host resolves to a non-public address: %s", addr.IP)
+		}
+	}
+	return nil
+}
+
 type prepareDynamicRegistrationOptions struct {
 	requestID         string
 	accountID         int32
@@ -332,6 +370,10 @@ func (s *Services) validateSectorIdentifier(
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
 		logger.WarnContext(ctx, "Invalid sector_identifier_uri format", "sectorIdentifierURI", sectorIdentifierURI, "error", err)
 		return exceptions.NewError(exceptions.OAuthErrorInvalidClientMetadata, "sector_identifier_uri must be an HTTPS URL without userinfo or fragment")
+	}
+	if err := validateSectorIdentifierHost(ctx, parsed.Hostname()); err != nil {
+		logger.WarnContext(ctx, "Blocked sector_identifier_uri host", "sectorIdentifierURI", sectorIdentifierURI, "error", err)
+		return exceptions.NewError(exceptions.OAuthErrorInvalidClientMetadata, "sector_identifier_uri host must resolve to a public address")
 	}
 
 	sectorRedirects, err := fetchSectorIdentifierURIs(ctx, sectorIdentifierURI)
