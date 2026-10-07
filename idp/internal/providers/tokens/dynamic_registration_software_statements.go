@@ -23,9 +23,9 @@ type SoftwareStatementClaims struct {
 	RawMetadata                  map[string]json.RawMessage `json:"-"`
 	RedirectURIs                 []string                   `json:"redirect_uris,omitempty" validate:"omitempty,min=1,dive,uri"`
 	TokenEndpointAuthMethod      string                     `json:"token_endpoint_auth_method,omitempty" validate:"omitempty,oneof=none client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
-	GrantTypes                   []string                   `json:"grant_types,omitempty" validate:"omitempty,min=1,dive,oneof=authorization_code refresh_token client_credentials urn:ietf:params:oauth:grant-type:jwt-bearer"`
+	GrantTypes                   []string                   `json:"grant_types,omitempty" validate:"omitempty,min=1,dive,oneof=authorization_code implicit refresh_token client_credentials urn:ietf:params:oauth:grant-type:jwt-bearer"`
 	ResponseTypes                []string                   `json:"response_types,omitempty" validate:"omitempty,dive,oneof=none code 'code id_token'"`
-	ApplicationType              string                     `json:"application_type,omitempty" validate:"omitempty,oneof=native service mcp web spa backend device"`
+	ApplicationType              string                     `json:"application_type,omitempty" validate:"omitempty,oneof=web native service mcp"`
 	ClientName                   string                     `json:"client_name,omitempty" validate:"omitempty,min=1,max=255"`
 	ClientURI                    string                     `json:"client_uri,omitempty" validate:"omitempty,url"`
 	LogoURI                      string                     `json:"logo_uri,omitempty" validate:"omitempty,url"`

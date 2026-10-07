@@ -56,7 +56,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Name:                    "admin-service",
 					Scopes:                  []string{"account:admin"},
 					TokenEndpointAuthMethod: "client_secret_jwt",
-					Transport:               "https",
 					ClientURI:               "https://admin.example.com",
 					SoftwareID:              "admin-service",
 					SoftwareVersion:         "1.0.0",
@@ -72,7 +71,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertEmpty(t, resBody.ClientSecretJWK)
 				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodClientSecretJwt)
 				AssertEqual(t, resBody.Type, database.AccountCredentialsTypeService)
-				AssertEqual(t, resBody.Transport, database.TransportHttps)
 			},
 		},
 		{
@@ -85,7 +83,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Name:                    "super-service",
 					Scopes:                  []string{"account:credentials:read", "account:credentials:write"},
 					TokenEndpointAuthMethod: "private_key_jwt",
-					Transport:               "https",
 					ClientURI:               "https://super.example.com",
 					SoftwareID:              "super-service",
 					SoftwareVersion:         "2.0.0",
@@ -114,7 +111,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Name:                    "eddsa-service",
 					Scopes:                  []string{"account:credentials:read", "account:credentials:write"},
 					TokenEndpointAuthMethod: "private_key_jwt",
-					Transport:               "https",
 					ClientURI:               "https://eddsa.example.com",
 					SoftwareID:              "eddsa-service",
 					SoftwareVersion:         "1.0.0",
@@ -143,7 +139,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Name:                    "app-service",
 					Scopes:                  []string{"account:apps:read", "account:apps:write"},
 					TokenEndpointAuthMethod: "client_secret_post",
-					Transport:               "https",
 					ClientURI:               "https://app.example.com",
 					SoftwareID:              "app-service",
 					SoftwareVersion:         "1.0.0",
@@ -171,7 +166,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Name:                    "user-service",
 					Scopes:                  []string{"account:users:read", "account:users:write"},
 					TokenEndpointAuthMethod: "client_secret_basic",
-					Transport:               "https",
 					ClientURI:               "https://user.example.com",
 					SoftwareID:              "user-service",
 					SoftwareVersion:         "1.0.0",
@@ -190,7 +184,7 @@ func TestCreateAccountCredentials(t *testing.T) {
 			},
 		},
 		{
-			Name: "Should create MCP credentials with streamable_http transport",
+			Name: "Should create MCP credentials with no client authentication",
 			ReqFn: func(t *testing.T) (bodies.CreateAccountCredentialsBody, string) {
 				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
 				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
@@ -198,39 +192,9 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Type:                    "mcp",
 					Name:                    "mcp-client",
 					Scopes:                  []string{"account:admin"},
-					TokenEndpointAuthMethod: "client_secret_basic",
-					Transport:               "streamable_http",
+					TokenEndpointAuthMethod: "none",
 					ClientURI:               "https://mcp.example.com",
 					SoftwareID:              "mcp-client",
-					SoftwareVersion:         "1.0.0",
-				}, accessToken
-			},
-			ExpStatus: http.StatusCreated,
-			AssertFn: func(t *testing.T, _ bodies.CreateAccountCredentialsBody, res *http.Response) {
-				resBody := AssertTestResponseBody(t, res, dtos.AccountCredentialsDTO{})
-				AssertNotEmpty(t, resBody.ClientID)
-				AssertNotEmpty(t, resBody.ClientSecretID)
-				AssertNotEmpty(t, resBody.ClientSecret)
-				AssertNotEmpty(t, resBody.ClientSecretExp)
-				AssertEmpty(t, resBody.ClientSecretJWK)
-				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodClientSecretBasic)
-				AssertEqual(t, resBody.Type, database.AccountCredentialsTypeMcp)
-				AssertEqual(t, resBody.Transport, database.TransportStreamableHttp)
-			},
-		},
-		{
-			Name: "Should create MCP credentials with stdio transport without client auth",
-			ReqFn: func(t *testing.T) (bodies.CreateAccountCredentialsBody, string) {
-				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
-				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
-				return bodies.CreateAccountCredentialsBody{
-					Type:                    "mcp",
-					Name:                    "mcp-stdio",
-					Scopes:                  []string{"account:admin"},
-					TokenEndpointAuthMethod: "none",
-					Transport:               "stdio",
-					ClientURI:               "https://mcp-stdio.example.com",
-					SoftwareID:              "mcp-stdio",
 					SoftwareVersion:         "1.0.0",
 				}, accessToken
 			},
@@ -244,7 +208,27 @@ func TestCreateAccountCredentials(t *testing.T) {
 				AssertEmpty(t, resBody.ClientSecretJWK)
 				AssertEqual(t, resBody.TokenEndpointAuthMethod, database.AuthMethodNone)
 				AssertEqual(t, resBody.Type, database.AccountCredentialsTypeMcp)
-				AssertEqual(t, resBody.Transport, database.TransportStdio)
+			},
+		},
+		{
+			Name: "Should reject MCP credentials with client authentication",
+			ReqFn: func(t *testing.T) (bodies.CreateAccountCredentialsBody, string) {
+				account := CreateTestAccount(t, GenerateFakeAccountData(t, services.AuthProviderGoogle))
+				accessToken, _ := GenerateTestAccountAuthTokens(t, &account)
+				return bodies.CreateAccountCredentialsBody{
+					Type:                    "mcp",
+					Name:                    "mcp-stdio",
+					Scopes:                  []string{"account:admin"},
+					TokenEndpointAuthMethod: "client_secret_basic",
+					ClientURI:               "https://mcp-stdio.example.com",
+					SoftwareID:              "mcp-stdio",
+					SoftwareVersion:         "1.0.0",
+				}, accessToken
+			},
+			ExpStatus: http.StatusBadRequest,
+			AssertFn: func(t *testing.T, _ bodies.CreateAccountCredentialsBody, res *http.Response) {
+				resBody := AssertTestResponseBody(t, res, exceptions.ErrorResponse{})
+				AssertEqual(t, resBody.Message, "only auth method none is supported for mcp credentials")
 			},
 		},
 		{
@@ -257,7 +241,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Name:                    "native-client",
 					Scopes:                  []string{"account:admin"},
 					TokenEndpointAuthMethod: "client_secret_basic",
-					Transport:               "https",
 					ClientURI:               "https://native.example.com",
 					SoftwareID:              "native-client",
 					SoftwareVersion:         "1.0.0",
@@ -279,7 +262,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Name:                    "",
 					Scopes:                  []string{"invalid:scope", "account:users:readsd"},
 					TokenEndpointAuthMethod: "invalid_auth_method",
-					Transport:               "invalid_transport",
 					ClientURI:               "not-a-uri",
 					SoftwareID:              "",
 					SoftwareVersion:         "",
@@ -306,7 +288,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Name:            "existing-name",
 					Scopes:          []string{"account:admin"},
 					AuthMethod:      "client_secret_basic",
-					Transport:       "https",
 					ClientURI:       "https://existing.example.com",
 					SoftwareID:      "existing-service",
 					SoftwareVersion: "1.0.0",
@@ -319,7 +300,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Name:                    "existing-name",
 					Scopes:                  []string{"account:admin"},
 					TokenEndpointAuthMethod: "client_secret_basic",
-					Transport:               "https",
 					ClientURI:               "https://new.example.com",
 					SoftwareID:              "new-service",
 					SoftwareVersion:         "1.0.0",
@@ -339,7 +319,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Name:                    "unauthorized-service",
 					Scopes:                  []string{"account:credentials:write", "account:auth_providers:read"},
 					TokenEndpointAuthMethod: "client_secret_basic",
-					Transport:               "https",
 					ClientURI:               "https://unauthorized.example.com",
 					SoftwareID:              "unauthorized-service",
 					SoftwareVersion:         "1.0.0",
@@ -358,7 +337,6 @@ func TestCreateAccountCredentials(t *testing.T) {
 					Name:                    "forbidden-service",
 					Scopes:                  []string{"account:apps:read", "account:apps:write"},
 					TokenEndpointAuthMethod: "client_secret_post",
-					Transport:               "https",
 					ClientURI:               "https://forbidden.example.com",
 					SoftwareID:              "forbidden-service",
 					SoftwareVersion:         "1.0.0",
@@ -394,7 +372,6 @@ func TestUpdateAccountCredentials(t *testing.T) {
 			Name:            "update-cred",
 			Scopes:          []string{"account:admin"},
 			AuthMethod:      "client_secret_basic",
-			Transport:       "https",
 			ClientURI:       "https://update.example.com",
 			SoftwareID:      "update-service",
 			SoftwareVersion: "1.0.0",
@@ -414,7 +391,6 @@ func TestUpdateAccountCredentials(t *testing.T) {
 				return bodies.UpdateAccountCredentialsBody{
 					Name:            "updated-service-name",
 					Scopes:          []string{"account:users:read"},
-					Transport:       "https",
 					ClientURI:       "https://updated.example.com",
 					SoftwareVersion: "2.0.0",
 				}, accessToken
@@ -445,8 +421,7 @@ func TestUpdateAccountCredentials(t *testing.T) {
 					CredentialsType: "mcp",
 					Name:            "mcp-update",
 					Scopes:          []string{"account:admin"},
-					AuthMethod:      "client_secret_basic",
-					Transport:       "streamable_http",
+					AuthMethod:      "none",
 					ClientURI:       "https://mcp-update.example.com",
 					SoftwareID:      "mcp-update",
 					SoftwareVersion: "1.0.0",
@@ -468,8 +443,9 @@ func TestUpdateAccountCredentials(t *testing.T) {
 				resBody := AssertTestResponseBody(t, res, dtos.AccountCredentialsDTO{})
 				AssertEqual(t, resBody.ClientName, "updated-mcp-name")
 				AssertEqual(t, len(resBody.Scopes), 2)
-				AssertEqual(t, resBody.Scopes[0], "account:users:read")
-				AssertEqual(t, resBody.Scopes[1], "account:apps:read")
+				scopes := utils.SliceToHashSet(resBody.Scopes)
+				AssertEqual(t, scopes.Contains(database.AccountCredentialsScopeAccountUsersRead), true)
+				AssertEqual(t, scopes.Contains(database.AccountCredentialsScopeAccountAppsRead), true)
 				AssertEqual(t, resBody.SoftwareVersion, "2.0.0")
 			},
 			PathFn: func() string {
@@ -483,7 +459,6 @@ func TestUpdateAccountCredentials(t *testing.T) {
 				return bodies.UpdateAccountCredentialsBody{
 					Name:            "",
 					Scopes:          []string{"account:users:read", "invalid:scope"},
-					Transport:       "invalid_transport",
 					ClientURI:       "not-a-uri",
 					SoftwareVersion: "",
 				}, accessToken
@@ -512,7 +487,6 @@ func TestUpdateAccountCredentials(t *testing.T) {
 					Name:            "existing-name",
 					Scopes:          []string{"account:admin"},
 					AuthMethod:      "client_secret_basic",
-					Transport:       "https",
 					ClientURI:       "https://existing.example.com",
 					SoftwareID:      "existing-service",
 					SoftwareVersion: "1.0.0",
@@ -529,7 +503,6 @@ func TestUpdateAccountCredentials(t *testing.T) {
 					Name:            "other-name",
 					Scopes:          []string{"account:admin"},
 					AuthMethod:      "client_secret_basic",
-					Transport:       "https",
 					ClientURI:       "https://other.example.com",
 					SoftwareID:      "other-service",
 					SoftwareVersion: "1.0.0",
@@ -542,7 +515,6 @@ func TestUpdateAccountCredentials(t *testing.T) {
 				return bodies.UpdateAccountCredentialsBody{
 					Name:            "existing-name",
 					Scopes:          []string{"account:users:read"},
-					Transport:       "https",
 					ClientURI:       "https://updated.example.com",
 					SoftwareVersion: "2.0.0",
 				}, accessToken
@@ -564,7 +536,6 @@ func TestUpdateAccountCredentials(t *testing.T) {
 				return bodies.UpdateAccountCredentialsBody{
 					Name:            "new-name",
 					Scopes:          []string{"account:users:read"},
-					Transport:       "https",
 					ClientURI:       "https://new.example.com",
 					SoftwareVersion: "1.0.0",
 				}, accessToken
@@ -582,7 +553,6 @@ func TestUpdateAccountCredentials(t *testing.T) {
 				return bodies.UpdateAccountCredentialsBody{
 					Name:            "updated-name",
 					Scopes:          []string{"account:users:read"},
-					Transport:       "https",
 					ClientURI:       "https://updated.example.com",
 					SoftwareVersion: "2.0.0",
 				}, ""
@@ -607,7 +577,6 @@ func TestUpdateAccountCredentials(t *testing.T) {
 					Name:            "forbidden-update",
 					Scopes:          []string{"account:admin"},
 					AuthMethod:      "client_secret_basic",
-					Transport:       "https",
 					ClientURI:       "https://forbidden.example.com",
 					SoftwareID:      "forbidden-service",
 					SoftwareVersion: "1.0.0",
@@ -620,7 +589,6 @@ func TestUpdateAccountCredentials(t *testing.T) {
 				return bodies.UpdateAccountCredentialsBody{
 					Name:            "updated-name",
 					Scopes:          []string{"account:users:read"},
-					Transport:       "https",
 					ClientURI:       "https://updated.example.com",
 					SoftwareVersion: "2.0.0",
 				}, accessToken
@@ -654,10 +622,9 @@ func TestListAccountCredentials(t *testing.T) {
 		for i := 0; i < n; i++ {
 			credType := "service"
 			authMethod := authMethods[i%len(authMethods)]
-			transport := "https"
 			if i%2 == 1 {
 				credType = "mcp"
-				transport = "streamable_http"
+				authMethod = "none"
 			}
 			name := "cred-" + uuid.NewString()
 
@@ -669,7 +636,6 @@ func TestListAccountCredentials(t *testing.T) {
 				Name:            name,
 				Scopes:          []string{"account:admin"},
 				AuthMethod:      authMethod,
-				Transport:       transport,
 				ClientURI:       "https://" + name + ".example.com",
 				SoftwareID:      name + "-service",
 				SoftwareVersion: "1.0.0",
@@ -763,7 +729,6 @@ func TestGetSingleAccountCredentials(t *testing.T) {
 			Name:            "get-cred",
 			Scopes:          []string{"account:admin"},
 			AuthMethod:      "client_secret_basic",
-			Transport:       "https",
 			ClientURI:       "https://get.example.com",
 			SoftwareID:      "get-service",
 			SoftwareVersion: "1.0.0",
@@ -834,7 +799,6 @@ func TestGetSingleAccountCredentials(t *testing.T) {
 					Name:            "forbidden-cred",
 					Scopes:          []string{"account:admin"},
 					AuthMethod:      "client_secret_basic",
-					Transport:       "https",
 					ClientURI:       "https://forbidden.example.com",
 					SoftwareID:      "forbidden-service",
 					SoftwareVersion: "1.0.0",
@@ -878,7 +842,6 @@ func TestDeleteAccountCredentials(t *testing.T) {
 			Name:            "delete-cred",
 			Scopes:          []string{"account:admin"},
 			AuthMethod:      "client_secret_basic",
-			Transport:       "https",
 			ClientURI:       "https://delete.example.com",
 			SoftwareID:      "delete-service",
 			SoftwareVersion: "1.0.0",
@@ -944,7 +907,6 @@ func TestDeleteAccountCredentials(t *testing.T) {
 					Name:            "forbidden-delete",
 					Scopes:          []string{"account:admin"},
 					AuthMethod:      "client_secret_basic",
-					Transport:       "https",
 					ClientURI:       "https://forbidden-delete.example.com",
 					SoftwareID:      "forbidden-delete-service",
 					SoftwareVersion: "1.0.0",
@@ -988,7 +950,6 @@ func TestListAccountCredentialsSecrets(t *testing.T) {
 			Name:            "list-cred",
 			Scopes:          []string{"account:admin"},
 			AuthMethod:      authMethods,
-			Transport:       "https",
 			ClientURI:       "https://list.example.com",
 			SoftwareID:      "list-service",
 			SoftwareVersion: "1.0.0",
@@ -1070,7 +1031,6 @@ func TestListAccountCredentialsSecrets(t *testing.T) {
 					Name:            "forbidden-list",
 					Scopes:          []string{"account:admin"},
 					AuthMethod:      "client_secret_basic",
-					Transport:       "https",
 					ClientURI:       "https://forbidden-list.example.com",
 					SoftwareID:      "forbidden-list-service",
 					SoftwareVersion: "1.0.0",
@@ -1114,7 +1074,6 @@ func TestCreateAccountCredentialsSecret(t *testing.T) {
 				Name:            "create-secret-cred",
 				Scopes:          []string{"account:admin"},
 				AuthMethod:      authMethods,
-				Transport:       "https",
 				ClientURI:       "https://create-secret.example.com",
 				SoftwareID:      "create-secret-service",
 				SoftwareVersion: "1.0.0",
@@ -1198,7 +1157,6 @@ func TestCreateAccountCredentialsSecret(t *testing.T) {
 					Name:            "forbidden-create-secret",
 					Scopes:          []string{"account:admin"},
 					AuthMethod:      "client_secret_basic",
-					Transport:       "https",
 					ClientURI:       "https://forbidden-create-secret.example.com",
 					SoftwareID:      "forbidden-create-secret-service",
 					SoftwareVersion: "1.0.0",
@@ -1240,7 +1198,6 @@ func TestGetAccountCredentialsSecret(t *testing.T) {
 			Name:            "get-secret-cred",
 			Scopes:          []string{"account:admin"},
 			AuthMethod:      authMethods,
-			Transport:       "https",
 			ClientURI:       "https://get-secret.example.com",
 			SoftwareID:      "get-secret-service",
 			SoftwareVersion: "1.0.0",
@@ -1334,7 +1291,6 @@ func TestGetAccountCredentialsSecret(t *testing.T) {
 					Name:            "forbidden-get-secret",
 					Scopes:          []string{"account:admin"},
 					AuthMethod:      "client_secret_basic",
-					Transport:       "https",
 					ClientURI:       "https://forbidden-get-secret.example.com",
 					SoftwareID:      "forbidden-get-secret-service",
 					SoftwareVersion: "1.0.0",
@@ -1378,7 +1334,6 @@ func TestRevokeAccountCredentialsSecret(t *testing.T) {
 			Name:            "revoke-cred",
 			Scopes:          []string{"account:admin"},
 			AuthMethod:      authMethods,
-			Transport:       "https",
 			ClientURI:       "https://revoke.example.com",
 			SoftwareID:      "revoke-service",
 			SoftwareVersion: "1.0.0",
@@ -1474,7 +1429,6 @@ func TestRevokeAccountCredentialsSecret(t *testing.T) {
 					Name:            "forbidden-revoke",
 					Scopes:          []string{"account:admin"},
 					AuthMethod:      "client_secret_basic",
-					Transport:       "https",
 					ClientURI:       "https://forbidden-revoke.example.com",
 					SoftwareID:      "forbidden-revoke-service",
 					SoftwareVersion: "1.0.0",

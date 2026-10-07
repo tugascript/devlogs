@@ -62,7 +62,6 @@ func (c *Controllers) CreateAccountCredentials(ctx fiber.Ctx) error {
 			SoftwareID:      body.SoftwareID,
 			SoftwareVersion: body.SoftwareVersion,
 			Algorithm:       body.Algorithm,
-			Transport:       body.Transport,
 		},
 	)
 	if serviceErr != nil {
@@ -181,7 +180,6 @@ func (c *Controllers) UpdateAccountCredentials(ctx fiber.Ctx) error {
 			ClientID:        urlParams.ClientID,
 			Name:            body.Name,
 			Scopes:          body.Scopes,
-			Transport:       body.Transport,
 			Domain:          body.Domain,
 			ClientURI:       body.ClientURI,
 			RedirectURIs:    body.RedirectURIs,

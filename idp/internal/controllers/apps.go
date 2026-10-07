@@ -26,13 +26,8 @@ type AppType = string
 const (
 	appsLocation string = "apps"
 
-	appTypeWeb     AppType = "web"
-	appTypeSPA     AppType = "spa"
-	appTypeNative  AppType = "native"
-	appTypeBackend AppType = "backend"
-	appTypeDevice  AppType = "device"
-	appTypeService AppType = "service"
-	appTypeMCP     AppType = "mcp"
+	appTypeWeb    AppType = "web"
+	appTypeNative AppType = "native"
 )
 
 func (c *Controllers) createWebApp(
@@ -74,55 +69,7 @@ func (c *Controllers) createWebApp(
 		DefaultScopes:         baseBody.DefaultScopes,
 		RedirectURIs:          body.RedirectURIs,
 		ResponseTypes:         body.ResponseTypes,
-		AuthProviders:         baseBody.AuthProviders,
-		Transport:             body.Transport,
-	})
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	logResponse(logger, ctx, fiber.StatusCreated)
-	return ctx.Status(fiber.StatusCreated).JSON(&appDTO)
-}
-
-func (c *Controllers) createSPAApp(
-	ctx fiber.Ctx,
-	requestID string,
-	accountClaims *tokens.AccountClaims,
-	baseBody *bodies.CreateAppBodyBase,
-) error {
-	logger := c.buildLogger(requestID, appsLocation, "createSPAOrSpaApp")
-
-	body := new(bodies.CreateAppBodySPA)
-	if err := ctx.Bind().Body(body); err != nil {
-		return parseRequestErrorResponse(logger, ctx, err)
-	}
-	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
-		return validateBodyErrorResponse(logger, ctx, err)
-	}
-
-	appDTO, serviceErr := c.services.CreateSPANativeApp(ctx.Context(), services.CreateSPANativeAppOptions{
-		RequestID:             requestID,
-		AccountPublicID:       accountClaims.AccountID,
-		AccountVersion:        accountClaims.AccountVersion,
-		AppType:               database.AppTypeSpa,
-		CreationMethod:        database.CreationMethodManual,
-		Name:                  baseBody.Name,
-		AllowUserRegistration: baseBody.AllowUserRegistration,
-		Domain:                baseBody.Domain,
-		Transport:             body.Transport,
-		UsernameColumn:        baseBody.UsernameColumn,
-		ResponseTypes:         body.ResponseTypes,
-		ClientURI:             baseBody.ClientURI,
-		LogoURI:               baseBody.LogoURI,
-		TOSURI:                baseBody.TOSURI,
-		PolicyURI:             baseBody.PolicyURI,
-		Contacts:              baseBody.Contacts,
-		SoftwareID:            baseBody.SoftwareID,
-		SoftwareVersion:       baseBody.SoftwareVersion,
-		RedirectURIs:          body.RedirectURIs,
-		Scopes:                baseBody.Scopes,
-		DefaultScopes:         baseBody.DefaultScopes,
+		GrantTypes:            body.GrantTypes,
 		AuthProviders:         baseBody.AuthProviders,
 	})
 	if serviceErr != nil {
@@ -149,7 +96,7 @@ func (c *Controllers) createNativeApp(
 		return validateBodyErrorResponse(logger, ctx, err)
 	}
 
-	appDTO, serviceErr := c.services.CreateSPANativeApp(ctx.Context(), services.CreateSPANativeAppOptions{
+	appDTO, serviceErr := c.services.CreateNativeApp(ctx.Context(), services.CreateNativeAppOptions{
 		RequestID:             requestID,
 		AccountPublicID:       accountClaims.AccountID,
 		AccountVersion:        accountClaims.AccountVersion,
@@ -159,7 +106,6 @@ func (c *Controllers) createNativeApp(
 		AppType:               database.AppTypeNative,
 		AllowUserRegistration: baseBody.AllowUserRegistration,
 		Domain:                baseBody.Domain,
-		Transport:             body.Transport,
 		ClientURI:             baseBody.ClientURI,
 		LogoURI:               baseBody.LogoURI,
 		TOSURI:                baseBody.TOSURI,
@@ -171,197 +117,6 @@ func (c *Controllers) createNativeApp(
 		DefaultScopes:         baseBody.DefaultScopes,
 		RedirectURIs:          body.RedirectURIs,
 		ResponseTypes:         body.ResponseTypes,
-		AuthProviders:         baseBody.AuthProviders,
-	})
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	logResponse(logger, ctx, fiber.StatusCreated)
-	return ctx.Status(fiber.StatusCreated).JSON(&appDTO)
-}
-
-func (c *Controllers) createBackendApp(
-	ctx fiber.Ctx,
-	requestID string,
-	accountClaims *tokens.AccountClaims,
-	baseBody *bodies.CreateAppBodyBase,
-) error {
-	logger := c.buildLogger(requestID, appsLocation, "createBackendApp")
-
-	body := new(bodies.CreateAppBodyBackend)
-	if err := ctx.Bind().Body(body); err != nil {
-		return parseRequestErrorResponse(logger, ctx, err)
-	}
-	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
-		return validateBodyErrorResponse(logger, ctx, err)
-	}
-
-	appDTO, serviceErr := c.services.CreateBackendApp(ctx.Context(), services.CreateBackendAppOptions{
-		RequestID:             requestID,
-		AccountPublicID:       accountClaims.AccountID,
-		AccountVersion:        accountClaims.AccountVersion,
-		CreationMethod:        database.CreationMethodManual,
-		Name:                  baseBody.Name,
-		AllowUserRegistration: baseBody.AllowUserRegistration,
-		UsernameColumn:        baseBody.UsernameColumn,
-		AuthMethod:            body.TokenEndpointAuthMethod,
-		Algorithm:             body.Algorithm,
-		ClientURI:             baseBody.ClientURI,
-		LogoURI:               baseBody.LogoURI,
-		TOSURI:                baseBody.TOSURI,
-		PolicyURI:             baseBody.PolicyURI,
-		Contacts:              baseBody.Contacts,
-		SoftwareID:            baseBody.SoftwareID,
-		SoftwareVersion:       baseBody.SoftwareVersion,
-		Domain:                body.Domain,
-		Transport:             body.Transport,
-		Scopes:                baseBody.Scopes,
-		DefaultScopes:         baseBody.DefaultScopes,
-		AuthProviders:         baseBody.AuthProviders,
-	})
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	logResponse(logger, ctx, fiber.StatusCreated)
-	return ctx.Status(fiber.StatusCreated).JSON(&appDTO)
-}
-
-func (c *Controllers) createDeviceApp(
-	ctx fiber.Ctx,
-	requestID string,
-	accountClaims *tokens.AccountClaims,
-	baseBody *bodies.CreateAppBodyBase,
-) error {
-	logger := c.buildLogger(requestID, appsLocation, "createDeviceOrSpaApp")
-
-	body := new(bodies.CreateAppBodyDevice)
-	if err := ctx.Bind().Body(body); err != nil {
-		return parseRequestErrorResponse(logger, ctx, err)
-	}
-	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
-		return validateBodyErrorResponse(logger, ctx, err)
-	}
-
-	appDTO, serviceErr := c.services.CreateDeviceApp(ctx.Context(), services.CreateDeviceAppOptions{
-		RequestID:             requestID,
-		AccountPublicID:       accountClaims.AccountID,
-		AccountVersion:        accountClaims.AccountVersion,
-		CreationMethod:        database.CreationMethodManual,
-		Name:                  baseBody.Name,
-		AllowUserRegistration: baseBody.AllowUserRegistration,
-		UsernameColumn:        baseBody.UsernameColumn,
-		ClientURI:             baseBody.ClientURI,
-		LogoURI:               baseBody.LogoURI,
-		TOSURI:                baseBody.TOSURI,
-		PolicyURI:             baseBody.PolicyURI,
-		Contacts:              baseBody.Contacts,
-		SoftwareID:            baseBody.SoftwareID,
-		SoftwareVersion:       baseBody.SoftwareVersion,
-		Domain:                baseBody.Domain,
-		BackendDomain:         c.backendDomain,
-		Scopes:                baseBody.Scopes,
-		DefaultScopes:         baseBody.DefaultScopes,
-		AssociatedApps:        body.AssociatedApps,
-		AuthProviders:         baseBody.AuthProviders,
-		Transport:             body.Transport,
-	})
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	logResponse(logger, ctx, fiber.StatusCreated)
-	return ctx.Status(fiber.StatusCreated).JSON(&appDTO)
-}
-
-func (c *Controllers) createServiceApp(
-	ctx fiber.Ctx,
-	requestID string,
-	accountClaims *tokens.AccountClaims,
-	baseBody *bodies.CreateAppBodyBase,
-) error {
-	logger := c.buildLogger(requestID, appsLocation, "createServiceApp")
-
-	body := new(bodies.CreateAppBodyService)
-	if err := ctx.Bind().Body(body); err != nil {
-		return parseRequestErrorResponse(logger, ctx, err)
-	}
-	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
-		return validateBodyErrorResponse(logger, ctx, err)
-	}
-
-	appDTO, serviceErr := c.services.CreateServiceApp(ctx.Context(), services.CreateServiceAppOptions{
-		RequestID:             requestID,
-		AccountPublicID:       accountClaims.AccountID,
-		Name:                  baseBody.Name,
-		CreationMethod:        database.CreationMethodManual,
-		AccountVersion:        accountClaims.AccountVersion,
-		AllowUserRegistration: baseBody.AllowUserRegistration,
-		AuthMethod:            body.TokenEndpointAuthMethod,
-		Algorithm:             body.Algorithm,
-		ClientURI:             baseBody.ClientURI,
-		LogoURI:               baseBody.LogoURI,
-		TOSURI:                baseBody.TOSURI,
-		PolicyURI:             baseBody.PolicyURI,
-		Contacts:              baseBody.Contacts,
-		SoftwareID:            baseBody.SoftwareID,
-		SoftwareVersion:       baseBody.SoftwareVersion,
-		Scopes:                baseBody.Scopes,
-		DefaultScopes:         baseBody.DefaultScopes,
-		UsersAuthMethod:       body.UsersAuthMethod,
-		Domain:                baseBody.Domain,
-		Transport:             body.Transport,
-		AllowedDomains:        body.AllowedDomains,
-		AuthProviders:         baseBody.AuthProviders,
-	})
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	logResponse(logger, ctx, fiber.StatusCreated)
-	return ctx.Status(fiber.StatusCreated).JSON(&appDTO)
-}
-
-func (c *Controllers) createMCPApp(
-	ctx fiber.Ctx,
-	requestID string,
-	accountClaims *tokens.AccountClaims,
-	baseBody *bodies.CreateAppBodyBase,
-) error {
-	logger := c.buildLogger(requestID, appsLocation, "createMCPApp")
-
-	body := new(bodies.CreateAppBodyMCP)
-	if err := ctx.Bind().Body(body); err != nil {
-		return parseRequestErrorResponse(logger, ctx, err)
-	}
-	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
-		return validateBodyErrorResponse(logger, ctx, err)
-	}
-
-	appDTO, serviceErr := c.services.CreateMCPApp(ctx.Context(), services.CreateMCPAppOptions{
-		RequestID:             requestID,
-		AccountPublicID:       accountClaims.AccountID,
-		AccountVersion:        accountClaims.AccountVersion,
-		CreationMethod:        database.CreationMethodManual,
-		Name:                  baseBody.Name,
-		AllowUserRegistration: baseBody.AllowUserRegistration,
-		UsernameColumn:        baseBody.UsernameColumn,
-		ClientURI:             baseBody.ClientURI,
-		LogoURI:               baseBody.LogoURI,
-		TOSURI:                baseBody.TOSURI,
-		PolicyURI:             baseBody.PolicyURI,
-		Contacts:              baseBody.Contacts,
-		SoftwareID:            baseBody.SoftwareID,
-		SoftwareVersion:       baseBody.SoftwareVersion,
-		Scopes:                baseBody.Scopes,
-		DefaultScopes:         baseBody.DefaultScopes,
-		Transport:             body.Transport,
-		AuthMethod:            body.TokenEndpointAuthMethod,
-		Algorithm:             body.Algorithm,
-		RedirectURIs:          body.RedirectURIs,
-		ResponseTypes:         body.ResponseTypes,
-		Domain:                baseBody.Domain,
 		AuthProviders:         baseBody.AuthProviders,
 	})
 	if serviceErr != nil {
@@ -393,18 +148,8 @@ func (c *Controllers) CreateApp(ctx fiber.Ctx) error {
 	switch body.Type {
 	case appTypeWeb:
 		return c.createWebApp(ctx, requestID, &accountClaims, body)
-	case appTypeSPA:
-		return c.createSPAApp(ctx, requestID, &accountClaims, body)
 	case appTypeNative:
 		return c.createNativeApp(ctx, requestID, &accountClaims, body)
-	case appTypeBackend:
-		return c.createBackendApp(ctx, requestID, &accountClaims, body)
-	case appTypeDevice:
-		return c.createDeviceApp(ctx, requestID, &accountClaims, body)
-	case appTypeService:
-		return c.createServiceApp(ctx, requestID, &accountClaims, body)
-	case appTypeMCP:
-		return c.createMCPApp(ctx, requestID, &accountClaims, body)
 	default:
 		logger.WarnContext(ctx.Context(), "Invalid app type", "appType", body.Type)
 		logResponse(logger, ctx, fiber.StatusBadRequest)
@@ -551,76 +296,15 @@ func (c *Controllers) updateWebApp(
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	completeAppDTO, serviceErr := c.services.UpdateWebSPANativeApp(
+	completeAppDTO, serviceErr := c.services.UpdateWebNativeApp(
 		ctx.Context(),
 		appDTO,
-		services.UpdateWebSPANativeAppOptions{
+		services.UpdateWebNativeAppOptions{
 			RequestID:             requestID,
 			AccountID:             accountID,
 			UsernameColumn:        baseBody.UsernameColumn,
 			Name:                  baseBody.Name,
 			Domain:                baseBody.Domain,
-			Transport:             body.Transport,
-			AllowUserRegistration: baseBody.AllowUserRegistration,
-			ClientURI:             baseBody.ClientURI,
-			LogoURI:               baseBody.LogoURI,
-			TOSURI:                baseBody.TOSURI,
-			PolicyURI:             baseBody.PolicyURI,
-			SoftwareID:            baseBody.SoftwareID,
-			SoftwareVersion:       baseBody.SoftwareVersion,
-			Contacts:              baseBody.Contacts,
-			RedirectURIs:          body.RedirectURIs,
-			ResponseTypes:         body.ResponseTypes,
-			AuthProviders:         baseBody.AuthProviders,
-		},
-	)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	logResponse(logger, ctx, fiber.StatusOK)
-	return ctx.Status(fiber.StatusOK).JSON(&completeAppDTO)
-}
-
-func (c *Controllers) updateSPAApp(
-	ctx fiber.Ctx,
-	requestID string,
-	accountClaims *tokens.AccountClaims,
-	appDTO *dtos.AppDTO,
-	baseBody *bodies.UpdateAppBodyBase,
-) error {
-	logger := c.buildLogger(requestID, appsLocation, "updateSPAApp")
-
-	body := new(bodies.UpdateAppBodySPA)
-	if err := ctx.Bind().Body(body); err != nil {
-		return parseRequestErrorResponse(logger, ctx, err)
-	}
-	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
-		return validateBodyErrorResponse(logger, ctx, err)
-	}
-
-	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
-		ctx.Context(),
-		services.GetAccountIDByPublicIDAndVersionOptions{
-			RequestID: requestID,
-			PublicID:  accountClaims.AccountID,
-			Version:   accountClaims.AccountVersion,
-		},
-	)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	completeAppDTO, serviceErr := c.services.UpdateWebSPANativeApp(
-		ctx.Context(),
-		appDTO,
-		services.UpdateWebSPANativeAppOptions{
-			RequestID:             requestID,
-			AccountID:             accountID,
-			UsernameColumn:        baseBody.UsernameColumn,
-			Name:                  baseBody.Name,
-			Domain:                baseBody.Domain,
-			Transport:             body.Transport,
 			AllowUserRegistration: baseBody.AllowUserRegistration,
 			ClientURI:             baseBody.ClientURI,
 			LogoURI:               baseBody.LogoURI,
@@ -671,16 +355,15 @@ func (c *Controllers) updateNativeApp(
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	completeAppDTO, serviceErr := c.services.UpdateWebSPANativeApp(
+	completeAppDTO, serviceErr := c.services.UpdateWebNativeApp(
 		ctx.Context(),
 		appDTO,
-		services.UpdateWebSPANativeAppOptions{
+		services.UpdateWebNativeAppOptions{
 			RequestID:             requestID,
 			AccountID:             accountID,
 			UsernameColumn:        baseBody.UsernameColumn,
 			Name:                  baseBody.Name,
 			Domain:                baseBody.Domain,
-			Transport:             body.Transport,
 			AllowUserRegistration: baseBody.AllowUserRegistration,
 			ClientURI:             baseBody.ClientURI,
 			LogoURI:               baseBody.LogoURI,
@@ -691,241 +374,6 @@ func (c *Controllers) updateNativeApp(
 			Contacts:              baseBody.Contacts,
 			RedirectURIs:          body.RedirectURIs,
 			ResponseTypes:         body.ResponseTypes,
-			AuthProviders:         baseBody.AuthProviders,
-		},
-	)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	logResponse(logger, ctx, fiber.StatusOK)
-	return ctx.Status(fiber.StatusOK).JSON(&completeAppDTO)
-}
-
-func (c *Controllers) updateServiceApp(
-	ctx fiber.Ctx,
-	requestID string,
-	accountClaims *tokens.AccountClaims,
-	appDTO *dtos.AppDTO,
-	baseBody *bodies.UpdateAppBodyBase,
-) error {
-	logger := c.buildLogger(requestID, appsLocation, "updateServiceApp")
-
-	body := new(bodies.UpdateAppBodyService)
-	if err := ctx.Bind().Body(body); err != nil {
-		return parseRequestErrorResponse(logger, ctx, err)
-	}
-	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
-		return validateBodyErrorResponse(logger, ctx, err)
-	}
-
-	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
-		ctx.Context(),
-		services.GetAccountIDByPublicIDAndVersionOptions{
-			RequestID: requestID,
-			PublicID:  accountClaims.AccountID,
-			Version:   accountClaims.AccountVersion,
-		},
-	)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	completeAppDTO, serviceErr := c.services.UpdateServiceApp(
-		ctx.Context(),
-		appDTO,
-		services.UpdateServiceAppOptions{
-			RequestID:             requestID,
-			AccountID:             accountID,
-			Name:                  baseBody.Name,
-			Domain:                baseBody.Domain,
-			Transport:             body.Transport,
-			AllowUserRegistration: baseBody.AllowUserRegistration,
-			ClientURI:             baseBody.ClientURI,
-			LogoURI:               baseBody.LogoURI,
-			TOSURI:                baseBody.TOSURI,
-			PolicyURI:             baseBody.PolicyURI,
-			SoftwareID:            baseBody.SoftwareID,
-			SoftwareVersion:       baseBody.SoftwareVersion,
-			Contacts:              baseBody.Contacts,
-			AllowedDomains:        body.AllowedDomains,
-			AuthProviders:         baseBody.AuthProviders,
-		},
-	)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	logResponse(logger, ctx, fiber.StatusOK)
-	return ctx.Status(fiber.StatusOK).JSON(&completeAppDTO)
-}
-
-func (c *Controllers) updateBackendApp(
-	ctx fiber.Ctx,
-	requestID string,
-	accountClaims *tokens.AccountClaims,
-	appDTO *dtos.AppDTO,
-	baseBody *bodies.UpdateAppBodyBase,
-) error {
-	logger := c.buildLogger(requestID, appsLocation, "updateBackendApp")
-
-	body := new(bodies.UpdateAppBodyBackend)
-	if err := ctx.Bind().Body(body); err != nil {
-		return parseRequestErrorResponse(logger, ctx, err)
-	}
-	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
-		return validateBodyErrorResponse(logger, ctx, err)
-	}
-
-	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
-		ctx.Context(),
-		services.GetAccountIDByPublicIDAndVersionOptions{
-			RequestID: requestID,
-			PublicID:  accountClaims.AccountID,
-			Version:   accountClaims.AccountVersion,
-		},
-	)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	completeAppDTO, serviceErr := c.services.UpdateBackendApp(
-		ctx.Context(),
-		appDTO,
-		services.UpdateBackendAppOptions{
-			RequestID:             requestID,
-			AccountID:             accountID,
-			UsernameColumn:        baseBody.UsernameColumn,
-			Name:                  baseBody.Name,
-			Domain:                body.Domain,
-			Transport:             body.Transport,
-			AllowUserRegistration: baseBody.AllowUserRegistration,
-			ClientURI:             baseBody.ClientURI,
-			LogoURI:               baseBody.LogoURI,
-			TOSURI:                baseBody.TOSURI,
-			PolicyURI:             baseBody.PolicyURI,
-			SoftwareID:            baseBody.SoftwareID,
-			SoftwareVersion:       baseBody.SoftwareVersion,
-			Contacts:              baseBody.Contacts,
-			AuthProviders:         baseBody.AuthProviders,
-		},
-	)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	logResponse(logger, ctx, fiber.StatusOK)
-	return ctx.Status(fiber.StatusOK).JSON(&completeAppDTO)
-}
-
-func (c *Controllers) updateDeviceApp(
-	ctx fiber.Ctx,
-	requestID string,
-	accountClaims *tokens.AccountClaims,
-	appDTO *dtos.AppDTO,
-	baseBody *bodies.UpdateAppBodyBase,
-) error {
-	logger := c.buildLogger(requestID, appsLocation, "updateDeviceApp")
-
-	body := new(bodies.UpdateAppBodyDevice)
-	if err := ctx.Bind().Body(body); err != nil {
-		return parseRequestErrorResponse(logger, ctx, err)
-	}
-	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
-		return validateBodyErrorResponse(logger, ctx, err)
-	}
-
-	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
-		ctx.Context(),
-		services.GetAccountIDByPublicIDAndVersionOptions{
-			RequestID: requestID,
-			PublicID:  accountClaims.AccountID,
-			Version:   accountClaims.AccountVersion,
-		},
-	)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	completeAppDTO, serviceErr := c.services.UpdateDeviceApp(
-		ctx.Context(),
-		appDTO,
-		services.UpdateDeviceAppOptions{
-			RequestID:             requestID,
-			AccountID:             accountID,
-			UsernameColumn:        baseBody.UsernameColumn,
-			Name:                  baseBody.Name,
-			Domain:                baseBody.Domain,
-			Transport:             body.Transport,
-			AllowUserRegistration: baseBody.AllowUserRegistration,
-			ClientURI:             baseBody.ClientURI,
-			LogoURI:               baseBody.LogoURI,
-			TOSURI:                baseBody.TOSURI,
-			PolicyURI:             baseBody.PolicyURI,
-			SoftwareID:            baseBody.SoftwareID,
-			SoftwareVersion:       baseBody.SoftwareVersion,
-			Contacts:              baseBody.Contacts,
-			BackendDomain:         c.backendDomain,
-			AssociatedApps:        body.AssociatedApps,
-			AuthProviders:         baseBody.AuthProviders,
-		},
-	)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	logResponse(logger, ctx, fiber.StatusOK)
-	return ctx.Status(fiber.StatusOK).JSON(&completeAppDTO)
-}
-
-func (c *Controllers) updateMCPApp(
-	ctx fiber.Ctx,
-	requestID string,
-	accountClaims *tokens.AccountClaims,
-	appDTO *dtos.AppDTO,
-	baseBody *bodies.UpdateAppBodyBase,
-) error {
-	logger := c.buildLogger(requestID, appsLocation, "updateMCPApp")
-
-	body := new(bodies.UpdateAppBodyMCP)
-	if err := ctx.Bind().Body(body); err != nil {
-		return parseRequestErrorResponse(logger, ctx, err)
-	}
-	if err := c.validate.StructCtx(ctx.Context(), body); err != nil {
-		return validateBodyErrorResponse(logger, ctx, err)
-	}
-
-	accountID, serviceErr := c.services.GetAccountIDByPublicIDAndVersion(
-		ctx.Context(),
-		services.GetAccountIDByPublicIDAndVersionOptions{
-			RequestID: requestID,
-			PublicID:  accountClaims.AccountID,
-			Version:   accountClaims.AccountVersion,
-		},
-	)
-	if serviceErr != nil {
-		return serviceErrorResponse(logger, ctx, serviceErr)
-	}
-
-	completeAppDTO, serviceErr := c.services.UpdateMCPApp(
-		ctx.Context(),
-		appDTO,
-		services.UpdateMCPAppOptions{
-			RequestID:             requestID,
-			AccountID:             accountID,
-			Name:                  baseBody.Name,
-			UsernameColumn:        baseBody.UsernameColumn,
-			ClientURI:             baseBody.ClientURI,
-			LogoURI:               baseBody.LogoURI,
-			TOSURI:                baseBody.TOSURI,
-			PolicyURI:             baseBody.PolicyURI,
-			SoftwareID:            baseBody.SoftwareID,
-			SoftwareVersion:       baseBody.SoftwareVersion,
-			Contacts:              baseBody.Contacts,
-			Domain:                baseBody.Domain,
-			RedirectURIs:          body.RedirectURIs,
-			ResponseTypes:         body.ResponseTypes,
-			AllowUserRegistration: baseBody.AllowUserRegistration,
 			AuthProviders:         baseBody.AuthProviders,
 		},
 	)
@@ -972,18 +420,8 @@ func (c *Controllers) UpdateApp(ctx fiber.Ctx) error {
 	switch appDTO.AppType {
 	case database.AppTypeWeb:
 		return c.updateWebApp(ctx, requestID, &accountClaims, &appDTO, body)
-	case database.AppTypeSpa:
-		return c.updateSPAApp(ctx, requestID, &accountClaims, &appDTO, body)
 	case database.AppTypeNative:
 		return c.updateNativeApp(ctx, requestID, &accountClaims, &appDTO, body)
-	case database.AppTypeBackend:
-		return c.updateBackendApp(ctx, requestID, &accountClaims, &appDTO, body)
-	case database.AppTypeDevice:
-		return c.updateDeviceApp(ctx, requestID, &accountClaims, &appDTO, body)
-	case database.AppTypeService:
-		return c.updateServiceApp(ctx, requestID, &accountClaims, &appDTO, body)
-	case database.AppTypeMcp:
-		return c.updateMCPApp(ctx, requestID, &accountClaims, &appDTO, body)
 	default:
 		logger.ErrorContext(ctx.Context(), "Invalid app type", "appType", appDTO.AppType)
 		return serviceErrorResponse(logger, ctx, exceptions.NewInternalServerError())

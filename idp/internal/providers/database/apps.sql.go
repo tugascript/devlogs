@@ -161,7 +161,6 @@ INSERT INTO "apps" (
   "custom_scopes",
   "default_custom_scopes",
   "domain",
-  "transport",
   "redirect_uris",
   "response_types",
   "allow_user_registration",
@@ -195,9 +194,8 @@ INSERT INTO "apps" (
   $24,
   $25,
   $26,
-  $27,
-  $28
-) RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
+  $27
+) RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
 `
 
 type CreateAppParams struct {
@@ -222,7 +220,6 @@ type CreateAppParams struct {
 	CustomScopes            []string
 	DefaultCustomScopes     []string
 	Domain                  string
-	Transport               Transport
 	RedirectUris            []string
 	ResponseTypes           []ResponseType
 	AllowUserRegistration   bool
@@ -259,7 +256,6 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		arg.CustomScopes,
 		arg.DefaultCustomScopes,
 		arg.Domain,
-		arg.Transport,
 		arg.RedirectUris,
 		arg.ResponseTypes,
 		arg.AllowUserRegistration,
@@ -294,7 +290,6 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		&i.SoftwareID,
 		&i.SoftwareVersion,
 		&i.Domain,
-		&i.Transport,
 		&i.AllowUserRegistration,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -365,7 +360,7 @@ func (q *Queries) DeleteRegisteredAppGrants(ctx context.Context, arg DeleteRegis
 }
 
 const filterAppsByNameAndByAccountPublicIDOrderedByID = `-- name: FilterAppsByNameAndByAccountPublicIDOrderedByID :many
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "account_public_id" = $1 AND "client_name" ILIKE $2
 ORDER BY "id" DESC
 OFFSET $3 LIMIT $4
@@ -418,7 +413,6 @@ func (q *Queries) FilterAppsByNameAndByAccountPublicIDOrderedByID(ctx context.Co
 			&i.SoftwareID,
 			&i.SoftwareVersion,
 			&i.Domain,
-			&i.Transport,
 			&i.AllowUserRegistration,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -463,7 +457,7 @@ func (q *Queries) FilterAppsByNameAndByAccountPublicIDOrderedByID(ctx context.Co
 }
 
 const filterAppsByNameAndByAccountPublicIDOrderedByName = `-- name: FilterAppsByNameAndByAccountPublicIDOrderedByName :many
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "account_public_id" = $1 AND "client_name" ILIKE $2
 ORDER BY "client_name" ASC
 OFFSET $3 LIMIT $4
@@ -516,7 +510,6 @@ func (q *Queries) FilterAppsByNameAndByAccountPublicIDOrderedByName(ctx context.
 			&i.SoftwareID,
 			&i.SoftwareVersion,
 			&i.Domain,
-			&i.Transport,
 			&i.AllowUserRegistration,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -561,7 +554,7 @@ func (q *Queries) FilterAppsByNameAndByAccountPublicIDOrderedByName(ctx context.
 }
 
 const filterAppsByNameAndTypeAndByAccountPublicIDOrderedByID = `-- name: FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByID :many
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "account_public_id" = $1 AND
   "client_name" ILIKE $2 AND
   "app_type" = $3
@@ -618,7 +611,6 @@ func (q *Queries) FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByID(ctx con
 			&i.SoftwareID,
 			&i.SoftwareVersion,
 			&i.Domain,
-			&i.Transport,
 			&i.AllowUserRegistration,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -663,7 +655,7 @@ func (q *Queries) FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByID(ctx con
 }
 
 const filterAppsByNameAndTypeAndByAccountPublicIDOrderedByName = `-- name: FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByName :many
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "account_public_id" = $1 AND
   "client_name" ILIKE $2 AND
   "app_type" = $3
@@ -720,7 +712,6 @@ func (q *Queries) FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByName(ctx c
 			&i.SoftwareID,
 			&i.SoftwareVersion,
 			&i.Domain,
-			&i.Transport,
 			&i.AllowUserRegistration,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -765,7 +756,7 @@ func (q *Queries) FilterAppsByNameAndTypeAndByAccountPublicIDOrderedByName(ctx c
 }
 
 const filterAppsByTypeAndByAccountPublicIDOrderedByID = `-- name: FilterAppsByTypeAndByAccountPublicIDOrderedByID :many
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "account_public_id" = $1 AND "app_type" = $2
 ORDER BY "id" DESC
 OFFSET $3 LIMIT $4
@@ -818,7 +809,6 @@ func (q *Queries) FilterAppsByTypeAndByAccountPublicIDOrderedByID(ctx context.Co
 			&i.SoftwareID,
 			&i.SoftwareVersion,
 			&i.Domain,
-			&i.Transport,
 			&i.AllowUserRegistration,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -863,7 +853,7 @@ func (q *Queries) FilterAppsByTypeAndByAccountPublicIDOrderedByID(ctx context.Co
 }
 
 const filterAppsByTypeAndByAccountPublicIDOrderedByName = `-- name: FilterAppsByTypeAndByAccountPublicIDOrderedByName :many
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "account_public_id" = $1 AND "app_type" = $2
 ORDER BY "client_name" ASC
 OFFSET $3 LIMIT $4
@@ -916,7 +906,6 @@ func (q *Queries) FilterAppsByTypeAndByAccountPublicIDOrderedByName(ctx context.
 			&i.SoftwareID,
 			&i.SoftwareVersion,
 			&i.Domain,
-			&i.Transport,
 			&i.AllowUserRegistration,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -961,7 +950,7 @@ func (q *Queries) FilterAppsByTypeAndByAccountPublicIDOrderedByName(ctx context.
 }
 
 const findAppByClientID = `-- name: FindAppByClientID :one
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "client_id" = $1 LIMIT 1
 `
 
@@ -994,7 +983,6 @@ func (q *Queries) FindAppByClientID(ctx context.Context, clientID string) (App, 
 		&i.SoftwareID,
 		&i.SoftwareVersion,
 		&i.Domain,
-		&i.Transport,
 		&i.AllowUserRegistration,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -1032,7 +1020,7 @@ func (q *Queries) FindAppByClientID(ctx context.Context, clientID string) (App, 
 }
 
 const findAppByClientIDAndAccountPublicID = `-- name: FindAppByClientIDAndAccountPublicID :one
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "client_id" = $1 AND "account_public_id" = $2
 LIMIT 1
 `
@@ -1071,7 +1059,6 @@ func (q *Queries) FindAppByClientIDAndAccountPublicID(ctx context.Context, arg F
 		&i.SoftwareID,
 		&i.SoftwareVersion,
 		&i.Domain,
-		&i.Transport,
 		&i.AllowUserRegistration,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -1109,7 +1096,7 @@ func (q *Queries) FindAppByClientIDAndAccountPublicID(ctx context.Context, arg F
 }
 
 const findAppByClientIDAndVersion = `-- name: FindAppByClientIDAndVersion :one
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "client_id" = $1 AND "version" = $2 LIMIT 1
 `
 
@@ -1147,7 +1134,6 @@ func (q *Queries) FindAppByClientIDAndVersion(ctx context.Context, arg FindAppBy
 		&i.SoftwareID,
 		&i.SoftwareVersion,
 		&i.Domain,
-		&i.Transport,
 		&i.AllowUserRegistration,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -1185,7 +1171,7 @@ func (q *Queries) FindAppByClientIDAndVersion(ctx context.Context, arg FindAppBy
 }
 
 const findAppByID = `-- name: FindAppByID :one
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "id" = $1 LIMIT 1
 `
 
@@ -1218,7 +1204,6 @@ func (q *Queries) FindAppByID(ctx context.Context, id int32) (App, error) {
 		&i.SoftwareID,
 		&i.SoftwareVersion,
 		&i.Domain,
-		&i.Transport,
 		&i.AllowUserRegistration,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -1256,7 +1241,7 @@ func (q *Queries) FindAppByID(ctx context.Context, id int32) (App, error) {
 }
 
 const findAppsByClientIDsAndAccountID = `-- name: FindAppsByClientIDsAndAccountID :many
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "client_id" IN ($3) AND "account_id" = $1
 ORDER BY "client_name" ASC LIMIT $2
 `
@@ -1302,7 +1287,6 @@ func (q *Queries) FindAppsByClientIDsAndAccountID(ctx context.Context, arg FindA
 			&i.SoftwareID,
 			&i.SoftwareVersion,
 			&i.Domain,
-			&i.Transport,
 			&i.AllowUserRegistration,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -1347,7 +1331,7 @@ func (q *Queries) FindAppsByClientIDsAndAccountID(ctx context.Context, arg FindA
 }
 
 const findPaginatedAppsByAccountPublicIDOrderedByID = `-- name: FindPaginatedAppsByAccountPublicIDOrderedByID :many
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "account_public_id" = $1
 ORDER BY "id" DESC
 OFFSET $2 LIMIT $3
@@ -1394,7 +1378,6 @@ func (q *Queries) FindPaginatedAppsByAccountPublicIDOrderedByID(ctx context.Cont
 			&i.SoftwareID,
 			&i.SoftwareVersion,
 			&i.Domain,
-			&i.Transport,
 			&i.AllowUserRegistration,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -1439,7 +1422,7 @@ func (q *Queries) FindPaginatedAppsByAccountPublicIDOrderedByID(ctx context.Cont
 }
 
 const findPaginatedAppsByAccountPublicIDOrderedByName = `-- name: FindPaginatedAppsByAccountPublicIDOrderedByName :many
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM "apps"
 WHERE "account_public_id" = $1
 ORDER BY "client_name" ASC
 OFFSET $2 LIMIT $3
@@ -1486,7 +1469,6 @@ func (q *Queries) FindPaginatedAppsByAccountPublicIDOrderedByName(ctx context.Co
 			&i.SoftwareID,
 			&i.SoftwareVersion,
 			&i.Domain,
-			&i.Transport,
 			&i.AllowUserRegistration,
 			&i.AuthProviders,
 			&i.UsernameColumn,
@@ -1531,7 +1513,7 @@ func (q *Queries) FindPaginatedAppsByAccountPublicIDOrderedByName(ctx context.Co
 }
 
 const lockRegisteredApp = `-- name: LockRegisteredApp :one
-SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM apps WHERE client_id = $1 AND account_public_id = $2 FOR UPDATE
+SELECT registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at FROM apps WHERE client_id = $1 AND account_public_id = $2 FOR UPDATE
 `
 
 type LockRegisteredAppParams struct {
@@ -1568,7 +1550,6 @@ func (q *Queries) LockRegisteredApp(ctx context.Context, arg LockRegisteredAppPa
 		&i.SoftwareID,
 		&i.SoftwareVersion,
 		&i.Domain,
-		&i.Transport,
 		&i.AllowUserRegistration,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -1652,14 +1633,13 @@ SET "client_name" = $2,
     "software_version" = $9,
     "contacts" = $10,
     "domain" = $11,
-    "transport" = $12,
-    "redirect_uris" = $13,
-    "allow_user_registration" = $14,
-    "response_types" = $15,
+    "redirect_uris" = $12,
+    "allow_user_registration" = $13,
+    "response_types" = $14,
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
+RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
 `
 
 type UpdateAppParams struct {
@@ -1674,7 +1654,6 @@ type UpdateAppParams struct {
 	SoftwareVersion       pgtype.Text
 	Contacts              []string
 	Domain                string
-	Transport             Transport
 	RedirectUris          []string
 	AllowUserRegistration bool
 	ResponseTypes         []ResponseType
@@ -1693,7 +1672,6 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		arg.SoftwareVersion,
 		arg.Contacts,
 		arg.Domain,
-		arg.Transport,
 		arg.RedirectUris,
 		arg.AllowUserRegistration,
 		arg.ResponseTypes,
@@ -1725,7 +1703,6 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		&i.SoftwareID,
 		&i.SoftwareVersion,
 		&i.Domain,
-		&i.Transport,
 		&i.AllowUserRegistration,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -1771,7 +1748,7 @@ SET "scopes" = $2,
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
+RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
 `
 
 type UpdateAppScopesParams struct {
@@ -1817,7 +1794,6 @@ func (q *Queries) UpdateAppScopes(ctx context.Context, arg UpdateAppScopesParams
 		&i.SoftwareID,
 		&i.SoftwareVersion,
 		&i.Domain,
-		&i.Transport,
 		&i.AllowUserRegistration,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -1859,7 +1835,7 @@ UPDATE "apps" SET
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
-RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
+RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
 `
 
 func (q *Queries) UpdateAppVersion(ctx context.Context, id int32) (App, error) {
@@ -1891,7 +1867,6 @@ func (q *Queries) UpdateAppVersion(ctx context.Context, id int32) (App, error) {
 		&i.SoftwareID,
 		&i.SoftwareVersion,
 		&i.Domain,
-		&i.Transport,
 		&i.AllowUserRegistration,
 		&i.AuthProviders,
 		&i.UsernameColumn,

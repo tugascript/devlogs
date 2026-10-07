@@ -11,5 +11,5 @@ type GetAppsQueryParams struct {
 	Offset int    `validate:"min=0"`
 	Order  string `validate:"oneof=date name"`
 	Name   string `validate:"omitempty,max=50,min=1,alphanum"`
-	Type   string `validate:"omitempty,oneof=web spa native backend device service"`
+	Type   string `validate:"omitempty,oneof=web native"`
 }

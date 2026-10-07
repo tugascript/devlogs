@@ -49,6 +49,7 @@ const (
 	UsernameColumnBoth     string = "both"
 
 	GrantTypeAuthorizationCode string = "authorization_code"
+	GrantTypeImplicit          string = "implicit"
 	GrantTypeRefreshToken      string = "refresh_token"
 	GrantTypeClientCredentials string = "client_credentials"
 	GrantTypeDeviceCode        string = "urn:ietf:params:oauth:grant-type:device_code"
@@ -379,6 +380,8 @@ func mapGrantType(grantType string) (database.GrantType, *exceptions.ServiceErro
 	switch utils.Lowered(grantType) {
 	case GrantTypeAuthorizationCode:
 		return database.GrantTypeAuthorizationCode, nil
+	case GrantTypeImplicit:
+		return database.GrantTypeImplicit, nil
 	case GrantTypeRefreshToken:
 		return database.GrantTypeRefreshToken, nil
 	case GrantTypeClientCredentials:

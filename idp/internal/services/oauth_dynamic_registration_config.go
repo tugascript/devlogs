@@ -427,7 +427,6 @@ func (s *Services) updateRegisteredAccountCredentials(
 		domain:                  parsedClientURI.Hostname(),
 		requestID:               opts.RequestID,
 		tokenEndpointAuthMethod: tokenEndpointAuthMethod,
-		transport:               existing.Transport,
 		scopes:                  scopes,
 		data:                    &data,
 	})
@@ -435,7 +434,7 @@ func (s *Services) updateRegisteredAccountCredentials(
 		return nil, serviceErr
 	}
 	updated, err := qrs.UpdateRegisteredAccountCredentials(ctx, database.UpdateRegisteredAccountCredentialsParams{
-		ID: existing.ID, Domain: params.Domain, Transport: params.Transport, RedirectUris: params.RedirectUris,
+		ID: existing.ID, Domain: params.Domain, RedirectUris: params.RedirectUris,
 		TokenEndpointAuthMethod: params.TokenEndpointAuthMethod, GrantTypes: params.GrantTypes, ResponseTypes: params.ResponseTypes,
 		ClientName: params.ClientName, ClientUri: params.ClientUri, LogoUri: params.LogoUri, Scopes: params.Scopes,
 		Contacts: params.Contacts, TosUri: params.TosUri, PolicyUri: params.PolicyUri, JwksUri: params.JwksUri, Jwks: params.Jwks,
@@ -461,6 +460,7 @@ func (s *Services) updateRegisteredAccountCredentials(
 		RequestID: opts.RequestID, AccountPublicID: opts.AccountPublicID, AccountVersion: opts.AccountVersion,
 		ClientID: updated.ClientID, BackendDomain: opts.BackendDomain, ID: updated.ID, AccountID: updated.AccountID,
 		Statement: opts.SoftwareStatement, Stored: existing.RegistrationTokenJti, Token: opts.RegistrationToken, App: false,
+		Queries: qrs,
 	})
 	if serviceErr != nil {
 		return nil, serviceErr
@@ -551,7 +551,7 @@ func (s *Services) updateRegisteredApp(
 	params, serviceErr := s.mapAppRegistrationDataToDBParams(ctx, mapAppRegistrationDataToDBParamsOptions{
 		appType: existing.AppType, accountPublicID: account.PublicID, accountID: opts.AccountID,
 		domain: parsedClientURI.Hostname(), requestID: opts.RequestID, tokenEndpointAuthMethod: tokenEndpointAuthMethod,
-		transport: existing.Transport, scopes: stdScopes, customScopes: customScopes, defaultScopes: defaultStdScopes,
+		scopes: stdScopes, customScopes: customScopes, defaultScopes: defaultStdScopes,
 		defaultCustomScopes: defaultCustomScopes, allowUserRegistration: existing.AllowUserRegistration,
 		usernameColumn: existing.UsernameColumn, authProviders: existing.AuthProviders, data: &data,
 	})
@@ -564,7 +564,7 @@ func (s *Services) updateRegisteredApp(
 		TosUri: params.TosUri, PolicyUri: params.PolicyUri, Contacts: params.Contacts, SoftwareID: params.SoftwareID,
 		SoftwareVersion: params.SoftwareVersion, Scopes: params.Scopes, DefaultScopes: params.DefaultScopes,
 		CustomScopes: params.CustomScopes, DefaultCustomScopes: params.DefaultCustomScopes, Domain: params.Domain,
-		Transport: params.Transport, RedirectUris: params.RedirectUris, ResponseTypes: params.ResponseTypes,
+		RedirectUris: params.RedirectUris, ResponseTypes: params.ResponseTypes,
 		AllowUserRegistration: params.AllowUserRegistration, AuthProviders: params.AuthProviders, JwksUri: params.JwksUri,
 		Jwks: params.Jwks, SectorIdentifierUri: params.SectorIdentifierUri, SubjectType: params.SubjectType,
 		IDTokenSignedResponseAlg: params.IDTokenSignedResponseAlg, IDTokenEncryptedResponseAlg: params.IDTokenEncryptedResponseAlg,
@@ -585,6 +585,7 @@ func (s *Services) updateRegisteredApp(
 		ClientID: updated.ClientID, BackendDomain: opts.BackendDomain, ID: updated.ID, AccountID: updated.AccountID,
 		Statement: opts.SoftwareStatement, Stored: existing.RegistrationTokenJti, Token: opts.RegistrationToken, App: true,
 		HostUsername: opts.HostUsername,
+		Queries:      qrs,
 	})
 	if serviceErr != nil {
 		return nil, serviceErr

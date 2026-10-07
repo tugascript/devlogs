@@ -127,6 +127,7 @@ type registrationStateOptions struct {
 	AccountPublicID                                                    uuid.UUID
 	AccountID, AccountVersion, ID                                      int32
 	Stored                                                             pgtype.UUID
+	Queries                                                            *database.Queries
 	App                                                                bool
 }
 
@@ -170,10 +171,14 @@ func (s *Services) registrationResponseToken(ctx context.Context, o registration
 		}
 	}
 	var err error
+	queries := o.Queries
+	if queries == nil {
+		queries = s.database.Queries
+	}
 	if o.App {
-		err = s.database.SetAppRegistrationState(ctx, database.SetAppRegistrationStateParams{ID: o.ID, RegistrationTokenJti: jti, SoftwareStatement: o.Statement})
+		err = queries.SetAppRegistrationState(ctx, database.SetAppRegistrationStateParams{ID: o.ID, RegistrationTokenJti: jti, SoftwareStatement: o.Statement})
 	} else {
-		err = s.database.SetAccountCredentialsRegistrationState(ctx, database.SetAccountCredentialsRegistrationStateParams{ID: o.ID, RegistrationTokenJti: jti, SoftwareStatement: o.Statement})
+		err = queries.SetAccountCredentialsRegistrationState(ctx, database.SetAccountCredentialsRegistrationStateParams{ID: o.ID, RegistrationTokenJti: jti, SoftwareStatement: o.Statement})
 	}
 	if err != nil {
 		return "", exceptions.FromDBError(err)

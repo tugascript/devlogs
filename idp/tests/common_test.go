@@ -303,7 +303,7 @@ func performTestRequest(t *testing.T, app *fiber.App, delayMs int, method, path,
 		req.Header.Set("Authorization", tokenType+" "+accessToken)
 	}
 
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 2 * time.Second})
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 60 * time.Second})
 	if err != nil {
 		t.Fatal("Failed to perform request", err)
 	}

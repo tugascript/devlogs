@@ -19,11 +19,6 @@
 - Multiple app types creation
   - web
   - native
-  - spa
-  - backend
-  - device
-  - service
-  - mcp
 - Add support for multiple 2FA types
 - Make refresh tokens whitelisted not blacklisted
 - Add grants to control refresh token
@@ -36,14 +31,11 @@
 
 ### IDP Todo
 
+- Update serial to big serial for scalability support
 - OAuth Client ID Metadata Document
 - User authentication for each app type:
-  - web
-  - native & spa
-  - backend
-  - device
-  - service
-  - MCP
+  - web (including public SPA clients and service clients using client_credentials or JWT bearer grants)
+  - native
 - Custom External Providers
 - Account key generation
 - Add Passkey (WebAuthn) support

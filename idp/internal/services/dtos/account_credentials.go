@@ -26,7 +26,6 @@ type AccountCredentialsDTO struct {
 	Domain                  string                             `json:"domain"`
 	Scopes                  []database.AccountCredentialsScope `json:"scopes"`
 	TokenEndpointAuthMethod database.AuthMethod                `json:"token_endpoint_auth_method"`
-	Transport               database.Transport                 `json:"transport"`
 	CreationMethod          database.CreationMethod            `json:"creation_method"`
 	ClientURI               string                             `json:"client_uri"`
 	RedirectURIs            []string                           `json:"redirect_uris"`
@@ -150,7 +149,6 @@ func MapAccountCredentialsToDTO(
 		SoftwareVersion:              accountCredential.SoftwareVersion.String,
 		Contacts:                     contacts,
 		CreationMethod:               accountCredential.CreationMethod,
-		Transport:                    accountCredential.Transport,
 		TokenEndpointAuthMethod:      accountCredential.TokenEndpointAuthMethod,
 		accountId:                    accountCredential.AccountID,
 		JWKsURI:                      accountCredential.JwksUri.String,
@@ -209,7 +207,6 @@ func MapAccountCredentialsToDTOWithJWK(
 		SoftwareVersion:              accountCredential.SoftwareVersion.String,
 		Contacts:                     contacts,
 		CreationMethod:               accountCredential.CreationMethod,
-		Transport:                    accountCredential.Transport,
 		TokenEndpointAuthMethod:      accountCredential.TokenEndpointAuthMethod,
 		accountId:                    accountCredential.AccountID,
 		ClientID:                     accountCredential.ClientID,
@@ -275,7 +272,6 @@ func MapAccountCredentialsToDTOWithSecret(
 		SoftwareVersion:              accountCredential.SoftwareVersion.String,
 		Contacts:                     contacts,
 		CreationMethod:               accountCredential.CreationMethod,
-		Transport:                    accountCredential.Transport,
 		TokenEndpointAuthMethod:      accountCredential.TokenEndpointAuthMethod,
 		accountId:                    accountCredential.AccountID,
 		ClientID:                     accountCredential.ClientID,
