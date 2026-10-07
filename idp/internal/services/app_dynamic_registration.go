@@ -36,29 +36,14 @@ var appDynamicRegistrationUsages []database.DynamicRegistrationUsage = []databas
 	database.DynamicRegistrationUsageApp,
 }
 
-func mapAppDRTransport(appType database.AppType) database.Transport {
-	if appType == database.AppTypeMcp {
-		return database.TransportStreamableHttp
-	}
-
-	return database.TransportHttps
-}
-
 func mapAppGrantTypes(
 	appType database.AppType,
 	grantTypes []string,
 ) ([]database.GrantType, *exceptions.ServiceError) {
 	if len(grantTypes) == 0 {
 		switch appType {
-		case database.AppTypeWeb, database.AppTypeSpa, database.AppTypeNative, database.AppTypeMcp:
+		case database.AppTypeWeb, database.AppTypeNative:
 			return authCodeAppGrantTypes, nil
-		case database.AppTypeBackend, database.AppTypeService:
-			return []database.GrantType{
-				database.GrantTypeClientCredentials,
-				database.GrantTypeUrnIetfParamsOauthGrantTypeJwtBearer,
-			}, nil
-		case database.AppTypeDevice:
-			return deviceGrantTypes, nil
 		default:
 			return nil, exceptions.NewValidationError("invalid app type")
 		}
@@ -76,17 +61,41 @@ func mapAppGrantTypes(
 	return gts, nil
 }
 
+func validateAppAuthGrantTypes(
+	appType database.AppType,
+	authMethod database.AuthMethod,
+	grantTypes []database.GrantType,
+) *exceptions.ServiceError {
+	serviceGrants := []database.GrantType{
+		database.GrantTypeClientCredentials,
+		database.GrantTypeUrnIetfParamsOauthGrantTypeJwtBearer,
+	}
+	if appType == database.AppTypeNative {
+		for _, grantType := range grantTypes {
+			if !slices.Contains(authCodeAppGrantTypes, grantType) && grantType != database.GrantTypeImplicit {
+				return exceptions.NewValidationError("native apps only support authorization_code, refresh_token, and implicit grant types")
+			}
+		}
+	}
+	if authMethod == database.AuthMethodNone {
+		for _, grantType := range grantTypes {
+			if slices.Contains(serviceGrants, grantType) {
+				return exceptions.NewValidationError("public apps cannot use client_credentials or jwt-bearer grant types")
+			}
+		}
+	}
+	return nil
+}
+
 func mapAppTokenEndpointAuthMethod(
 	authMethod string,
 	appType database.AppType,
 ) (database.AuthMethod, *exceptions.ServiceError) {
 	if authMethod == "" {
 		switch appType {
-		case database.AppTypeWeb, database.AppTypeSpa, database.AppTypeNative:
+		case database.AppTypeWeb:
 			return database.AuthMethodClientSecretPost, nil
-		case database.AppTypeBackend, database.AppTypeService:
-			return database.AuthMethodPrivateKeyJwt, nil
-		case database.AppTypeDevice, database.AppTypeMcp:
+		case database.AppTypeNative:
 			return database.AuthMethodNone, nil
 		default:
 			return "", exceptions.NewValidationError("invalid app type")
@@ -99,17 +108,11 @@ func mapAppTokenEndpointAuthMethod(
 	}
 
 	switch appType {
-	case database.AppTypeWeb, database.AppTypeSpa, database.AppTypeNative:
-		if mappedAuthMethod == database.AuthMethodNone {
-			return "", exceptions.NewValidationError("auth method none is not supported for web, spa, or native apps")
-		}
-	case database.AppTypeBackend, database.AppTypeService:
-		if mappedAuthMethod == database.AuthMethodNone {
-			return "", exceptions.NewValidationError("auth method none is not supported for backend or service apps")
-		}
-	case database.AppTypeDevice, database.AppTypeMcp:
+	case database.AppTypeWeb:
+		// Web apps can be confidential clients or public clients such as SPAs.
+	case database.AppTypeNative:
 		if mappedAuthMethod != database.AuthMethodNone {
-			return "", exceptions.NewValidationError("only auth method none is supported for device or mcp apps")
+			return "", exceptions.NewValidationError("only auth method none is supported for native apps")
 		}
 	}
 
@@ -123,7 +126,6 @@ type mapAppRegistrationDataToDBParamsOptions struct {
 	domain                  string
 	requestID               string
 	tokenEndpointAuthMethod database.AuthMethod
-	transport               database.Transport
 	scopes                  []database.Scopes
 	customScopes            []string
 	defaultScopes           []database.Scopes
@@ -155,6 +157,9 @@ func (s *Services) mapAppRegistrationDataToDBParams(
 	grantTypes, serviceErr := mapAppGrantTypes(opts.appType, opts.data.GrantTypes)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map grant types", "serviceError", serviceErr)
+		return database.CreateRegisteredAppParams{}, serviceErr
+	}
+	if serviceErr := validateAppAuthGrantTypes(opts.appType, opts.tokenEndpointAuthMethod, grantTypes); serviceErr != nil {
 		return database.CreateRegisteredAppParams{}, serviceErr
 	}
 
@@ -238,6 +243,12 @@ func (s *Services) mapAppRegistrationDataToDBParams(
 	if serviceErr != nil {
 		return database.CreateRegisteredAppParams{}, serviceErr
 	}
+	redirectURIs := utils.MapSlice(opts.data.RedirectURIs, func(uri *string) string {
+		return *uri
+	})
+	if redirectURIs == nil {
+		redirectURIs = []string{}
+	}
 
 	params := database.CreateRegisteredAppParams{
 		JwksUri:                      mapEmptyURL(opts.data.JWKsURI),
@@ -278,17 +289,14 @@ func (s *Services) mapAppRegistrationDataToDBParams(
 		Contacts: utils.MapSlice(opts.data.Contacts, func(t *string) string {
 			return utils.Lowered(*t)
 		}),
-		SoftwareID:          mapEmptyString(opts.data.SoftwareID),
-		SoftwareVersion:     mapEmptyString(opts.data.SoftwareVersion),
-		Scopes:              opts.scopes,
-		DefaultScopes:       opts.defaultScopes,
-		CustomScopes:        opts.customScopes,
-		DefaultCustomScopes: opts.defaultCustomScopes,
-		Domain:              opts.domain,
-		Transport:           opts.transport,
-		RedirectUris: utils.MapSlice(opts.data.RedirectURIs, func(uri *string) string {
-			return *uri
-		}),
+		SoftwareID:            mapEmptyString(opts.data.SoftwareID),
+		SoftwareVersion:       mapEmptyString(opts.data.SoftwareVersion),
+		Scopes:                opts.scopes,
+		DefaultScopes:         opts.defaultScopes,
+		CustomScopes:          opts.customScopes,
+		DefaultCustomScopes:   opts.defaultCustomScopes,
+		Domain:                opts.domain,
+		RedirectUris:          redirectURIs,
 		ResponseTypes:         responseTypes,
 		AllowUserRegistration: opts.allowUserRegistration,
 		AuthProviders:         opts.authProviders,
@@ -454,8 +462,10 @@ func (s *Services) createAppCredentialsRegistration(
 		return dtos.AppDTO{}, serviceErr
 	}
 
-	transport := mapAppDRTransport(appType)
-	tokenEndpointAuthMethod, serviceErr := mapAuthMethod(opts.TokenEndpointAuthMethod)
+	tokenEndpointAuthMethod, serviceErr := mapAppTokenEndpointAuthMethod(
+		opts.TokenEndpointAuthMethod,
+		appType,
+	)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map token endpoint auth method", "serviceError", serviceErr)
 		return dtos.AppDTO{}, serviceErr
@@ -591,7 +601,6 @@ func (s *Services) createAppCredentialsRegistration(
 		domain:                  domain,
 		requestID:               opts.RequestID,
 		tokenEndpointAuthMethod: tokenEndpointAuthMethod,
-		transport:               transport,
 		scopes:                  stdScopes,
 		customScopes:            customScopes,
 		defaultScopes:           defaultStdScopes,
@@ -614,7 +623,7 @@ func (s *Services) createAppCredentialsRegistration(
 		}
 
 		logger.InfoContext(ctx, "Created app successfully")
-		return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, "", time.Time{}, nil)
+		return s.finalizeRegisteredApp(ctx, qrs, opts, accountDTO, &app, "", time.Time{}, nil)
 	}
 
 	app, err := qrs.CreateRegisteredApp(ctx, params)
@@ -624,6 +633,8 @@ func (s *Services) createAppCredentialsRegistration(
 	}
 
 	switch tokenEndpointAuthMethod {
+	case database.AuthMethodNone:
+		return s.finalizeRegisteredApp(ctx, qrs, opts, accountDTO, &app, "", time.Time{}, nil)
 	case database.AuthMethodPrivateKeyJwt:
 		var dbPrms database.CreateCredentialsKeyParams
 		var jwk utils.JWK
@@ -658,11 +669,7 @@ func (s *Services) createAppCredentialsRegistration(
 			return dtos.AppDTO{}, serviceErr
 		}
 
-		if appType == database.AppTypeBackend || appType == database.AppTypeService {
-			return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, "", dbPrms.ExpiresAt, jwk)
-		}
-
-		return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, "", dbPrms.ExpiresAt, jwk)
+		return s.finalizeRegisteredApp(ctx, qrs, opts, accountDTO, &app, "", dbPrms.ExpiresAt, jwk)
 	case database.AuthMethodClientSecretBasic, database.AuthMethodClientSecretPost, database.AuthMethodClientSecretJwt:
 		var ccID int32
 		var secretID, secret string
@@ -692,11 +699,7 @@ func (s *Services) createAppCredentialsRegistration(
 			return dtos.AppDTO{}, serviceErr
 		}
 
-		if appType == database.AppTypeBackend || appType == database.AppTypeService {
-			return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, secretID+"."+secret, exp, nil)
-		}
-
-		return s.finalizeRegisteredApp(ctx, opts, accountDTO, &app, secretID+"."+secret, exp, nil)
+		return s.finalizeRegisteredApp(ctx, qrs, opts, accountDTO, &app, secretID+"."+secret, exp, nil)
 	default:
 		logger.ErrorContext(ctx, "Invalid token endpoint auth method", "tokenEndpointAuthMethod", tokenEndpointAuthMethod)
 		serviceErr = exceptions.NewInternalServerError()
@@ -706,6 +709,7 @@ func (s *Services) createAppCredentialsRegistration(
 
 func (s *Services) finalizeRegisteredApp(
 	ctx context.Context,
+	queries *database.Queries,
 	opts CreateAppCredentialsRegistrationOptions,
 	accountDTO dtos.AccountDTO,
 	app *database.App,
@@ -717,6 +721,7 @@ func (s *Services) finalizeRegisteredApp(
 	token, serviceErr := s.registrationResponseToken(ctx, registrationStateOptions{
 		RequestID: opts.RequestID, AccountPublicID: accountDTO.PublicID, AccountVersion: accountDTO.Version(),
 		ClientID: app.ClientID, BackendDomain: opts.BackendDomain, ID: app.ID, Statement: opts.SoftwareStatement, App: true,
+		Queries: queries,
 	})
 	if serviceErr != nil {
 		return dtos.AppDTO{}, serviceErr

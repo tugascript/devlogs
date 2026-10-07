@@ -199,13 +199,8 @@ func (ns NullAppProfileType) Value() (driver.Value, error) {
 type AppType string
 
 const (
-	AppTypeWeb     AppType = "web"
-	AppTypeNative  AppType = "native"
-	AppTypeSpa     AppType = "spa"
-	AppTypeBackend AppType = "backend"
-	AppTypeDevice  AppType = "device"
-	AppTypeService AppType = "service"
-	AppTypeMcp     AppType = "mcp"
+	AppTypeWeb    AppType = "web"
+	AppTypeNative AppType = "native"
 )
 
 func (e *AppType) Scan(src interface{}) error {
@@ -695,6 +690,7 @@ type GrantType string
 
 const (
 	GrantTypeAuthorizationCode                     GrantType = "authorization_code"
+	GrantTypeImplicit                              GrantType = "implicit"
 	GrantTypeRefreshToken                          GrantType = "refresh_token"
 	GrantTypeClientCredentials                     GrantType = "client_credentials"
 	GrantTypeUrnIetfParamsOauthGrantTypeDeviceCode GrantType = "urn:ietf:params:oauth:grant-type:device_code"
@@ -1297,50 +1293,6 @@ func (ns NullTotpUsage) Value() (driver.Value, error) {
 	return string(ns.TotpUsage), nil
 }
 
-type Transport string
-
-const (
-	TransportHttp           Transport = "http"
-	TransportHttps          Transport = "https"
-	TransportStdio          Transport = "stdio"
-	TransportStreamableHttp Transport = "streamable_http"
-)
-
-func (e *Transport) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = Transport(s)
-	case string:
-		*e = Transport(s)
-	default:
-		return fmt.Errorf("unsupported scan type for Transport: %T", src)
-	}
-	return nil
-}
-
-type NullTransport struct {
-	Transport Transport
-	Valid     bool // Valid is true if Transport is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullTransport) Scan(value interface{}) error {
-	if value == nil {
-		ns.Transport, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.Transport.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullTransport) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.Transport), nil
-}
-
 type TwoFactorType string
 
 const (
@@ -1427,7 +1379,6 @@ type AccountCredential struct {
 	AccountPublicID              uuid.UUID
 	Domain                       string
 	CreationMethod               CreationMethod
-	Transport                    Transport
 	Version                      int32
 	ClientID                     string
 	RedirectUris                 []string
@@ -1580,7 +1531,6 @@ type App struct {
 	SoftwareID                   pgtype.Text
 	SoftwareVersion              pgtype.Text
 	Domain                       string
-	Transport                    Transport
 	AllowUserRegistration        bool
 	AuthProviders                []AuthProvider
 	UsernameColumn               AppUsernameColumn
@@ -1667,30 +1617,11 @@ type AppProfile struct {
 	CreatedAt   time.Time
 }
 
-type AppRelatedApp struct {
-	AccountID    int32
-	AppID        int32
-	RelatedAppID int32
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-}
-
 type AppSecret struct {
 	AppID               int32
 	CredentialsSecretID int32
 	AccountID           int32
 	CreatedAt           time.Time
-}
-
-type AppServiceConfig struct {
-	ID             int32
-	AccountID      int32
-	AppID          int32
-	UserAuthMethod AuthMethod
-	UserGrantTypes []GrantType
-	AllowedDomains []string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
 }
 
 type CredentialsKey struct {

@@ -91,8 +91,12 @@ func approveSoftwareStatementKey(t *testing.T, account dtos.AccountDTO, publicJS
 	t.Helper()
 	ctx := context.Background()
 	db := GetTestDatabase(t)
+	dek, err := db.FindValidGlobalDataEncryptionKey(ctx, time.Now().Add(-2*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
 	key, err := db.CreateCredentialsKey(ctx, database.CreateCredentialsKeyParams{
-		AccountID: account.ID(), PublicKid: kid, PublicKey: publicJSON,
+		AccountID: account.ID(), PublicKid: kid, PublicKey: publicJSON, DekKid: dek.Kid,
 		CryptoSuite: database.TokenCryptoSuiteEdDSA, Usage: usage, ExpiresAt: time.Now().Add(time.Hour),
 	})
 	if err != nil {

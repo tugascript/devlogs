@@ -12,6 +12,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/providers/database"
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
@@ -27,11 +28,14 @@ func TestRegistrationMetadataDefaultsAndValidation(t *testing.T) {
 		{name: "fragment", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/#fragment"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
 		{name: "empty fragment", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/#"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
 		{name: "relative redirect", data: ApplicationRegistrationData{RedirectURIs: []string{"/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
-		{name: "client credentials without responses", data: ApplicationRegistrationData{GrantTypes: []string{"client_credentials"}, ResponseTypes: []string{}}},
-		{name: "inconsistent grant and response", data: ApplicationRegistrationData{GrantTypes: []string{"client_credentials"}}, errorCode: exceptions.CodeValidation},
-		{name: "authorization code without code response", data: ApplicationRegistrationData{GrantTypes: []string{"authorization_code"}, ResponseTypes: []string{}}, errorCode: exceptions.CodeValidation},
+		{name: "client credentials without redirect or response metadata", data: ApplicationRegistrationData{ApplicationType: "web", GrantTypes: []string{"client_credentials"}}},
+		{name: "client credentials without responses", data: ApplicationRegistrationData{GrantTypes: []string{"client_credentials"}, ResponseTypes: []string{}, RedirectURIs: []string{"https://example.com/callback"}}},
+		{name: "inconsistent grant and response", data: ApplicationRegistrationData{GrantTypes: []string{"client_credentials"}, ResponseTypes: []string{"code"}, RedirectURIs: []string{"https://example.com/callback"}}, errorCode: exceptions.CodeValidation},
+		{name: "authorization code without code response", data: ApplicationRegistrationData{GrantTypes: []string{"authorization_code"}, ResponseTypes: []string{}, RedirectURIs: []string{"https://example.com/callback"}}, errorCode: exceptions.CodeValidation},
 		{name: "both key sources", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/cb"}, JWKs: &utils.JWKSet{}, JWKsURI: "https://example.com/jwks"}, errorCode: exceptions.CodeValidation},
-		{name: "native custom scheme", data: ApplicationRegistrationData{RedirectURIs: []string{"com.example.app:/callback"}}},
+		{name: "native custom scheme", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"com.example.app:/callback"}}},
+		{name: "native remote HTTPS", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"https://example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "web custom scheme", data: ApplicationRegistrationData{ApplicationType: "web", RedirectURIs: []string{"com.example.app:/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
 		{name: "remote HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"http://example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
 		{name: "uppercase remote HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"HTTP://example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
 		{name: "localhost lookalike", data: ApplicationRegistrationData{RedirectURIs: []string{"http://localhost.example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
@@ -39,6 +43,17 @@ func TestRegistrationMetadataDefaultsAndValidation(t *testing.T) {
 		{name: "localhost HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"http://localhost:8080/callback"}}},
 		{name: "IPv4 loopback HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"http://127.0.0.1:8080/callback"}}},
 		{name: "IPv6 loopback HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"http://[::1]:8080/callback"}}},
+		{name: "hybrid code id_token requires implicit", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/callback"}, ResponseTypes: []string{"code id_token"}, GrantTypes: []string{"authorization_code"}}, errorCode: exceptions.CodeValidation},
+		{name: "implicit grant requires id_token response", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/callback"}, ResponseTypes: []string{"code"}, GrantTypes: []string{"authorization_code", "implicit"}}, errorCode: exceptions.CodeValidation},
+		{name: "hybrid code id_token valid", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/callback"}, ResponseTypes: []string{"code id_token"}, GrantTypes: []string{"authorization_code", "implicit"}}},
+		{name: "web implicit localhost HTTP", data: ApplicationRegistrationData{ApplicationType: "web", RedirectURIs: []string{"http://localhost:8080/callback"}, ResponseTypes: []string{"code id_token"}, GrantTypes: []string{"authorization_code", "implicit"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "web implicit localhost HTTPS", data: ApplicationRegistrationData{ApplicationType: "web", RedirectURIs: []string{"https://localhost:8080/callback"}, ResponseTypes: []string{"code id_token"}, GrantTypes: []string{"authorization_code", "implicit"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "web implicit remote HTTPS", data: ApplicationRegistrationData{ApplicationType: "web", RedirectURIs: []string{"https://example.com/callback"}, ResponseTypes: []string{"code id_token"}, GrantTypes: []string{"authorization_code", "implicit"}}},
+		{name: "initiate login HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/callback"}, InitiateLoginURI: "http://example.com/login"}, errorCode: exceptions.CodeValidation},
+		{name: "initiate login HTTPS", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/callback"}, InitiateLoginURI: "https://example.com/login"}},
+		{name: "request uri HTTP without keys", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/callback"}, RequestURIs: []string{"http://example.com/request.jwt"}}, errorCode: exceptions.CodeValidation},
+		{name: "request uri HTTPS", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/callback"}, RequestURIs: []string{"https://example.com/request.jwt"}}},
+		{name: "request uri HTTP with keys and alg", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/callback"}, RequestURIs: []string{"http://example.com/request.jwt"}, JWKsURI: "https://example.com/jwks", RequestObjectSigningAlg: "ES256"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -64,6 +79,57 @@ func TestRegistrationMetadataDefaultsAndValidation(t *testing.T) {
 				t.Fatalf("response types changed: %v %v", mapped, mapErr)
 			}
 		})
+	}
+}
+
+func TestServiceRegistrationMetadataDoesNotNeedRedirectOrResponseTypes(t *testing.T) {
+	data := ApplicationRegistrationData{
+		ApplicationType:         "web",
+		ClientURI:               "https://example.com",
+		TokenEndpointAuthMethod: "private_key_jwt",
+		GrantTypes:              []string{"client_credentials", "urn:ietf:params:oauth:grant-type:jwt-bearer"},
+	}
+
+	if err := normalizeRegistrationMetadata(&data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data.RedirectURIs) != 0 {
+		t.Fatalf("redirect URIs = %v, want none", data.RedirectURIs)
+	}
+	if len(data.ResponseTypes) != 0 {
+		t.Fatalf("response types = %v, want none", data.ResponseTypes)
+	}
+}
+
+func TestAppTypesAndServiceGrants(t *testing.T) {
+	for _, appType := range []string{"web", "native"} {
+		if _, err := mapAppTypeToDB(appType); err != nil {
+			t.Errorf("mapAppTypeToDB(%q): %v", appType, err)
+		}
+	}
+	for _, appType := range []string{"spa", "backend", "device", "service", "mcp"} {
+		if _, err := mapAppTypeToDB(appType); err == nil {
+			t.Errorf("mapAppTypeToDB(%q) succeeded, want unsupported app type", appType)
+		}
+	}
+	for _, credentialType := range []string{"service", "mcp"} {
+		if _, err := mapAccountCredentialsType(credentialType); err != nil {
+			t.Errorf("mapAccountCredentialsType(%q): %v", credentialType, err)
+		}
+	}
+
+	serviceGrants := []database.GrantType{
+		database.GrantTypeClientCredentials,
+		database.GrantTypeUrnIetfParamsOauthGrantTypeJwtBearer,
+	}
+	if err := validateAppAuthGrantTypes(database.AppTypeWeb, database.AuthMethodPrivateKeyJwt, serviceGrants); err != nil {
+		t.Fatalf("confidential web service grants: %v", err)
+	}
+	if err := validateAppAuthGrantTypes(database.AppTypeWeb, database.AuthMethodNone, serviceGrants); err == nil {
+		t.Fatal("public web app accepted service grants")
+	}
+	if err := validateAppAuthGrantTypes(database.AppTypeNative, database.AuthMethodNone, serviceGrants); err == nil {
+		t.Fatal("native app accepted service grants")
 	}
 }
 
@@ -110,8 +176,8 @@ func TestRegistrationRejectsOtherIATDomains(t *testing.T) {
 			_, err := s.checkClientRegistrationDomain(context.Background(), checkClientRegistrationDomainOptions{
 				iatDomain: "client.example.com", domain: domain,
 			})
-			if err == nil || err.Code != exceptions.CodeUnauthorized {
-				t.Fatalf("error=%v, want unauthorized", err)
+			if err == nil || err.Code != exceptions.OAuthErrorUnauthorizedClient {
+				t.Fatalf("error=%v, want unauthorized_client", err)
 			}
 		})
 	}

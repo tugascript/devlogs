@@ -59,7 +59,6 @@ const (
 	PgTypeResponseType                        PgType = "response_type"
 	PgTypeAccountCredentialsScope             PgType = "account_credentials_scope"
 	PgTypeAccountCredentialsType              PgType = "account_credentials_type"
-	PgTypeTransport                           PgType = "transport"
 	PgTypeCreationSource                      PgType = "creation_source"
 	PgTypeAuthProvider                        PgType = "auth_provider"
 	PgTypeClaims                              PgType = "claims"
@@ -89,7 +88,6 @@ var PgTypes = [28]PgType{
 	PgTypeAuthMethod,
 	PgTypeAccountCredentialsScope,
 	PgTypeAccountCredentialsType,
-	PgTypeTransport,
 	PgTypeCreationSource,
 	PgTypeAuthProvider,
 	PgTypeClaims,

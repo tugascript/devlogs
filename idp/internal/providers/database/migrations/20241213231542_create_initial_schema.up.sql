@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2026-09-22T07:32:32.147Z
+-- Generated at: 2026-10-06T15:22:36.036Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -108,13 +108,6 @@ CREATE TYPE "account_credentials_type" AS ENUM (
   'mcp'
 );
 
-CREATE TYPE "transport" AS ENUM (
-  'http',
-  'https',
-  'stdio',
-  'streamable_http'
-);
-
 CREATE TYPE "client_subject_type" AS ENUM (
   'public',
   'pairwise'
@@ -167,12 +160,7 @@ CREATE TYPE "scopes" AS ENUM (
 
 CREATE TYPE "app_type" AS ENUM (
   'web',
-  'native',
-  'spa',
-  'backend',
-  'device',
-  'service',
-  'mcp'
+  'native'
 );
 
 CREATE TYPE "app_username_column" AS ENUM (
@@ -183,6 +171,7 @@ CREATE TYPE "app_username_column" AS ENUM (
 
 CREATE TYPE "grant_type" AS ENUM (
   'authorization_code',
+  'implicit',
   'refresh_token',
   'client_credentials',
   'urn:ietf:params:oauth:grant-type:device_code',
@@ -372,7 +361,6 @@ CREATE TABLE "account_credentials" (
   "account_public_id" uuid NOT NULL,
   "domain" varchar(250) NOT NULL,
   "creation_method" creation_method NOT NULL,
-  "transport" transport NOT NULL,
   "version" integer NOT NULL DEFAULT 1,
   "client_id" varchar(22) NOT NULL,
   "redirect_uris" varchar(2048)[] NOT NULL,
@@ -568,7 +556,6 @@ CREATE TABLE "apps" (
   "software_id" varchar(512),
   "software_version" varchar(512),
   "domain" varchar(250) NOT NULL,
-  "transport" transport NOT NULL,
   "allow_user_registration" bool NOT NULL,
   "auth_providers" auth_provider[] NOT NULL,
   "username_column" app_username_column NOT NULL,
@@ -619,26 +606,6 @@ CREATE TABLE "app_keys" (
   PRIMARY KEY ("app_id", "credentials_key_id")
 );
 
-CREATE TABLE "app_related_apps" (
-  "account_id" integer NOT NULL,
-  "app_id" integer NOT NULL,
-  "related_app_id" integer NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now()),
-  "updated_at" timestamptz NOT NULL DEFAULT (now()),
-  PRIMARY KEY ("app_id", "related_app_id")
-);
-
-CREATE TABLE "app_service_configs" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "app_id" integer NOT NULL,
-  "user_auth_method" auth_method NOT NULL,
-  "user_grant_types" grant_type[] NOT NULL,
-  "allowed_domains" varchar(250)[] NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT (now()),
-  "updated_at" timestamptz NOT NULL DEFAULT (now())
-);
-
 CREATE TABLE "app_designs" (
   "id" serial PRIMARY KEY,
   "account_id" integer NOT NULL,
@@ -680,7 +647,7 @@ CREATE TABLE "app_dynamic_registration_configs" (
   "initial_access_token_generation_methods" initial_access_token_generation_method[] NOT NULL,
   "initial_access_token_ttl" integer NOT NULL DEFAULT 3600,
   "initial_access_token_max_uses" int NOT NULL DEFAULT 1,
-  "allowed_grant_types" grant_type[] NOT NULL DEFAULT '{ "authorization_code", "refresh_token", "client_credentials", "urn:ietf:params:oauth:grant-type:device_code", "urn:ietf:params:oauth:grant-type:jwt-bearer" }',
+  "allowed_grant_types" grant_type[] NOT NULL DEFAULT '{ "authorization_code", "implicit", "refresh_token", "client_credentials", "urn:ietf:params:oauth:grant-type:device_code", "urn:ietf:params:oauth:grant-type:jwt-bearer" }',
   "allowed_response_types" response_type[] NOT NULL DEFAULT '{ "code", "code id_token" }',
   "allowed_token_endpoint_auth_methods" auth_method[] NOT NULL DEFAULT '{ "none", "client_secret_post", "client_secret_basic", "client_secret_jwt", "private_key_jwt" }',
   "max_redirect_uris" int NOT NULL DEFAULT 10,
@@ -1070,18 +1037,6 @@ CREATE INDEX "app_keys_account_id_idx" ON "app_keys" ("account_id");
 
 CREATE UNIQUE INDEX "app_keys_app_id_credentials_key_id_uidx" ON "app_keys" ("app_id", "credentials_key_id");
 
-CREATE INDEX "app_related_apps_account_id_idx" ON "app_related_apps" ("account_id");
-
-CREATE INDEX "app_related_apps_app_id_idx" ON "app_related_apps" ("app_id");
-
-CREATE INDEX "app_related_apps_related_app_id_idx" ON "app_related_apps" ("related_app_id");
-
-CREATE UNIQUE INDEX "app_related_apps_app_id_related_app_id_uidx" ON "app_related_apps" ("app_id", "related_app_id");
-
-CREATE INDEX "app_service_configs_account_id_idx" ON "app_service_configs" ("account_id");
-
-CREATE UNIQUE INDEX "app_service_configs_app_id_uidx" ON "app_service_configs" ("app_id");
-
 CREATE INDEX "app_designs_account_id_idx" ON "app_designs" ("account_id");
 
 CREATE UNIQUE INDEX "app_designs_app_id_uidx" ON "app_designs" ("app_id");
@@ -1186,192 +1141,182 @@ CREATE INDEX "allowed_tokens_grant_id_idx" ON "session_tokens" ("grant_id");
 
 CREATE INDEX "allowed_tokens_expires_at_idx" ON "session_tokens" ("expires_at");
 
-ALTER TABLE "data_encryption_keys" ADD FOREIGN KEY ("kek_kid") REFERENCES "key_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "data_encryption_keys" ADD FOREIGN KEY ("kek_kid") REFERENCES "key_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "token_signing_keys" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "token_signing_keys" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_2fa_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_2fa_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "totps" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "totps" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "credentials_secrets" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "credentials_secrets" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "credentials_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "credentials_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "credentials_keys" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "credentials_keys" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_key_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_key_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_key_encryption_keys" ADD FOREIGN KEY ("key_encryption_key_id") REFERENCES "key_encryption_keys" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_key_encryption_keys" ADD FOREIGN KEY ("key_encryption_key_id") REFERENCES "key_encryption_keys" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_data_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_data_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_data_encryption_keys" ADD FOREIGN KEY ("data_encryption_key_id") REFERENCES "data_encryption_keys" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_data_encryption_keys" ADD FOREIGN KEY ("data_encryption_key_id") REFERENCES "data_encryption_keys" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_hmac_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_hmac_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_hmac_secrets" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "account_hmac_secrets" ADD FOREIGN KEY ("dek_kid") REFERENCES "data_encryption_keys" ("kid") ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_totps" ADD FOREIGN KEY ("totp_id") REFERENCES "totps" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_totps" ADD FOREIGN KEY ("totp_id") REFERENCES "totps" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("credentials_secret_id") REFERENCES "credentials_secrets" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_credentials_secrets" ADD FOREIGN KEY ("credentials_secret_id") REFERENCES "credentials_secrets" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_credentials_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_credentials_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_credentials_keys" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_credentials_keys" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_credentials_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_credentials_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_auth_providers" ADD FOREIGN KEY ("email") REFERENCES "accounts" ("email") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "account_auth_providers" ADD FOREIGN KEY ("email") REFERENCES "accounts" ("email") ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "oidc_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "oidc_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_token_signing_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_token_signing_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_token_signing_keys" ADD FOREIGN KEY ("token_signing_key_id") REFERENCES "token_signing_keys" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_token_signing_keys" ADD FOREIGN KEY ("token_signing_key_id") REFERENCES "token_signing_keys" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "users" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "users" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_2fa_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_2fa_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_2fa_configs" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_2fa_configs" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_data_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_data_encryption_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_data_encryption_keys" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_data_encryption_keys" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_data_encryption_keys" ADD FOREIGN KEY ("data_encryption_key_id") REFERENCES "data_encryption_keys" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_data_encryption_keys" ADD FOREIGN KEY ("data_encryption_key_id") REFERENCES "data_encryption_keys" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_totps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_totps" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_totps" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_totps" ADD FOREIGN KEY ("totp_id") REFERENCES "totps" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_totps" ADD FOREIGN KEY ("totp_id") REFERENCES "totps" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_auth_providers" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_auth_providers" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_auth_providers" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_auth_providers" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_credentials" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_credentials" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_credentials" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_credentials" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_credentials" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("user_credential_id") REFERENCES "user_credentials" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("user_credential_id") REFERENCES "user_credentials" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("credentials_secret_id") REFERENCES "credentials_secrets" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("credentials_secret_id") REFERENCES "credentials_secrets" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_credentials_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_credentials_keys" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_credentials_keys" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_credentials_keys" ADD FOREIGN KEY ("user_credential_id") REFERENCES "user_credentials" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_credentials_keys" ADD FOREIGN KEY ("user_credential_id") REFERENCES "user_credentials" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_credentials_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_credentials_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_credentials_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_credentials_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "apps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "apps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_secrets" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_secrets" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_secrets" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_secrets" ADD FOREIGN KEY ("credentials_secret_id") REFERENCES "credentials_secrets" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_secrets" ADD FOREIGN KEY ("credentials_secret_id") REFERENCES "credentials_secrets" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_keys" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_keys" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_related_apps" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_designs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_related_apps" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_designs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_related_apps" ADD FOREIGN KEY ("related_app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_service_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_service_configs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "dynamic_registration_domains" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_designs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "dynamic_registration_domain_codes" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_designs" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "dynamic_registration_domain_codes" ADD FOREIGN KEY ("dynamic_registration_domain_id") REFERENCES "dynamic_registration_domains" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "dynamic_registration_domain_codes" ADD FOREIGN KEY ("hmac_secret_id") REFERENCES "account_hmac_secrets" ("secret_id") ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_dynamic_registration_configs" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "dynamic_registration_software_statement_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "dynamic_registration_domains" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "dynamic_registration_software_statement_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "dynamic_registration_domain_codes" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_profiles" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "dynamic_registration_domain_codes" ADD FOREIGN KEY ("dynamic_registration_domain_id") REFERENCES "dynamic_registration_domains" ("id") ON DELETE CASCADE;
+ALTER TABLE "app_profiles" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "dynamic_registration_domain_codes" ADD FOREIGN KEY ("hmac_secret_id") REFERENCES "account_hmac_secrets" ("secret_id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "app_profiles" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "dynamic_registration_software_statement_keys" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "grants" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "dynamic_registration_software_statement_keys" ADD FOREIGN KEY ("credentials_key_id") REFERENCES "credentials_keys" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_grants" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_profiles" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_grants" ADD FOREIGN KEY ("grant_id") REFERENCES "grants" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_profiles" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_grants" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "app_profiles" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_grants" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "grants" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_grants" ADD FOREIGN KEY ("grant_id") REFERENCES "grants" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_grants" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_grants" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_grants" ADD FOREIGN KEY ("grant_id") REFERENCES "grants" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_grants" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_grants" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE;
+ALTER TABLE "sessions" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_grants" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+ALTER TABLE "sessions" ADD FOREIGN KEY ("grant_id") REFERENCES "grants" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_grants" ADD FOREIGN KEY ("grant_id") REFERENCES "grants" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_sessions" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_grants" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_sessions" ADD FOREIGN KEY ("session_id") REFERENCES "sessions" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_grants" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "account_sessions" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "sessions" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_sessions" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "sessions" ADD FOREIGN KEY ("grant_id") REFERENCES "grants" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_sessions" ADD FOREIGN KEY ("session_id") REFERENCES "sessions" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_sessions" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_sessions" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_sessions" ADD FOREIGN KEY ("session_id") REFERENCES "sessions" ("id") ON DELETE CASCADE;
+ALTER TABLE "user_sessions" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "account_sessions" ADD FOREIGN KEY ("account_credentials_id") REFERENCES "account_credentials" ("id") ON DELETE CASCADE;
+ALTER TABLE "session_tokens" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_sessions" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE;
+ALTER TABLE "session_tokens" ADD FOREIGN KEY ("grant_id") REFERENCES "grants" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE "user_sessions" ADD FOREIGN KEY ("session_id") REFERENCES "sessions" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "user_sessions" ADD FOREIGN KEY ("app_id") REFERENCES "apps" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "user_sessions" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "session_tokens" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "session_tokens" ADD FOREIGN KEY ("grant_id") REFERENCES "grants" ("id") ON DELETE CASCADE;
-
-ALTER TABLE "session_tokens" ADD FOREIGN KEY ("session_id") REFERENCES "sessions" ("id") ON DELETE CASCADE;
+ALTER TABLE "session_tokens" ADD FOREIGN KEY ("session_id") REFERENCES "sessions" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;

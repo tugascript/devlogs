@@ -29,34 +29,6 @@ const (
 	accountCredentialsKeysCacheKeyPrefix string        = "account_credentials_keys"
 )
 
-func mapAccountCredentialsTransport(
-	transport string,
-	credentialType database.AccountCredentialsType,
-) (database.Transport, *exceptions.ServiceError) {
-	if credentialType == database.AccountCredentialsTypeMcp {
-		switch transport {
-		case transportSTDIO:
-			return database.TransportStdio, nil
-		case transportStreamableHTTP:
-			return database.TransportStreamableHttp, nil
-		default:
-			return "", exceptions.NewValidationError("invalid transport: " + transport)
-		}
-	}
-	if credentialType == database.AccountCredentialsTypeService || credentialType == database.AccountCredentialsTypeNative {
-		switch transport {
-		case transportHTTP:
-			return database.TransportHttp, nil
-		case transportHTTPS:
-			return database.TransportHttps, nil
-		default:
-			return "", exceptions.NewValidationError("invalid transport: " + transport)
-		}
-	}
-
-	return "", exceptions.NewValidationError("invalid credentials type: " + string(credentialType))
-}
-
 func mapAccountCredentialsType(credentialsType string) (database.AccountCredentialsType, *exceptions.ServiceError) {
 	acType := database.AccountCredentialsType(credentialsType)
 	switch acType {
@@ -74,7 +46,6 @@ func mapAccountCredentialsType(credentialsType string) (database.AccountCredenti
 func mapAccountCredentialsTokenEndpointAuthMethod(
 	authMethod string,
 	credentialType database.AccountCredentialsType,
-	transport database.Transport,
 ) (database.AuthMethod, *exceptions.ServiceError) {
 	switch credentialType {
 	case database.AccountCredentialsTypeNative:
@@ -90,18 +61,11 @@ func mapAccountCredentialsTokenEndpointAuthMethod(
 
 		return mapAuthMethod(authMethod)
 	case database.AccountCredentialsTypeMcp:
-		if transport == database.TransportStdio {
-			if authMethod != "" && authMethod != AuthMethodNone {
-				return "", exceptions.NewValidationError("auth method is not supported for stdio mcp credentials")
-			}
-
-			return database.AuthMethodNone, nil
-		}
-		if transport == database.TransportStreamableHttp {
-			return mapAuthMethod(authMethod)
+		if authMethod != "" && authMethod != AuthMethodNone {
+			return "", exceptions.NewValidationError("only auth method none is supported for mcp credentials")
 		}
 
-		return "", exceptions.NewValidationError("invalid transport: " + string(transport))
+		return database.AuthMethodNone, nil
 	default:
 		return "", exceptions.NewValidationError("invalid credentials type: " + string(credentialType))
 	}
@@ -124,8 +88,8 @@ func mapAccountCredentialsGrantTypes(
 				return nil, serviceErr
 			}
 
-			if mappedGrantType != database.GrantTypeAuthorizationCode && mappedGrantType != database.GrantTypeRefreshToken {
-				return nil, exceptions.NewValidationError("only authorization_code and refresh_token grant types are supported for mcp credentials")
+			if mappedGrantType != database.GrantTypeAuthorizationCode && mappedGrantType != database.GrantTypeRefreshToken && mappedGrantType != database.GrantTypeImplicit {
+				return nil, exceptions.NewValidationError("only authorization_code, implicit, and refresh_token grant types are supported for mcp credentials")
 			}
 
 			gts = append(gts, mappedGrantType)
@@ -164,8 +128,8 @@ func mapAccountCredentialsGrantTypes(
 				return nil, serviceErr
 			}
 
-			if mappedGrantType != database.GrantTypeAuthorizationCode && mappedGrantType != database.GrantTypeRefreshToken {
-				return nil, exceptions.NewValidationError("only authorization_code and refresh_token grant types are supported for native credentials")
+			if mappedGrantType != database.GrantTypeAuthorizationCode && mappedGrantType != database.GrantTypeRefreshToken && mappedGrantType != database.GrantTypeImplicit {
+				return nil, exceptions.NewValidationError("only authorization_code, implicit, and refresh_token grant types are supported for native credentials")
 			}
 
 			gts = append(gts, mappedGrantType)
@@ -227,7 +191,6 @@ type CreateAccountCredentialsOptions struct {
 	SoftwareVersion string
 	Contacts        []string
 	CreationMethod  database.CreationMethod
-	Transport       string
 	Scopes          []string
 	AuthMethod      string
 	Algorithm       string
@@ -251,17 +214,7 @@ func (s *Services) CreateAccountCredentials(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	transport, serviceErr := mapAccountCredentialsTransport(opts.Transport, credentialsType)
-	if serviceErr != nil {
-		logger.WarnContext(ctx, "Failed to map transport", "serviceError", serviceErr)
-		return dtos.AccountCredentialsDTO{}, serviceErr
-	}
-
-	authMethod, serviceErr := mapAccountCredentialsTokenEndpointAuthMethod(
-		opts.AuthMethod,
-		credentialsType,
-		transport,
-	)
+	authMethod, serviceErr := mapAccountCredentialsTokenEndpointAuthMethod(opts.AuthMethod, credentialsType)
 	if serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to map auth method", "serviceError", serviceErr)
 		return dtos.AccountCredentialsDTO{}, serviceErr
@@ -283,10 +236,6 @@ func (s *Services) CreateAccountCredentials(
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 	}
-	if transport == database.TransportStdio {
-		grantTypes = make([]database.GrantType, 0)
-	}
-
 	scopes, serviceErr := mapAccountCredentialsScopes(opts.Scopes)
 	if serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to map scopes", "serviceError", serviceErr)
@@ -351,7 +300,6 @@ func (s *Services) CreateAccountCredentials(
 				SoftwareVersion:          mapEmptyString(opts.SoftwareVersion),
 				Contacts:                 utils.ToEmptySlice(opts.Contacts),
 				CreationMethod:           creationMethod,
-				Transport:                transport,
 				IDTokenSignedResponseAlg: database.TokenCryptoSuiteES256,
 				AccessTokenSigningAlg:    database.TokenCryptoSuiteES256,
 			},
@@ -398,7 +346,6 @@ func (s *Services) CreateAccountCredentials(
 			SoftwareVersion:          mapEmptyString(opts.SoftwareVersion),
 			Contacts:                 utils.ToEmptySlice(opts.Contacts),
 			CreationMethod:           creationMethod,
-			Transport:                transport,
 			IDTokenSignedResponseAlg: database.TokenCryptoSuiteES256,
 			AccessTokenSigningAlg:    database.TokenCryptoSuiteES256,
 		},
@@ -640,22 +587,6 @@ func (s *Services) ListAccountCredentialsByAccountPublicID(
 	return accountCredentialsDTOs, count, nil
 }
 
-func mapAccountCredentialsUpdateTransport(
-	transport string,
-	currentTransport database.Transport,
-	credentialsType database.AccountCredentialsType,
-) (database.Transport, *exceptions.ServiceError) {
-	if credentialsType == database.AccountCredentialsTypeMcp {
-		if transport != "" {
-			return "", exceptions.NewValidationError("Transport update is not allowed for MCP credentials")
-		}
-
-		return currentTransport, nil
-	}
-
-	return mapAccountCredentialsTransport(transport, credentialsType)
-}
-
 type UpdateAccountCredentialsScopesOptions struct {
 	RequestID       string
 	AccountPublicID uuid.UUID
@@ -671,7 +602,6 @@ type UpdateAccountCredentialsScopesOptions struct {
 	PolicyURI       string
 	SoftwareVersion string
 	Contacts        []string
-	Transport       string
 }
 
 func (s *Services) UpdateAccountCredentials(
@@ -722,15 +652,6 @@ func (s *Services) UpdateAccountCredentials(
 		}
 	}
 
-	transport, serviceErr := mapAccountCredentialsUpdateTransport(
-		opts.Transport,
-		accountCredentialsDTO.Transport,
-		accountCredentialsDTO.Type,
-	)
-	if serviceErr != nil {
-		return dtos.AccountCredentialsDTO{}, serviceErr
-	}
-
 	domain, serviceErr := mapDomain(opts.ClientURI, opts.Domain)
 	if serviceErr != nil {
 		logger.WarnContext(ctx, "Failed to map domain", "serviceError", serviceErr)
@@ -751,7 +672,6 @@ func (s *Services) UpdateAccountCredentials(
 		PolicyUri:       mapEmptyURL(opts.PolicyURI),
 		SoftwareVersion: mapEmptyString(opts.SoftwareVersion),
 		Contacts:        utils.ToEmptySlice(opts.Contacts),
-		Transport:       transport,
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to update account keys scopes", "error", err)

@@ -46,14 +46,6 @@ var accountCredentialsRegistrationUsages []database.DynamicRegistrationUsage = [
 	database.DynamicRegistrationUsageAccount,
 }
 
-func mapAccountCredentialsDRTransport(applicationType database.AccountCredentialsType) database.Transport {
-	if applicationType == database.AccountCredentialsTypeMcp {
-		return database.TransportStreamableHttp
-	}
-
-	return database.TransportHttps
-}
-
 type mapAccountCredentialsRegistrationDataToDBParamsOptions struct {
 	applicationType         database.AccountCredentialsType
 	accountPublicID         uuid.UUID
@@ -61,7 +53,6 @@ type mapAccountCredentialsRegistrationDataToDBParamsOptions struct {
 	domain                  string
 	requestID               string
 	tokenEndpointAuthMethod database.AuthMethod
-	transport               database.Transport
 	scopes                  []database.AccountCredentialsScope
 	data                    *ApplicationRegistrationData
 }
@@ -177,7 +168,6 @@ func (s *Services) mapAccountCredentialsRegistrationDataToDBParams(
 		AccountPublicID: opts.accountPublicID,
 		Domain:          opts.domain,
 		CreationMethod:  database.CreationMethodDynamicRegistration,
-		Transport:       opts.transport,
 		ClientID:        utils.Base62UUID(),
 		RedirectUris: utils.MapSlice(opts.data.RedirectURIs, func(uri *string) string {
 			return *uri
@@ -391,8 +381,10 @@ func (s *Services) createAccountCredentialsRegistration(
 		return dtos.AccountCredentialsDTO{}, serviceErr
 	}
 
-	transport := mapAccountCredentialsDRTransport(applicationType)
-	tokenEndpointAuthMethod, serviceErr := mapAuthMethod(opts.TokenEndpointAuthMethod)
+	tokenEndpointAuthMethod, serviceErr := mapAccountCredentialsTokenEndpointAuthMethod(
+		opts.TokenEndpointAuthMethod,
+		applicationType,
+	)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map token endpoint auth method", "serviceError", serviceErr)
 		return dtos.AccountCredentialsDTO{}, serviceErr
@@ -475,7 +467,6 @@ func (s *Services) createAccountCredentialsRegistration(
 		domain:                  domain,
 		requestID:               opts.RequestID,
 		tokenEndpointAuthMethod: tokenEndpointAuthMethod,
-		transport:               transport,
 		scopes:                  scopes,
 		data:                    &data,
 	})
@@ -492,7 +483,7 @@ func (s *Services) createAccountCredentialsRegistration(
 		}
 
 		logger.InfoContext(ctx, "Created account credentials successfully")
-		return s.finalizeAccountCredentialsRegistration(ctx, opts, &accountCredentials, "", time.Time{}, nil)
+		return s.finalizeAccountCredentialsRegistration(ctx, qrs, opts, &accountCredentials, "", time.Time{}, nil)
 	}
 
 	accountCredentials, err := qrs.CreateAccountCredentials(ctx, params)
@@ -538,7 +529,7 @@ func (s *Services) createAccountCredentialsRegistration(
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
-		return s.finalizeAccountCredentialsRegistration(ctx, opts, &accountCredentials, "", dbPrms.ExpiresAt, jwk)
+		return s.finalizeAccountCredentialsRegistration(ctx, qrs, opts, &accountCredentials, "", dbPrms.ExpiresAt, jwk)
 	case database.AuthMethodClientSecretBasic, database.AuthMethodClientSecretPost, database.AuthMethodClientSecretJwt:
 		var ccID int32
 		var secretID, secret string
@@ -570,7 +561,7 @@ func (s *Services) createAccountCredentialsRegistration(
 			return dtos.AccountCredentialsDTO{}, serviceErr
 		}
 
-		return s.finalizeAccountCredentialsRegistration(ctx, opts, &accountCredentials, secretID+"."+secret, exp, nil)
+		return s.finalizeAccountCredentialsRegistration(ctx, qrs, opts, &accountCredentials, secretID+"."+secret, exp, nil)
 	default:
 		logger.ErrorContext(ctx, "Invalid token endpoint auth method", "tokenEndpointAuthMethod", tokenEndpointAuthMethod)
 		serviceErr = exceptions.NewInternalServerError()
@@ -580,6 +571,7 @@ func (s *Services) createAccountCredentialsRegistration(
 
 func (s *Services) finalizeAccountCredentialsRegistration(
 	ctx context.Context,
+	queries *database.Queries,
 	opts CreateAccountCredentialsRegistrationOptions,
 	row *database.AccountCredential,
 	secret string,
@@ -593,6 +585,7 @@ func (s *Services) finalizeAccountCredentialsRegistration(
 	token, serviceErr := s.registrationResponseToken(ctx, registrationStateOptions{
 		RequestID: opts.RequestID, AccountPublicID: opts.AccountPublicID, AccountVersion: opts.AccountVersion,
 		ClientID: row.ClientID, BackendDomain: opts.BackendDomain, ID: row.ID, Statement: opts.SoftwareStatement,
+		Queries: queries,
 	})
 	if serviceErr != nil {
 		return dtos.AccountCredentialsDTO{}, serviceErr

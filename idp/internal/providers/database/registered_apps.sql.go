@@ -35,7 +35,6 @@ INSERT INTO "apps" (
   "custom_scopes",
   "default_custom_scopes",
   "domain",
-  "transport",
   "redirect_uris",
   "response_types",
   "allow_user_registration",
@@ -109,9 +108,8 @@ INSERT INTO "apps" (
   $44,
   $45,
   $46,
-  $47,
-  $48
-) RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
+  $47
+) RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
 `
 
 type CreateRegisteredAppParams struct {
@@ -136,7 +134,6 @@ type CreateRegisteredAppParams struct {
 	CustomScopes                 []string
 	DefaultCustomScopes          []string
 	Domain                       string
-	Transport                    Transport
 	RedirectUris                 []string
 	ResponseTypes                []ResponseType
 	AllowUserRegistration        bool
@@ -188,7 +185,6 @@ func (q *Queries) CreateRegisteredApp(ctx context.Context, arg CreateRegisteredA
 		arg.CustomScopes,
 		arg.DefaultCustomScopes,
 		arg.Domain,
-		arg.Transport,
 		arg.RedirectUris,
 		arg.ResponseTypes,
 		arg.AllowUserRegistration,
@@ -243,7 +239,6 @@ func (q *Queries) CreateRegisteredApp(ctx context.Context, arg CreateRegisteredA
 		&i.SoftwareID,
 		&i.SoftwareVersion,
 		&i.Domain,
-		&i.Transport,
 		&i.AllowUserRegistration,
 		&i.AuthProviders,
 		&i.UsernameColumn,
@@ -298,35 +293,34 @@ UPDATE "apps" SET
   "custom_scopes" = $15,
   "default_custom_scopes" = $16,
   "domain" = $17,
-  "transport" = $18,
-  "redirect_uris" = $19,
-  "response_types" = $20,
-  "allow_user_registration" = $21,
-  "auth_providers" = $22,
-  "jwks_uri" = $23,
-  "jwks" = $24,
-  "sector_identifier_uri" = $25,
-  "subject_type" = $26,
-  "id_token_signed_response_alg" = $27,
-  "id_token_encrypted_response_alg" = $28,
-  "id_token_encrypted_response_enc" = $29,
-  "userinfo_signed_response_alg" = $30,
-  "userinfo_encrypted_response_alg" = $31,
-  "userinfo_encrypted_response_enc" = $32,
-  "request_object_signing_alg" = $33,
-  "request_object_encryption_alg" = $34,
-  "request_object_encryption_enc" = $35,
-  "token_endpoint_auth_signing_alg" = $36,
-  "default_max_age" = $37,
-  "require_auth_time" = $38,
-  "default_acr_values" = $39,
-  "initiate_login_uri" = $40,
-  "request_uris" = $41,
-  "access_token_signing_alg" = $42,
+  "redirect_uris" = $18,
+  "response_types" = $19,
+  "allow_user_registration" = $20,
+  "auth_providers" = $21,
+  "jwks_uri" = $22,
+  "jwks" = $23,
+  "sector_identifier_uri" = $24,
+  "subject_type" = $25,
+  "id_token_signed_response_alg" = $26,
+  "id_token_encrypted_response_alg" = $27,
+  "id_token_encrypted_response_enc" = $28,
+  "userinfo_signed_response_alg" = $29,
+  "userinfo_encrypted_response_alg" = $30,
+  "userinfo_encrypted_response_enc" = $31,
+  "request_object_signing_alg" = $32,
+  "request_object_encryption_alg" = $33,
+  "request_object_encryption_enc" = $34,
+  "token_endpoint_auth_signing_alg" = $35,
+  "default_max_age" = $36,
+  "require_auth_time" = $37,
+  "default_acr_values" = $38,
+  "initiate_login_uri" = $39,
+  "request_uris" = $40,
+  "access_token_signing_alg" = $41,
   "version" = "version" + 1,
   "updated_at" = now()
 WHERE "id" = $1
-RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, transport, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
+RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
 `
 
 type UpdateRegisteredAppParams struct {
@@ -347,7 +341,6 @@ type UpdateRegisteredAppParams struct {
 	CustomScopes                 []string
 	DefaultCustomScopes          []string
 	Domain                       string
-	Transport                    Transport
 	RedirectUris                 []string
 	ResponseTypes                []ResponseType
 	AllowUserRegistration        bool
@@ -393,7 +386,6 @@ func (q *Queries) UpdateRegisteredApp(ctx context.Context, arg UpdateRegisteredA
 		arg.CustomScopes,
 		arg.DefaultCustomScopes,
 		arg.Domain,
-		arg.Transport,
 		arg.RedirectUris,
 		arg.ResponseTypes,
 		arg.AllowUserRegistration,
@@ -446,7 +438,6 @@ func (q *Queries) UpdateRegisteredApp(ctx context.Context, arg UpdateRegisteredA
 		&i.SoftwareID,
 		&i.SoftwareVersion,
 		&i.Domain,
-		&i.Transport,
 		&i.AllowUserRegistration,
 		&i.AuthProviders,
 		&i.UsernameColumn,

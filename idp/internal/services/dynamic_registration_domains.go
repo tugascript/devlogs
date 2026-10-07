@@ -886,7 +886,7 @@ func (s *Services) checkClientRegistrationDomain(
 			"baseDomain", baseDomain,
 			"iatDomain", opts.iatDomain,
 		)
-		return "", exceptions.NewUnauthorizedError()
+		return "", exceptions.NewError(exceptions.OAuthErrorUnauthorizedClient, "client domain is outside the initial access token domain")
 	}
 
 	domains := []string{opts.domain}
@@ -930,5 +930,5 @@ func (s *Services) checkClientRegistrationDomain(
 	}
 
 	logger.InfoContext(ctx, "Domain is not whitelisted or verified")
-	return "", exceptions.NewUnauthorizedError()
+	return "", exceptions.NewError(exceptions.OAuthErrorUnauthorizedClient, "client domain is not approved for dynamic registration")
 }

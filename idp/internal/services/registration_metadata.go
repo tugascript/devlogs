@@ -31,6 +31,13 @@ import (
 
 const registrationMetadataLocation = "registration_metadata"
 
+type RegistrationMetadataAppType = string
+
+const (
+	AppTypeWeb    RegistrationMetadataAppType = "web"
+	AppTypeNative RegistrationMetadataAppType = "native"
+)
+
 var sectorIdentifierHTTPClient = &http.Client{
 	Timeout: 10 * time.Second,
 }
@@ -247,6 +254,9 @@ func (s *Services) prepareDynamicRegistration(
 			data.ApplicationType = "native"
 		}
 	}
+	if opts.app && data.ApplicationType != AppTypeWeb && data.ApplicationType != AppTypeNative {
+		return data, exceptions.NewValidationError("application_type must be web or native for apps")
+	}
 
 	if data.ClientName == "" {
 		data.ClientName = "Client " + utils.Base62UUID()
@@ -358,12 +368,21 @@ func registrationDomain(clientURI string, redirects []string) string {
 }
 
 func normalizeRegistrationMetadata(data *ApplicationRegistrationData) *exceptions.ServiceError {
+	if data.ApplicationType == "" {
+		data.ApplicationType = "web"
+	}
+
 	if data.GrantTypes == nil {
 		data.GrantTypes = []string{"authorization_code"}
 	}
 
+	hasCodeGrant := slices.Contains(data.GrantTypes, "authorization_code")
 	if data.ResponseTypes == nil {
-		data.ResponseTypes = []string{"code"}
+		if hasCodeGrant {
+			data.ResponseTypes = []string{"code"}
+		} else {
+			data.ResponseTypes = []string{}
+		}
 	}
 
 	if data.TokenEndpointAuthMethod == "" {
@@ -372,7 +391,6 @@ func normalizeRegistrationMetadata(data *ApplicationRegistrationData) *exception
 	if len(data.GrantTypes) == 0 {
 		return exceptions.NewValidationError("grant_types must not be empty")
 	}
-	hasCodeGrant := slices.Contains(data.GrantTypes, "authorization_code")
 	hasCodeResponse := slices.ContainsFunc(data.ResponseTypes, func(response string) bool {
 		return slices.Contains(strings.Fields(response), "code")
 	})
@@ -382,28 +400,118 @@ func normalizeRegistrationMetadata(data *ApplicationRegistrationData) *exception
 	if hasCodeGrant && !hasCodeResponse {
 		return exceptions.NewValidationError("authorization_code requires a code response")
 	}
-	if hasCodeGrant && len(data.RedirectURIs) == 0 {
-		return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "redirect_uris is required for authorization_code")
+
+	hasImplicitGrant := slices.Contains(data.GrantTypes, "implicit")
+	hasImplicitResponse := slices.ContainsFunc(data.ResponseTypes, func(response string) bool {
+		fields := strings.Fields(response)
+		return slices.Contains(fields, "id_token") || slices.Contains(fields, "token")
+	})
+	if hasImplicitResponse && !hasImplicitGrant {
+		return exceptions.NewValidationError("id_token responses require implicit")
+	}
+	if hasImplicitGrant && !hasImplicitResponse {
+		return exceptions.NewValidationError("implicit requires an id_token response")
 	}
 
-	if serviceErr := validateRegistrationRedirectURIs(data.RedirectURIs); serviceErr != nil {
+	if len(data.RedirectURIs) == 0 && (hasCodeGrant || hasImplicitGrant) {
+		return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "redirect_uris is required")
+	}
+
+	if len(data.RedirectURIs) > 0 {
+		if serviceErr := validateRegistrationRedirectURIs(data.ApplicationType, data.RedirectURIs, hasImplicitGrant || hasImplicitResponse); serviceErr != nil {
+			return serviceErr
+		}
+	}
+
+	if serviceErr := validateRegistrationURIs(data); serviceErr != nil {
 		return serviceErr
 	}
 
 	return validateRegistrationKeys(data)
 }
 
-func validateRegistrationRedirectURIs(redirectURIs []string) *exceptions.ServiceError {
+func validateRegistrationRedirectURIs(applicationType string, redirectURIs []string, hasImplicit bool) *exceptions.ServiceError {
+	if len(redirectURIs) == 0 {
+		return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "redirect_uris is required")
+	}
+
 	for _, raw := range redirectURIs {
 		uri, err := url.Parse(raw)
 		if err != nil || uri.Scheme == "" || uri.User != nil || strings.Contains(raw, "#") {
 			return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
 		}
-		if (uri.Scheme == "https" || uri.Scheme == "http") && uri.Host == "" {
-			return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
+
+		scheme := strings.ToLower(uri.Scheme)
+
+		switch applicationType {
+		case "native":
+			if scheme == "https" {
+				return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "native clients must use custom schemes or loopback HTTP redirect URIs")
+			}
+			if scheme == "http" {
+				if uri.Host == "" {
+					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
+				}
+				if !strings.EqualFold(uri.Hostname(), "localhost") && !net.ParseIP(uri.Hostname()).IsLoopback() {
+					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "HTTP redirect URIs must use localhost or a loopback IP address")
+				}
+			}
+		case "web":
+			if scheme != "https" && scheme != "http" {
+				return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "web clients must use HTTPS or HTTP redirect URIs")
+			}
+			if uri.Host == "" {
+				return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
+			}
+			if hasImplicit {
+				if scheme != "https" {
+					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "web clients using implicit grant must use HTTPS redirect URIs")
+				}
+				if strings.EqualFold(uri.Hostname(), "localhost") || (net.ParseIP(uri.Hostname()) != nil && net.ParseIP(uri.Hostname()).IsLoopback()) {
+					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "web clients using implicit grant must not use localhost as the hostname")
+				}
+			} else {
+				if scheme == "http" && !strings.EqualFold(uri.Hostname(), "localhost") && !net.ParseIP(uri.Hostname()).IsLoopback() {
+					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "HTTP redirect URIs must use localhost or a loopback IP address")
+				}
+			}
+		default:
+			if scheme != "https" && scheme != "http" {
+				return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
+			}
+			if uri.Host == "" {
+				return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
+			}
+			if scheme == "http" && !strings.EqualFold(uri.Hostname(), "localhost") && !net.ParseIP(uri.Hostname()).IsLoopback() {
+				return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "HTTP redirect URIs must use localhost or a loopback IP address")
+			}
 		}
-		if uri.Scheme == "http" && !strings.EqualFold(uri.Hostname(), "localhost") && !net.ParseIP(uri.Hostname()).IsLoopback() {
-			return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "HTTP redirect URIs must use localhost or a loopback IP address")
+	}
+
+	return nil
+}
+
+func validateRegistrationURIs(data *ApplicationRegistrationData) *exceptions.ServiceError {
+	if data.InitiateLoginURI != "" {
+		uri, err := url.Parse(data.InitiateLoginURI)
+		if err != nil || uri.Scheme != "https" || uri.Host == "" || uri.User != nil || uri.Fragment != "" {
+			return exceptions.NewValidationError("initiate_login_uri must be an HTTPS URL")
+		}
+	}
+
+	if len(data.RequestURIs) > 0 {
+		canVerifySignedRequest := ((data.JWKs != nil && len(data.JWKs.Keys) > 0) || data.JWKsURI != "") && data.RequestObjectSigningAlg != ""
+		for _, raw := range data.RequestURIs {
+			uri, err := url.Parse(raw)
+			if err != nil || uri.Host == "" || uri.User != nil || uri.Fragment != "" {
+				return exceptions.NewValidationError("invalid request_uri")
+			}
+			if uri.Scheme != "https" {
+				if uri.Scheme == "http" && canVerifySignedRequest {
+					continue
+				}
+				return exceptions.NewValidationError("request_uris must use HTTPS unless request objects are verifiable")
+			}
 		}
 	}
 

@@ -27,7 +27,6 @@ INSERT INTO "apps" (
   "custom_scopes",
   "default_custom_scopes",
   "domain",
-  "transport",
   "redirect_uris",
   "response_types",
   "allow_user_registration",
@@ -61,8 +60,7 @@ INSERT INTO "apps" (
   $24,
   $25,
   $26,
-  $27,
-  $28
+  $27
 ) RETURNING *;
 
 
@@ -105,10 +103,9 @@ SET "client_name" = $2,
     "software_version" = $9,
     "contacts" = $10,
     "domain" = $11,
-    "transport" = $12,
-    "redirect_uris" = $13,
-    "allow_user_registration" = $14,
-    "response_types" = $15,
+    "redirect_uris" = $12,
+    "allow_user_registration" = $13,
+    "response_types" = $14,
     "version" = "version" + 1,
     "updated_at" = now()
 WHERE "id" = $1
