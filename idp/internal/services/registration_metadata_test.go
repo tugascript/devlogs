@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"reflect"
 	"testing"
 
@@ -16,6 +17,37 @@ import (
 	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 	"github.com/tugascript/devlogs/idp/internal/utils"
 )
+
+func TestValidateSectorIdentifierHostRejectsPrivateTargets(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		host string
+		want bool
+	}{
+		{name: "public host", host: "example.com", want: false},
+		{name: "localhost", host: "localhost", want: true},
+		{name: "private ipv4", host: "10.0.0.5", want: true},
+		{name: "link local ipv4", host: "169.254.169.254", want: true},
+		{name: "loopback ipv6", host: "::1", want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.host == "example.com" {
+				orig := lookupSectorIdentifierIPs
+				lookupSectorIdentifierIPs = func(ctx context.Context, host string) ([]net.IPAddr, error) {
+					return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
+				}
+				defer func() { lookupSectorIdentifierIPs = orig }()
+			}
+			err := validateSectorIdentifierHost(context.Background(), tc.host)
+			if tc.want && err == nil {
+				t.Fatal("expected blocked host error")
+			}
+			if !tc.want && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
 
 func TestRegistrationMetadataDefaultsAndValidation(t *testing.T) {
 	cases := []struct {
@@ -203,7 +235,11 @@ func TestSoftwareStatementMergeUsesPresence(t *testing.T) {
 func TestSectorIdentifierValidation(t *testing.T) {
 	s := &Services{logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	origFetch := fetchSectorIdentifierURIs
-	defer func() { fetchSectorIdentifierURIs = origFetch }()
+	origLookup := lookupSectorIdentifierIPs
+	defer func() {
+		fetchSectorIdentifierURIs = origFetch
+		lookupSectorIdentifierIPs = origLookup
+	}()
 
 	fetchSectorIdentifierURIs = func(ctx context.Context, uri string) ([]string, error) {
 		if uri == "https://sector.example.com/redirects.json" {
@@ -216,6 +252,12 @@ func TestSectorIdentifierValidation(t *testing.T) {
 			return nil, errors.New("network failure")
 		}
 		return nil, errors.New("not found")
+	}
+	lookupSectorIdentifierIPs = func(ctx context.Context, host string) ([]net.IPAddr, error) {
+		if host == "localhost" || host == "169.254.169.254" {
+			return []net.IPAddr{{IP: net.ParseIP(host)}}, nil
+		}
+		return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
 	}
 
 	for _, tc := range []struct {
@@ -269,6 +311,20 @@ func TestSectorIdentifierValidation(t *testing.T) {
 		{
 			name:                "sector URI fetch error",
 			sectorIdentifierURI: "https://sector.example.com/error.json",
+			redirectURIs:        []string{"https://client.example.com/callback"},
+			subjectType:         "pairwise",
+			wantCode:            exceptions.OAuthErrorInvalidClientMetadata,
+		},
+		{
+			name:                "sector URI localhost host",
+			sectorIdentifierURI: "https://localhost/redirects.json",
+			redirectURIs:        []string{"https://client.example.com/callback"},
+			subjectType:         "pairwise",
+			wantCode:            exceptions.OAuthErrorInvalidClientMetadata,
+		},
+		{
+			name:                "sector URI private IP host",
+			sectorIdentifierURI: "https://169.254.169.254/redirects.json",
 			redirectURIs:        []string{"https://client.example.com/callback"},
 			subjectType:         "pairwise",
 			wantCode:            exceptions.OAuthErrorInvalidClientMetadata,
