@@ -40,6 +40,9 @@ const (
 
 var sectorIdentifierHTTPClient = &http.Client{
 	Timeout: 10 * time.Second,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return fmt.Errorf("redirect not allowed")
+	},
 }
 
 var fetchSectorIdentifierURIs = func(ctx context.Context, uri string) ([]string, error) {
