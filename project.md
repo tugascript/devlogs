@@ -42,6 +42,10 @@
 - Dynamic OIDC configs
 - Separate signing, encryption, and decryption into a KMS service
 
+### IDP Section For Extra Human Review
+
+- Dynamic Registration against the OpenID and OAuth 2.0 standards.
+
 ## Mailer
 
 ### Mailer Done
