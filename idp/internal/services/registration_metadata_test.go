@@ -75,7 +75,12 @@ func TestRegistrationMetadataDefaultsAndValidation(t *testing.T) {
 		{name: "authorization code without code response", data: ApplicationRegistrationData{GrantTypes: []string{"authorization_code"}, ResponseTypes: []string{}, RedirectURIs: []string{"https://example.com/callback"}}, errorCode: exceptions.CodeValidation},
 		{name: "both key sources", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/cb"}, JWKs: &utils.JWKSet{}, JWKsURI: "https://example.com/jwks"}, errorCode: exceptions.CodeValidation},
 		{name: "native custom scheme", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"com.example.app:/callback"}}},
-		{name: "native remote HTTPS", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"https://example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "native remote HTTPS", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"https://example.com/callback"}}},
+		{name: "native empty host HTTPS", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"https:///callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "native remote HTTP", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"http://example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "native localhost HTTP", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"http://localhost:8080/callback"}}},
+		{name: "native loopback IPv4 HTTP", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"http://127.0.0.1:8080/callback"}}},
+		{name: "native loopback IPv6 HTTP", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"http://[::1]:8080/callback"}}},
 		{name: "web custom scheme", data: ApplicationRegistrationData{ApplicationType: "web", RedirectURIs: []string{"com.example.app:/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
 		{name: "remote HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"http://example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
 		{name: "uppercase remote HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"HTTP://example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
@@ -151,6 +156,79 @@ func TestMapAllowedResponseTypesIncludesStandaloneIDToken(t *testing.T) {
 	}
 	if len(responseTypes) != 1 || responseTypes[0] != database.ResponseTypeIDToken {
 		t.Fatalf("mapped response types = %v, want [%s]", responseTypes, database.ResponseTypeIDToken)
+	}
+}
+
+func TestValidateAppGrantResponseTypes(t *testing.T) {
+	cases := []struct {
+		name          string
+		grantTypes    []database.GrantType
+		responseTypes []database.ResponseType
+		wantErr       bool
+		errCode       string
+	}{
+		{
+			name:          "implicit only with id_token",
+			grantTypes:    []database.GrantType{database.GrantTypeImplicit},
+			responseTypes: []database.ResponseType{database.ResponseTypeIDToken},
+		},
+		{
+			name:          "implicit only without id_token",
+			grantTypes:    []database.GrantType{database.GrantTypeImplicit},
+			responseTypes: []database.ResponseType{database.ResponseTypeCode},
+			wantErr:       true,
+		},
+		{
+			name:          "implicit only with empty response types",
+			grantTypes:    []database.GrantType{database.GrantTypeImplicit},
+			responseTypes: []database.ResponseType{},
+			wantErr:       true,
+		},
+		{
+			name:          "auth code with code response",
+			grantTypes:    []database.GrantType{database.GrantTypeAuthorizationCode},
+			responseTypes: []database.ResponseType{database.ResponseTypeCode},
+		},
+		{
+			name:          "auth code with hybrid response missing implicit",
+			grantTypes:    []database.GrantType{database.GrantTypeAuthorizationCode},
+			responseTypes: []database.ResponseType{database.ResponseTypeCodeidToken},
+			wantErr:       true,
+		},
+		{
+			name:          "auth code missing code response",
+			grantTypes:    []database.GrantType{database.GrantTypeAuthorizationCode, database.GrantTypeImplicit},
+			responseTypes: []database.ResponseType{database.ResponseTypeIDToken},
+			wantErr:       true,
+		},
+		{
+			name:          "hybrid with code and implicit",
+			grantTypes:    []database.GrantType{database.GrantTypeAuthorizationCode, database.GrantTypeImplicit},
+			responseTypes: []database.ResponseType{database.ResponseTypeCodeidToken},
+		},
+		{
+			name:          "service grant with response types rejected",
+			grantTypes:    []database.GrantType{database.GrantTypeClientCredentials},
+			responseTypes: []database.ResponseType{database.ResponseTypeCode},
+			wantErr:       true,
+		},
+		{
+			name:          "service grant without response types valid",
+			grantTypes:    []database.GrantType{database.GrantTypeClientCredentials},
+			responseTypes: []database.ResponseType{},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateAppGrantResponseTypes(tc.grantTypes, tc.responseTypes)
+			if tc.wantErr && err == nil {
+				t.Fatalf("expected error for case %q, got nil", tc.name)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("unexpected error for case %q: %v", tc.name, err)
+			}
+		})
 	}
 }
 

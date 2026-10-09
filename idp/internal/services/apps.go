@@ -859,19 +859,40 @@ func (s *Services) CreateWebApp(
 	if serviceErr := validateAppAuthGrantTypes(database.AppTypeWeb, authMethod, grantTypes); serviceErr != nil {
 		return dtos.AppDTO{}, serviceErr
 	}
+	hasCodeGrant := slices.Contains(grantTypes, database.GrantTypeAuthorizationCode)
+	hasImplicitGrant := slices.Contains(grantTypes, database.GrantTypeImplicit)
+
 	var responseTypes []database.ResponseType
-	if slices.Contains(grantTypes, database.GrantTypeAuthorizationCode) {
-		responseTypes, serviceErr = mapResponseTypesWithDefault(opts.ResponseTypes)
-		if serviceErr != nil {
-			logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
+	if hasCodeGrant || hasImplicitGrant {
+		if len(opts.ResponseTypes) == 0 {
+			if hasCodeGrant && hasImplicitGrant {
+				responseTypes = []database.ResponseType{
+					database.ResponseTypeCode,
+					database.ResponseTypeCodeidToken,
+				}
+			} else if hasCodeGrant {
+				responseTypes = []database.ResponseType{database.ResponseTypeCode}
+			} else {
+				responseTypes = make([]database.ResponseType, 0)
+			}
+		} else {
+			responseTypes, serviceErr = mapResponseTypesWithDefault(opts.ResponseTypes)
+			if serviceErr != nil {
+				logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
+				return dtos.AppDTO{}, serviceErr
+			}
+		}
+
+		if serviceErr := validateAppGrantResponseTypes(grantTypes, responseTypes); serviceErr != nil {
 			return dtos.AppDTO{}, serviceErr
 		}
+
 		if len(opts.RedirectURIs) == 0 {
-			return dtos.AppDTO{}, exceptions.NewValidationError("redirect URIs are required for authorization_code grant")
+			return dtos.AppDTO{}, exceptions.NewValidationError("redirect URIs are required for authorization grants")
 		}
 	} else {
 		if len(opts.ResponseTypes) > 0 {
-			return dtos.AppDTO{}, exceptions.NewValidationError("response types are not supported without authorization_code grant")
+			return dtos.AppDTO{}, exceptions.NewValidationError("response types are not supported without authorization_code or implicit grant")
 		}
 		responseTypes = make([]database.ResponseType, 0)
 	}
@@ -1318,6 +1339,40 @@ func mapResponseTypesUpdate(
 	return dbResponseTypes, nil
 }
 
+func validateAppGrantResponseTypes(grantTypes []database.GrantType, responseTypes []database.ResponseType) *exceptions.ServiceError {
+	hasCodeGrant := slices.Contains(grantTypes, database.GrantTypeAuthorizationCode)
+	hasImplicitGrant := slices.Contains(grantTypes, database.GrantTypeImplicit)
+
+	if !hasCodeGrant && !hasImplicitGrant {
+		if len(responseTypes) > 0 {
+			return exceptions.NewValidationError("response types are not supported without authorization_code or implicit grant")
+		}
+		return nil
+	}
+
+	hasCodeResponse := slices.ContainsFunc(responseTypes, func(rt database.ResponseType) bool {
+		return rt == database.ResponseTypeCode || rt == database.ResponseTypeCodeidToken
+	})
+	if hasCodeResponse && !hasCodeGrant {
+		return exceptions.NewValidationError("code responses require authorization_code")
+	}
+	if hasCodeGrant && !hasCodeResponse {
+		return exceptions.NewValidationError("authorization_code requires a code response")
+	}
+
+	hasImplicitResponse := slices.ContainsFunc(responseTypes, func(rt database.ResponseType) bool {
+		return rt == database.ResponseTypeIDToken || rt == database.ResponseTypeCodeidToken
+	})
+	if hasImplicitResponse && !hasImplicitGrant {
+		return exceptions.NewValidationError("id_token responses require implicit")
+	}
+	if hasImplicitGrant && !hasImplicitResponse {
+		return exceptions.NewValidationError("implicit requires an id_token response")
+	}
+
+	return nil
+}
+
 type UpdateWebNativeAppOptions struct {
 	RequestID             string
 	AccountID             int32
@@ -1353,6 +1408,9 @@ func (s *Services) UpdateWebNativeApp(
 	responseTypes, serviceErr := mapResponseTypesUpdate(opts.ResponseTypes, appDTO.ResponseTypes)
 	if serviceErr != nil {
 		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
+		return dtos.AppDTO{}, serviceErr
+	}
+	if serviceErr := validateAppGrantResponseTypes(appDTO.GrantTypes, responseTypes); serviceErr != nil {
 		return dtos.AppDTO{}, serviceErr
 	}
 	redirectURIs := opts.RedirectURIs

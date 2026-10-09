@@ -584,9 +584,10 @@ func validateRegistrationRedirectURIs(applicationType string, redirectURIs []str
 		switch applicationType {
 		case "native":
 			if scheme == "https" {
-				return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "native clients must use custom schemes or loopback HTTP redirect URIs")
-			}
-			if scheme == "http" {
+				if uri.Host == "" {
+					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
+				}
+			} else if scheme == "http" {
 				if uri.Host == "" {
 					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
 				}
