@@ -1306,6 +1306,8 @@ func mapResponseTypesUpdate(
 		switch utils.Lowered(rt) {
 		case ResponseTypeCode:
 			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeCode)
+		case ResponseTypeIdToken:
+			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeIDToken)
 		case ResponseTypeCodeIdToken:
 			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeCodeidToken)
 		default:

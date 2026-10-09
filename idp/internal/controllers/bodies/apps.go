@@ -42,7 +42,7 @@ type UpdateAppBodyBase struct {
 type CreateAppBodyWeb struct {
 	Algorithm               string   `json:"algorithm,omitempty" validate:"omitempty,oneof=ES256 EdDSA"`
 	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method" validate:"required,oneof=none client_secret_basic client_secret_post client_secret_jwt private_key_jwt"`
-	GrantTypes              []string `json:"grant_types,omitempty" validate:"omitempty,unique,dive,oneof=authorization_code refresh_token client_credentials urn:ietf:params:oauth:grant-type:jwt-bearer urn:ietf:params:oauth:grant-type:device_code"`
+	GrantTypes              []string `json:"grant_types,omitempty" validate:"omitempty,unique,dive,oneof=authorization_code implicit refresh_token client_credentials urn:ietf:params:oauth:grant-type:jwt-bearer urn:ietf:params:oauth:grant-type:device_code"`
 	ResponseTypes           []string `json:"response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
 	RedirectURIs            []string `json:"redirect_uris,omitempty" validate:"omitempty,unique,dive,url"`
 }

@@ -14,6 +14,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strings"
@@ -115,11 +116,60 @@ var lookupSectorIdentifierIPs = func(ctx context.Context, host string) ([]net.IP
 	return net.DefaultResolver.LookupIPAddr(ctx, host)
 }
 
+var blockedSectorIdentifierPrefixes = []netip.Prefix{
+	// IPv4 special-use and reserved ranges
+	netip.MustParsePrefix("0.0.0.0/8"),          // Current network (RFC 1122)
+	netip.MustParsePrefix("10.0.0.0/8"),         // Private-use (RFC 1918)
+	netip.MustParsePrefix("100.64.0.0/10"),      // Shared Address Space / CGNAT (RFC 6598)
+	netip.MustParsePrefix("127.0.0.0/8"),        // Loopback (RFC 1122)
+	netip.MustParsePrefix("169.254.0.0/16"),     // Link-local (RFC 3927)
+	netip.MustParsePrefix("172.16.0.0/12"),      // Private-use (RFC 1918)
+	netip.MustParsePrefix("192.0.0.0/24"),       // IETF Protocol Assignments (RFC 6890)
+	netip.MustParsePrefix("192.0.2.0/24"),       // Documentation / TEST-NET-1 (RFC 5737)
+	netip.MustParsePrefix("192.88.99.0/24"),     // 6to4 relay anycast (RFC 7526)
+	netip.MustParsePrefix("192.168.0.0/16"),     // Private-use (RFC 1918)
+	netip.MustParsePrefix("198.18.0.0/15"),      // Benchmarking (RFC 2544)
+	netip.MustParsePrefix("198.51.100.0/24"),    // Documentation / TEST-NET-2 (RFC 5737)
+	netip.MustParsePrefix("203.0.113.0/24"),     // Documentation / TEST-NET-3 (RFC 5737)
+	netip.MustParsePrefix("224.0.0.0/4"),        // Multicast (RFC 5771)
+	netip.MustParsePrefix("240.0.0.0/4"),        // Reserved for future use (RFC 1112)
+	netip.MustParsePrefix("255.255.255.255/32"), // Limited broadcast (RFC 8190)
+
+	// IPv6 special-use and reserved ranges
+	netip.MustParsePrefix("::1/128"),        // Loopback
+	netip.MustParsePrefix("::/128"),         // Unspecified
+	netip.MustParsePrefix("::ffff:0:0/96"),  // IPv4-mapped
+	netip.MustParsePrefix("64:ff9b::/96"),   // IPv4/IPv6 translation (RFC 6052)
+	netip.MustParsePrefix("64:ff9b:1::/48"), // Local-use translation (RFC 8215)
+	netip.MustParsePrefix("100::/64"),       // Discard prefix (RFC 6666)
+	netip.MustParsePrefix("2001:2::/48"),    // Benchmarking (RFC 5180)
+	netip.MustParsePrefix("2001:10::/28"),   // ORCHID (RFC 4843)
+	netip.MustParsePrefix("2001:20::/28"),   // ORCHIDv2 (RFC 7343)
+	netip.MustParsePrefix("2001:db8::/32"),  // Documentation (RFC 3849)
+	netip.MustParsePrefix("2002::/16"),      // 6to4 (RFC 7526)
+	netip.MustParsePrefix("fc00::/7"),       // Unique Local (RFC 4193)
+	netip.MustParsePrefix("fe80::/10"),      // Link-Local (RFC 4291)
+	netip.MustParsePrefix("ff00::/8"),       // Multicast (RFC 4291)
+}
+
 func isBlockedSectorIdentifierIP(ip net.IP) bool {
 	if ip == nil {
 		return true
 	}
-	return !ip.IsGlobalUnicast() || ip.IsUnspecified() || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast()
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok || !addr.IsValid() {
+		return true
+	}
+	addr = addr.Unmap()
+	if !addr.IsGlobalUnicast() || addr.IsUnspecified() || addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() || addr.IsMulticast() {
+		return true
+	}
+	for _, prefix := range blockedSectorIdentifierPrefixes {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateSectorIdentifierHost(ctx context.Context, host string) ([]net.IPAddr, error) {
@@ -492,7 +542,7 @@ func normalizeRegistrationMetadata(data *ApplicationRegistrationData) *exception
 	hasImplicitGrant := slices.Contains(data.GrantTypes, "implicit")
 	hasImplicitResponse := slices.ContainsFunc(data.ResponseTypes, func(response string) bool {
 		fields := strings.Fields(response)
-		return slices.Contains(fields, "id_token") || slices.Contains(fields, "token")
+		return slices.Contains(fields, "id_token")
 	})
 	if hasImplicitResponse && !hasImplicitGrant {
 		return exceptions.NewValidationError("id_token responses require implicit")

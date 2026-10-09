@@ -11,7 +11,9 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/exceptions"
+	"github.com/tugascript/devlogs/idp/internal/server/validations"
 )
 
 func TestRegistrationServerErrorsDoNotExposeInternalDetails(t *testing.T) {
@@ -140,5 +142,21 @@ func TestRegistrationErrorDescription(t *testing.T) {
 	}
 	if payload.ErrorDescription != "sector_identifier_uri must be an HTTPS URL" {
 		t.Fatalf("error_description=%q, want %q", payload.ErrorDescription, "sector_identifier_uri must be an HTTPS URL")
+	}
+}
+
+func TestOAuthDynamicClientRegistrationBodyApplicationTypeValidation(t *testing.T) {
+	validate := validations.NewValidator(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	for _, appType := range []string{"web", "native", "service", "mcp"} {
+		body := bodies.OAuthDynamicClientRegistrationBody{ApplicationType: appType}
+		if err := validate.StructPartial(&body, "ApplicationType"); err != nil {
+			t.Errorf("expected application_type %q to be valid, got: %v", appType, err)
+		}
+	}
+	for _, appType := range []string{"spa", "backend", "device", "unknown"} {
+		body := bodies.OAuthDynamicClientRegistrationBody{ApplicationType: appType}
+		if err := validate.StructPartial(&body, "ApplicationType"); err == nil {
+			t.Errorf("expected application_type %q to be rejected", appType)
+		}
 	}
 }

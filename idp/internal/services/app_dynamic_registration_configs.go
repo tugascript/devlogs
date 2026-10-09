@@ -72,6 +72,8 @@ func mapResponseTypes(responseTypes []string) ([]database.ResponseType, *excepti
 		switch utils.Lowered(responseType) {
 		case ResponseTypeCode:
 			responseTypesDB = append(responseTypesDB, database.ResponseTypeCode)
+		case ResponseTypeIdToken:
+			responseTypesDB = append(responseTypesDB, database.ResponseTypeIDToken)
 		case ResponseTypeCodeIdToken:
 			responseTypesDB = append(responseTypesDB, database.ResponseTypeCodeidToken)
 		default:

@@ -28,7 +28,13 @@ func TestValidateSectorIdentifierHostRejectsPrivateTargets(t *testing.T) {
 		{name: "localhost", host: "localhost", want: true},
 		{name: "private ipv4", host: "10.0.0.5", want: true},
 		{name: "link local ipv4", host: "169.254.169.254", want: true},
+		{name: "shared cgnat ipv4", host: "100.64.0.1", want: true},
+		{name: "benchmarking ipv4", host: "198.18.0.1", want: true},
+		{name: "documentation ipv4", host: "192.0.2.1", want: true},
+		{name: "ipv4 mapped cgnat", host: "::ffff:100.64.0.1", want: true},
 		{name: "loopback ipv6", host: "::1", want: true},
+		{name: "documentation ipv6", host: "2001:db8::1", want: true},
+		{name: "unique local ipv6", host: "fc00::1", want: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.host == "example.com" {
@@ -122,6 +128,26 @@ func TestMapResponseTypesWithDefaultIncludesStandaloneIDToken(t *testing.T) {
 	responseTypes, err := mapResponseTypesWithDefault([]string{"id_token"})
 	if err != nil {
 		t.Fatalf("map id_token response type: %v", err)
+	}
+	if len(responseTypes) != 1 || responseTypes[0] != database.ResponseTypeIDToken {
+		t.Fatalf("mapped response types = %v, want [%s]", responseTypes, database.ResponseTypeIDToken)
+	}
+}
+
+func TestMapResponseTypesUpdateIncludesStandaloneIDToken(t *testing.T) {
+	responseTypes, err := mapResponseTypesUpdate([]string{"id_token"}, []database.ResponseType{database.ResponseTypeCode})
+	if err != nil {
+		t.Fatalf("map update id_token response type: %v", err)
+	}
+	if len(responseTypes) != 1 || responseTypes[0] != database.ResponseTypeIDToken {
+		t.Fatalf("mapped response types = %v, want [%s]", responseTypes, database.ResponseTypeIDToken)
+	}
+}
+
+func TestMapAllowedResponseTypesIncludesStandaloneIDToken(t *testing.T) {
+	responseTypes, err := mapResponseTypes([]string{"id_token"})
+	if err != nil {
+		t.Fatalf("map allowed id_token response type: %v", err)
 	}
 	if len(responseTypes) != 1 || responseTypes[0] != database.ResponseTypeIDToken {
 		t.Fatalf("mapped response types = %v, want [%s]", responseTypes, database.ResponseTypeIDToken)
