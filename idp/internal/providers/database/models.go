@@ -820,6 +820,7 @@ type ResponseType string
 
 const (
 	ResponseTypeCode        ResponseType = "code"
+	ResponseTypeIDToken     ResponseType = "id_token"
 	ResponseTypeCodeidToken ResponseType = "code id_token"
 )
 
