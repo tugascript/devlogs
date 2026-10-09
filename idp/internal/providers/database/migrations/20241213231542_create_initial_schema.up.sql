@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2026-10-06T15:22:36.036Z
+-- Generated at: 2026-10-09T19:10:27.473Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -82,6 +82,7 @@ CREATE TYPE "auth_method" AS ENUM (
 
 CREATE TYPE "response_type" AS ENUM (
   'code',
+  'id_token',
   'code id_token'
 );
 
