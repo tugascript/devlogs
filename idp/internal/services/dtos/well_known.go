@@ -55,11 +55,12 @@ type WellKnownOIDCConfigurationDTO struct {
 }
 
 var AuthMethodsSupported = []string{"client_secret_basic", "client_secret_post", "private_key_jwt"}
-var ResponseTypesSupported = []string{"code", "id_token", "token", "id_token token"}
+var ResponseTypesSupported = []string{"code", "id_token", "code id_token"}
 var SubjectTypesSupported = []string{"public", "pairwise"}
 var CodeChallengeMethodsSupported = []string{"S256"}
 var GrantTypesSupported = []string{
 	"authorization_code",
+	"implicit",
 	"refresh_token",
 	"client_credentials",
 	"urn:ietf:params:oauth:grant-type:device_code",

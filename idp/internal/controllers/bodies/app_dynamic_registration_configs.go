@@ -20,8 +20,8 @@ type AppDynamicRegistrationConfigBody struct {
 	InitialAccessTokenGenerationMethods  []string `json:"initial_access_token_generation_methods,omitempty" validate:"omitempty,unique,min=1,max=2,dive,oneof=manual authorization_code"`
 	InitialAccessTokenTtl                int32    `json:"initial_access_token_ttl,omitempty" validate:"omitempty,min=1"`
 	InitialAccessTokenMaxUses            int32    `json:"initial_access_token_max_uses,omitempty" validate:"omitempty,min=1"`
-	AllowedGrantTypes                    []string `json:"allowed_grant_types,omitempty" validate:"omitempty,unique,min=1,dive,oneof=authorization_code refresh_token client_credentials urn:ietf:params:oauth:grant-type:device_code urn:ietf:params:oauth:grant-type:jwt-bearer"`
-	AllowedResponseTypes                 []string `json:"allowed_response_types,omitempty" validate:"omitempty,unique,dive,oneof=code 'code id_token'"`
+	AllowedGrantTypes                    []string `json:"allowed_grant_types,omitempty" validate:"omitempty,unique,min=1,dive,oneof=authorization_code implicit refresh_token client_credentials urn:ietf:params:oauth:grant-type:device_code urn:ietf:params:oauth:grant-type:jwt-bearer"`
+	AllowedResponseTypes                 []string `json:"allowed_response_types,omitempty" validate:"omitempty,unique,dive,oneof=code id_token 'code id_token'"`
 	AllowedTokenEndpointAuthMethods      []string `json:"allowed_token_endpoint_auth_methods,omitempty" validate:"omitempty,unique,dive,oneof=none client_secret_post client_secret_basic client_secret_jwt private_key_jwt"`
 	MaxRedirectUris                      int32    `json:"max_redirect_uris,omitempty" validate:"omitempty,min=1"`
 }
