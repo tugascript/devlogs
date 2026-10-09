@@ -12,6 +12,7 @@ import (
 	"net/url"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/tugascript/devlogs/idp/internal/providers/tokens"
 
 	"github.com/tugascript/devlogs/idp/internal/controllers/bodies"
 	"github.com/tugascript/devlogs/idp/internal/controllers/params"
@@ -767,4 +768,95 @@ func (c *Controllers) AppsOAuthDynamicRegistrationIATToken(ctx fiber.Ctx) error 
 
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(authDTO)
+}
+
+func (c *Controllers) OAuthAppDynamicRegistration(ctx fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, oauthDynamicRegistration, "OAuthAppDynamicRegistration")
+	logRequest(logger, ctx)
+	ctx.Set(fiber.HeaderCacheControl, "no-store")
+	ctx.Set(fiber.HeaderPragma, "no-cache")
+
+	_, accountID, serviceErr := getHostAccount(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	body := new(bodies.OAuthDynamicClientRegistrationBody)
+	if err := ctx.Bind().Body(body); err != nil {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata, err.Error())
+	}
+
+	isAuthenticated, ok := ctx.Locals("isAuthenticated").(bool)
+	if !ok {
+		logger.ErrorContext(ctx.Context(), "isAuthenticated should be set in context by middleware")
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
+	}
+
+	account, ok := ctx.Locals("account").(tokens.AccountClaims)
+	if isAuthenticated && !ok {
+		logger.ErrorContext(ctx.Context(), "account should be set in context by middleware")
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorServerError)
+	}
+
+	var iatDomain string
+	if isAuthenticated {
+		iatDomain, _ = ctx.Locals("domain").(string)
+	}
+	appDTO, serviceErr := c.services.CreateAppCredentialsRegistration(
+		ctx.Context(),
+		services.CreateAppCredentialsRegistrationOptions{
+			InitialAccessTokenDomain:     iatDomain,
+			RequestID:                    requestID,
+			IsAuthenticated:              isAuthenticated,
+			AccountID:                    accountID,
+			AccountVersion:               account.AccountVersion,
+			ApplicationType:              body.ApplicationType,
+			RedirectURIs:                 body.RedirectURIs,
+			TokenEndpointAuthMethod:      body.TokenEndpointAuthMethod,
+			GrantTypes:                   body.GrantTypes,
+			ResponseTypes:                body.ResponseTypes,
+			ClientName:                   body.ClientName,
+			ClientURI:                    body.ClientURI,
+			LogoURI:                      body.LogoURI,
+			TOSURI:                       body.TOSURI,
+			PolicyURI:                    body.PolicyURI,
+			Contacts:                     body.Contacts,
+			SoftwareID:                   body.SoftwareID,
+			SoftwareVersion:              body.SoftwareVersion,
+			SoftwareStatement:            body.SoftwareStatement,
+			JWKsURI:                      body.JWKsURI,
+			JWKs:                         body.JWKs,
+			FrontendDomain:               c.frontendDomain,
+			BackendDomain:                c.backendDomain,
+			RequireAuthTime:              body.RequireAuthTime,
+			DefaultMaxAge:                body.DefaultMaxAge,
+			SubjectType:                  body.SubjectType,
+			IDTokenSignedResponseAlg:     body.IDTokenSignedResponseAlg,
+			IDTokenEncryptedResponseAlg:  body.IDTokenEncryptedResponseAlg,
+			IDTokenEncryptedResponseEnc:  body.IDTokenEncryptedResponseEnc,
+			RequestObjectSigningAlg:      body.RequestObjectSigningAlg,
+			RequestObjectEncryptionAlg:   body.RequestObjectEncryptionAlg,
+			RequestObjectEncryptionEnc:   body.RequestObjectEncryptionEnc,
+			DefaultACRValues:             body.DefaultACRValues,
+			Scope:                        body.Scope,
+			SectorIdentifierURI:          body.SectorIdentifierURI,
+			InitiateLoginURI:             body.InitiateLoginURI,
+			RequestURIs:                  body.RequestURIs,
+			UserInfoSignedResponseAlg:    body.UserInfoSignedResponseAlg,
+			UserInfoEncryptedResponseAlg: body.UserInfoEncryptedResponseAlg,
+			UserInfoEncryptedResponseEnc: body.UserInfoEncryptedResponseEnc,
+			TokenEndpointAuthSigningAlg:  body.TokenEndpointAuthSigningAlg,
+			AccessTokenSigningAlg:        body.AccessTokenSigningAlg,
+		},
+	)
+	if serviceErr != nil {
+		if !isAuthenticated && serviceErr.Code == exceptions.OAuthErrorInvalidToken {
+			return bearerAuthenticationRequired(logger, ctx)
+		}
+		return dynamicRegistrationServiceError(logger, ctx, serviceErr)
+	}
+
+	logResponse(logger, ctx, fiber.StatusCreated)
+	return ctx.Status(fiber.StatusCreated).JSON(appDTO.Registration)
 }

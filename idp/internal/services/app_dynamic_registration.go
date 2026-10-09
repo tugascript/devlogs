@@ -355,24 +355,6 @@ func (s *Services) CreateAppCredentialsRegistration(ctx context.Context, opts Cr
 	if opts.IsAuthenticated && opts.InitialAccessTokenDomain == "" {
 		return dtos.AppDTO{}, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "initial access token domain is required")
 	}
-	return registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (dtos.AppDTO, *exceptions.ServiceError) {
-		return s.createAppCredentialsRegistration(ctx, qrs, opts)
-	})
-}
-
-func (s *Services) createAppCredentialsRegistration(
-	ctx context.Context,
-	qrs *database.Queries,
-	opts CreateAppCredentialsRegistrationOptions,
-) (dtos.AppDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(
-		opts.RequestID,
-		appDynamicRegistrationLocation,
-		"CreateAppCredentialsRegistration",
-	).With(
-		"accountID", opts.AccountID,
-	)
-	logger.InfoContext(ctx, "Creating app credentials registration...")
 
 	data := ApplicationRegistrationData{
 		RedirectURIs:                 opts.RedirectURIs,
@@ -410,9 +392,6 @@ func (s *Services) createAppCredentialsRegistration(
 		TokenEndpointAuthSigningAlg:  opts.TokenEndpointAuthSigningAlg,
 		AccessTokenSigningAlg:        opts.AccessTokenSigningAlg,
 	}
-	if opts.IsAuthenticated && opts.InitialAccessTokenDomain == "" {
-		return dtos.AppDTO{}, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "initial access token domain is required")
-	}
 	data, preparationErr := s.prepareDynamicRegistration(ctx, prepareDynamicRegistrationOptions{
 		requestID: opts.RequestID, accountID: opts.AccountID, accountPublicID: uuid.Nil,
 		data: data, softwareStatement: opts.SoftwareStatement,
@@ -421,6 +400,26 @@ func (s *Services) createAppCredentialsRegistration(
 	if preparationErr != nil {
 		return dtos.AppDTO{}, preparationErr
 	}
+
+	return registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (dtos.AppDTO, *exceptions.ServiceError) {
+		return s.createAppCredentialsRegistration(ctx, qrs, data, opts)
+	})
+}
+
+func (s *Services) createAppCredentialsRegistration(
+	ctx context.Context,
+	qrs *database.Queries,
+	data ApplicationRegistrationData,
+	opts CreateAppCredentialsRegistrationOptions,
+) (dtos.AppDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(
+		opts.RequestID,
+		appDynamicRegistrationLocation,
+		"CreateAppCredentialsRegistration",
+	).With(
+		"accountID", opts.AccountID,
+	)
+	logger.InfoContext(ctx, "Creating app credentials registration...")
 	opts.RedirectURIs = data.RedirectURIs
 	opts.TokenEndpointAuthMethod = data.TokenEndpointAuthMethod
 	opts.ResponseTypes = data.ResponseTypes
