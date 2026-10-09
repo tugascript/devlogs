@@ -261,25 +261,6 @@ func (s *Services) CreateAccountCredentialsRegistration(ctx context.Context, opt
 	if opts.InitialAccessTokenDomain == "" {
 		return dtos.AccountCredentialsDTO{}, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "initial access token domain is required")
 	}
-	return registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
-		return s.createAccountCredentialsRegistration(ctx, qrs, opts)
-	})
-}
-
-func (s *Services) createAccountCredentialsRegistration(
-	ctx context.Context,
-	qrs *database.Queries,
-	opts CreateAccountCredentialsRegistrationOptions,
-) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(
-		opts.RequestID,
-		accountCredentialsRegistrationLocation,
-		"CreateAccountCredentialsRegistration",
-	).With(
-		"accountPublicID", opts.AccountPublicID,
-	)
-	logger.InfoContext(ctx, "Creating account credentials registration...")
-
 	data := ApplicationRegistrationData{
 		RedirectURIs:                 opts.RedirectURIs,
 		TokenEndpointAuthMethod:      opts.TokenEndpointAuthMethod,
@@ -334,40 +315,26 @@ func (s *Services) createAccountCredentialsRegistration(
 	if preparationErr != nil {
 		return dtos.AccountCredentialsDTO{}, preparationErr
 	}
-	opts.RedirectURIs = data.RedirectURIs
-	opts.TokenEndpointAuthMethod = data.TokenEndpointAuthMethod
-	opts.ResponseTypes = data.ResponseTypes
-	opts.GrantTypes = data.GrantTypes
-	opts.ApplicationType = data.ApplicationType
-	opts.ClientName = data.ClientName
-	opts.ClientURI = data.ClientURI
-	opts.LogoURI = data.LogoURI
-	opts.Scope = data.Scope
-	opts.Contacts = data.Contacts
-	opts.TOSURI = data.TOSURI
-	opts.PolicyURI = data.PolicyURI
-	opts.JWKsURI = data.JWKsURI
-	opts.JWKs = data.JWKs
-	opts.SoftwareID = data.SoftwareID
-	opts.SoftwareVersion = data.SoftwareVersion
-	opts.SubjectType = data.SubjectType
-	opts.SectorIdentifierURI = data.SectorIdentifierURI
-	opts.DefaultMaxAge = data.DefaultMaxAge
-	opts.RequireAuthTime = data.RequireAuthTime
-	opts.DefaultACRValues = data.DefaultACRValues
-	opts.InitiateLoginURI = data.InitiateLoginURI
-	opts.RequestURIs = data.RequestURIs
-	opts.IDTokenSignedResponseAlg = data.IDTokenSignedResponseAlg
-	opts.IDTokenEncryptedResponseAlg = data.IDTokenEncryptedResponseAlg
-	opts.IDTokenEncryptedResponseEnc = data.IDTokenEncryptedResponseEnc
-	opts.UserInfoSignedResponseAlg = data.UserInfoSignedResponseAlg
-	opts.UserInfoEncryptedResponseAlg = data.UserInfoEncryptedResponseAlg
-	opts.UserInfoEncryptedResponseEnc = data.UserInfoEncryptedResponseEnc
-	opts.RequestObjectSigningAlg = data.RequestObjectSigningAlg
-	opts.RequestObjectEncryptionAlg = data.RequestObjectEncryptionAlg
-	opts.RequestObjectEncryptionEnc = data.RequestObjectEncryptionEnc
-	opts.TokenEndpointAuthSigningAlg = data.TokenEndpointAuthSigningAlg
-	opts.AccessTokenSigningAlg = data.AccessTokenSigningAlg
+
+	return registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+		return s.createAccountCredentialsRegistration(ctx, qrs, data, opts)
+	})
+}
+
+func (s *Services) createAccountCredentialsRegistration(
+	ctx context.Context,
+	qrs *database.Queries,
+	data ApplicationRegistrationData,
+	opts CreateAccountCredentialsRegistrationOptions,
+) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(
+		opts.RequestID,
+		accountCredentialsRegistrationLocation,
+		"CreateAccountCredentialsRegistration",
+	).With(
+		"accountPublicID", opts.AccountPublicID,
+	)
+	logger.InfoContext(ctx, "Creating account credentials registration...")
 
 	applicationType, serviceErr := mapAccountCredentialsType(opts.ApplicationType)
 	if serviceErr != nil {
