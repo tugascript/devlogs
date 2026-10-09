@@ -38,12 +38,15 @@ func TestValidateSectorIdentifierHostRejectsPrivateTargets(t *testing.T) {
 				}
 				defer func() { lookupSectorIdentifierIPs = orig }()
 			}
-			err := validateSectorIdentifierHost(context.Background(), tc.host)
+			ips, err := validateSectorIdentifierHost(context.Background(), tc.host)
 			if tc.want && err == nil {
 				t.Fatal("expected blocked host error")
 			}
 			if !tc.want && err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+			if !tc.want && len(ips) == 0 {
+				t.Fatal("expected validated addresses")
 			}
 		})
 	}
@@ -78,6 +81,7 @@ func TestRegistrationMetadataDefaultsAndValidation(t *testing.T) {
 		{name: "hybrid code id_token requires implicit", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/callback"}, ResponseTypes: []string{"code id_token"}, GrantTypes: []string{"authorization_code"}}, errorCode: exceptions.CodeValidation},
 		{name: "implicit grant requires id_token response", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/callback"}, ResponseTypes: []string{"code"}, GrantTypes: []string{"authorization_code", "implicit"}}, errorCode: exceptions.CodeValidation},
 		{name: "hybrid code id_token valid", data: ApplicationRegistrationData{RedirectURIs: []string{"https://example.com/callback"}, ResponseTypes: []string{"code id_token"}, GrantTypes: []string{"authorization_code", "implicit"}}},
+		{name: "implicit-only id_token valid", data: ApplicationRegistrationData{ApplicationType: "web", RedirectURIs: []string{"https://example.com/callback"}, ResponseTypes: []string{"id_token"}, GrantTypes: []string{"implicit"}}},
 		{name: "web implicit localhost HTTP", data: ApplicationRegistrationData{ApplicationType: "web", RedirectURIs: []string{"http://localhost:8080/callback"}, ResponseTypes: []string{"code id_token"}, GrantTypes: []string{"authorization_code", "implicit"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
 		{name: "web implicit localhost HTTPS", data: ApplicationRegistrationData{ApplicationType: "web", RedirectURIs: []string{"https://localhost:8080/callback"}, ResponseTypes: []string{"code id_token"}, GrantTypes: []string{"authorization_code", "implicit"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
 		{name: "web implicit remote HTTPS", data: ApplicationRegistrationData{ApplicationType: "web", RedirectURIs: []string{"https://example.com/callback"}, ResponseTypes: []string{"code id_token"}, GrantTypes: []string{"authorization_code", "implicit"}}},
@@ -111,6 +115,16 @@ func TestRegistrationMetadataDefaultsAndValidation(t *testing.T) {
 				t.Fatalf("response types changed: %v %v", mapped, mapErr)
 			}
 		})
+	}
+}
+
+func TestMapResponseTypesWithDefaultIncludesStandaloneIDToken(t *testing.T) {
+	responseTypes, err := mapResponseTypesWithDefault([]string{"id_token"})
+	if err != nil {
+		t.Fatalf("map id_token response type: %v", err)
+	}
+	if len(responseTypes) != 1 || responseTypes[0] != database.ResponseTypeIDToken {
+		t.Fatalf("mapped response types = %v, want [%s]", responseTypes, database.ResponseTypeIDToken)
 	}
 }
 
@@ -241,7 +255,10 @@ func TestSectorIdentifierValidation(t *testing.T) {
 		lookupSectorIdentifierIPs = origLookup
 	}()
 
-	fetchSectorIdentifierURIs = func(ctx context.Context, uri string) ([]string, error) {
+	fetchSectorIdentifierURIs = func(ctx context.Context, uri string, validatedIPs []net.IPAddr) ([]string, error) {
+		if len(validatedIPs) != 1 || !validatedIPs[0].IP.Equal(net.ParseIP("93.184.216.34")) {
+			t.Errorf("fetch received validated addresses %v, want [93.184.216.34]", validatedIPs)
+		}
 		if uri == "https://sector.example.com/redirects.json" {
 			return []string{
 				"https://client.example.com/callback",
@@ -254,7 +271,10 @@ func TestSectorIdentifierValidation(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 	lookupSectorIdentifierIPs = func(ctx context.Context, host string) ([]net.IPAddr, error) {
-		if host == "localhost" || host == "169.254.169.254" {
+		if host == "localhost" {
+			return []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, nil
+		}
+		if host == "169.254.169.254" {
 			return []net.IPAddr{{IP: net.ParseIP(host)}}, nil
 		}
 		return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
@@ -379,3 +399,4 @@ func TestSectorIdentifierValidation(t *testing.T) {
 		})
 	}
 }
+
