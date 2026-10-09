@@ -327,6 +327,42 @@ func (s *Services) createAccountCredentialsRegistration(
 	data ApplicationRegistrationData,
 	opts CreateAccountCredentialsRegistrationOptions,
 ) (dtos.AccountCredentialsDTO, *exceptions.ServiceError) {
+	// Use the verified and normalized metadata for all registration decisions.
+	opts.RedirectURIs = data.RedirectURIs
+	opts.TokenEndpointAuthMethod = data.TokenEndpointAuthMethod
+	opts.ResponseTypes = data.ResponseTypes
+	opts.GrantTypes = data.GrantTypes
+	opts.ApplicationType = data.ApplicationType
+	opts.ClientName = data.ClientName
+	opts.ClientURI = data.ClientURI
+	opts.LogoURI = data.LogoURI
+	opts.Scope = data.Scope
+	opts.Contacts = data.Contacts
+	opts.TOSURI = data.TOSURI
+	opts.PolicyURI = data.PolicyURI
+	opts.JWKsURI = data.JWKsURI
+	opts.JWKs = data.JWKs
+	opts.SoftwareID = data.SoftwareID
+	opts.SoftwareVersion = data.SoftwareVersion
+	opts.SubjectType = data.SubjectType
+	opts.SectorIdentifierURI = data.SectorIdentifierURI
+	opts.DefaultMaxAge = data.DefaultMaxAge
+	opts.RequireAuthTime = data.RequireAuthTime
+	opts.DefaultACRValues = data.DefaultACRValues
+	opts.InitiateLoginURI = data.InitiateLoginURI
+	opts.RequestURIs = data.RequestURIs
+	opts.IDTokenSignedResponseAlg = data.IDTokenSignedResponseAlg
+	opts.IDTokenEncryptedResponseAlg = data.IDTokenEncryptedResponseAlg
+	opts.IDTokenEncryptedResponseEnc = data.IDTokenEncryptedResponseEnc
+	opts.UserInfoSignedResponseAlg = data.UserInfoSignedResponseAlg
+	opts.UserInfoEncryptedResponseAlg = data.UserInfoEncryptedResponseAlg
+	opts.UserInfoEncryptedResponseEnc = data.UserInfoEncryptedResponseEnc
+	opts.RequestObjectSigningAlg = data.RequestObjectSigningAlg
+	opts.RequestObjectEncryptionAlg = data.RequestObjectEncryptionAlg
+	opts.RequestObjectEncryptionEnc = data.RequestObjectEncryptionEnc
+	opts.TokenEndpointAuthSigningAlg = data.TokenEndpointAuthSigningAlg
+	opts.AccessTokenSigningAlg = data.AccessTokenSigningAlg
+
 	logger := s.buildLogger(
 		opts.RequestID,
 		accountCredentialsRegistrationLocation,

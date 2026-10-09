@@ -337,9 +337,14 @@ func PerformTestRequestWithURLEncodedBody(t *testing.T, app *fiber.App, delayMs 
 }
 
 func AssertTestStatusCode(t *testing.T, resp *http.Response, expectedStatusCode int) {
+	t.Helper()
 	if resp.StatusCode != expectedStatusCode {
-		t.Logf("Status Code: %d", resp.StatusCode)
-		t.Fatal("Failed to assert status code")
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Status Code: %d, expected %d; failed to read response body: %v", resp.StatusCode, expectedStatusCode, err)
+		}
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+		t.Fatalf("Status Code: %d, expected %d; response body: %s", resp.StatusCode, expectedStatusCode, body)
 	}
 }
 
