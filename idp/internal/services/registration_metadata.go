@@ -38,21 +38,62 @@ const (
 	AppTypeNative RegistrationMetadataAppType = "native"
 )
 
-var sectorIdentifierHTTPClient = &http.Client{
-	Timeout: 10 * time.Second,
-	CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		return fmt.Errorf("redirect not allowed")
-	},
-}
+var fetchSectorIdentifierURIs = func(ctx context.Context, uri string, validatedIPs []net.IPAddr) ([]string, error) {
+	parsed, err := url.Parse(uri)
+	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" {
+		return nil, fmt.Errorf("invalid sector identifier URI")
+	}
+	if len(validatedIPs) == 0 {
+		return nil, fmt.Errorf("sector identifier host has no validated addresses")
+	}
+	for _, addr := range validatedIPs {
+		if isBlockedSectorIdentifierIP(addr.IP) {
+			return nil, fmt.Errorf("sector identifier host has a non-public address: %s", addr.IP)
+		}
+	}
 
-var fetchSectorIdentifierURIs = func(ctx context.Context, uri string) ([]string, error) {
+	port := parsed.Port()
+	if port == "" {
+		port = "443"
+	}
+	host := parsed.Hostname()
+	dialer := &net.Dialer{}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	// Do not use an environment proxy: the connection must go to one of the
+	// addresses checked above, not to a proxy that resolves the host separately.
+	transport.Proxy = nil
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		dialHost, dialPort, err := net.SplitHostPort(address)
+		if err != nil || !strings.EqualFold(dialHost, host) || dialPort != port {
+			return nil, fmt.Errorf("unexpected sector identifier dial target %q", address)
+		}
+
+		var lastErr error
+		for _, addr := range validatedIPs {
+			conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(addr.IP.String(), port))
+			if err == nil {
+				return conn, nil
+			}
+			lastErr = err
+		}
+		return nil, fmt.Errorf("failed to connect to validated sector identifier addresses: %w", lastErr)
+	}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   10 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return fmt.Errorf("redirect not allowed")
+		},
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := sectorIdentifierHTTPClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -76,36 +117,36 @@ var lookupSectorIdentifierIPs = func(ctx context.Context, host string) ([]net.IP
 
 func isBlockedSectorIdentifierIP(ip net.IP) bool {
 	if ip == nil {
-		return false
+		return true
 	}
-	return ip.IsUnspecified() || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast()
+	return !ip.IsGlobalUnicast() || ip.IsUnspecified() || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast()
 }
 
-func validateSectorIdentifierHost(ctx context.Context, host string) error {
+func validateSectorIdentifierHost(ctx context.Context, host string) ([]net.IPAddr, error) {
 	if host == "" {
-		return fmt.Errorf("empty host")
+		return nil, fmt.Errorf("empty host")
 	}
 
 	if ip := net.ParseIP(host); ip != nil {
 		if isBlockedSectorIdentifierIP(ip) {
-			return fmt.Errorf("host resolves to a non-public address: %s", ip)
+			return nil, fmt.Errorf("host resolves to a non-public address: %s", ip)
 		}
-		return nil
+		return []net.IPAddr{{IP: ip}}, nil
 	}
 
 	ips, err := lookupSectorIdentifierIPs(ctx, host)
 	if err != nil {
-		return fmt.Errorf("host resolution failed: %w", err)
+		return nil, fmt.Errorf("host resolution failed: %w", err)
 	}
 	if len(ips) == 0 {
-		return fmt.Errorf("host resolved to no addresses")
+		return nil, fmt.Errorf("host resolved to no addresses")
 	}
 	for _, addr := range ips {
 		if isBlockedSectorIdentifierIP(addr.IP) {
-			return fmt.Errorf("host resolves to a non-public address: %s", addr.IP)
+			return nil, fmt.Errorf("host resolves to a non-public address: %s", addr.IP)
 		}
 	}
-	return nil
+	return ips, nil
 }
 
 type prepareDynamicRegistrationOptions struct {
@@ -375,12 +416,13 @@ func (s *Services) validateSectorIdentifier(
 		logger.WarnContext(ctx, "Invalid sector_identifier_uri format", "sectorIdentifierURI", sectorIdentifierURI, "error", err)
 		return exceptions.NewError(exceptions.OAuthErrorInvalidClientMetadata, "sector_identifier_uri must be an HTTPS URL without userinfo or fragment")
 	}
-	if err := validateSectorIdentifierHost(ctx, parsed.Hostname()); err != nil {
+	validatedIPs, err := validateSectorIdentifierHost(ctx, parsed.Hostname())
+	if err != nil {
 		logger.WarnContext(ctx, "Blocked sector_identifier_uri host", "sectorIdentifierURI", sectorIdentifierURI, "error", err)
 		return exceptions.NewError(exceptions.OAuthErrorInvalidClientMetadata, "sector_identifier_uri host must resolve to a public address")
 	}
 
-	sectorRedirects, err := fetchSectorIdentifierURIs(ctx, sectorIdentifierURI)
+	sectorRedirects, err := fetchSectorIdentifierURIs(ctx, sectorIdentifierURI, validatedIPs)
 	if err != nil {
 		logger.WarnContext(ctx, "Failed to fetch sector_identifier_uri", "sectorIdentifierURI", sectorIdentifierURI, "error", err)
 		return exceptions.NewError(exceptions.OAuthErrorInvalidClientMetadata, "failed to fetch or parse sector_identifier_uri")
@@ -611,3 +653,4 @@ func mapRegistrationResponseTypes(values []string) ([]database.ResponseType, *ex
 	}
 	return mapResponseTypesWithDefault(values)
 }
+

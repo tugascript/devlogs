@@ -42,6 +42,7 @@ const (
 	TwoFactorTotp  string = "totp"
 
 	ResponseTypeCode        string = "code"
+	ResponseTypeIdToken     string = "id_token"
 	ResponseTypeCodeIdToken string = "code id_token"
 
 	UsernameColumnEmail    string = "email"
@@ -134,6 +135,8 @@ func mapResponseTypesWithDefault(responseTypes []string) ([]database.ResponseTyp
 		switch utils.Lowered(rt) {
 		case ResponseTypeCode:
 			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeCode)
+		case ResponseTypeIdToken:
+			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeIDToken)
 		case ResponseTypeCodeIdToken:
 			dbResponseTypes = append(dbResponseTypes, database.ResponseTypeCodeidToken)
 		default:
@@ -394,3 +397,4 @@ func mapGrantType(grantType string) (database.GrantType, *exceptions.ServiceErro
 		return "", exceptions.NewValidationError("invalid grant type: " + grantType)
 	}
 }
+

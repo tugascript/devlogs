@@ -49,60 +49,66 @@ const (
 	PgTypeKekUsage                            PgType = "kek_usage"
 	PgTypeDekUsage                            PgType = "dek_usage"
 	PgTypeTokenCryptoSuite                    PgType = "token_crypto_suite"
+	PgTypeTokenEncryptionAlgorithm            PgType = "token_encryption_algorithm"
+	PgTypeTokenEncryptionEncoding             PgType = "token_encryption_encoding"
 	PgTypeTokenKeyUsage                       PgType = "token_key_usage"
 	PgTypeTokenKeyType                        PgType = "token_key_type"
+	PgTypeActivityStatus                      PgType = "activity_status"
 	PgTypeTwoFactorType                       PgType = "two_factor_type"
 	PgTypeTOTPUsage                           PgType = "totp_usage"
 	PgTypeCredentialsUsage                    PgType = "credentials_usage"
-	PgTypeSecretStorageMode                   PgType = "secret_storage_mode"
 	PgTypeAuthMethod                          PgType = "auth_method"
 	PgTypeResponseType                        PgType = "response_type"
 	PgTypeAccountCredentialsScope             PgType = "account_credentials_scope"
 	PgTypeAccountCredentialsType              PgType = "account_credentials_type"
-	PgTypeCreationSource                      PgType = "creation_source"
+	PgTypeClientSubjectType                   PgType = "client_subject_type"
+	PgTypeCreationMethod                      PgType = "creation_method"
 	PgTypeAuthProvider                        PgType = "auth_provider"
 	PgTypeClaims                              PgType = "claims"
 	PgTypeScopes                              PgType = "scopes"
 	PgTypeAppType                             PgType = "app_type"
 	PgTypeAppUsernameColumn                   PgType = "app_username_column"
 	PgTypeGrantType                           PgType = "grant_type"
+	PgTypeSessionType                         PgType = "session_type"
 	PgTypeInitialAccessTokenGenerationMethod  PgType = "initial_access_token_generation_method"
 	PgTypeSoftwareStatementVerificationMethod PgType = "software_statement_verification_method"
-	PgTypeAppProfileType                      PgType = "app_profile_type"
-	PgTypeTokenOwner                          PgType = "token_owner"
 	PgTypeDynamicRegistrationUsage            PgType = "dynamic_registration_usage"
 	PgTypeDomainVerificationMethod            PgType = "domain_verification_method"
-	PgTypeCreationMethod                      PgType = "creation_method"
+	PgTypeAppProfileType                      PgType = "app_profile_type"
+	PgTypeTokenOwner                          PgType = "token_owner"
 )
 
-var PgTypes = [28]PgType{
+var PgTypes = [30]PgType{
 	PgTypeKekUsage,
 	PgTypeDekUsage,
 	PgTypeTokenCryptoSuite,
+	PgTypeTokenEncryptionAlgorithm,
+	PgTypeTokenEncryptionEncoding,
 	PgTypeTokenKeyUsage,
 	PgTypeTokenKeyType,
+	PgTypeActivityStatus,
 	PgTypeTwoFactorType,
 	PgTypeTOTPUsage,
 	PgTypeCredentialsUsage,
-	PgTypeSecretStorageMode,
 	PgTypeAuthMethod,
+	PgTypeResponseType,
 	PgTypeAccountCredentialsScope,
 	PgTypeAccountCredentialsType,
-	PgTypeCreationSource,
+	PgTypeClientSubjectType,
+	PgTypeCreationMethod,
 	PgTypeAuthProvider,
 	PgTypeClaims,
 	PgTypeScopes,
 	PgTypeAppType,
 	PgTypeAppUsernameColumn,
 	PgTypeGrantType,
-	PgTypeResponseType,
+	PgTypeSessionType,
 	PgTypeInitialAccessTokenGenerationMethod,
 	PgTypeSoftwareStatementVerificationMethod,
-	PgTypeAppProfileType,
-	PgTypeTokenOwner,
 	PgTypeDynamicRegistrationUsage,
 	PgTypeDomainVerificationMethod,
-	PgTypeCreationMethod,
+	PgTypeAppProfileType,
+	PgTypeTokenOwner,
 }
 
 func New(
