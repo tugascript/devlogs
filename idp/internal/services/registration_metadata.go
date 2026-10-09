@@ -350,16 +350,17 @@ func (s *Services) validateSectorIdentifier(
 			var firstHost string
 			for _, r := range redirectURIs {
 				parsed, err := url.Parse(r)
-				if err != nil || parsed.Host == "" {
+				if err != nil || parsed.Hostname() == "" {
 					logger.WarnContext(ctx, "Failed to parse redirect URI for pairwise host comparison", "uri", r, "error", err)
 					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
 				}
+				host := parsed.Hostname()
 				if firstHost == "" {
-					firstHost = parsed.Host
-				} else if !strings.EqualFold(firstHost, parsed.Host) {
+					firstHost = host
+				} else if !strings.EqualFold(firstHost, host) {
 					logger.WarnContext(ctx, "Pairwise subject type redirect URIs have different host components",
 						"firstHost", firstHost,
-						"host", parsed.Host,
+						"host", host,
 					)
 					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "all redirect_uris must have the same host component for pairwise subject type when sector_identifier_uri is omitted")
 				}
