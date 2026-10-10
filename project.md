@@ -22,16 +22,16 @@
 - Add support for multiple 2FA types
 - Make refresh tokens whitelisted not blacklisted
 - Add grants to control refresh token
-
-### IDP On-Going
-
 - Add OAuth Dynamic Registration for:
   - accounts
   - apps
 
-### IDP Todo
+### IDP On-Going
 
 - Update serial to big serial for scalability support
+
+### IDP Todo
+
 - OAuth Client ID Metadata Document
 - User authentication for each app type:
   - web (including public SPA clients and service clients using client_credentials or JWT bearer grants)
