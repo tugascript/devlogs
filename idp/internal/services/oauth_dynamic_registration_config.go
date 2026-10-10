@@ -354,18 +354,10 @@ type UpdateRegisteredClientOptions struct {
 	RegistrationToken            string
 }
 
-func (s *Services) UpdateRegisteredAccountCredentials(ctx context.Context, opts UpdateRegisteredClientOptions) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
-	return registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
-		return s.updateRegisteredAccountCredentials(ctx, qrs, opts)
-	})
-}
-
-func (s *Services) updateRegisteredAccountCredentials(
+func (s *Services) UpdateRegisteredAccountCredentials(
 	ctx context.Context,
-	qrs *database.Queries,
 	opts UpdateRegisteredClientOptions,
 ) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
-	logger := s.buildLogger(opts.RequestID, oauthDynamicRegistrationConfigLocation, "UpdateRegisteredAccountCredentials")
 	if opts.SubmittedClientID == "" || opts.SubmittedClientID != opts.ClientID {
 		return nil, exceptions.NewError(exceptions.OAuthErrorInvalidRequest, "client_id is required and must match the client making the request")
 	}
@@ -408,6 +400,24 @@ func (s *Services) updateRegisteredAccountCredentials(
 	if data.ApplicationType != string(existing.CredentialsType) {
 		return nil, exceptions.NewValidationError("application_type cannot be changed")
 	}
+	return registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
+		secretData := new(ApplicationSecretData)
+		secretData.Secret = currentSecret
+		secretData.Exp = exp
+		secretData.Key = key
+		return s.updateRegisteredAccountCredentials(ctx, qrs, existing, &data, secretData, opts)
+	})
+}
+
+func (s *Services) updateRegisteredAccountCredentials(
+	ctx context.Context,
+	qrs *database.Queries,
+	existing *database.AccountCredential,
+	data *ApplicationRegistrationData,
+	secretData *ApplicationSecretData,
+	opts UpdateRegisteredClientOptions,
+) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, oauthDynamicRegistrationConfigLocation, "UpdateRegisteredAccountCredentials")
 	parsedClientURI, err := url.Parse(data.ClientURI)
 	if err != nil {
 		return nil, exceptions.NewValidationError("invalid client URI")
@@ -428,7 +438,7 @@ func (s *Services) updateRegisteredAccountCredentials(
 		requestID:               opts.RequestID,
 		tokenEndpointAuthMethod: tokenEndpointAuthMethod,
 		scopes:                  scopes,
-		data:                    &data,
+		data:                    data,
 	})
 	if serviceErr != nil {
 		return nil, serviceErr
@@ -452,7 +462,7 @@ func (s *Services) updateRegisteredAccountCredentials(
 		logger.ErrorContext(ctx, "Failed to update account credentials", "error", err)
 		return nil, exceptions.FromDBError(err)
 	}
-	dto, serviceErr := dtos.MapRegisteredAccountCredentials(&updated, opts.SoftwareStatement, currentSecret, exp, key)
+	dto, serviceErr := dtos.MapRegisteredAccountCredentials(&updated, opts.SoftwareStatement, secretData.Secret, secretData.Exp, secretData.Key)
 	if serviceErr != nil {
 		return nil, serviceErr
 	}
