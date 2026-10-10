@@ -615,7 +615,7 @@ func (s *Services) createAppCredentialsRegistration(
 	}
 
 	if tokenEndpointAuthMethod == database.AuthMethodNone || (tokenEndpointAuthMethod == database.AuthMethodPrivateKeyJwt && (data.JWKs != nil || data.JWKsURI != "")) {
-		app, err := s.database.CreateRegisteredApp(ctx, params)
+		app, err := qrs.CreateRegisteredApp(ctx, params)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create app", "error", err)
 			return dtos.AppDTO{}, exceptions.FromDBError(err)

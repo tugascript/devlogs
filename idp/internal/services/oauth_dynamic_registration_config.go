@@ -92,7 +92,7 @@ func (s *Services) getActiveAccountCredentialSecretAndKey(
 	}
 }
 
-func (s *Services) getActiveAppSecretAndKey(
+func (s *Services) getActiveAppSecretOrKey(
 	ctx context.Context,
 	requestID string,
 	row *database.App,
@@ -210,7 +210,7 @@ func (s *Services) getRegisteredApp(
 	if serviceErr != nil {
 		return nil, serviceErr
 	}
-	secret, exp, key, serviceErr := s.getActiveAppSecretAndKey(
+	secret, exp, key, serviceErr := s.getActiveAppSecretOrKey(
 		ctx, opts.RequestID, row,
 	)
 	if serviceErr != nil {
@@ -479,44 +479,49 @@ type UpdateRegisteredAppOptions struct {
 	HostUsername                 string
 }
 
-func (s *Services) UpdateRegisteredApp(ctx context.Context, opts UpdateRegisteredAppOptions) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
-	return registrationTransaction(s, ctx, opts.RequestID, func(qrs *database.Queries) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
-		return s.updateRegisteredApp(ctx, qrs, opts)
-	})
-}
-
-func (s *Services) updateRegisteredApp(
+func (s *Services) UpdateRegisteredApp(
 	ctx context.Context,
-	qrs *database.Queries,
 	opts UpdateRegisteredAppOptions,
 ) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, oauthDynamicRegistrationConfigLocation, "UpdateRegisteredApp")
 	if opts.SubmittedClientID == "" || opts.SubmittedClientID != opts.ClientID {
+		logger.WarnContext(ctx, "Submitted client_id is missing or does not match the client making the request",
+			"submitted_client_id", opts.SubmittedClientID, "client_id", opts.ClientID)
 		return nil, exceptions.NewError(exceptions.OAuthErrorInvalidRequest, "client_id is required and must match the client making the request")
 	}
+
 	account, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{RequestID: opts.RequestID, ID: opts.AccountID})
 	if serviceErr != nil {
+		logger.WarnContext(ctx, "Account not found", "account_id", opts.AccountID)
 		return nil, exceptions.NewError(exceptions.OAuthErrorInvalidToken, "account not found")
 	}
+
 	existing, serviceErr := s.findRegisteredApp(ctx, GetRegisteredClientOptions{
 		RequestID: opts.RequestID, AccountPublicID: account.PublicID, ClientID: opts.ClientID,
 	})
 	if serviceErr != nil {
+		logger.WarnContext(ctx, "Registered app not found", "account_id", account.PublicID, "client_id", opts.ClientID)
 		return nil, serviceErr
 	}
-	currentSecret, exp, key, serviceErr := s.getActiveAppSecretAndKey(
+
+	logger.InfoContext(ctx, "Found registered app", "account_id", account.PublicID, "client_id", opts.ClientID)
+	currentSecret, exp, key, serviceErr := s.getActiveAppSecretOrKey(
 		ctx, opts.RequestID, existing,
 	)
 	if serviceErr != nil {
+		logger.WarnContext(ctx, "Failed to get active app secret or key", "account_id", account.PublicID, "client_id", opts.ClientID)
 		return nil, serviceErr
 	}
+
 	if opts.SubmittedClientSecretPresent || opts.SubmittedClientSecret != "" {
 		if currentSecret == "" || subtle.ConstantTimeCompare([]byte(opts.SubmittedClientSecret), []byte(currentSecret)) != 1 {
+			logger.WarnContext(ctx, "Invalid client secret", "account_id", account.PublicID, "client_id", opts.ClientID)
 			return nil, exceptions.NewError(exceptions.OAuthErrorInvalidClientMetadata, "invalid client secret")
 		}
 	}
 	data := registrationDataFromAppOptions(opts.CreateAppCredentialsRegistrationOptions)
 	if data.TokenEndpointAuthMethod != "" && data.TokenEndpointAuthMethod != string(existing.TokenEndpointAuthMethod) {
+		logger.WarnContext(ctx, "token_endpoint_auth_method cannot be changed", "account_id", account.PublicID, "client_id", opts.ClientID)
 		return nil, exceptions.NewValidationError("token_endpoint_auth_method cannot be changed")
 	}
 	data.TokenEndpointAuthMethod = string(existing.TokenEndpointAuthMethod)
@@ -529,6 +534,29 @@ func (s *Services) updateRegisteredApp(
 	if preparationErr != nil {
 		return nil, preparationErr
 	}
+
+	return registrationTransaction(s, ctx, opts.RequestID,
+		func(qrs *database.Queries) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
+			secretData := new(ApplicationSecretData)
+			secretData.Secret = currentSecret
+			secretData.Exp = exp
+			secretData.Key = key
+			return s.updateRegisteredApp(ctx, qrs, &account, existing, &data, secretData, opts)
+		},
+	)
+}
+
+func (s *Services) updateRegisteredApp(
+	ctx context.Context,
+	qrs *database.Queries,
+	account *dtos.AccountDTO,
+	existing *database.App,
+	data *ApplicationRegistrationData,
+	secretData *ApplicationSecretData,
+	opts UpdateRegisteredAppOptions,
+) (*dtos.ClientRegistrationDTO, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, oauthDynamicRegistrationConfigLocation, "UpdateRegisteredApp")
+
 	if data.TokenEndpointAuthMethod != string(existing.TokenEndpointAuthMethod) {
 		return nil, exceptions.NewValidationError("token_endpoint_auth_method cannot be changed")
 	}
@@ -553,7 +581,7 @@ func (s *Services) updateRegisteredApp(
 		domain: parsedClientURI.Hostname(), requestID: opts.RequestID, tokenEndpointAuthMethod: tokenEndpointAuthMethod,
 		scopes: stdScopes, customScopes: customScopes, defaultScopes: defaultStdScopes,
 		defaultCustomScopes: defaultCustomScopes, allowUserRegistration: existing.AllowUserRegistration,
-		usernameColumn: existing.UsernameColumn, authProviders: existing.AuthProviders, data: &data,
+		usernameColumn: existing.UsernameColumn, authProviders: existing.AuthProviders, data: data,
 	})
 	if serviceErr != nil {
 		return nil, serviceErr
@@ -579,7 +607,8 @@ func (s *Services) updateRegisteredApp(
 		logger.ErrorContext(ctx, "Failed to update app", "error", err)
 		return nil, exceptions.FromDBError(err)
 	}
-	dto := dtos.MapRegisteredApp(&updated, opts.SoftwareStatement, currentSecret, exp, key)
+
+	dto := dtos.MapRegisteredApp(&updated, opts.SoftwareStatement, secretData.Secret, secretData.Exp, secretData.Key)
 	token, serviceErr := s.registrationResponseToken(ctx, registrationStateOptions{
 		RequestID: opts.RequestID, AccountPublicID: account.PublicID, AccountVersion: account.Version(),
 		ClientID: updated.ClientID, BackendDomain: opts.BackendDomain, ID: updated.ID, AccountID: updated.AccountID,

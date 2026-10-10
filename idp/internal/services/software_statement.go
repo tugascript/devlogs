@@ -30,6 +30,12 @@ const softwareStatementLocation = "software_statement"
 
 type ApplicationRegistrationData = tokens.SoftwareStatementClaims
 
+type ApplicationSecretData struct {
+	Secret string
+	Exp    time.Time
+	Key    utils.JWK
+}
+
 type verifySoftwareStatementSTDClaimsOptions struct {
 	requestID      string
 	backendDomain  string
