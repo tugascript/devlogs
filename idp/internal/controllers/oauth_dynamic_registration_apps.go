@@ -37,7 +37,7 @@ func appsIATResumeURL(fields bodies.OAuthDynamicRegistrationIATAuthHiddenFieldsB
 }
 
 const (
-	oauthAppsDynamicRegistrationIAT string = "oauth_dynamic_registration_apps"
+	oauthDynamicRegistrationApps string = "oauth_dynamic_registration_apps"
 
 	appsIATCookieSuffix    string = "_app_iat"
 	appsIAT2FACookieSuffix string = "_app_iat_2fa"
@@ -45,7 +45,7 @@ const (
 
 func (c *Controllers) AppsOAuthDynamicRegistrationIATAuth(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, oauthAppsDynamicRegistrationIAT, "AppsOAuthDynamicRegistrationIATAuth")
+	logger := c.buildLogger(requestID, oauthDynamicRegistrationApps, "AppsOAuthDynamicRegistrationIATAuth")
 	logRequest(logger, ctx)
 
 	username, accountID, hostErr := getHostAccount(ctx)
@@ -111,7 +111,7 @@ func (c *Controllers) AppsOAuthDynamicRegistrationIATAuth(ctx fiber.Ctx) error {
 
 func (c *Controllers) AppsOAuthDynamicRegistrationIATLoginGet(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, oauthAppsDynamicRegistrationIAT, "AppsOAuthDynamicRegistrationIATLoginGet")
+	logger := c.buildLogger(requestID, oauthDynamicRegistrationApps, "AppsOAuthDynamicRegistrationIATLoginGet")
 	logRequest(logger, ctx)
 
 	username, accountID, hostErr := getHostAccount(ctx)
@@ -220,7 +220,7 @@ func (c *Controllers) removeAppIAT2FACookie(ctx fiber.Ctx) {
 
 func (c *Controllers) AppsOAuthDynamicRegistrationIATLoginPost(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, oauthAppsDynamicRegistrationIAT, "AppsOAuthDynamicRegistrationIATLoginPost")
+	logger := c.buildLogger(requestID, oauthDynamicRegistrationApps, "AppsOAuthDynamicRegistrationIATLoginPost")
 	logRequest(logger, ctx)
 
 	username, accountID, hostErr := getHostAccount(ctx)
@@ -351,7 +351,7 @@ func (c *Controllers) AppsOAuthDynamicRegistrationIATLoginPost(ctx fiber.Ctx) er
 
 func (c *Controllers) AppsOAuthDynamicRegistrationIAT2FAGet(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, oauthAppsDynamicRegistrationIAT, "AppsOAuthDynamicRegistrationIAT2FAGet")
+	logger := c.buildLogger(requestID, oauthDynamicRegistrationApps, "AppsOAuthDynamicRegistrationIAT2FAGet")
 	logRequest(logger, ctx)
 
 	username, accountID, hostErr := getHostAccount(ctx)
@@ -415,7 +415,7 @@ func (c *Controllers) AppsOAuthDynamicRegistrationIAT2FAGet(ctx fiber.Ctx) error
 
 func (c *Controllers) AppsOAuthDynamicRegistrationIAT2FAPost(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, oauthAppsDynamicRegistrationIAT, "AppsOAuthDynamicRegistrationIAT2FAPost")
+	logger := c.buildLogger(requestID, oauthDynamicRegistrationApps, "AppsOAuthDynamicRegistrationIAT2FAPost")
 	logRequest(logger, ctx)
 
 	username, accountID, hostErr := getHostAccount(ctx)
@@ -543,7 +543,7 @@ func (c *Controllers) AppsOAuthDynamicRegistrationIAT2FAPost(ctx fiber.Ctx) erro
 
 func (c *Controllers) AppsOAuthDynamicRegistrationIATExtAuthGet(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, oauthAppsDynamicRegistrationIAT, "AppsOAuthDynamicRegistrationIATExtAuthGet")
+	logger := c.buildLogger(requestID, oauthDynamicRegistrationApps, "AppsOAuthDynamicRegistrationIATExtAuthGet")
 	logRequest(logger, ctx)
 
 	username, accountID, hostErr := getHostAccount(ctx)
@@ -612,7 +612,7 @@ func (c *Controllers) AppsOAuthDynamicRegistrationIATExtAuthGet(ctx fiber.Ctx) e
 
 func (c *Controllers) AppsOAuthDynamicRegistrationIATExtCB(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, oauthAppsDynamicRegistrationIAT, "AppsOAuthDynamicRegistrationIATExtCB")
+	logger := c.buildLogger(requestID, oauthDynamicRegistrationApps, "AppsOAuthDynamicRegistrationIATExtCB")
 	logRequest(logger, ctx)
 
 	username, accountID, hostErr := getHostAccount(ctx)
@@ -661,7 +661,7 @@ func (c *Controllers) AppsOAuthDynamicRegistrationIATExtCB(ctx fiber.Ctx) error 
 
 func (c *Controllers) AppsOAuthDynamicRegistrationIATExtAppleCB(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, oauthAppsDynamicRegistrationIAT, "AppsOAuthDynamicRegistrationIATExtAppleCB")
+	logger := c.buildLogger(requestID, oauthDynamicRegistrationApps, "AppsOAuthDynamicRegistrationIATExtAppleCB")
 	logRequest(logger, ctx)
 
 	username, accountID, hostErr := getHostAccount(ctx)
@@ -722,7 +722,7 @@ func (c *Controllers) AppsOAuthDynamicRegistrationIATExtAppleCB(ctx fiber.Ctx) e
 
 func (c *Controllers) AppsOAuthDynamicRegistrationIATToken(ctx fiber.Ctx) error {
 	requestID := getRequestID(ctx)
-	logger := c.buildLogger(requestID, oauthAppsDynamicRegistrationIAT, "AppsOAuthDynamicRegistrationIATToken")
+	logger := c.buildLogger(requestID, oauthDynamicRegistrationApps, "AppsOAuthDynamicRegistrationIATToken")
 	logRequest(logger, ctx)
 
 	username, accountID, hostErr := getHostAccount(ctx)
@@ -859,4 +859,99 @@ func (c *Controllers) OAuthAppDynamicRegistration(ctx fiber.Ctx) error {
 
 	logResponse(logger, ctx, fiber.StatusCreated)
 	return ctx.Status(fiber.StatusCreated).JSON(appDTO.Registration)
+}
+
+func (c *Controllers) OAuthAppDynamicRegistrationGet(ctx fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, oauthDynamicRegistrationApps, "OAuthAppDynamicRegistrationGet")
+	logRequest(logger, ctx)
+	ctx.Set(fiber.HeaderCacheControl, "no-store")
+	ctx.Set(fiber.HeaderPragma, "no-cache")
+
+	username, _, serviceErr := getHostAccount(ctx)
+	accountClaims, ok := ctx.Locals("account").(tokens.AccountClaims)
+	tokenClientID, tokenOK := registrationClientIDFromContext(ctx)
+	if serviceErr != nil || !ok || !tokenOK || tokenClientID != ctx.Params("clientID") {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+	}
+
+	dto, serviceErr := c.services.GetRegisteredApp(ctx.Context(), services.GetRegisteredClientOptions{
+		RegistrationToken: registrationBearer(ctx),
+		RequestID:         requestID, AccountPublicID: accountClaims.AccountID, ClientID: tokenClientID,
+		BackendDomain: c.backendDomain, HostUsername: username,
+	})
+	if serviceErr != nil {
+		return dynamicRegistrationServiceError(logger, ctx, serviceErr)
+	}
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(dto)
+}
+
+func (c *Controllers) OAuthAppDynamicRegistrationUpdate(ctx fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, oauthDynamicRegistrationApps, "OAuthAppDynamicRegistrationUpdate")
+	logRequest(logger, ctx)
+	ctx.Set(fiber.HeaderCacheControl, "no-store")
+	ctx.Set(fiber.HeaderPragma, "no-cache")
+
+	username, accountID, serviceErr := getHostAccount(ctx)
+	tokenClientID, tokenOK := registrationClientIDFromContext(ctx)
+	if serviceErr != nil || !tokenOK || tokenClientID != ctx.Params("clientID") {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+	}
+	body, err := c.bindRegistrationBody(ctx)
+	if err != nil {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidClientMetadata, err.Error())
+	}
+
+	dto, serviceErr := c.services.UpdateRegisteredApp(ctx.Context(), services.UpdateRegisteredAppOptions{
+		ClientID:                     tokenClientID,
+		SubmittedClientID:            body.ClientID,
+		SubmittedClientSecret:        body.ClientSecret,
+		SubmittedClientSecretPresent: body.ClientSecretPresent,
+		RegistrationToken:            registrationBearer(ctx),
+		HostUsername:                 username,
+		CreateAppCredentialsRegistrationOptions: services.CreateAppCredentialsRegistrationOptions{
+			RequestID: requestID, AccountID: accountID, ApplicationType: body.ApplicationType, RedirectURIs: body.RedirectURIs,
+			TokenEndpointAuthMethod: body.TokenEndpointAuthMethod, GrantTypes: body.GrantTypes, ResponseTypes: body.ResponseTypes,
+			ClientName: body.ClientName, ClientURI: body.ClientURI, LogoURI: body.LogoURI, TOSURI: body.TOSURI, PolicyURI: body.PolicyURI,
+			Contacts: body.Contacts, SoftwareID: body.SoftwareID, SoftwareVersion: body.SoftwareVersion, SoftwareStatement: body.SoftwareStatement,
+			JWKsURI: body.JWKsURI, JWKs: body.JWKs, FrontendDomain: c.frontendDomain, BackendDomain: c.backendDomain,
+			RequireAuthTime: body.RequireAuthTime, DefaultMaxAge: body.DefaultMaxAge, SubjectType: body.SubjectType,
+			IDTokenSignedResponseAlg: body.IDTokenSignedResponseAlg, IDTokenEncryptedResponseAlg: body.IDTokenEncryptedResponseAlg,
+			IDTokenEncryptedResponseEnc: body.IDTokenEncryptedResponseEnc, RequestObjectSigningAlg: body.RequestObjectSigningAlg,
+			RequestObjectEncryptionAlg: body.RequestObjectEncryptionAlg, RequestObjectEncryptionEnc: body.RequestObjectEncryptionEnc,
+			DefaultACRValues: body.DefaultACRValues, Scope: body.Scope, SectorIdentifierURI: body.SectorIdentifierURI,
+			InitiateLoginURI: body.InitiateLoginURI, RequestURIs: body.RequestURIs, UserInfoSignedResponseAlg: body.UserInfoSignedResponseAlg,
+			UserInfoEncryptedResponseAlg: body.UserInfoEncryptedResponseAlg, UserInfoEncryptedResponseEnc: body.UserInfoEncryptedResponseEnc,
+			TokenEndpointAuthSigningAlg: body.TokenEndpointAuthSigningAlg, AccessTokenSigningAlg: body.AccessTokenSigningAlg,
+		},
+	})
+	if serviceErr != nil {
+		return dynamicRegistrationServiceError(logger, ctx, serviceErr)
+	}
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(dto)
+}
+
+func (c *Controllers) OAuthAppDynamicRegistrationDelete(ctx fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, oauthDynamicRegistrationApps, "OAuthAppDynamicRegistrationDelete")
+	logRequest(logger, ctx)
+
+	username, _, serviceErr := getHostAccount(ctx)
+	accountClaims, ok := ctx.Locals("account").(tokens.AccountClaims)
+	tokenClientID, tokenOK := registrationClientIDFromContext(ctx)
+	if serviceErr != nil || !ok || !tokenOK || tokenClientID != ctx.Params("clientID") {
+		return oauthErrorResponse(logger, ctx, exceptions.OAuthErrorInvalidToken)
+	}
+	if serviceErr := c.services.DeleteRegisteredApp(ctx.Context(), services.GetRegisteredClientOptions{
+		RegistrationToken: registrationBearer(ctx),
+		BackendDomain:     c.backendDomain, HostUsername: username,
+		RequestID: requestID, AccountPublicID: accountClaims.AccountID, ClientID: tokenClientID,
+	}); serviceErr != nil {
+		return dynamicRegistrationServiceError(logger, ctx, serviceErr)
+	}
+	logResponse(logger, ctx, fiber.StatusNoContent)
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
