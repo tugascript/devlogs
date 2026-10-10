@@ -594,6 +594,10 @@ func validateRegistrationRedirectURIs(applicationType string, redirectURIs []str
 				if !strings.EqualFold(uri.Hostname(), "localhost") && !net.ParseIP(uri.Hostname()).IsLoopback() {
 					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "HTTP redirect URIs must use localhost or a loopback IP address")
 				}
+			} else if !isValidReverseDomainScheme(scheme) {
+				return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "native redirect URIs must use a reverse-domain private-use scheme, loopback HTTP, or HTTPS")
+			} else if !strings.HasPrefix(raw[len(uri.Scheme)+1:], "/") || (uri.Host == "" && uri.Path == "" && uri.Opaque == "") {
+				return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "invalid redirect URI")
 			}
 		case "web":
 			if scheme != "https" && scheme != "http" {
@@ -628,6 +632,46 @@ func validateRegistrationRedirectURIs(applicationType string, redirectURIs []str
 	}
 
 	return nil
+}
+
+func isValidReverseDomainScheme(scheme string) bool {
+	if len(scheme) == 0 || len(scheme) > 253 {
+		return false
+	}
+
+	parts := strings.Split(scheme, ".")
+	if len(parts) < 2 {
+		return false
+	}
+
+	tld := parts[0]
+	if len(tld) < 2 || len(tld) > 63 {
+		return false
+	}
+	if tld[0] < 'a' || tld[0] > 'z' || tld[len(tld)-1] == '-' {
+		return false
+	}
+	for _, r := range tld {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
+			return false
+		}
+	}
+
+	for _, label := range parts[1:] {
+		if len(label) == 0 || len(label) > 63 {
+			return false
+		}
+		if label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, r := range label {
+			if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func validateRegistrationURIs(data *ApplicationRegistrationData) *exceptions.ServiceError {
