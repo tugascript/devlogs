@@ -61,10 +61,6 @@ watch:
             fi; \
         fi
 
-keygen:
-	@echo "Generating keys..."
-	DEBUG=true go run ../keygen/main.go
-
 test-verbose:
 	@echo "Testing..."
 	@go test -v ./tests

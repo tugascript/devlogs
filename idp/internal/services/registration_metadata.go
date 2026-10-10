@@ -274,6 +274,10 @@ func (s *Services) prepareDynamicRegistration(
 			ID:        opts.accountID,
 		})
 		if err != nil {
+			if err.Code == exceptions.CodeNotFound {
+				logger.InfoContext(ctx, "Account not found", "serviceError", err)
+				return data, exceptions.NewForbiddenError()
+			}
 			logger.ErrorContext(ctx, "Failed to get account by ID", "serviceError", err)
 			return data, exceptions.NewInternalServerError()
 		}
@@ -283,6 +287,10 @@ func (s *Services) prepareDynamicRegistration(
 			AccountID: opts.accountID,
 		})
 		if err != nil {
+			if err.Code == exceptions.CodeNotFound {
+				logger.InfoContext(ctx, "App dynamic registration config not found", "serviceError", err)
+				return data, exceptions.NewForbiddenError()
+			}
 			logger.ErrorContext(ctx, "Failed to get and cache app dynamic registration config", "serviceError", err)
 			return data, exceptions.NewInternalServerError()
 		}
@@ -300,6 +308,10 @@ func (s *Services) prepareDynamicRegistration(
 			AccountPublicID: opts.accountPublicID,
 		})
 		if err != nil {
+			if err.Code == exceptions.CodeNotFound {
+				logger.InfoContext(ctx, "Account dynamic registration config not found", "serviceError", err)
+				return data, exceptions.NewForbiddenError()
+			}
 			logger.ErrorContext(ctx, "Failed to get and cache account dynamic registration config", "serviceError", err)
 			return data, exceptions.NewInternalServerError()
 		}
@@ -541,8 +553,7 @@ func normalizeRegistrationMetadata(data *ApplicationRegistrationData) *exception
 
 	hasImplicitGrant := slices.Contains(data.GrantTypes, "implicit")
 	hasImplicitResponse := slices.ContainsFunc(data.ResponseTypes, func(response string) bool {
-		fields := strings.Fields(response)
-		return slices.Contains(fields, "id_token")
+		return slices.Contains(strings.Fields(response), "id_token")
 	})
 	if hasImplicitResponse && !hasImplicitGrant {
 		return exceptions.NewValidationError("id_token responses require implicit")
@@ -613,10 +624,8 @@ func validateRegistrationRedirectURIs(applicationType string, redirectURIs []str
 				if strings.EqualFold(uri.Hostname(), "localhost") || (net.ParseIP(uri.Hostname()) != nil && net.ParseIP(uri.Hostname()).IsLoopback()) {
 					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "web clients using implicit grant must not use localhost as the hostname")
 				}
-			} else {
-				if scheme == "http" && !strings.EqualFold(uri.Hostname(), "localhost") && !net.ParseIP(uri.Hostname()).IsLoopback() {
-					return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "HTTP redirect URIs must use localhost or a loopback IP address")
-				}
+			} else if scheme == "http" && !strings.EqualFold(uri.Hostname(), "localhost") && !net.ParseIP(uri.Hostname()).IsLoopback() {
+				return exceptions.NewError(exceptions.OAuthErrorInvalidRedirectURI, "HTTP redirect URIs must use localhost or a loopback IP address")
 			}
 		default:
 			if scheme != "https" && scheme != "http" {
@@ -748,4 +757,3 @@ func mapRegistrationResponseTypes(values []string) ([]database.ResponseType, *ex
 	}
 	return mapResponseTypesWithDefault(values)
 }
-

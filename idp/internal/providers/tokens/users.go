@@ -47,6 +47,41 @@ type UserAuthTokenOptions struct {
 	Paths           []string
 }
 
+type UserIDTokenOptions struct {
+	Issuer       string
+	ClientID     string
+	UserPublicID uuid.UUID
+	Nonce        string
+	TTL          time.Duration
+}
+
+type userIDTokenClaims struct {
+	Nonce           string `json:"nonce"`
+	AuthorizedParty string `json:"azp,omitempty"`
+	jwt.RegisteredClaims
+}
+
+func CreateUserIDToken(opts UserIDTokenOptions) (*jwt.Token, error) {
+	if opts.Issuer == "" || opts.ClientID == "" || opts.UserPublicID == uuid.Nil || opts.Nonce == "" || opts.TTL <= 0 {
+		return nil, errors.New("invalid ID token options")
+	}
+
+	now := time.Now()
+	return jwt.NewWithClaims(jwt.SigningMethodES256, userIDTokenClaims{
+		Nonce:           opts.Nonce,
+		AuthorizedParty: opts.ClientID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    opts.Issuer,
+			Subject:   opts.UserPublicID.String(),
+			Audience:  jwt.ClaimStrings{opts.ClientID},
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(opts.TTL)),
+			ID:        uuid.NewString(),
+		},
+	}), nil
+}
+
 func (t *Tokens) getUserAuthTTL(tokenType AuthTokenType) (int64, error) {
 	switch tokenType {
 	case AuthTokenTypeAccess:

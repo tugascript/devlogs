@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,6 +38,96 @@ const (
 )
 
 var oauthScopes = []oauth.Scope{oauth.ScopeProfile}
+
+type ImplicitOAuthAuthorizationOptions struct {
+	RequestID       string
+	AccountID       int32
+	AccountUsername string
+	BackendDomain   string
+	ClientID        string
+	RedirectURI     string
+	Nonce           string
+	UserClaims      tokens.UserAuthClaims
+	AppClaims       tokens.AppClaims
+}
+
+func (s *Services) ImplicitOAuthAuthorization(
+	ctx context.Context,
+	opts ImplicitOAuthAuthorizationOptions,
+) (string, *exceptions.ServiceError) {
+	logger := s.buildLogger(opts.RequestID, oauthLocation, "ImplicitOAuthAuthorization").With(
+		"clientId", opts.ClientID,
+		"accountId", opts.AccountID,
+	)
+	if opts.ClientID == "" || opts.ClientID != opts.AppClaims.ClientID || opts.Nonce == "" {
+		return "", exceptions.NewUnauthorizedError()
+	}
+
+	appDTO, serviceErr := s.GetAppByClientIDVersionAndAccountID(ctx, GetAppByClientIDVersionAndAccountIDOptions{
+		RequestID: opts.RequestID,
+		ClientID:  opts.ClientID,
+		Version:   opts.AppClaims.Version,
+		AccountID: opts.AccountID,
+	})
+	if serviceErr != nil {
+		return "", serviceErr
+	}
+	if !slices.Contains(appDTO.GrantTypes, database.GrantTypeImplicit) ||
+		!slices.Contains(appDTO.ResponseTypes, database.ResponseTypeIDToken) {
+		return "", exceptions.NewForbiddenError()
+	}
+	if !slices.Contains(appDTO.RedirectURIs, opts.RedirectURI) {
+		return "", exceptions.NewForbiddenError()
+	}
+
+	if _, serviceErr := s.GetUserByPublicIDAndVersion(ctx, GetUserByPublicIDAndVersionOptions{
+		RequestID: opts.RequestID,
+		PublicID:  opts.UserClaims.UserID,
+		Version:   opts.UserClaims.UserVersion,
+		AccountID: opts.AccountID,
+	}); serviceErr != nil {
+		return "", serviceErr
+	}
+
+	ttl := int64(appDTO.IDTokenTTL)
+	if ttl <= 0 {
+		ttl = s.jwt.GetAccessTTL()
+	}
+	token, err := tokens.CreateUserIDToken(tokens.UserIDTokenOptions{
+		Issuer:       fmt.Sprintf("https://%s.%s", opts.AccountUsername, utils.ProcessURL(opts.BackendDomain)),
+		ClientID:     appDTO.ClientID,
+		UserPublicID: opts.UserClaims.UserID,
+		Nonce:        opts.Nonce,
+		TTL:          time.Second * time.Duration(ttl),
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to create user ID token", "error", err)
+		return "", exceptions.NewInternalServerError()
+	}
+
+	signedToken, serviceErr := s.crypto.SignToken(ctx, crypto.SignTokenOptions{
+		RequestID: opts.RequestID,
+		Token:     token,
+		GetJWKfn: s.BuildGetEncryptedAccountJWKFn(ctx, BuildGetEncryptedAccountJWKFnOptions{
+			RequestID: opts.RequestID,
+			KeyType:   database.TokenKeyTypeIDToken,
+			AccountID: opts.AccountID,
+		}),
+		GetDecryptDEKfn: s.BuildGetDecAccountDEKFn(ctx, BuildGetDecAccountDEKFnOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+		}),
+		GetEncryptDEKfn: s.BuildGetEncAccountDEKfn(ctx, BuildGetEncAccountDEKOptions{
+			RequestID: opts.RequestID,
+			AccountID: opts.AccountID,
+		}),
+		StoreFN: s.BuildUpdateJWKDEKFn(ctx, BuildUpdateJWKDEKFnOptions{RequestID: opts.RequestID}),
+	})
+	if serviceErr != nil {
+		return "", serviceErr
+	}
+	return signedToken, nil
+}
 
 type AccountOAuthURLOptions struct {
 	RequestID       string
