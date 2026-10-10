@@ -29,11 +29,11 @@ INSERT INTO "account_grants" (
 `
 
 type CreateAccountGrantWithAccountCredentialsParams struct {
-	AccountID            int32
+	AccountID            int64
 	AccountVersion       int32
-	GrantID              int32
+	GrantID              int64
 	GrantedClientID      string
-	AccountCredentialsID pgtype.Int4
+	AccountCredentialsID pgtype.Int8
 }
 
 func (q *Queries) CreateAccountGrantWithAccountCredentials(ctx context.Context, arg CreateAccountGrantWithAccountCredentialsParams) error {
@@ -63,9 +63,9 @@ INSERT INTO "account_grants" (
 `
 
 type CreateAccountGrantWithoutAccountCredentialsParams struct {
-	AccountID       int32
+	AccountID       int64
 	AccountVersion  int32
-	GrantID         int32
+	GrantID         int64
 	GrantedClientID string
 }
 
@@ -94,22 +94,22 @@ LIMIT 1
 `
 
 type FindAccountGrantByAccountIDAndGrantedClientIDParams struct {
-	AccountID       int32
+	AccountID       int64
 	GrantedClientID string
 }
 
 type FindAccountGrantByAccountIDAndGrantedClientIDRow struct {
-	AccountID            int32
+	AccountID            int64
 	AccountVersion       int32
-	GrantID              int32
-	AccountCredentialsID pgtype.Int4
+	GrantID              int64
+	AccountCredentialsID pgtype.Int8
 	GrantedClientID      string
 	IsRevoked            bool
 	RevokedAt            pgtype.Timestamptz
 	ExpiresAt            pgtype.Timestamptz
 	CreatedAt            time.Time
-	ID                   pgtype.Int4
-	AccountID_2          pgtype.Int4
+	ID                   pgtype.Int8
+	AccountID_2          pgtype.Int8
 	GrantID_2            pgtype.UUID
 	GrantedClientID_2    pgtype.Text
 	GrantedScopes        []Scopes

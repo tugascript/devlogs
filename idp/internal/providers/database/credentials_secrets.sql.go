@@ -30,7 +30,7 @@ INSERT INTO "credentials_secrets" (
 `
 
 type CreateCredentialsSecretParams struct {
-	AccountID    int32
+	AccountID    int64
 	SecretID     string
 	ClientSecret string
 	DekKid       string
@@ -43,7 +43,7 @@ type CreateCredentialsSecretParams struct {
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) CreateCredentialsSecret(ctx context.Context, arg CreateCredentialsSecretParams) (int32, error) {
+func (q *Queries) CreateCredentialsSecret(ctx context.Context, arg CreateCredentialsSecretParams) (int64, error) {
 	row := q.db.QueryRow(ctx, createCredentialsSecret,
 		arg.AccountID,
 		arg.SecretID,
@@ -52,7 +52,7 @@ func (q *Queries) CreateCredentialsSecret(ctx context.Context, arg CreateCredent
 		arg.ExpiresAt,
 		arg.Usage,
 	)
-	var id int32
+	var id int64
 	err := row.Scan(&id)
 	return id, err
 }
@@ -101,7 +101,7 @@ WHERE "id" = $1
 RETURNING id, secret_id, client_secret, dek_kid, is_revoked, usage, account_id, expires_at, created_at, updated_at
 `
 
-func (q *Queries) RevokeCredentialsSecret(ctx context.Context, id int32) (CredentialsSecret, error) {
+func (q *Queries) RevokeCredentialsSecret(ctx context.Context, id int64) (CredentialsSecret, error) {
 	row := q.db.QueryRow(ctx, revokeCredentialsSecret, id)
 	var i CredentialsSecret
 	err := row.Scan(
@@ -128,7 +128,7 @@ WHERE "id" = $1
 `
 
 type UpdateCredentialsSecretClientSecretParams struct {
-	ID           int32
+	ID           int64
 	ClientSecret string
 	DekKid       string
 }

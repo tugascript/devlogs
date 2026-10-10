@@ -203,7 +203,7 @@ func (s *Services) GetAccountByEmail(
 
 type GetAccountByIDOptions struct {
 	RequestID string
-	ID        int32
+	ID        int64
 }
 
 func (s *Services) GetAccountByID(
@@ -299,7 +299,7 @@ func (s *Services) GetAccountByPublicIDAndVersion(
 func (s *Services) updateAccountEmailInDB(
 	ctx context.Context,
 	logger *slog.Logger,
-	accountID int32,
+	accountID int64,
 	oldEmail string,
 	newEmail string,
 ) (database.Account, error) {
@@ -560,7 +560,7 @@ func (s *Services) ConfirmUpdateAccountEmail(
 func (s *Services) updateAccountPasswordInDB(
 	ctx context.Context,
 	logger *slog.Logger,
-	accountID int32,
+	accountID int64,
 	hashedPassword string,
 ) (database.Account, error) {
 	var password pgtype.Text
@@ -1347,7 +1347,7 @@ type GetAccountIDByUsernameOptions struct {
 func (s *Services) getAccountIDByUsername(
 	ctx context.Context,
 	opts GetAccountIDByUsernameOptions,
-) (int32, *exceptions.ServiceError) {
+) (int64, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "getAccountIDByUsername")
 	logger.InfoContext(ctx, "Getting account ID by username...")
 
@@ -1370,7 +1370,7 @@ func (s *Services) getAccountIDByUsername(
 func (s *Services) GetAndCacheAccountIDByUsername(
 	ctx context.Context,
 	opts GetAccountIDByUsernameOptions,
-) (int32, *exceptions.ServiceError) {
+) (int64, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "GetAndCacheAccountIDByUsername")
 	logger.InfoContext(ctx, "Getting and caching account ID by username...")
 
@@ -1415,7 +1415,7 @@ type GetAccountIDByPublicIDAndVersionOptions struct {
 func (s *Services) GetAccountIDByPublicIDAndVersion(
 	ctx context.Context,
 	opts GetAccountIDByPublicIDAndVersionOptions,
-) (int32, *exceptions.ServiceError) {
+) (int64, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.RequestID, accountsLocation, "GetAccountIDByPublicIDAndVersion").With(
 		"publicID", opts.PublicID,
 		"version", opts.Version,

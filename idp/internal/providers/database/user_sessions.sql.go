@@ -24,21 +24,21 @@ LIMIT 1
 `
 
 type FindUserSessionByUserIDAndSessionUUIDParams struct {
-	UserID      int32
+	UserID      int64
 	SessionUuid uuid.UUID
 }
 
 type FindUserSessionByUserIDAndSessionUUIDRow struct {
-	UserID          int32
+	UserID          int64
 	UserVersion     int32
-	SessionID       int32
-	AppID           int32
-	AccountID       int32
+	SessionID       int64
+	AppID           int64
+	AccountID       int64
 	SessionUuid     uuid.UUID
 	CreatedAt       time.Time
-	ID              pgtype.Int4
-	AccountID_2     pgtype.Int4
-	GrantID         pgtype.Int4
+	ID              pgtype.Int8
+	AccountID_2     pgtype.Int8
+	GrantID         pgtype.Int8
 	SessionID_2     pgtype.UUID
 	SessionType     NullSessionType
 	SessionClientID pgtype.Text

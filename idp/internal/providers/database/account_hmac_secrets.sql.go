@@ -28,7 +28,7 @@ INSERT INTO "account_hmac_secrets" (
 `
 
 type CreateAccountHMACSecretParams struct {
-	AccountID int32
+	AccountID int64
 	SecretID  string
 	Secret    string
 	DekKid    string
@@ -40,7 +40,7 @@ type CreateAccountHMACSecretParams struct {
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) CreateAccountHMACSecret(ctx context.Context, arg CreateAccountHMACSecretParams) (int32, error) {
+func (q *Queries) CreateAccountHMACSecret(ctx context.Context, arg CreateAccountHMACSecretParams) (int64, error) {
 	row := q.db.QueryRow(ctx, createAccountHMACSecret,
 		arg.AccountID,
 		arg.SecretID,
@@ -48,7 +48,7 @@ func (q *Queries) CreateAccountHMACSecret(ctx context.Context, arg CreateAccount
 		arg.DekKid,
 		arg.ExpiresAt,
 	)
-	var id int32
+	var id int64
 	err := row.Scan(&id)
 	return id, err
 }
@@ -60,7 +60,7 @@ LIMIT 1
 `
 
 type FindAccountHMACSecretByAccountIDAndSecretIDParams struct {
-	AccountID int32
+	AccountID int64
 	SecretID  string
 }
 
@@ -89,7 +89,7 @@ WHERE
 LIMIT 1
 `
 
-func (q *Queries) FindValidHMACSecretByAccountID(ctx context.Context, accountID int32) (AccountHmacSecret, error) {
+func (q *Queries) FindValidHMACSecretByAccountID(ctx context.Context, accountID int64) (AccountHmacSecret, error) {
 	row := q.db.QueryRow(ctx, findValidHMACSecretByAccountID, accountID)
 	var i AccountHmacSecret
 	err := row.Scan(
@@ -114,7 +114,7 @@ WHERE "id" = $1
 `
 
 type UpdateAccountHMACSecretParams struct {
-	ID     int32
+	ID     int64
 	Secret string
 	DekKid string
 }

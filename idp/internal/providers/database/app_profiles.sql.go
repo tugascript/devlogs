@@ -25,9 +25,9 @@ INSERT INTO "app_profiles" (
 `
 
 type CreateAppProfileParams struct {
-	AccountID   int32
-	UserID      int32
-	AppID       int32
+	AccountID   int64
+	UserID      int64
+	AppID       int64
 	ProfileType AppProfileType
 }
 
@@ -52,8 +52,8 @@ WHERE "app_id" = $1 AND "user_id" = $2
 `
 
 type FindAppProfileByAppIDAndUserIDParams struct {
-	AppID  int32
-	UserID int32
+	AppID  int64
+	UserID int64
 }
 
 func (q *Queries) FindAppProfileByAppIDAndUserID(ctx context.Context, arg FindAppProfileByAppIDAndUserIDParams) (AppProfile, error) {

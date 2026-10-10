@@ -49,7 +49,7 @@ WHERE "account_id" = $1 AND "client_name" = $2
 `
 
 type CountAccountCredentialsByNameAndAccountIDParams struct {
-	AccountID  int32
+	AccountID  int64
 	ClientName string
 }
 
@@ -145,7 +145,7 @@ INSERT INTO "account_credentials" (
 `
 
 type CreateAccountCredentialsParams struct {
-	AccountID                    int32
+	AccountID                    int64
 	AccountPublicID              uuid.UUID
 	Domain                       string
 	CreationMethod               CreationMethod
@@ -303,7 +303,7 @@ DELETE FROM grants WHERE account_id = $1 AND granted_client_id = $2
 `
 
 type DeleteRegisteredAccountCredentialsGrantsParams struct {
-	AccountID       int32
+	AccountID       int64
 	GrantedClientID string
 }
 
@@ -587,7 +587,7 @@ UPDATE credentials_keys SET is_revoked = true, updated_at = now()
 WHERE id IN (SELECT credentials_key_id FROM account_credentials_keys WHERE account_credentials_id = $1)
 `
 
-func (q *Queries) RevokeRegisteredAccountCredentialsKeys(ctx context.Context, accountCredentialsID int32) error {
+func (q *Queries) RevokeRegisteredAccountCredentialsKeys(ctx context.Context, accountCredentialsID int64) error {
 	_, err := q.db.Exec(ctx, revokeRegisteredAccountCredentialsKeys, accountCredentialsID)
 	return err
 }
@@ -597,7 +597,7 @@ UPDATE credentials_secrets SET is_revoked = true, updated_at = now()
 WHERE id IN (SELECT credentials_secret_id FROM account_credentials_secrets WHERE account_credentials_id = $1)
 `
 
-func (q *Queries) RevokeRegisteredAccountCredentialsSecrets(ctx context.Context, accountCredentialsID int32) error {
+func (q *Queries) RevokeRegisteredAccountCredentialsSecrets(ctx context.Context, accountCredentialsID int64) error {
 	_, err := q.db.Exec(ctx, revokeRegisteredAccountCredentialsSecrets, accountCredentialsID)
 	return err
 }
@@ -607,7 +607,7 @@ UPDATE account_credentials SET registration_token_jti = $2, software_statement =
 `
 
 type SetAccountCredentialsRegistrationStateParams struct {
-	ID                   int32
+	ID                   int64
 	RegistrationTokenJti pgtype.UUID
 	SoftwareStatement    string
 }
@@ -636,7 +636,7 @@ RETURNING registration_token_jti, software_statement, id, account_id, account_pu
 `
 
 type UpdateAccountCredentialsParams struct {
-	ID              int32
+	ID              int64
 	Scopes          []AccountCredentialsScope
 	ClientName      string
 	Domain          string
@@ -757,7 +757,7 @@ RETURNING registration_token_jti, software_statement, id, account_id, account_pu
 `
 
 type UpdateRegisteredAccountCredentialsParams struct {
-	ID                           int32
+	ID                           int64
 	Domain                       string
 	RedirectUris                 []string
 	TokenEndpointAuthMethod      AuthMethod

@@ -28,7 +28,7 @@ type KeyPair struct {
 	CryptoSuite utils.SupportedCryptoSuite
 }
 
-type StorePrivateKey = func(dekKid string, cryptoSuite utils.SupportedCryptoSuite, kid, encryptedKey string, pubKey utils.JWK) (int32, *exceptions.ServiceError)
+type StorePrivateKey = func(dekKid string, cryptoSuite utils.SupportedCryptoSuite, kid, encryptedKey string, pubKey utils.JWK) (int64, *exceptions.ServiceError)
 
 type GenerateKeyPairOptions struct {
 	RequestID string

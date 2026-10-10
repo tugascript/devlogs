@@ -446,13 +446,13 @@ func getUserAccessClaims(ctx fiber.Ctx) (tokens.UserAuthClaims, tokens.AppClaims
 	return user, app, scopes, nil
 }
 
-func getHostAccount(ctx fiber.Ctx) (string, int32, *exceptions.ServiceError) {
+func getHostAccount(ctx fiber.Ctx) (string, int64, *exceptions.ServiceError) {
 	accountUsername, ok := ctx.Locals("accountUsername").(string)
 	if !ok || accountUsername == "" {
 		return "", 0, exceptions.NewNotFoundError()
 	}
 
-	accountID, ok := ctx.Locals("accountID").(int32)
+	accountID, ok := ctx.Locals("accountID").(int64)
 	if !ok || accountID == 0 {
 		return "", 0, exceptions.NewNotFoundError()
 	}

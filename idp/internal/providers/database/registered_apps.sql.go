@@ -113,7 +113,7 @@ INSERT INTO "apps" (
 `
 
 type CreateRegisteredAppParams struct {
-	AccountID                    int32
+	AccountID                    int64
 	AccountPublicID              uuid.UUID
 	AppType                      AppType
 	ClientName                   string
@@ -324,7 +324,7 @@ RETURNING registration_token_jti, software_statement, id, account_id, account_pu
 `
 
 type UpdateRegisteredAppParams struct {
-	ID                           int32
+	ID                           int64
 	ClientName                   string
 	ClientUri                    string
 	UsernameColumn               AppUsernameColumn

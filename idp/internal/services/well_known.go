@@ -18,7 +18,7 @@ const wellKnownLocation = "well_known"
 
 type WellKnownJWKsOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 }
 
 func (s *Services) WellKnownJWKs(
@@ -41,7 +41,7 @@ func (s *Services) WellKnownJWKs(
 
 type WellKnownOIDCConfigurationWithCacheOptions struct {
 	RequestID       string
-	AccountID       int32
+	AccountID       int64
 	BackendDomain   string
 	AccountUsername string
 }

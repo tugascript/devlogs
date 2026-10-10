@@ -9,7 +9,7 @@ package dtos
 import "github.com/tugascript/devlogs/idp/internal/providers/database"
 
 type AccountDynamicRegistrationConfigDTO struct {
-	id int32
+	id int64
 
 	CredentialsTypes                        []database.AccountCredentialsType              `json:"credentials_types"`
 	RequireSoftwareStatementCredentialTypes []database.AccountCredentialsType              `json:"require_software_statement_credential_types"`
@@ -17,7 +17,7 @@ type AccountDynamicRegistrationConfigDTO struct {
 	SoftwareStatementVerificationMethods    []database.SoftwareStatementVerificationMethod `json:"software_statement_verification_methods"`
 }
 
-func (a *AccountDynamicRegistrationConfigDTO) ID() int32 {
+func (a *AccountDynamicRegistrationConfigDTO) ID() int64 {
 	return a.id
 }
 

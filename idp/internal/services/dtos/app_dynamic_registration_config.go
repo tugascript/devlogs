@@ -9,7 +9,7 @@ package dtos
 import "github.com/tugascript/devlogs/idp/internal/providers/database"
 
 type AppDynamicRegistrationConfigDTO struct {
-	id int32
+	id int64
 
 	AllowedAppTypes                      []database.AppType                             `json:"allowed_app_types"`
 	WhitelistedDomains                   []string                                       `json:"whitelisted_domains"`
@@ -31,7 +31,7 @@ type AppDynamicRegistrationConfigDTO struct {
 	MaxRedirectUris                      int32                                          `json:"max_redirect_uris"`
 }
 
-func (a *AppDynamicRegistrationConfigDTO) ID() int32 {
+func (a *AppDynamicRegistrationConfigDTO) ID() int64 {
 	return a.id
 }
 

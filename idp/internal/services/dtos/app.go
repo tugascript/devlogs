@@ -17,8 +17,8 @@ import (
 
 type AppDTO struct {
 	Registration *ClientRegistrationDTO `json:"-"`
-	id           int32
-	accountID    int32
+	id           int64
+	accountID    int64
 	version      int32
 
 	AppType        database.AppType        `json:"app_type"`
@@ -52,14 +52,13 @@ type AppDTO struct {
 	ClientSecret    string    `json:"client_secret,omitempty"`
 	ClientSecretJWK utils.JWK `json:"client_secret_jwk,omitempty"`
 	ClientSecretExp int64     `json:"client_secret_exp,omitempty"`
-
 }
 
-func (a *AppDTO) ID() int32 {
+func (a *AppDTO) ID() int64 {
 	return a.id
 }
 
-func (a *AppDTO) AccountID() int32 {
+func (a *AppDTO) AccountID() int64 {
 	return a.accountID
 }
 

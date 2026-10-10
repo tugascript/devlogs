@@ -26,10 +26,10 @@ type AppDesignDTO struct {
 	LogoURL     string     `json:"logo_url,omitempty"`
 	FaviconURL  string     `json:"favicon_url,omitempty"`
 
-	id int32
+	id int64
 }
 
-func (a *AppDesignDTO) ID() int32 {
+func (a *AppDesignDTO) ID() int64 {
 	return a.id
 }
 

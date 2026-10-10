@@ -19,13 +19,13 @@ type AccountDTO struct {
 	Email      string    `json:"email"`
 	Username   string    `json:"username"`
 
-	id            int32
+	id            int64
 	version       int32
 	emailVerified bool
 	password      string
 }
 
-func (a *AccountDTO) ID() int32 {
+func (a *AccountDTO) ID() int64 {
 	return a.id
 }
 

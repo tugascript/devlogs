@@ -27,7 +27,7 @@ type Account2FACodeConfigDTO struct {
 }
 
 type Account2FAConfigDTO struct {
-	id int32
+	id int64
 
 	TwoFactorType database.TwoFactorType `json:"two_factor_type"`
 	IsDefault     bool                   `json:"is_default"`
@@ -109,7 +109,7 @@ func (a *Account2FAConfigDTO) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (a *Account2FAConfigDTO) ID() int32 {
+func (a *Account2FAConfigDTO) ID() int64 {
 	return a.id
 }
 

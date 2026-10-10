@@ -122,7 +122,7 @@ func mapAppTokenEndpointAuthMethod(
 type mapAppRegistrationDataToDBParamsOptions struct {
 	appType                 database.AppType
 	accountPublicID         uuid.UUID
-	accountID               int32
+	accountID               int64
 	domain                  string
 	requestID               string
 	tokenEndpointAuthMethod database.AuthMethod
@@ -309,7 +309,7 @@ type CreateAppCredentialsRegistrationOptions struct {
 	// InitialAccessTokenDomain comes only from the verified IAT, never client metadata.
 	InitialAccessTokenDomain     string
 	RequestID                    string
-	AccountID                    int32
+	AccountID                    int64
 	IsAuthenticated              bool
 	AccountVersion               int32
 	ApplicationType              string
@@ -670,7 +670,7 @@ func (s *Services) createAppCredentialsRegistration(
 
 		return s.finalizeRegisteredApp(ctx, qrs, opts, accountDTO, &app, "", dbPrms.ExpiresAt, jwk)
 	case database.AuthMethodClientSecretBasic, database.AuthMethodClientSecretPost, database.AuthMethodClientSecretJwt:
-		var ccID int32
+		var ccID int64
 		var secretID, secret string
 		var exp time.Time
 		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{

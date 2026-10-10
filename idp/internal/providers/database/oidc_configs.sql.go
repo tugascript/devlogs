@@ -20,7 +20,7 @@ WHERE "account_id" = $1
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) CountOIDCConfigsByAccountID(ctx context.Context, accountID int32) (int64, error) {
+func (q *Queries) CountOIDCConfigsByAccountID(ctx context.Context, accountID int64) (int64, error) {
 	row := q.db.QueryRow(ctx, countOIDCConfigsByAccountID, accountID)
 	var count int64
 	err := row.Scan(&count)
@@ -35,7 +35,7 @@ INSERT INTO "oidc_configs" (
 ) RETURNING id, account_id, claims_supported, scopes_supported, custom_claims, custom_scopes, created_at, updated_at
 `
 
-func (q *Queries) CreateDefaultOIDCConfig(ctx context.Context, accountID int32) (OidcConfig, error) {
+func (q *Queries) CreateDefaultOIDCConfig(ctx context.Context, accountID int64) (OidcConfig, error) {
 	row := q.db.QueryRow(ctx, createDefaultOIDCConfig, accountID)
 	var i OidcConfig
 	err := row.Scan(
@@ -68,7 +68,7 @@ INSERT INTO "oidc_configs" (
 `
 
 type CreateOIDCConfigParams struct {
-	AccountID       int32
+	AccountID       int64
 	ClaimsSupported []Claims
 	ScopesSupported []Scopes
 	CustomClaims    []string
@@ -103,7 +103,7 @@ WHERE "account_id" = $1
 LIMIT 1
 `
 
-func (q *Queries) FindOIDCConfigByAccountID(ctx context.Context, accountID int32) (OidcConfig, error) {
+func (q *Queries) FindOIDCConfigByAccountID(ctx context.Context, accountID int64) (OidcConfig, error) {
 	row := q.db.QueryRow(ctx, findOIDCConfigByAccountID, accountID)
 	var i OidcConfig
 	err := row.Scan(
@@ -131,7 +131,7 @@ RETURNING id, account_id, claims_supported, scopes_supported, custom_claims, cus
 `
 
 type UpdateOIDCConfigParams struct {
-	ID              int32
+	ID              int64
 	ClaimsSupported []Claims
 	ScopesSupported []Scopes
 	CustomClaims    []string

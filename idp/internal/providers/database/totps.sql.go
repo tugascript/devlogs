@@ -34,7 +34,7 @@ type CreateTotpParams struct {
 	Secret        string
 	RecoveryCodes []byte
 	Usage         TotpUsage
-	AccountID     int32
+	AccountID     int64
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -42,7 +42,7 @@ type CreateTotpParams struct {
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) CreateTotp(ctx context.Context, arg CreateTotpParams) (int32, error) {
+func (q *Queries) CreateTotp(ctx context.Context, arg CreateTotpParams) (int64, error) {
 	row := q.db.QueryRow(ctx, createTotp,
 		arg.DekKid,
 		arg.Url,
@@ -51,7 +51,7 @@ func (q *Queries) CreateTotp(ctx context.Context, arg CreateTotpParams) (int32, 
 		arg.Usage,
 		arg.AccountID,
 	)
-	var id int32
+	var id int64
 	err := row.Scan(&id)
 	return id, err
 }
@@ -67,7 +67,7 @@ WHERE "id" = $1
 `
 
 type UpdateTOTPParams struct {
-	ID            int32
+	ID            int64
 	Url           string
 	Secret        string
 	DekKid        string
@@ -94,7 +94,7 @@ WHERE "id" = $1
 `
 
 type UpdateTOTPSecretAndDEKParams struct {
-	ID     int32
+	ID     int64
 	Secret string
 	DekKid string
 }

@@ -17,7 +17,7 @@ WHERE "account_id" = $1
 LIMIT 1
 `
 
-func (q *Queries) CountAccount2FAConfigsByAccountID(ctx context.Context, accountID int32) (int64, error) {
+func (q *Queries) CountAccount2FAConfigsByAccountID(ctx context.Context, accountID int64) (int64, error) {
 	row := q.db.QueryRow(ctx, countAccount2FAConfigsByAccountID, accountID)
 	var count int64
 	err := row.Scan(&count)
@@ -40,7 +40,7 @@ INSERT INTO "account_2fa_configs" (
 `
 
 type CreateAccount2FAConfigParams struct {
-	AccountID       int32
+	AccountID       int64
 	AccountPublicID uuid.UUID
 	TwoFactorType   TwoFactorType
 	IsDefault       bool
@@ -77,7 +77,7 @@ DELETE FROM "account_2fa_configs"
 WHERE "id" = $1
 `
 
-func (q *Queries) DeleteAccount2FAConfig(ctx context.Context, id int32) error {
+func (q *Queries) DeleteAccount2FAConfig(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteAccount2FAConfig, id)
 	return err
 }
@@ -175,7 +175,7 @@ RETURNING id, account_id, account_public_id, two_factor_type, is_default, is_act
 `
 
 type UpdateAccount2FAConfigParams struct {
-	ID        int32
+	ID        int64
 	IsDefault bool
 }
 

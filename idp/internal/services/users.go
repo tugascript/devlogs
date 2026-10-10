@@ -26,7 +26,7 @@ const usersLocation string = "users"
 func (s *Services) setUserUsername(
 	ctx context.Context,
 	logger *slog.Logger,
-	accountID int32,
+	accountID int64,
 	username string,
 ) (string, *exceptions.ServiceError) {
 	if username == "" {
@@ -52,7 +52,7 @@ func (s *Services) setUserUsername(
 
 type CreateUserOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 	Email     string
 	Username  string
 	Password  string
@@ -152,7 +152,7 @@ func (s *Services) CreateUser(
 
 type ListUsersOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 	Offset    int32
 	Limit     int32
 	Order     string
@@ -230,7 +230,7 @@ func (s *Services) ListUsers(
 
 type FilterUsersOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 	Offset    int32
 	Limit     int32
 	Order     string
@@ -320,8 +320,8 @@ func (s *Services) FilterUsers(
 
 type GetUserByIDOptions struct {
 	RequestID string
-	UserID    int32
-	AccountID int32
+	UserID    int64
+	AccountID int64
 }
 
 func (s *Services) GetUserByID(
@@ -358,7 +358,7 @@ func (s *Services) GetUserByID(
 type GetUserByPublicIDAndVersionOptions struct {
 	RequestID string
 	PublicID  uuid.UUID
-	AccountID int32
+	AccountID int64
 	Version   int32
 }
 
@@ -399,7 +399,7 @@ func (s *Services) GetUserByPublicIDAndVersion(
 
 type GetUserByUsernameOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 	Username  string
 }
 
@@ -435,8 +435,8 @@ func (s *Services) GetUserByUsername(
 
 type UpdateUserOptions struct {
 	RequestID     string
-	AccountID     int32
-	UserID        int32
+	AccountID     int64
+	UserID        int64
 	Email         string
 	Username      string
 	UserData      reflect.Value
@@ -525,8 +525,8 @@ func (s *Services) UpdateUser(
 
 type UpdateUserPasswordOptions struct {
 	RequestID string
-	AccountID int32
-	UserID    int32
+	AccountID int64
+	UserID    int64
 	Password  string
 }
 
@@ -581,8 +581,8 @@ func (s *Services) UpdateUserPassword(
 
 type DeleteUserOptions struct {
 	RequestID string
-	AccountID int32
-	UserID    int32
+	AccountID int64
+	UserID    int64
 }
 
 func (s *Services) DeleteUser(
@@ -621,7 +621,7 @@ func (s *Services) DeleteUser(
 
 type GetUserByEmailOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 	Email     string
 }
 

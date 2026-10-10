@@ -18,7 +18,7 @@ WHERE "ack"."account_credentials_id" = $1
 LIMIT 1
 `
 
-func (q *Queries) CountAccountCredentialKeysByAccountCredentialID(ctx context.Context, accountCredentialsID int32) (int64, error) {
+func (q *Queries) CountAccountCredentialKeysByAccountCredentialID(ctx context.Context, accountCredentialsID int64) (int64, error) {
 	row := q.db.QueryRow(ctx, countAccountCredentialKeysByAccountCredentialID, accountCredentialsID)
 	var count int64
 	err := row.Scan(&count)
@@ -43,9 +43,9 @@ INSERT INTO "account_credentials_keys" (
 `
 
 type CreateAccountCredentialKeyParams struct {
-	AccountCredentialsID int32
-	CredentialsKeyID     int32
-	AccountID            int32
+	AccountCredentialsID int64
+	CredentialsKeyID     int64
+	AccountID            int64
 	AccountPublicID      uuid.UUID
 	JwkKid               string
 }
@@ -76,7 +76,7 @@ LIMIT 1
 `
 
 type FindAccountCredentialKeyByAccountCredentialIDAndPublicKIDParams struct {
-	AccountCredentialsID int32
+	AccountCredentialsID int64
 	PublicKid            string
 }
 
@@ -111,7 +111,7 @@ LIMIT 1
 `
 
 type FindAccountCredentialsKeyAccountByAccountCredentialIDAndJWKKIDParams struct {
-	AccountCredentialsID int32
+	AccountCredentialsID int64
 	JwkKid               string
 }
 
@@ -191,7 +191,7 @@ ORDER BY "ckr"."created_at" DESC, "ckr"."id" DESC
 LIMIT 1
 `
 
-func (q *Queries) FindCurrentAccountCredentialKeyByAccountCredentialID(ctx context.Context, accountCredentialsID int32) (CredentialsKey, error) {
+func (q *Queries) FindCurrentAccountCredentialKeyByAccountCredentialID(ctx context.Context, accountCredentialsID int64) (CredentialsKey, error) {
 	row := q.db.QueryRow(ctx, findCurrentAccountCredentialKeyByAccountCredentialID, accountCredentialsID)
 	var i CredentialsKey
 	err := row.Scan(
@@ -221,7 +221,7 @@ OFFSET $2 LIMIT $3
 `
 
 type FindPaginatedAccountCredentialKeysByAccountCredentialIDParams struct {
-	AccountCredentialsID int32
+	AccountCredentialsID int64
 	Offset               int32
 	Limit                int32
 }

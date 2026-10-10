@@ -31,7 +31,7 @@ func (s *Services) createAndCacheGlobalKEK(
 
 	_, keyID, err := s.crypto.GenerateKEK(ctx, crypto.GenerateKEKOptions{
 		RequestID: requestID,
-		StoreFN: func(keyID uuid.UUID) (int32, error) {
+		StoreFN: func(keyID uuid.UUID) (int64, error) {
 			return s.database.CreateKeyEncryptionKey(ctx, database.CreateKeyEncryptionKeyParams{
 				Kid:            keyID,
 				Usage:          database.KekUsageGlobal,
@@ -104,7 +104,7 @@ func (s *Services) getAndCacheGlobalKEK(
 	if _, _, err := s.crypto.RotateKEK(ctx, crypto.RotateKEKOptions{
 		RequestID: requestID,
 		KEKid:     kekEntity.Kid,
-		StoreFN: func(_ uuid.UUID) (int32, error) {
+		StoreFN: func(_ uuid.UUID) (int64, error) {
 			return s.database.RotateKeyEncryptionKey(ctx, database.RotateKeyEncryptionKeyParams{
 				ID:             kekEntity.ID,
 				NextRotationAt: time.Now().Add(s.kekExpDays),
@@ -152,7 +152,7 @@ func (s *Services) GetOrCreateGlobalKEK(
 
 type createAndCacheAccountKEKOptions struct {
 	requestID string
-	accountID int32
+	accountID int64
 	queries   *database.Queries
 }
 
@@ -183,7 +183,7 @@ func (s *Services) createAndCacheAccountKEK(
 
 	dbID, keyID, err := s.crypto.GenerateKEK(ctx, crypto.GenerateKEKOptions{
 		RequestID: opts.requestID,
-		StoreFN: func(keyID uuid.UUID) (int32, error) {
+		StoreFN: func(keyID uuid.UUID) (int64, error) {
 			return qrs.CreateKeyEncryptionKey(ctx, database.CreateKeyEncryptionKeyParams{
 				Kid:            keyID,
 				Usage:          database.KekUsageAccount,
@@ -221,7 +221,7 @@ func (s *Services) createAndCacheAccountKEK(
 
 type getAndCacheAccountKEKOptions struct {
 	requestID string
-	accountID int32
+	accountID int64
 	queries   *database.Queries
 }
 
@@ -277,7 +277,7 @@ func (s *Services) getAndCacheAccountKEK(
 	if _, _, err := s.crypto.RotateKEK(ctx, crypto.RotateKEKOptions{
 		RequestID: opts.requestID,
 		KEKid:     kekEntity.Kid,
-		StoreFN: func(_ uuid.UUID) (int32, error) {
+		StoreFN: func(_ uuid.UUID) (int64, error) {
 			return qrs.RotateKeyEncryptionKey(ctx, database.RotateKeyEncryptionKeyParams{
 				ID:             kekEntity.ID,
 				NextRotationAt: time.Now().Add(s.kekExpDays),
@@ -302,7 +302,7 @@ func (s *Services) getAndCacheAccountKEK(
 
 type GetOrCreateAccountKEKOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 	Queries   *database.Queries
 }
 

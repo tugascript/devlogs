@@ -201,7 +201,7 @@ func validateSectorIdentifierHost(ctx context.Context, host string) ([]net.IPAdd
 
 type prepareDynamicRegistrationOptions struct {
 	requestID         string
-	accountID         int32
+	accountID         int64
 	accountPublicID   uuid.UUID
 	data              ApplicationRegistrationData
 	softwareStatement string

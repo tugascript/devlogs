@@ -19,7 +19,7 @@ LIMIT 1
 `
 
 type CountAppsByAccountIDAndCliantNameOrSoftwareIDParams struct {
-	AccountID  int32
+	AccountID  int64
 	ClientName string
 	SoftwareID pgtype.Text
 }
@@ -38,7 +38,7 @@ LIMIT 1
 `
 
 type CountAppsByAccountIDAndNameParams struct {
-	AccountID  int32
+	AccountID  int64
 	ClientName string
 }
 
@@ -199,7 +199,7 @@ INSERT INTO "apps" (
 `
 
 type CreateAppParams struct {
-	AccountID               int32
+	AccountID               int64
 	AccountPublicID         uuid.UUID
 	AppType                 AppType
 	ClientName              string
@@ -340,7 +340,7 @@ DELETE FROM "apps"
 WHERE "id" = $1
 `
 
-func (q *Queries) DeleteApp(ctx context.Context, id int32) error {
+func (q *Queries) DeleteApp(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteApp, id)
 	return err
 }
@@ -350,7 +350,7 @@ DELETE FROM grants WHERE account_id = $1 AND granted_client_id = $2
 `
 
 type DeleteRegisteredAppGrantsParams struct {
-	AccountID       int32
+	AccountID       int64
 	GrantedClientID string
 }
 
@@ -1175,7 +1175,7 @@ SELECT registration_token_jti, software_statement, id, account_id, account_publi
 WHERE "id" = $1 LIMIT 1
 `
 
-func (q *Queries) FindAppByID(ctx context.Context, id int32) (App, error) {
+func (q *Queries) FindAppByID(ctx context.Context, id int64) (App, error) {
 	row := q.db.QueryRow(ctx, findAppByID, id)
 	var i App
 	err := row.Scan(
@@ -1247,7 +1247,7 @@ ORDER BY "client_name" ASC LIMIT $2
 `
 
 type FindAppsByClientIDsAndAccountIDParams struct {
-	AccountID int32
+	AccountID int64
 	Limit     int32
 	ClientIds []string
 }
@@ -1591,7 +1591,7 @@ UPDATE credentials_keys SET is_revoked = true, updated_at = now()
 WHERE id IN (SELECT credentials_key_id FROM app_keys WHERE app_id = $1)
 `
 
-func (q *Queries) RevokeRegisteredAppKeys(ctx context.Context, appID int32) error {
+func (q *Queries) RevokeRegisteredAppKeys(ctx context.Context, appID int64) error {
 	_, err := q.db.Exec(ctx, revokeRegisteredAppKeys, appID)
 	return err
 }
@@ -1601,7 +1601,7 @@ UPDATE credentials_secrets SET is_revoked = true, updated_at = now()
 WHERE id IN (SELECT credentials_secret_id FROM app_secrets WHERE app_id = $1)
 `
 
-func (q *Queries) RevokeRegisteredAppSecrets(ctx context.Context, appID int32) error {
+func (q *Queries) RevokeRegisteredAppSecrets(ctx context.Context, appID int64) error {
 	_, err := q.db.Exec(ctx, revokeRegisteredAppSecrets, appID)
 	return err
 }
@@ -1611,7 +1611,7 @@ UPDATE apps SET registration_token_jti = $2, software_statement = $3 WHERE id = 
 `
 
 type SetAppRegistrationStateParams struct {
-	ID                   int32
+	ID                   int64
 	RegistrationTokenJti pgtype.UUID
 	SoftwareStatement    string
 }
@@ -1643,7 +1643,7 @@ RETURNING registration_token_jti, software_statement, id, account_id, account_pu
 `
 
 type UpdateAppParams struct {
-	ID                    int32
+	ID                    int64
 	ClientName            string
 	UsernameColumn        AppUsernameColumn
 	ClientUri             string
@@ -1752,7 +1752,7 @@ RETURNING registration_token_jti, software_statement, id, account_id, account_pu
 `
 
 type UpdateAppScopesParams struct {
-	ID                  int32
+	ID                  int64
 	Scopes              []Scopes
 	DefaultScopes       []Scopes
 	CustomScopes        []string
@@ -1838,7 +1838,7 @@ WHERE "id" = $1
 RETURNING registration_token_jti, software_statement, id, account_id, account_public_id, client_id, version, creation_method, redirect_uris, token_endpoint_auth_method, grant_types, response_types, client_name, client_uri, logo_uri, scopes, custom_scopes, contacts, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, domain, allow_user_registration, auth_providers, username_column, default_scopes, default_custom_scopes, app_type, sector_identifier_uri, subject_type, id_token_signed_response_alg, id_token_encrypted_response_alg, id_token_encrypted_response_enc, userinfo_signed_response_alg, userinfo_encrypted_response_alg, userinfo_encrypted_response_enc, request_object_signing_alg, request_object_encryption_alg, request_object_encryption_enc, token_endpoint_auth_signing_alg, default_max_age, require_auth_time, default_acr_values, initiate_login_uri, request_uris, access_token_signing_alg, session_type, access_token_ttl, id_token_ttl, refresh_token_idle_ttl, refresh_token_ttl, grant_ttl, created_at, updated_at
 `
 
-func (q *Queries) UpdateAppVersion(ctx context.Context, id int32) (App, error) {
+func (q *Queries) UpdateAppVersion(ctx context.Context, id int64) (App, error) {
 	row := q.db.QueryRow(ctx, updateAppVersion, id)
 	var i App
 	err := row.Scan(

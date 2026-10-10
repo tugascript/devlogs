@@ -26,7 +26,7 @@ const (
 	appDynamicRegistrationConfigCacheTTL time.Duration = 24 * time.Hour
 )
 
-func buildAppDynamicRegistrationConfigCacheKey(accountID int32) string {
+func buildAppDynamicRegistrationConfigCacheKey(accountID int64) string {
 	return fmt.Sprintf("%s:%d", appDynamicRegistrationConfigsLocation, accountID)
 }
 
@@ -324,7 +324,7 @@ func (s *Services) GetAppDynamicRegistrationConfig(
 
 type GetAndCacheAppDynamicRegistrationConfigOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 }
 
 func (s *Services) GetAndCacheAppDynamicRegistrationConfig(

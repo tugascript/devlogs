@@ -16,10 +16,10 @@ type AuthProviderDTO struct {
 	Provider     database.AuthProvider `json:"provider"`
 	RegisteredAt string                `json:"registered_at"`
 
-	id int32
+	id int64
 }
 
-func (a *AuthProviderDTO) ID() int32 {
+func (a *AuthProviderDTO) ID() int64 {
 	return a.id
 }
 

@@ -97,7 +97,7 @@ func (s *Services) registrationTokenValidator(ctx context.Context, app bool) fun
 
 // Bypass the JWK cache for registration authentication: explicit revocation must
 // take effect immediately. Signing-key expiry does not retire verification keys.
-func (s *Services) registrationPublicKey(ctx context.Context, accountID int32) tokens.GetPublicJWK {
+func (s *Services) registrationPublicKey(ctx context.Context, accountID int64) tokens.GetPublicJWK {
 	return func(kid string, suite utils.SupportedCryptoSuite) (utils.JWK, error) {
 		var row database.TokenSigningKey
 		var err error
@@ -125,7 +125,8 @@ func (s *Services) registrationPublicKey(ctx context.Context, accountID int32) t
 type registrationStateOptions struct {
 	RequestID, ClientID, BackendDomain, HostUsername, Token, Statement string
 	AccountPublicID                                                    uuid.UUID
-	AccountID, AccountVersion, ID                                      int32
+	AccountID, ID                                                      int64
+	AccountVersion                                                     int32
 	Stored                                                             pgtype.UUID
 	Queries                                                            *database.Queries
 	App                                                                bool

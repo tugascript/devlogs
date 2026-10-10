@@ -21,7 +21,7 @@ WHERE "id" = $1
 RETURNING id, public_id, account_id, email, username, password, version, email_verified, activity_status, user_data, created_at, updated_at
 `
 
-func (q *Queries) ConfirmUser(ctx context.Context, id int32) (User, error) {
+func (q *Queries) ConfirmUser(ctx context.Context, id int64) (User, error) {
 	row := q.db.QueryRow(ctx, confirmUser, id)
 	var i User
 	err := row.Scan(
@@ -48,7 +48,7 @@ LIMIT 1
 `
 
 type CountFilteredUsersByEmailOrUsernameAndByAccountIDParams struct {
-	AccountID int32
+	AccountID int64
 	Email     string
 	Username  string
 }
@@ -66,7 +66,7 @@ WHERE "account_id" = $1
 LIMIT 1
 `
 
-func (q *Queries) CountUsersByAccountID(ctx context.Context, accountID int32) (int64, error) {
+func (q *Queries) CountUsersByAccountID(ctx context.Context, accountID int64) (int64, error) {
 	row := q.db.QueryRow(ctx, countUsersByAccountID, accountID)
 	var count int64
 	err := row.Scan(&count)
@@ -81,7 +81,7 @@ LIMIT 1
 
 type CountUsersByEmailAndAccountIDParams struct {
 	Email     string
-	AccountID int32
+	AccountID int64
 }
 
 func (q *Queries) CountUsersByEmailAndAccountID(ctx context.Context, arg CountUsersByEmailAndAccountIDParams) (int64, error) {
@@ -99,7 +99,7 @@ LIMIT 1
 
 type CountUsersByUsernameAndAccountIDParams struct {
 	Username  string
-	AccountID int32
+	AccountID int64
 }
 
 func (q *Queries) CountUsersByUsernameAndAccountID(ctx context.Context, arg CountUsersByUsernameAndAccountIDParams) (int64, error) {
@@ -129,7 +129,7 @@ INSERT INTO "users" (
 `
 
 type CreateUserWithPasswordParams struct {
-	AccountID int32
+	AccountID int64
 	PublicID  uuid.UUID
 	Email     string
 	Username  string
@@ -186,7 +186,7 @@ INSERT INTO "users" (
 `
 
 type CreateUserWithoutPasswordParams struct {
-	AccountID int32
+	AccountID int64
 	PublicID  uuid.UUID
 	Email     string
 	Username  string
@@ -224,7 +224,7 @@ DELETE FROM "users"
 WHERE "id" = $1
 `
 
-func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
+func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteUser, id)
 	return err
 }
@@ -237,7 +237,7 @@ OFFSET $4 LIMIT $5
 `
 
 type FilterUsersByEmailOrUsernameAndByAccountIDOrderedByEmailParams struct {
-	AccountID int32
+	AccountID int64
 	Email     string
 	Username  string
 	Offset    int32
@@ -291,7 +291,7 @@ OFFSET $4 LIMIT $5
 `
 
 type FilterUsersByEmailOrUsernameAndByAccountIDOrderedByIDParams struct {
-	AccountID int32
+	AccountID int64
 	Email     string
 	Username  string
 	Offset    int32
@@ -345,7 +345,7 @@ OFFSET $4 LIMIT $5
 `
 
 type FilterUsersByEmailOrUsernameAndByAccountIDOrderedByUsernameParams struct {
-	AccountID int32
+	AccountID int64
 	Email     string
 	Username  string
 	Offset    int32
@@ -399,7 +399,7 @@ OFFSET $2 LIMIT $3
 `
 
 type FindPaginatedUsersByAccountIDOrderedByEmailParams struct {
-	AccountID int32
+	AccountID int64
 	Offset    int32
 	Limit     int32
 }
@@ -445,7 +445,7 @@ OFFSET $2 LIMIT $3
 `
 
 type FindPaginatedUsersByAccountIDOrderedByIDParams struct {
-	AccountID int32
+	AccountID int64
 	Offset    int32
 	Limit     int32
 }
@@ -491,7 +491,7 @@ OFFSET $2 LIMIT $3
 `
 
 type FindPaginatedUsersByAccountIDOrderedByUsernameParams struct {
-	AccountID int32
+	AccountID int64
 	Offset    int32
 	Limit     int32
 }
@@ -537,7 +537,7 @@ LIMIT 1
 
 type FindUserByEmailAndAccountIDParams struct {
 	Email     string
-	AccountID int32
+	AccountID int64
 }
 
 func (q *Queries) FindUserByEmailAndAccountID(ctx context.Context, arg FindUserByEmailAndAccountIDParams) (User, error) {
@@ -565,7 +565,7 @@ SELECT id, public_id, account_id, email, username, password, version, email_veri
 WHERE "id" = $1 LIMIT 1
 `
 
-func (q *Queries) FindUserByID(ctx context.Context, id int32) (User, error) {
+func (q *Queries) FindUserByID(ctx context.Context, id int64) (User, error) {
 	row := q.db.QueryRow(ctx, findUserByID, id)
 	var i User
 	err := row.Scan(
@@ -623,7 +623,7 @@ LIMIT 1
 
 type FindUserByUsernameAndAccountIDParams struct {
 	Username  string
-	AccountID int32
+	AccountID int64
 }
 
 func (q *Queries) FindUserByUsernameAndAccountID(ctx context.Context, arg FindUserByUsernameAndAccountIDParams) (User, error) {
@@ -660,7 +660,7 @@ RETURNING id, public_id, account_id, email, username, password, version, email_v
 `
 
 type UpdateUserParams struct {
-	ID             int32
+	ID             int64
 	Email          string
 	Username       string
 	UserData       []byte
@@ -706,7 +706,7 @@ RETURNING id, public_id, account_id, email, username, password, version, email_v
 
 type UpdateUserPasswordParams struct {
 	Password pgtype.Text
-	ID       int32
+	ID       int64
 }
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error) {

@@ -21,8 +21,8 @@ INSERT INTO "account_token_signing_keys" (
 `
 
 type CreateAccountTokenSigningKeyParams struct {
-	AccountID         int32
-	TokenSigningKeyID int32
+	AccountID         int64
+	TokenSigningKeyID int64
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -46,7 +46,7 @@ WHERE "atsk"."account_id" = $1 AND
 ORDER BY "t"."id" DESC
 `
 
-func (q *Queries) FindAccountDistributedTokenSigningKeyPublicKeysByAccountID(ctx context.Context, accountID int32) ([][]byte, error) {
+func (q *Queries) FindAccountDistributedTokenSigningKeyPublicKeysByAccountID(ctx context.Context, accountID int64) ([][]byte, error) {
 	rows, err := q.db.Query(ctx, findAccountDistributedTokenSigningKeyPublicKeysByAccountID, accountID)
 	if err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ LIMIT 1
 `
 
 type FindAccountTokenSigningKeyByAccountIDParams struct {
-	AccountID int32
+	AccountID int64
 	KeyType   TokenKeyType
 }
 
@@ -107,7 +107,7 @@ LIMIT 1
 `
 
 type FindAccountTokenSigningKeyByAccountIDAndKIDParams struct {
-	AccountID int32
+	AccountID int64
 	Kid       string
 }
 

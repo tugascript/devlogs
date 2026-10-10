@@ -22,8 +22,8 @@ INSERT INTO "account_data_encryption_keys" (
 `
 
 type CreateAccountDataEncryptionKeyParams struct {
-	AccountID           int32
-	DataEncryptionKeyID int32
+	AccountID           int64
+	DataEncryptionKeyID int64
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -44,7 +44,7 @@ LIMIT 1
 `
 
 type FindAccountDataEncryptionKeyByAccountIDParams struct {
-	AccountID int32
+	AccountID int64
 	ExpiresAt time.Time
 }
 
@@ -73,7 +73,7 @@ LIMIT 1
 `
 
 type FindAccountDataEncryptionKeyByAccountIDAndKIDParams struct {
-	AccountID int32
+	AccountID int64
 	Kid       string
 }
 

@@ -34,7 +34,7 @@ INSERT INTO "credentials_keys" (
 `
 
 type CreateCredentialsKeyParams struct {
-	AccountID   int32
+	AccountID   int64
 	PublicKid   string
 	PublicKey   []byte
 	PrivateKey  string
@@ -94,7 +94,7 @@ WHERE "id" = $1
 LIMIT 1
 `
 
-func (q *Queries) FindCredentialsKeyByID(ctx context.Context, id int32) (CredentialsKey, error) {
+func (q *Queries) FindCredentialsKeyByID(ctx context.Context, id int64) (CredentialsKey, error) {
 	row := q.db.QueryRow(ctx, findCredentialsKeyByID, id)
 	var i CredentialsKey
 	err := row.Scan(
@@ -147,7 +147,7 @@ WHERE "id" = $1
 RETURNING id, public_kid, public_key, private_key, dek_kid, crypto_suite, is_revoked, is_external, usage, account_id, expires_at, created_at, updated_at
 `
 
-func (q *Queries) RevokeCredentialsKey(ctx context.Context, id int32) (CredentialsKey, error) {
+func (q *Queries) RevokeCredentialsKey(ctx context.Context, id int64) (CredentialsKey, error) {
 	row := q.db.QueryRow(ctx, revokeCredentialsKey, id)
 	var i CredentialsKey
 	err := row.Scan(
@@ -192,7 +192,7 @@ UPDATE credentials_keys SET private_key = $2, dek_kid = $3 WHERE id = $1
 `
 
 type UpdateCredentialsKeyPrivateKeyParams struct {
-	ID         int32
+	ID         int64
 	PrivateKey string
 	DekKid     string
 }

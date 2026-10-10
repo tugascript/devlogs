@@ -395,7 +395,7 @@ func (s *Services) CreateAccountCredentials(
 
 		return dtos.MapAccountCredentialsToDTOWithJWK(&accountCredentials, jwk, dbPrms.ExpiresAt)
 	case AuthMethodClientSecretBasic, AuthMethodClientSecretPost, AuthMethodClientSecretJWT:
-		var ccID int32
+		var ccID int64
 		var secretID, secret string
 		var exp time.Time
 		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
@@ -719,9 +719,9 @@ func (s *Services) DeleteAccountCredentials(ctx context.Context, opts DeleteAcco
 
 type createAccountCredentialsKeyOptions struct {
 	requestID            string
-	accountID            int32
+	accountID            int64
 	accountPublicID      uuid.UUID
-	accountCredentialsID int32
+	accountCredentialsID int64
 	cryptoSuite          utils.SupportedCryptoSuite
 }
 
@@ -781,9 +781,9 @@ func (s *Services) createAccountCredentialsKey(
 
 type rotateAccountCredentialsKeyOptions struct {
 	requestID            string
-	accountID            int32
+	accountID            int64
 	accountPublicID      uuid.UUID
-	accountCredentialsID int32
+	accountCredentialsID int64
 	cryptoSuite          utils.SupportedCryptoSuite
 }
 
@@ -822,9 +822,9 @@ func (s *Services) rotateAccountCredentialsKey(
 
 type createAccountCredentialsSecretOptions struct {
 	requestID            string
-	accountID            int32
+	accountID            int64
 	accountPublicID      uuid.UUID
-	accountCredentialsID int32
+	accountCredentialsID int64
 }
 
 func (s *Services) createAccountCredentialsSecret(
@@ -880,9 +880,9 @@ func (s *Services) createAccountCredentialsSecret(
 
 type rotateAccountCredentialsSecretOptions struct {
 	requestID            string
-	accountID            int32
+	accountID            int64
 	accountPublicID      uuid.UUID
-	accountCredentialsID int32
+	accountCredentialsID int64
 	authMethod           database.AuthMethod
 }
 
@@ -987,7 +987,7 @@ func (s *Services) RotateAccountCredentialsSecret(
 
 type listAccountCredentialsKeysOptions struct {
 	requestID            string
-	accountCredentialsID int32
+	accountCredentialsID int64
 	offset               int32
 	limit                int32
 }
@@ -1038,7 +1038,7 @@ func (s *Services) listAccountCredentialsKeys(
 
 type listAccountCredentialsSecretsOptions struct {
 	requestID            string
-	accountCredentialsID int32
+	accountCredentialsID int64
 	offset               int32
 	limit                int32
 }
@@ -1132,7 +1132,7 @@ func (s *Services) ListAccountCredentialsSecretsOrKeys(
 
 type getAccountCredentialsKeyByIDOptions struct {
 	requestID            string
-	accountCredentialsID int32
+	accountCredentialsID int64
 	publicKID            string
 }
 
@@ -1169,7 +1169,7 @@ func (s *Services) getAccountCredentialsKeyByID(
 
 type getAccountCredentialsSecretByIDOptions struct {
 	requestID            string
-	accountCredentialsID int32
+	accountCredentialsID int64
 	secretID             string
 }
 
@@ -1257,7 +1257,7 @@ func (s *Services) GetAccountCredentialsSecretOrKey(
 
 type revokeAccountCredentialsSecretOptions struct {
 	requestID            string
-	accountCredentialsID int32
+	accountCredentialsID int64
 	secretID             string
 }
 
@@ -1287,7 +1287,7 @@ func (s *Services) revokeAccountCredentialsSecret(
 
 type revokeAccountCredentialsKeyOptions struct {
 	requestID            string
-	accountCredentialsID int32
+	accountCredentialsID int64
 	publicKID            string
 }
 

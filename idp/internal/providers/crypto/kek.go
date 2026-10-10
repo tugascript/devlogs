@@ -60,14 +60,14 @@ func (e *Crypto) rotateKey(ctx context.Context, keyID uuid.UUID) error {
 }
 
 type KEKID = uuid.UUID
-type StoreKEK = func(keyID KEKID) (int32, error)
+type StoreKEK = func(keyID KEKID) (int64, error)
 
 type GenerateKEKOptions struct {
 	RequestID string
 	StoreFN   StoreKEK
 }
 
-func (e *Crypto) GenerateKEK(ctx context.Context, opts GenerateKEKOptions) (int32, uuid.UUID, error) {
+func (e *Crypto) GenerateKEK(ctx context.Context, opts GenerateKEKOptions) (int64, uuid.UUID, error) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Location:  kekLocation,
 		Method:    "GenerateKEK",
@@ -102,7 +102,7 @@ type RotateKEKOptions struct {
 	KEKid     KEKID
 }
 
-func (e *Crypto) RotateKEK(ctx context.Context, opts RotateKEKOptions) (int32, uuid.UUID, error) {
+func (e *Crypto) RotateKEK(ctx context.Context, opts RotateKEKOptions) (int64, uuid.UUID, error) {
 	logger := utils.BuildLogger(e.logger, utils.LoggerOptions{
 		Location:  kekLocation,
 		Method:    "RotateKEK",

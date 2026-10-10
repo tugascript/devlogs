@@ -23,8 +23,8 @@ const appUsersLocation string = "app_users"
 
 type CreateAppUserOptions struct {
 	RequestID string
-	AccountID int32
-	AppID     int32
+	AccountID int64
+	AppID     int64
 	Email     string
 	Username  string
 	Password  string
@@ -161,8 +161,8 @@ func (s *Services) CreateAppUser(
 
 type ConfirmAppUserOptions struct {
 	RequestID    string
-	AccountID    int32
-	AppID        int32
+	AccountID    int64
+	AppID        int64
 	UserPublicID uuid.UUID
 	UserVersion  int32
 }

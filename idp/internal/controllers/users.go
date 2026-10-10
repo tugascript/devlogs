@@ -193,11 +193,11 @@ func (c *Controllers) GetUser(ctx fiber.Ctx) error {
 		return serviceErrorResponse(logger, ctx, serviceErr)
 	}
 
-	userID, err := strconv.ParseInt(urlParams.UserIDOrUsername, 10, 32)
+	userID, err := strconv.ParseInt(urlParams.UserIDOrUsername, 10, 64)
 	if err == nil {
 		userDTO, serviceErr := c.services.GetUserByID(ctx.Context(), services.GetUserByIDOptions{
 			RequestID: requestID,
-			UserID:    int32(userID),
+			UserID:    int64(userID),
 			AccountID: accountID,
 		})
 		if serviceErr != nil {
@@ -236,7 +236,7 @@ func (c *Controllers) UpdateUser(ctx fiber.Ctx) error {
 
 	userID := fiber.Params[int](ctx, "userID")
 	urlParams := params.MutateUserURLParams{
-		UserID: int32(userID),
+		UserID: int64(userID),
 	}
 	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
@@ -314,7 +314,7 @@ func (c *Controllers) UpdateUserPassword(ctx fiber.Ctx) error {
 
 	userID := fiber.Params[int](ctx, "userID")
 	urlParams := params.MutateUserURLParams{
-		UserID: int32(userID),
+		UserID: int64(userID),
 	}
 	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)
@@ -366,7 +366,7 @@ func (c *Controllers) DeleteUser(ctx fiber.Ctx) error {
 
 	userID := fiber.Params[int](ctx, "userID")
 	urlParams := params.MutateUserURLParams{
-		UserID: int32(userID),
+		UserID: int64(userID),
 	}
 	if err := c.validate.StructCtx(ctx.Context(), &urlParams); err != nil {
 		return validateURLParamsErrorResponse(logger, ctx, err)

@@ -102,7 +102,7 @@ func approveSoftwareStatementKey(t *testing.T, account dtos.AccountDTO, publicJS
 	if err != nil {
 		t.Fatal(err)
 	}
-	var approvedID int32
+	var approvedID int64
 	err = db.RawQueryRow(ctx, `INSERT INTO dynamic_registration_software_statement_keys (account_id,account_public_id,credentials_key_id,credentials_key_kid,root_domain) VALUES ($1,$2,$3,$4,$5) RETURNING id`, []interface{}{account.ID(), account.PublicID, key.ID, kid, "example.com"}).Scan(&approvedID)
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ type dcrSetup struct {
 func cleanupAccount(t *testing.T, account dtos.AccountDTO) {
 	t.Helper()
 	t.Cleanup(func() {
-		var id int32
+		var id int64
 		if err := GetTestDatabase(t).RawQueryRow(context.Background(), `DELETE FROM accounts WHERE id=$1 RETURNING id`, []interface{}{account.ID()}).Scan(&id); err != nil {
 			t.Errorf("cleanup account: %v", err)
 		}

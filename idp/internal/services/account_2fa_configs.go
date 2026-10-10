@@ -139,7 +139,7 @@ func Map2FAType(twoFAType string) (database.TwoFactorType, *exceptions.ServiceEr
 
 type buildStoreAccountTOTPOptions struct {
 	requestID string
-	accountID int32
+	accountID int64
 	queries   *database.Queries
 }
 

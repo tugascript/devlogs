@@ -30,7 +30,7 @@ const oauthDynamicRegistrationAppsLocation string = "oauth_dynamic_registration_
 
 // Hostname and AccountID must come from the trusted host middleware, never from
 // registration form fields. Both are required to avoid an unscoped cache flow.
-func validateAppsRegistrationTenant(hostname string, accountID int32) *exceptions.ServiceError {
+func validateAppsRegistrationTenant(hostname string, accountID int64) *exceptions.ServiceError {
 	if hostname == "" || accountID <= 0 {
 		return exceptions.NewUnauthorizedError()
 	}
@@ -47,7 +47,7 @@ type refreshTokenAppsOAuthDynamicRegistrationIATLoginOptions struct {
 	state           string
 	backendDomain   string
 	hostname        string
-	accountID       int32
+	accountID       int64
 }
 
 func (s *Services) refreshTokenAppsOAuthDynamicRegistrationIATLogin(
@@ -197,7 +197,7 @@ type generateAppsOAuthDynamicRegistrationIATCallbackOptions struct {
 	redirectURI     string
 	state           string
 	hostname        string
-	accountID       int32
+	accountID       int64
 }
 
 func (s *Services) generateAppsOAuthDynamicRegistrationIATCallback(
@@ -256,7 +256,7 @@ func (s *Services) generateAppsOAuthDynamicRegistrationIATCallback(
 	}), nil
 }
 
-func (s *Services) checkAppDynamicRegistrationDomainUsability(ctx context.Context, requestID string, accountID int32, domain string) *exceptions.ServiceError {
+func (s *Services) checkAppDynamicRegistrationDomainUsability(ctx context.Context, requestID string, accountID int64, domain string) *exceptions.ServiceError {
 	account, serviceErr := s.GetAccountByID(ctx, GetAccountByIDOptions{RequestID: requestID, ID: accountID})
 	if serviceErr != nil {
 		return serviceErr
@@ -272,7 +272,7 @@ type oauthAppsDynamicRegistrationIATAuthOptions struct {
 	redirectURI     string
 	state           string
 	hostname        string
-	accountID       int32
+	accountID       int64
 }
 
 func (s *Services) oauthAppsDynamicRegistrationIATAuth(
@@ -343,7 +343,7 @@ type InitiateAppsOAuthDynamicRegistrationIATAuthOptions struct {
 	RedirectURI     string
 	BackendDomain   string
 	Hostname        string
-	AccountID       int32
+	AccountID       int64
 }
 
 func (s *Services) InitiateAppsOAuthDynamicRegistrationIATAuth(
@@ -487,7 +487,7 @@ type AppsOAuthDynamicRegistrationIATAuthRenderOptions struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 	RedirectURI         string
-	AccountID           int32
+	AccountID           int64
 	Hostname            string
 }
 
@@ -582,7 +582,7 @@ type AppsOAuthDynamicRegistrationIATAuthReRenderOptions struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 	RedirectURI         string
-	AccountID           int32
+	AccountID           int64
 	Hostname            string
 }
 
@@ -641,7 +641,7 @@ type AppsOAuthDynamicRegistrationIATLoginOptions struct {
 	Password            string
 	BackendDomain       string
 	Hostname            string
-	AccountID           int32
+	AccountID           int64
 }
 
 func (s *Services) AppsOAuthDynamicRegistrationIATLogin(
@@ -838,7 +838,7 @@ type AppsOAuthDynamicRegistrationIAT2FARenderOptions struct {
 	ChallengeMethod string
 	State           string
 	RedirectURI     string
-	AccountID       int32
+	AccountID       int64
 	Hostname        string
 }
 
@@ -924,7 +924,7 @@ type AppsOAuthDynamicRegistrationIAT2FAReRenderOptions struct {
 	ChallengeMethod string
 	State           string
 	RedirectURI     string
-	AccountID       int32
+	AccountID       int64
 	Hostname        string
 }
 
@@ -970,7 +970,7 @@ type AppsOAuthDynamicRegistrationIATVerify2FACodeOptions struct {
 	Code          string
 	BackendDomain string
 	Hostname      string
-	AccountID     int32
+	AccountID     int64
 }
 
 func (s *Services) AppsOAuthDynamicRegistrationIATVerify2FACode(
@@ -1099,7 +1099,7 @@ type VerifyAppsOAuthDynamicRegistrationIATCodeOptions struct {
 	Code          string
 	CodeVerifier  string
 	Domain        string
-	AccountID     int32
+	AccountID     int64
 	Hostname      string
 }
 
@@ -1185,7 +1185,7 @@ type AppsOAuthDynamicRegistrationIATExtGetOptions struct {
 	State         string
 	BackendDomain string
 	Hostname      string
-	AccountID     int32
+	AccountID     int64
 }
 
 func (s *Services) AppsOAuthDynamicRegistrationIATExtGet(
@@ -1278,7 +1278,7 @@ type AppsOAuthDynamicRegistrationIATExtCBOptions struct {
 	RedirectURL   string
 	BackendDomain string
 	Hostname      string
-	AccountID     int32
+	AccountID     int64
 }
 
 func (s *Services) AppsOAuthDynamicRegistrationIATExtCB(
@@ -1430,7 +1430,7 @@ type AppsOAuthDynamicRegistrationIATExtAppleCBOptions struct {
 	RedirectURL   string
 	BackendDomain string
 	Hostname      string
-	AccountID     int32
+	AccountID     int64
 }
 
 func (s *Services) AppsOAuthDynamicRegistrationIATExtAppleCB(

@@ -14,7 +14,7 @@ import (
 )
 
 type DynamicRegistrationDomainCodeDTO struct {
-	id int32
+	id int64
 
 	VerificationHost          string `json:"verification_host"`
 	VerificationPrefix        string `json:"verification_prefix"`
@@ -23,7 +23,7 @@ type DynamicRegistrationDomainCodeDTO struct {
 	VerificationCodeExpiresAt int64  `json:"verification_code_expires_at"`
 }
 
-func (a *DynamicRegistrationDomainCodeDTO) ID() int32 {
+func (a *DynamicRegistrationDomainCodeDTO) ID() int64 {
 	return a.id
 }
 

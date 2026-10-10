@@ -31,7 +31,7 @@ INSERT INTO "account_dynamic_registration_configs" (
 `
 
 type CreateAccountDynamicRegistrationConfigParams struct {
-	AccountID                               int32
+	AccountID                               int64
 	AccountPublicID                         uuid.UUID
 	AccountCredentialsTypes                 []AccountCredentialsType
 	RequireSoftwareStatementCredentialTypes []AccountCredentialsType
@@ -70,7 +70,7 @@ const deleteAccountDynamicRegistrationConfig = `-- name: DeleteAccountDynamicReg
 DELETE FROM "account_dynamic_registration_configs" WHERE "id" = $1
 `
 
-func (q *Queries) DeleteAccountDynamicRegistrationConfig(ctx context.Context, id int32) error {
+func (q *Queries) DeleteAccountDynamicRegistrationConfig(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteAccountDynamicRegistrationConfig, id)
 	return err
 }
@@ -80,7 +80,7 @@ SELECT id, account_id, account_public_id, account_credentials_types, require_sof
 WHERE "account_id" = $1 LIMIT 1
 `
 
-func (q *Queries) FindAccountDynamicRegistrationConfigByAccountID(ctx context.Context, accountID int32) (AccountDynamicRegistrationConfig, error) {
+func (q *Queries) FindAccountDynamicRegistrationConfigByAccountID(ctx context.Context, accountID int64) (AccountDynamicRegistrationConfig, error) {
 	row := q.db.QueryRow(ctx, findAccountDynamicRegistrationConfigByAccountID, accountID)
 	var i AccountDynamicRegistrationConfig
 	err := row.Scan(
@@ -129,7 +129,7 @@ RETURNING id, account_id, account_public_id, account_credentials_types, require_
 `
 
 type UpdateAccountDynamicRegistrationConfigParams struct {
-	ID                                      int32
+	ID                                      int64
 	AccountCredentialsTypes                 []AccountCredentialsType
 	RequireSoftwareStatementCredentialTypes []AccountCredentialsType
 	SoftwareStatementVerificationMethods    []SoftwareStatementVerificationMethod

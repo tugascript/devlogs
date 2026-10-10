@@ -285,7 +285,7 @@ INSERT INTO "dynamic_registration_domains" (
 `
 
 type CreateDynamicRegistrationDomainParams struct {
-	AccountID          int32
+	AccountID          int64
 	AccountPublicID    uuid.UUID
 	Domain             string
 	VerificationMethod DomainVerificationMethod
@@ -325,7 +325,7 @@ DELETE FROM "dynamic_registration_domains"
 WHERE "id" = $1
 `
 
-func (q *Queries) DeleteDynamicRegistrationDomain(ctx context.Context, id int32) error {
+func (q *Queries) DeleteDynamicRegistrationDomain(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteDynamicRegistrationDomain, id)
 	return err
 }
@@ -553,7 +553,7 @@ WHERE "id" = $1 RETURNING id, account_id, account_public_id, domain, verified_at
 `
 
 type VerifyDynamicRegistrationDomainParams struct {
-	ID                 int32
+	ID                 int64
 	VerificationMethod DomainVerificationMethod
 }
 

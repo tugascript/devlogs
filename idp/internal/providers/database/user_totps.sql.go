@@ -21,7 +21,7 @@ WHERE "at"."user_id" = $1 LIMIT 1
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) FindUserTotpByUserID(ctx context.Context, userID int32) (Totp, error) {
+func (q *Queries) FindUserTotpByUserID(ctx context.Context, userID int64) (Totp, error) {
 	row := q.db.QueryRow(ctx, findUserTotpByUserID, userID)
 	var i Totp
 	err := row.Scan(

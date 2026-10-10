@@ -19,7 +19,7 @@ const accountHMACSecretsLocation = "account_hmac_secrets"
 
 type buildStoreAccountHMACSecretOptions struct {
 	requestID string
-	accountID int32
+	accountID int64
 	data      map[string]string
 	queries   *database.Queries
 }
@@ -31,7 +31,7 @@ func (s *Services) buildStoreAccountHMACSecretFn(
 	logger := s.buildLogger(opts.requestID, accountHMACSecretsLocation, "buildStoreAccountHMACSecretFn")
 	logger.InfoContext(ctx, "Building store function for account HMAC secret...")
 
-	return func(dekID string, secretID string, encryptedSecret string) (int32, *exceptions.ServiceError) {
+	return func(dekID string, secretID string, encryptedSecret string) (int64, *exceptions.ServiceError) {
 		id, err := s.mapQueries(opts.queries).CreateAccountHMACSecret(ctx, database.CreateAccountHMACSecretParams{
 			AccountID: opts.accountID,
 			SecretID:  secretID,
@@ -53,7 +53,7 @@ func (s *Services) buildStoreAccountHMACSecretFn(
 
 type BuildGetHMACSecretFNOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 	Queries   *database.Queries
 }
 
@@ -98,7 +98,7 @@ func (s *Services) BuildGetHMACSecretFN(
 
 type BuildUpdateHMACSecretFNOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 	Queries   *database.Queries
 }
 
@@ -138,7 +138,7 @@ func (s *Services) BuildUpdateHMACSecretFN(
 
 type BuildGetHMACSecretByIDFNOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 	Queries   *database.Queries
 }
 
