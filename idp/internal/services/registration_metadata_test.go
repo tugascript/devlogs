@@ -81,6 +81,13 @@ func TestRegistrationMetadataDefaultsAndValidation(t *testing.T) {
 		{name: "native localhost HTTP", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"http://localhost:8080/callback"}}},
 		{name: "native loopback IPv4 HTTP", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"http://127.0.0.1:8080/callback"}}},
 		{name: "native loopback IPv6 HTTP", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"http://[::1]:8080/callback"}}},
+		{name: "native javascript scheme", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"javascript:alert(1)"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "native data scheme", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"data:text/html,test"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "native file scheme", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"file:///etc/passwd"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "native generic scheme without period", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"myapp:/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "native empty custom scheme host and path", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"com.example.app:"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "native double slash empty custom scheme", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"com.example.app://"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
+		{name: "native reverse domain custom scheme double slash", data: ApplicationRegistrationData{ApplicationType: "native", RedirectURIs: []string{"com.testnativeapp://callback"}}},
 		{name: "web custom scheme", data: ApplicationRegistrationData{ApplicationType: "web", RedirectURIs: []string{"com.example.app:/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
 		{name: "remote HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"http://example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
 		{name: "uppercase remote HTTP", data: ApplicationRegistrationData{RedirectURIs: []string{"HTTP://example.com/callback"}}, errorCode: exceptions.OAuthErrorInvalidRedirectURI},
@@ -499,6 +506,48 @@ func TestSectorIdentifierValidation(t *testing.T) {
 				if err == nil || err.Code != tc.wantCode {
 					t.Fatalf("got err=%v, want code %s", err, tc.wantCode)
 				}
+			}
+		})
+	}
+}
+
+func TestIsValidReverseDomainScheme(t *testing.T) {
+	cases := []struct {
+		scheme string
+		want   bool
+	}{
+		{"com.example.app", true},
+		{"com.testnativeapp", true},
+		{"com.example.my-app", true},
+		{"io.github.my-client", true},
+		{"org.example.v2", true},
+		{"com.37signals.app", true},
+		{"", false},
+		{"javascript", false},
+		{"data", false},
+		{"file", false},
+		{"blob", false},
+		{"myapp", false},
+		{"com", false},
+		{"com..app", false},
+		{".com.app", false},
+		{"com.app.", false},
+		{"c.app", false},
+		{"123.app", false},
+		{"-com.app", false},
+		{"com-.app", false},
+		{"com.-app", false},
+		{"com.app-", false},
+		{"com.app+foo", false},
+		{"com.app_foo", false},
+		{"com.app/foo", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.scheme, func(t *testing.T) {
+			got := isValidReverseDomainScheme(tc.scheme)
+			if got != tc.want {
+				t.Fatalf("isValidReverseDomainScheme(%q) = %v, want %v", tc.scheme, got, tc.want)
 			}
 		})
 	}
