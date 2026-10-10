@@ -26,7 +26,7 @@ func buildAppDynamicRegistrationIATAuthCacheKey(hostname, clientID string) strin
 }
 
 type AppsDynamicRegistrationIATAuthData struct {
-	AccountID   int32  `json:"account_id"`
+	AccountID   int64  `json:"account_id"`
 	Domain      string `json:"domain"`
 	State       string `json:"state"`
 	Challenge   string `json:"challenge"`
@@ -36,7 +36,7 @@ type AppsDynamicRegistrationIATAuthData struct {
 type SaveAppsDynamicRegistrationIATAuthOptions struct {
 	RequestID   string
 	Hostname    string
-	AccountID   int32
+	AccountID   int64
 	Domain      string
 	State       string
 	RedirectURI string

@@ -14,7 +14,7 @@ import (
 )
 
 type DynamicRegistrationDomainDTO struct {
-	id int32
+	id int64
 
 	Domain             string                            `json:"domain"`
 	Verified           bool                              `json:"verified"`
@@ -28,7 +28,7 @@ type DynamicRegistrationDomainDTO struct {
 	VerificationCodeExpiresAt int64  `json:"verification_code_expires_at,omitempty"`
 }
 
-func (a *DynamicRegistrationDomainDTO) ID() int32 {
+func (a *DynamicRegistrationDomainDTO) ID() int64 {
 	return a.id
 }
 

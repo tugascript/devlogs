@@ -29,7 +29,7 @@ INSERT INTO "grants" (
 `
 
 type CreateGrantParams struct {
-	AccountID           int32
+	AccountID           int64
 	GrantID             uuid.UUID
 	GrantedClientID     string
 	GrantedScopes       []Scopes
@@ -41,7 +41,7 @@ type CreateGrantParams struct {
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) CreateGrant(ctx context.Context, arg CreateGrantParams) (int32, error) {
+func (q *Queries) CreateGrant(ctx context.Context, arg CreateGrantParams) (int64, error) {
 	row := q.db.QueryRow(ctx, createGrant,
 		arg.AccountID,
 		arg.GrantID,
@@ -49,7 +49,7 @@ func (q *Queries) CreateGrant(ctx context.Context, arg CreateGrantParams) (int32
 		arg.GrantedScopes,
 		arg.GrantedCustomScopes,
 	)
-	var id int32
+	var id int64
 	err := row.Scan(&id)
 	return id, err
 }

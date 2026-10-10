@@ -1337,7 +1337,7 @@ func (ns NullTwoFactorType) Value() (driver.Value, error) {
 }
 
 type Account struct {
-	ID             int32
+	ID             int64
 	PublicID       uuid.UUID
 	GivenName      string
 	FamilyName     string
@@ -1353,8 +1353,8 @@ type Account struct {
 }
 
 type Account2faConfig struct {
-	ID              int32
-	AccountID       int32
+	ID              int64
+	AccountID       int64
 	AccountPublicID uuid.UUID
 	TwoFactorType   TwoFactorType
 	IsDefault       bool
@@ -1364,7 +1364,7 @@ type Account2faConfig struct {
 }
 
 type AccountAuthProvider struct {
-	ID              int32
+	ID              int64
 	Email           string
 	Provider        AuthProvider
 	AccountPublicID uuid.UUID
@@ -1375,8 +1375,8 @@ type AccountAuthProvider struct {
 type AccountCredential struct {
 	RegistrationTokenJti         pgtype.UUID
 	SoftwareStatement            string
-	ID                           int32
-	AccountID                    int32
+	ID                           int64
+	AccountID                    int64
 	AccountPublicID              uuid.UUID
 	Domain                       string
 	CreationMethod               CreationMethod
@@ -1421,32 +1421,32 @@ type AccountCredential struct {
 }
 
 type AccountCredentialsKey struct {
-	AccountID            int32
-	CredentialsKeyID     int32
-	AccountCredentialsID int32
+	AccountID            int64
+	CredentialsKeyID     int64
+	AccountCredentialsID int64
 	AccountPublicID      uuid.UUID
 	JwkKid               string
 	CreatedAt            time.Time
 }
 
 type AccountCredentialsSecret struct {
-	AccountID            int32
-	CredentialsSecretID  int32
-	AccountCredentialsID int32
+	AccountID            int64
+	CredentialsSecretID  int64
+	AccountCredentialsID int64
 	AccountPublicID      uuid.UUID
 	SecretID             string
 	CreatedAt            time.Time
 }
 
 type AccountDataEncryptionKey struct {
-	AccountID           int32
-	DataEncryptionKeyID int32
+	AccountID           int64
+	DataEncryptionKeyID int64
 	CreatedAt           time.Time
 }
 
 type AccountDynamicRegistrationConfig struct {
-	ID                                      int32
-	AccountID                               int32
+	ID                                      int64
+	AccountID                               int64
 	AccountPublicID                         uuid.UUID
 	AccountCredentialsTypes                 []AccountCredentialsType
 	RequireSoftwareStatementCredentialTypes []AccountCredentialsType
@@ -1457,10 +1457,10 @@ type AccountDynamicRegistrationConfig struct {
 }
 
 type AccountGrant struct {
-	AccountID            int32
+	AccountID            int64
 	AccountVersion       int32
-	GrantID              int32
-	AccountCredentialsID pgtype.Int4
+	GrantID              int64
+	AccountCredentialsID pgtype.Int8
 	GrantedClientID      string
 	IsRevoked            bool
 	RevokedAt            pgtype.Timestamptz
@@ -1469,8 +1469,8 @@ type AccountGrant struct {
 }
 
 type AccountHmacSecret struct {
-	ID        int32
-	AccountID int32
+	ID        int64
+	AccountID int64
 	SecretID  string
 	Secret    string
 	DekKid    string
@@ -1480,37 +1480,37 @@ type AccountHmacSecret struct {
 }
 
 type AccountKeyEncryptionKey struct {
-	AccountID          int32
-	KeyEncryptionKeyID int32
+	AccountID          int64
+	KeyEncryptionKeyID int64
 	CreatedAt          time.Time
 }
 
 type AccountSession struct {
-	AccountID            int32
+	AccountID            int64
 	AccountVersion       int32
-	SessionID            int32
-	AccountCredentialsID pgtype.Int4
+	SessionID            int64
+	AccountCredentialsID pgtype.Int8
 	SessionUuid          uuid.UUID
 	CreatedAt            time.Time
 }
 
 type AccountTokenSigningKey struct {
-	AccountID         int32
-	TokenSigningKeyID int32
+	AccountID         int64
+	TokenSigningKeyID int64
 	CreatedAt         time.Time
 }
 
 type AccountTotp struct {
-	AccountID int32
-	TotpID    int32
+	AccountID int64
+	TotpID    int64
 	CreatedAt time.Time
 }
 
 type App struct {
 	RegistrationTokenJti         pgtype.UUID
 	SoftwareStatement            string
-	ID                           int32
-	AccountID                    int32
+	ID                           int64
+	AccountID                    int64
 	AccountPublicID              uuid.UUID
 	ClientID                     string
 	Version                      int32
@@ -1567,9 +1567,9 @@ type App struct {
 }
 
 type AppDesign struct {
-	ID          int32
-	AccountID   int32
-	AppID       int32
+	ID          int64
+	AccountID   int64
+	AppID       int64
 	LightColors []byte
 	DarkColors  []byte
 	LogoUrl     pgtype.Text
@@ -1579,8 +1579,8 @@ type AppDesign struct {
 }
 
 type AppDynamicRegistrationConfig struct {
-	ID                                   int32
-	AccountID                            int32
+	ID                                   int64
+	AccountID                            int64
 	AccountPublicID                      uuid.UUID
 	AllowedAppTypes                      []AppType
 	DefaultAllowUserRegistration         bool
@@ -1604,29 +1604,29 @@ type AppDynamicRegistrationConfig struct {
 }
 
 type AppKey struct {
-	AppID            int32
-	CredentialsKeyID int32
-	AccountID        int32
+	AppID            int64
+	CredentialsKeyID int64
+	AccountID        int64
 	CreatedAt        time.Time
 }
 
 type AppProfile struct {
-	AppID       int32
-	UserID      int32
-	AccountID   int32
+	AppID       int64
+	UserID      int64
+	AccountID   int64
 	ProfileType AppProfileType
 	CreatedAt   time.Time
 }
 
 type AppSecret struct {
-	AppID               int32
-	CredentialsSecretID int32
-	AccountID           int32
+	AppID               int64
+	CredentialsSecretID int64
+	AccountID           int64
 	CreatedAt           time.Time
 }
 
 type CredentialsKey struct {
-	ID          int32
+	ID          int64
 	PublicKid   string
 	PublicKey   []byte
 	PrivateKey  string
@@ -1635,27 +1635,27 @@ type CredentialsKey struct {
 	IsRevoked   bool
 	IsExternal  bool
 	Usage       CredentialsUsage
-	AccountID   int32
+	AccountID   int64
 	ExpiresAt   time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
 
 type CredentialsSecret struct {
-	ID           int32
+	ID           int64
 	SecretID     string
 	ClientSecret string
 	DekKid       string
 	IsRevoked    bool
 	Usage        CredentialsUsage
-	AccountID    int32
+	AccountID    int64
 	ExpiresAt    time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
 
 type DataEncryptionKey struct {
-	ID        int32
+	ID        int64
 	Kid       string
 	Dek       string
 	KekKid    uuid.UUID
@@ -1667,8 +1667,8 @@ type DataEncryptionKey struct {
 }
 
 type DynamicRegistrationDomain struct {
-	ID                 int32
-	AccountID          int32
+	ID                 int64
+	AccountID          int64
 	AccountPublicID    uuid.UUID
 	Domain             string
 	VerifiedAt         pgtype.Timestamptz
@@ -1679,9 +1679,9 @@ type DynamicRegistrationDomain struct {
 }
 
 type DynamicRegistrationDomainCode struct {
-	ID                          int32
-	AccountID                   int32
-	DynamicRegistrationDomainID int32
+	ID                          int64
+	AccountID                   int64
+	DynamicRegistrationDomainID int64
 	VerificationHost            string
 	VerificationCode            string
 	HmacSecretID                string
@@ -1692,18 +1692,18 @@ type DynamicRegistrationDomainCode struct {
 }
 
 type DynamicRegistrationSoftwareStatementKey struct {
-	ID                int32
-	AccountID         int32
+	ID                int64
+	AccountID         int64
 	AccountPublicID   uuid.UUID
-	CredentialsKeyID  int32
+	CredentialsKeyID  int64
 	CredentialsKeyKid string
 	RootDomain        string
 	CreatedAt         time.Time
 }
 
 type Grant struct {
-	ID                  int32
-	AccountID           int32
+	ID                  int64
+	AccountID           int64
 	GrantID             uuid.UUID
 	GrantedClientID     string
 	GrantedScopes       []Scopes
@@ -1715,7 +1715,7 @@ type Grant struct {
 }
 
 type KeyEncryptionKey struct {
-	ID             int32
+	ID             int64
 	Kid            uuid.UUID
 	Usage          KekUsage
 	Version        int32
@@ -1726,8 +1726,8 @@ type KeyEncryptionKey struct {
 }
 
 type OidcConfig struct {
-	ID              int32
-	AccountID       int32
+	ID              int64
+	AccountID       int64
 	ClaimsSupported []Claims
 	ScopesSupported []Scopes
 	CustomClaims    []string
@@ -1737,9 +1737,9 @@ type OidcConfig struct {
 }
 
 type Session struct {
-	ID              int32
-	AccountID       int32
-	GrantID         int32
+	ID              int64
+	AccountID       int64
+	GrantID         int64
 	SessionID       uuid.UUID
 	SessionType     SessionType
 	SessionClientID string
@@ -1752,10 +1752,10 @@ type Session struct {
 }
 
 type SessionToken struct {
-	ID          int32
-	AccountID   int32
-	SessionID   int32
-	GrantID     int32
+	ID          int64
+	AccountID   int64
+	SessionID   int64
+	GrantID     int64
 	SessionUuid uuid.UUID
 	TokenID     uuid.UUID
 	IssuedAt    time.Time
@@ -1764,7 +1764,7 @@ type SessionToken struct {
 }
 
 type TokenSigningKey struct {
-	ID            int32
+	ID            int64
 	Kid           string
 	KeyType       TokenKeyType
 	PublicKey     []byte
@@ -1780,21 +1780,21 @@ type TokenSigningKey struct {
 }
 
 type Totp struct {
-	ID            int32
+	ID            int64
 	DekKid        string
 	Url           string
 	Secret        string
 	RecoveryCodes []byte
 	Usage         TotpUsage
-	AccountID     int32
+	AccountID     int64
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
 
 type User struct {
-	ID             int32
+	ID             int64
 	PublicID       uuid.UUID
-	AccountID      int32
+	AccountID      int64
 	Email          string
 	Username       string
 	Password       pgtype.Text
@@ -1807,9 +1807,9 @@ type User struct {
 }
 
 type User2faConfig struct {
-	ID            int32
-	AccountID     int32
-	UserID        int32
+	ID            int64
+	AccountID     int64
+	UserID        int64
 	TwoFactorType TwoFactorType
 	IsDefault     bool
 	CreatedAt     time.Time
@@ -1817,19 +1817,19 @@ type User2faConfig struct {
 }
 
 type UserAuthProvider struct {
-	ID        int32
-	UserID    int32
-	AccountID int32
+	ID        int64
+	UserID    int64
+	AccountID int64
 	Provider  AuthProvider
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
 type UserCredential struct {
-	ID          int32
-	UserID      int32
-	AccountID   int32
-	AppID       int32
+	ID          int64
+	UserID      int64
+	AccountID   int64
+	AppID       int64
 	ClientID    string
 	AuthMethods []AuthMethod
 	Issuers     []string
@@ -1838,36 +1838,36 @@ type UserCredential struct {
 }
 
 type UserCredentialsKey struct {
-	UserID           int32
-	CredentialsKeyID int32
-	UserCredentialID int32
-	AccountID        int32
+	UserID           int64
+	CredentialsKeyID int64
+	UserCredentialID int64
+	AccountID        int64
 	UserPublicID     uuid.UUID
 	CreatedAt        time.Time
 }
 
 type UserCredentialsSecret struct {
-	UserID              int32
-	CredentialsSecretID int32
-	UserCredentialID    int32
-	AccountID           int32
+	UserID              int64
+	CredentialsSecretID int64
+	UserCredentialID    int64
+	AccountID           int64
 	UserPublicID        uuid.UUID
 	CreatedAt           time.Time
 }
 
 type UserDataEncryptionKey struct {
-	UserID              int32
-	DataEncryptionKeyID int32
-	AccountID           int32
+	UserID              int64
+	DataEncryptionKeyID int64
+	AccountID           int64
 	CreatedAt           time.Time
 }
 
 type UserGrant struct {
-	UserID          int32
+	UserID          int64
 	UserVersion     int32
-	GrantID         int32
-	AppID           int32
-	AccountID       int32
+	GrantID         int64
+	AppID           int64
+	AccountID       int64
 	GrantedClientID string
 	IsRevoked       bool
 	RevokedAt       pgtype.Timestamptz
@@ -1876,18 +1876,18 @@ type UserGrant struct {
 }
 
 type UserSession struct {
-	UserID      int32
+	UserID      int64
 	UserVersion int32
-	SessionID   int32
-	AppID       int32
-	AccountID   int32
+	SessionID   int64
+	AppID       int64
+	AccountID   int64
 	SessionUuid uuid.UUID
 	CreatedAt   time.Time
 }
 
 type UserTotp struct {
-	UserID    int32
-	TotpID    int32
-	AccountID int32
+	UserID    int64
+	TotpID    int64
+	AccountID int64
 	CreatedAt time.Time
 }

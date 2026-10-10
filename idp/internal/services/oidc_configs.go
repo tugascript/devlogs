@@ -89,7 +89,7 @@ func (s *Services) CreateOIDCConfig(
 
 type GetOIDCConfigByAccountIDOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 }
 
 func (s *Services) GetOIDCConfigByAccountID(
@@ -113,7 +113,7 @@ func (s *Services) GetOIDCConfigByAccountID(
 
 type createDefaultOIDCConfigOptions struct {
 	requestID string
-	accountID int32
+	accountID int64
 }
 
 func (s *Services) createDefaultOIDCConfig(
@@ -147,7 +147,7 @@ func (s *Services) createDefaultOIDCConfig(
 
 type GetOrCreateOIDCConfigOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 }
 
 func (s *Services) GetOrCreateOIDCConfig(
@@ -281,7 +281,7 @@ func (s *Services) UpdateOIDCConfig(
 
 type GetOIDCConfigUserStructOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 }
 
 func (s *Services) GetOIDCConfigUserStruct(

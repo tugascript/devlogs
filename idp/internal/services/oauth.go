@@ -41,7 +41,7 @@ var oauthScopes = []oauth.Scope{oauth.ScopeProfile}
 
 type ImplicitOAuthAuthorizationOptions struct {
 	RequestID       string
-	AccountID       int32
+	AccountID       int64
 	AccountUsername string
 	BackendDomain   string
 	ClientID        string

@@ -29,5 +29,5 @@ type GetUserURLParams struct {
 }
 
 type MutateUserURLParams struct {
-	UserID int32 `validate:"required,min=1"`
+	UserID int64 `validate:"required,min=1"`
 }

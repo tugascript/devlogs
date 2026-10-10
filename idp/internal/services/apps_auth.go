@@ -19,7 +19,7 @@ const appsAuthLocation string = "apps_auth"
 type ProcessAppAuthHeaderOptions struct {
 	RequestID  string
 	AuthHeader string
-	AccountID  int32
+	AccountID  int64
 }
 
 func (s *Services) ProcessAppAuthHeader(

@@ -26,7 +26,7 @@ const (
 )
 
 type ClientCredentialsSecretDTO struct {
-	id int32
+	id int64
 
 	PublicID              string    `json:"id"`
 	ClientSecret          string    `json:"client_secret,omitempty"`
@@ -69,7 +69,7 @@ func (s *ClientCredentialsSecretDTO) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (s *ClientCredentialsSecretDTO) ID() int32 {
+func (s *ClientCredentialsSecretDTO) ID() int64 {
 	return s.id
 }
 
@@ -95,7 +95,7 @@ func MapCredentialsSecretToDTO(
 }
 
 func CreateCredentialsSecretToDTOWithSecret(
-	id int32,
+	id int64,
 	secretID string,
 	secret string,
 	exp time.Time,

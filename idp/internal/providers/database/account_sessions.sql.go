@@ -30,11 +30,11 @@ INSERT INTO "account_sessions" (
 `
 
 type CreateAccountSessionWithAccountCredentialsParams struct {
-	AccountID            int32
+	AccountID            int64
 	AccountVersion       int32
-	SessionID            int32
+	SessionID            int64
 	SessionUuid          uuid.UUID
-	AccountCredentialsID pgtype.Int4
+	AccountCredentialsID pgtype.Int8
 }
 
 func (q *Queries) CreateAccountSessionWithAccountCredentials(ctx context.Context, arg CreateAccountSessionWithAccountCredentialsParams) error {
@@ -64,9 +64,9 @@ INSERT INTO "account_sessions" (
 `
 
 type CreateAccountSessionWithoutAccountCredentialsParams struct {
-	AccountID      int32
+	AccountID      int64
 	AccountVersion int32
-	SessionID      int32
+	SessionID      int64
 	SessionUuid    uuid.UUID
 }
 
@@ -91,8 +91,8 @@ WHERE "account_id" = $1 AND "session_id" = $2
 `
 
 type DeleteAccountSessionByAccountIDAndSessionIDParams struct {
-	AccountID int32
-	SessionID int32
+	AccountID int64
+	SessionID int64
 }
 
 func (q *Queries) DeleteAccountSessionByAccountIDAndSessionID(ctx context.Context, arg DeleteAccountSessionByAccountIDAndSessionIDParams) error {
@@ -107,7 +107,7 @@ WHERE "a"."session_id" = "s"."id"
 AND "a"."account_id" = $1
 `
 
-func (q *Queries) DeleteAllSessionsByAccountID(ctx context.Context, accountID int32) error {
+func (q *Queries) DeleteAllSessionsByAccountID(ctx context.Context, accountID int64) error {
 	_, err := q.db.Exec(ctx, deleteAllSessionsByAccountID, accountID)
 	return err
 }
@@ -122,20 +122,20 @@ LIMIT 1
 `
 
 type FindAccountSessionByAccountIDAndSessionUUIDParams struct {
-	AccountID   int32
+	AccountID   int64
 	SessionUuid uuid.UUID
 }
 
 type FindAccountSessionByAccountIDAndSessionUUIDRow struct {
-	AccountID            int32
+	AccountID            int64
 	AccountVersion       int32
-	SessionID            int32
-	AccountCredentialsID pgtype.Int4
+	SessionID            int64
+	AccountCredentialsID pgtype.Int8
 	SessionUuid          uuid.UUID
 	CreatedAt            time.Time
-	ID                   pgtype.Int4
-	AccountID_2          pgtype.Int4
-	GrantID              pgtype.Int4
+	ID                   pgtype.Int8
+	AccountID_2          pgtype.Int8
+	GrantID              pgtype.Int8
 	SessionID_2          pgtype.UUID
 	SessionType          NullSessionType
 	SessionClientID      pgtype.Text

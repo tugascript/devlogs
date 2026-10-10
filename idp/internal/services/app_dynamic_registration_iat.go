@@ -101,7 +101,7 @@ func (s *Services) CreateAppCredentialsRegistrationIAT(
 type ProcessAppDynamicRegistrationIATAuthOptions struct {
 	RequestID    string
 	AuthHeader   string
-	AccountID    int32
+	AccountID    int64
 	IssuerDomain string
 }
 
@@ -218,7 +218,7 @@ func (s *Services) CreateAppCredentialsRegistrationAccessToken(
 type ProcessAppDynamicRegistrationAccessTokenOptions struct {
 	RequestID    string
 	AuthHeader   string
-	AccountID    int32
+	AccountID    int64
 	IssuerDomain string
 }
 

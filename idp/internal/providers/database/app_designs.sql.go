@@ -16,7 +16,7 @@ SELECT COUNT(*) FROM "app_designs" WHERE "app_id" = $1
 LIMIT 1
 `
 
-func (q *Queries) CountAppDesignsByAppID(ctx context.Context, appID int32) (int64, error) {
+func (q *Queries) CountAppDesignsByAppID(ctx context.Context, appID int64) (int64, error) {
 	row := q.db.QueryRow(ctx, countAppDesignsByAppID, appID)
 	var count int64
 	err := row.Scan(&count)
@@ -43,8 +43,8 @@ INSERT INTO "app_designs" (
 `
 
 type CreateAppDesignParams struct {
-	AccountID   int32
-	AppID       int32
+	AccountID   int64
+	AppID       int64
 	LightColors []byte
 	DarkColors  []byte
 	LogoUrl     pgtype.Text
@@ -93,7 +93,7 @@ const deleteAppDesign = `-- name: DeleteAppDesign :exec
 DELETE FROM "app_designs" WHERE "id" = $1
 `
 
-func (q *Queries) DeleteAppDesign(ctx context.Context, id int32) error {
+func (q *Queries) DeleteAppDesign(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteAppDesign, id)
 	return err
 }
@@ -103,7 +103,7 @@ SELECT id, account_id, app_id, light_colors, dark_colors, logo_url, favicon_url,
 LIMIT 1
 `
 
-func (q *Queries) FindAppDesignByAppID(ctx context.Context, appID int32) (AppDesign, error) {
+func (q *Queries) FindAppDesignByAppID(ctx context.Context, appID int64) (AppDesign, error) {
 	row := q.db.QueryRow(ctx, findAppDesignByAppID, appID)
 	var i AppDesign
 	err := row.Scan(
@@ -135,7 +135,7 @@ type UpdateAppDesignParams struct {
 	DarkColors  []byte
 	LogoUrl     pgtype.Text
 	FaviconUrl  pgtype.Text
-	ID          int32
+	ID          int64
 }
 
 func (q *Queries) UpdateAppDesign(ctx context.Context, arg UpdateAppDesignParams) (AppDesign, error) {

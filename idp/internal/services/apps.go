@@ -70,7 +70,7 @@ func (s *Services) GetAppByClientIDAndAccountPublicID(
 type GetAppByClientIDAndAccountIDOptions struct {
 	RequestID string
 	ClientID  string
-	AccountID int32
+	AccountID int64
 }
 
 func (s *Services) GetAppByClientIDAndAccountID(
@@ -108,7 +108,7 @@ type GetAppByClientIDVersionAndAccountIDOptions struct {
 	RequestID string
 	ClientID  string
 	Version   int32
-	AccountID int32
+	AccountID int64
 }
 
 func (s *Services) GetAppByClientIDVersionAndAccountID(
@@ -571,7 +571,7 @@ func mapAuthProviders(authProviders []string) ([]database.AuthProvider, *excepti
 
 type checkForDuplicateAppsOptions struct {
 	requestID  string
-	accountID  int32
+	accountID  int64
 	name       string
 	softwareID string
 }
@@ -616,7 +616,7 @@ func (s *Services) checkForDuplicateApps(
 
 type createAppOptions struct {
 	requestID             string
-	accountID             int32
+	accountID             int64
 	accountPublicID       uuid.UUID
 	creationMethod        database.CreationMethod
 	appType               database.AppType
@@ -1000,7 +1000,7 @@ func (s *Services) CreateWebApp(
 		logger.InfoContext(ctx, "Created web app successfully with private key JWT auth method successfully")
 		return dtos.MapWebAppWithJWKToDTO(&app, jwk, clientKey.ExpiresAt), nil
 	case AuthMethodClientSecretPost, AuthMethodClientSecretBasic, AuthMethodClientSecretJWT:
-		var ccID int32
+		var ccID int64
 		var secretID, secret string
 		var exp time.Time
 		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{
@@ -1072,9 +1072,18 @@ func (s *Services) CreateNativeApp(
 	)
 	logger.InfoContext(ctx, "Creating native app...")
 
-	responseTypes, serviceErr := mapResponseTypesWithDefault(opts.ResponseTypes)
-	if serviceErr != nil {
-		logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
+	var responseTypes []database.ResponseType
+	if len(opts.ResponseTypes) == 0 {
+		responseTypes = []database.ResponseType{database.ResponseTypeCode}
+	} else {
+		var serviceErr *exceptions.ServiceError
+		responseTypes, serviceErr = mapResponseTypesWithDefault(opts.ResponseTypes)
+		if serviceErr != nil {
+			logger.ErrorContext(ctx, "Failed to map response types", "serviceError", serviceErr)
+			return dtos.AppDTO{}, serviceErr
+		}
+	}
+	if serviceErr := validateAppGrantResponseTypes(authCodeAppGrantTypes, responseTypes); serviceErr != nil {
 		return dtos.AppDTO{}, serviceErr
 	}
 
@@ -1375,7 +1384,7 @@ func validateAppGrantResponseTypes(grantTypes []database.GrantType, responseType
 
 type UpdateWebNativeAppOptions struct {
 	RequestID             string
-	AccountID             int32
+	AccountID             int64
 	UsernameColumn        string
 	Name                  string
 	Domain                string
@@ -1507,7 +1516,7 @@ func (s *Services) GetAppWithRelatedConfigs(
 
 type listAppKeysOptions struct {
 	requestID string
-	appID     int32
+	appID     int64
 	offset    int32
 	limit     int32
 }
@@ -1559,7 +1568,7 @@ func (s *Services) listAppKeys(
 
 type listAppSecretsOptions struct {
 	requestID string
-	appID     int32
+	appID     int64
 	offset    int32
 	limit     int32
 }
@@ -1661,7 +1670,7 @@ func (s *Services) ListAppCredentialsSecretsOrKeys(
 
 type getAppKeyByIDOptions struct {
 	requestID string
-	appID     int32
+	appID     int64
 	publicKID string
 }
 
@@ -1698,7 +1707,7 @@ func (s *Services) getAppKeyByID(
 
 type getAppSecretByIDOptions struct {
 	requestID string
-	appID     int32
+	appID     int64
 	secretID  string
 }
 
@@ -1794,7 +1803,7 @@ func (s *Services) GetAppCredentialsSecretOrKey(
 
 type revokeAppSecretOptions struct {
 	requestID string
-	appID     int32
+	appID     int64
 	secretID  string
 }
 
@@ -1824,7 +1833,7 @@ func (s *Services) revokeAppSecret(
 
 type revokeAppKeyOptions struct {
 	requestID string
-	appID     int32
+	appID     int64
 	publicKID string
 }
 
@@ -1925,9 +1934,9 @@ func (s *Services) RevokeAppCredentialsSecretOrKey(
 
 type rotateAppKeyOptions struct {
 	requestID       string
-	accountID       int32
+	accountID       int64
 	accountPublicID uuid.UUID
-	appID           int32
+	appID           int64
 	cryptoSuite     utils.SupportedCryptoSuite
 }
 
@@ -1984,8 +1993,8 @@ func (s *Services) rotateAppKey(
 
 type rotateAppSecretOptions struct {
 	requestID  string
-	accountID  int32
-	appID      int32
+	accountID  int64
+	appID      int64
 	authMethod database.AuthMethod
 }
 

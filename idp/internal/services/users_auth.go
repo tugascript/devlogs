@@ -64,7 +64,7 @@ func mapPurposeTokenTypeToKeyType(tokenType tokens.PurposeTokenType) (database.T
 type ProcessUserAuthHeaderOptions struct {
 	RequestID  string
 	AuthHeader string
-	AccountID  int32
+	AccountID  int64
 	TokenType  tokens.AuthTokenType
 }
 
@@ -111,7 +111,7 @@ func (s *Services) ProcessUserAuthHeader(
 type ProcessUserPurposeHeaderOptions struct {
 	RequestID  string
 	AuthHeader string
-	AccountID  int32
+	AccountID  int64
 	TokenType  tokens.PurposeTokenType
 }
 
@@ -155,7 +155,7 @@ func (s *Services) ProcessUserPurposeHeader(
 
 type sendUserConfirmationEmailOptions struct {
 	requestID          string
-	accountID          int32
+	accountID          int64
 	accountUsername    string
 	appVersion         int32
 	appClientID        string
@@ -230,7 +230,7 @@ func (s *Services) sendUserConfirmationEmail(
 
 type RegisterUserOptions struct {
 	RequestID       string
-	AccountID       int32
+	AccountID       int64
 	AccountUsername string
 	AppClientID     string
 	AppVersion      int32
@@ -301,7 +301,7 @@ func (s *Services) generateFullUserAuthDTO(
 	ctx context.Context,
 	logger *slog.Logger,
 	requestID string,
-	accountID int32,
+	accountID int64,
 	userDTO *dtos.UserDTO,
 	appDTO *dtos.AppDTO,
 	scopes []string,
@@ -396,7 +396,7 @@ func (s *Services) generateFullUserAuthDTO(
 
 type ConfirmAuthUserOptions struct {
 	RequestID         string
-	AccountID         int32
+	AccountID         int64
 	AccountUsername   string
 	AppClientID       string
 	AppVersion        int32
@@ -482,7 +482,7 @@ func (s *Services) ConfirmAuthUser(
 
 type GetUserByUsernameOrEmailOptions struct {
 	RequestID       string
-	AccountID       int32
+	AccountID       int64
 	UsernameColumn  database.AppUsernameColumn
 	UsernameOrEmail string
 }
@@ -542,7 +542,7 @@ func (s *Services) GetUserByUsernameOrEmail(
 
 type LoginUserOptions struct {
 	RequestID       string
-	AccountID       int32
+	AccountID       int64
 	AccountUsername string
 	AppClientID     string
 	AppVersion      int32
@@ -660,7 +660,7 @@ func (s *Services) LoginUser(
 
 type VerifyUserTOTPOptions struct {
 	requestID string
-	userID    int32
+	userID    int64
 	code      string
 }
 
@@ -677,7 +677,7 @@ func (s *Services) VerifyUserTOTP(
 		RequestID: opts.requestID,
 		Code:      opts.code,
 		OwnerID:   opts.userID,
-		GetSecret: func(ownerID int32) (crypto.DEKCiphertext, *exceptions.ServiceError) {
+		GetSecret: func(ownerID int64) (crypto.DEKCiphertext, *exceptions.ServiceError) {
 			userTOTP, err := s.database.FindUserTotpByUserID(ctx, opts.userID)
 			if err != nil {
 				serviceErr := exceptions.FromDBError(err)
@@ -709,8 +709,8 @@ func (s *Services) VerifyUserTOTP(
 
 type VerifyUserEmailCodeOptions struct {
 	requestID string
-	accountID int32
-	userID    int32
+	accountID int64
+	userID    int64
 	code      string
 }
 
@@ -746,7 +746,7 @@ func (s *Services) VerifyUserEmailCode(
 
 type LogoutUserOptions struct {
 	RequestID    string
-	AccountID    int32
+	AccountID    int64
 	AppClientID  string
 	AppVersion   int32
 	UserPublicID uuid.UUID
@@ -861,7 +861,7 @@ func (s *Services) LogoutUser(
 
 type RefreshUserAccessOptions struct {
 	RequestID       string
-	AccountID       int32
+	AccountID       int64
 	AppClientID     string
 	AppVersion      int32
 	AccountUsername string
@@ -980,7 +980,7 @@ func (s *Services) RefreshUserAccess(
 
 type ForgotUserPasswordOptions struct {
 	RequestID       string
-	AccountID       int32
+	AccountID       int64
 	AccountUsername string
 	AppClientID     string
 	AppVersion      int32
@@ -1103,7 +1103,7 @@ func (s *Services) ForgotUserPassword(
 
 type ResetUserPasswordOptions struct {
 	RequestID   string
-	AccountID   int32
+	AccountID   int64
 	AppClientID string
 	AppVersion  int32
 	Password    string

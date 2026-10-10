@@ -18,7 +18,7 @@ WHERE "acs"."account_credentials_id" = $1
 LIMIT 1
 `
 
-func (q *Queries) CountAccountCredentialSecretsByAccountCredentialID(ctx context.Context, accountCredentialsID int32) (int64, error) {
+func (q *Queries) CountAccountCredentialSecretsByAccountCredentialID(ctx context.Context, accountCredentialsID int64) (int64, error) {
 	row := q.db.QueryRow(ctx, countAccountCredentialSecretsByAccountCredentialID, accountCredentialsID)
 	var count int64
 	err := row.Scan(&count)
@@ -43,9 +43,9 @@ INSERT INTO "account_credentials_secrets" (
 `
 
 type CreateAccountCredentialSecretParams struct {
-	AccountCredentialsID int32
-	CredentialsSecretID  int32
-	AccountID            int32
+	AccountCredentialsID int64
+	CredentialsSecretID  int64
+	AccountID            int64
 	AccountPublicID      uuid.UUID
 	SecretID             string
 }
@@ -76,7 +76,7 @@ LIMIT 1
 `
 
 type FindAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretIDParams struct {
-	AccountCredentialsID int32
+	AccountCredentialsID int64
 	SecretID             string
 }
 
@@ -108,7 +108,7 @@ LIMIT 1
 `
 
 type FindAccountCredentialsSecretAccountByAccountCredentialIDAndSecretIDParams struct {
-	AccountCredentialsID int32
+	AccountCredentialsID int64
 	SecretID             string
 }
 
@@ -144,7 +144,7 @@ ORDER BY "csr"."created_at" DESC, "csr"."id" DESC
 LIMIT 1
 `
 
-func (q *Queries) FindCurrentAccountCredentialSecretByAccountCredentialID(ctx context.Context, accountCredentialsID int32) (CredentialsSecret, error) {
+func (q *Queries) FindCurrentAccountCredentialSecretByAccountCredentialID(ctx context.Context, accountCredentialsID int64) (CredentialsSecret, error) {
 	row := q.db.QueryRow(ctx, findCurrentAccountCredentialSecretByAccountCredentialID, accountCredentialsID)
 	var i CredentialsSecret
 	err := row.Scan(
@@ -171,7 +171,7 @@ OFFSET $2 LIMIT $3
 `
 
 type FindPaginatedAccountCredentialSecretsByAccountCredentialIDParams struct {
-	AccountCredentialsID int32
+	AccountCredentialsID int64
 	Offset               int32
 	Limit                int32
 }
@@ -219,7 +219,7 @@ LIMIT 1
 `
 
 type FindValidAccountCredentialSecretByAccountCredentialIDAndCredentialsSecretIDParams struct {
-	AccountCredentialsID int32
+	AccountCredentialsID int64
 	SecretID             string
 }
 
@@ -247,7 +247,7 @@ UPDATE "credentials_secrets" SET
 WHERE "id" = $1
 `
 
-func (q *Queries) RevokeAccountCredentialSecret(ctx context.Context, id int32) error {
+func (q *Queries) RevokeAccountCredentialSecret(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, revokeAccountCredentialSecret, id)
 	return err
 }

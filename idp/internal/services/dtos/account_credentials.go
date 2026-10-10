@@ -62,15 +62,15 @@ type AccountCredentialsDTO struct {
 	ClientSecretJWK utils.JWK `json:"client_secret_jwk,omitempty"`
 	ClientSecretExp int64     `json:"client_secret_expires_at,omitempty"`
 
-	id        int32
-	accountId int32
+	id        int64
+	accountId int64
 }
 
-func (ak *AccountCredentialsDTO) AccountID() int32 {
+func (ak *AccountCredentialsDTO) AccountID() int64 {
 	return ak.accountId
 }
 
-func (ak *AccountCredentialsDTO) ID() int32 {
+func (ak *AccountCredentialsDTO) ID() int64 {
 	return ak.id
 }
 

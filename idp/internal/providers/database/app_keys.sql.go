@@ -16,7 +16,7 @@ WHERE "ak"."app_id" = $1
 LIMIT 1
 `
 
-func (q *Queries) CountAppKeysByAppID(ctx context.Context, appID int32) (int64, error) {
+func (q *Queries) CountAppKeysByAppID(ctx context.Context, appID int64) (int64, error) {
 	row := q.db.QueryRow(ctx, countAppKeysByAppID, appID)
 	var count int64
 	err := row.Scan(&count)
@@ -37,9 +37,9 @@ INSERT INTO "app_keys" (
 `
 
 type CreateAppKeyParams struct {
-	AppID            int32
-	CredentialsKeyID int32
-	AccountID        int32
+	AppID            int64
+	CredentialsKeyID int64
+	AccountID        int64
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -62,7 +62,7 @@ LIMIT 1
 `
 
 type FindAppKeyByAppIDAndPublicKIDParams struct {
-	AppID     int32
+	AppID     int64
 	PublicKid string
 }
 
@@ -93,7 +93,7 @@ WHERE a.app_id = $1 AND NOT c.is_revoked AND c.expires_at > now()
 ORDER BY c.created_at DESC, c.id DESC LIMIT 1
 `
 
-func (q *Queries) FindCurrentAppKey(ctx context.Context, appID int32) (CredentialsKey, error) {
+func (q *Queries) FindCurrentAppKey(ctx context.Context, appID int64) (CredentialsKey, error) {
 	row := q.db.QueryRow(ctx, findCurrentAppKey, appID)
 	var i CredentialsKey
 	err := row.Scan(
@@ -123,7 +123,7 @@ OFFSET $2 LIMIT $3
 `
 
 type FindPaginatedAppKeysByAppIDParams struct {
-	AppID  int32
+	AppID  int64
 	Offset int32
 	Limit  int32
 }

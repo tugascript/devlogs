@@ -16,7 +16,7 @@ WHERE "as"."app_id" = $1
 LIMIT 1
 `
 
-func (q *Queries) CountAppSecretsByAppID(ctx context.Context, appID int32) (int64, error) {
+func (q *Queries) CountAppSecretsByAppID(ctx context.Context, appID int64) (int64, error) {
 	row := q.db.QueryRow(ctx, countAppSecretsByAppID, appID)
 	var count int64
 	err := row.Scan(&count)
@@ -37,9 +37,9 @@ INSERT INTO "app_secrets" (
 `
 
 type CreateAppSecretParams struct {
-	AppID               int32
-	CredentialsSecretID int32
-	AccountID           int32
+	AppID               int64
+	CredentialsSecretID int64
+	AccountID           int64
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -62,7 +62,7 @@ LIMIT 1
 `
 
 type FindAppSecretByAppIDAndSecretIDParams struct {
-	AppID    int32
+	AppID    int64
 	SecretID string
 }
 
@@ -90,7 +90,7 @@ WHERE a.app_id = $1 AND NOT c.is_revoked AND c.expires_at > now()
 ORDER BY c.created_at DESC, c.id DESC LIMIT 1
 `
 
-func (q *Queries) FindCurrentAppSecret(ctx context.Context, appID int32) (CredentialsSecret, error) {
+func (q *Queries) FindCurrentAppSecret(ctx context.Context, appID int64) (CredentialsSecret, error) {
 	row := q.db.QueryRow(ctx, findCurrentAppSecret, appID)
 	var i CredentialsSecret
 	err := row.Scan(
@@ -117,7 +117,7 @@ OFFSET $2 LIMIT $3
 `
 
 type FindPaginatedAppSecretsByAppIDParams struct {
-	AppID  int32
+	AppID  int64
 	Offset int32
 	Limit  int32
 }

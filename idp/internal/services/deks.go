@@ -57,7 +57,7 @@ func (s *Services) buildStoreGlobalDEKfn(
 ) crypto.StoreDEK {
 	logger := s.buildLogger(requestID, deksLocation, "storeGlobalDEK")
 	logger.InfoContext(ctx, "Building store function for global DEK...")
-	return func(dekID string, encryptedDEK string, kekID uuid.UUID) (int32, *exceptions.ServiceError) {
+	return func(dekID string, encryptedDEK string, kekID uuid.UUID) (int64, *exceptions.ServiceError) {
 		qrs := s.mapQueries(queries)
 		dekEnt, err := qrs.CreateDataEncryptionKey(ctx, database.CreateDataEncryptionKeyParams{
 			Kid:       dekID,
@@ -214,7 +214,7 @@ func (s *Services) BuildGetGlobalDecDEKFn(
 
 type buildStoreAccountDEKOptions struct {
 	requestID string
-	accountID int32
+	accountID int64
 	data      map[string]string
 	queries   *database.Queries
 }
@@ -226,7 +226,7 @@ func (s *Services) buildStoreAccountDEKfn(
 	logger := s.buildLogger(opts.requestID, deksLocation, "buildStoreAccountDEKfn")
 	logger.InfoContext(ctx, "Building store function for account DEK...")
 
-	return func(dekID string, encryptedDEK string, kekID uuid.UUID) (int32, *exceptions.ServiceError) {
+	return func(dekID string, encryptedDEK string, kekID uuid.UUID) (int64, *exceptions.ServiceError) {
 		var qrs *database.Queries
 		var txn pgx.Tx
 		var err error
@@ -288,7 +288,7 @@ func (s *Services) buildStoreAccountDEKfn(
 
 type BuildGetEncAccountDEKOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 	Queries   *database.Queries
 }
 
@@ -396,7 +396,7 @@ func (s *Services) BuildGetEncAccountDEKfn(
 
 type BuildGetDecAccountDEKFnOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 	Queries   *database.Queries
 }
 

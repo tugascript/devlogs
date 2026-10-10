@@ -33,10 +33,10 @@ INSERT INTO "session_tokens" (
 
 type CreateSessionTokenParams struct {
 	TokenID     uuid.UUID
-	AccountID   int32
-	SessionID   int32
+	AccountID   int64
+	SessionID   int64
 	SessionUuid uuid.UUID
-	GrantID     int32
+	GrantID     int64
 	ExpiresAt   time.Time
 }
 

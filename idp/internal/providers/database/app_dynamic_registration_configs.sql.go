@@ -57,7 +57,7 @@ INSERT INTO "app_dynamic_registration_configs" (
 `
 
 type CreateAppDynamicRegistrationConfigParams struct {
-	AccountID                            int32
+	AccountID                            int64
 	AccountPublicID                      uuid.UUID
 	AllowedAppTypes                      []AppType
 	DefaultAllowUserRegistration         bool
@@ -137,7 +137,7 @@ const deleteAppDynamicRegistrationConfig = `-- name: DeleteAppDynamicRegistratio
 DELETE FROM "app_dynamic_registration_configs" WHERE "id" = $1
 `
 
-func (q *Queries) DeleteAppDynamicRegistrationConfig(ctx context.Context, id int32) error {
+func (q *Queries) DeleteAppDynamicRegistrationConfig(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteAppDynamicRegistrationConfig, id)
 	return err
 }
@@ -147,7 +147,7 @@ SELECT id, account_id, account_public_id, allowed_app_types, default_allow_user_
 WHERE "account_id" = $1 LIMIT 1
 `
 
-func (q *Queries) FindAppDynamicRegistrationConfigByAccountID(ctx context.Context, accountID int32) (AppDynamicRegistrationConfig, error) {
+func (q *Queries) FindAppDynamicRegistrationConfigByAccountID(ctx context.Context, accountID int64) (AppDynamicRegistrationConfig, error) {
 	row := q.db.QueryRow(ctx, findAppDynamicRegistrationConfigByAccountID, accountID)
 	var i AppDynamicRegistrationConfig
 	err := row.Scan(
@@ -236,7 +236,7 @@ RETURNING id, account_id, account_public_id, allowed_app_types, default_allow_us
 `
 
 type UpdateAppDynamicRegistrationConfigParams struct {
-	ID                                   int32
+	ID                                   int64
 	AllowedAppTypes                      []AppType
 	DefaultAllowUserRegistration         bool
 	DefaultAuthProviders                 []AuthProvider

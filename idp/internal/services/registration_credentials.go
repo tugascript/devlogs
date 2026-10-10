@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func (s *Services) replaceRegistrationSecret(ctx context.Context, requestID string, accountID int32, publicID uuid.UUID, clientID int32, app bool) (string, time.Time, utils.JWK, *exceptions.ServiceError) {
+func (s *Services) replaceRegistrationSecret(ctx context.Context, requestID string, accountID int64, publicID uuid.UUID, clientID int64, app bool) (string, time.Time, utils.JWK, *exceptions.ServiceError) {
 	usage := database.CredentialsUsageAccount
 	ttl := s.accountCCExpDays
 	dek := s.BuildGetEncGlobalDEKFn(ctx, BuildGetGlobalDEKFnOptions{RequestID: requestID, Queries: s.database.Queries})

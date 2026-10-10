@@ -16,7 +16,7 @@ const (
 
 type AddAccountUsernameOptions struct {
 	RequestID string
-	ID        int32
+	ID        int64
 	Username  string
 }
 
@@ -31,7 +31,7 @@ func (c *Cache) AddAccountUsername(ctx context.Context, opts AddAccountUsernameO
 	return c.storage.SetWithContext(
 		ctx,
 		fmt.Sprintf("%s:%s", accountUsernamePrefix, opts.Username),
-		[]byte(strconv.Itoa(int(opts.ID))),
+		[]byte(strconv.FormatInt(opts.ID, 10)),
 		c.accountUsernameTTL,
 	)
 }
@@ -44,7 +44,7 @@ type GetAccountIDByUsernameOptions struct {
 func (c *Cache) GetAccountIDByUsername(
 	ctx context.Context,
 	opts GetAccountIDByUsernameOptions,
-) (int32, error) {
+) (int64, error) {
 	logger := utils.BuildLogger(c.logger, utils.LoggerOptions{
 		Location:  accountUsernameLocation,
 		Method:    "GetAccountIDByUsername",
@@ -60,10 +60,10 @@ func (c *Cache) GetAccountIDByUsername(
 		return 0, nil
 	}
 
-	id, err := strconv.Atoi(string(val))
+	id, err := strconv.ParseInt(string(val), 10, 64)
 	if err != nil {
 		return 0, err
 	}
 
-	return int32(id), nil
+	return id, nil
 }

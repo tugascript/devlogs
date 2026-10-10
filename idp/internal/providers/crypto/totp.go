@@ -277,12 +277,12 @@ func (e *Crypto) GenerateTotpKey(
 	})
 }
 
-type GetTOTPSecret = func(ownerID int32) (DEKCiphertext, *exceptions.ServiceError)
+type GetTOTPSecret = func(ownerID int64) (DEKCiphertext, *exceptions.ServiceError)
 
 type VerifyTotpCodeOptions struct {
 	RequestID       string
 	Code            string
-	OwnerID         int32
+	OwnerID         int64
 	GetSecret       GetTOTPSecret
 	GetDecryptDEKFN GetDEKtoDecrypt
 	GetEncryptDEKFN GetDEKtoEncrypt
@@ -313,7 +313,7 @@ func (e *Crypto) VerifyTotpCode(
 			GetDecryptDEKfn:        opts.GetDecryptDEKFN,
 			GetEncryptDEKfn:        opts.GetEncryptDEKFN,
 			Ciphertext:             encSecret,
-			EntityID:               strconv.Itoa(int(opts.OwnerID)),
+			EntityID:               strconv.FormatInt(opts.OwnerID, 10),
 			StoreReEncryptedDataFn: opts.StoreFN,
 		},
 	)
@@ -325,14 +325,14 @@ func (e *Crypto) VerifyTotpCode(
 	return totp.Validate(opts.Code, secret), nil
 }
 
-type GetTOTPRecoveryCodes = func(ownerID int32) ([]byte, *exceptions.ServiceError)
+type GetTOTPRecoveryCodes = func(ownerID int64) ([]byte, *exceptions.ServiceError)
 
 type VerifyTotpRecoveryCodeOptions struct {
 	RequestID    string
 	Issuer       string
 	Email        string
 	RecoveryCode string
-	OwnerID      int32
+	OwnerID      int64
 	GetCodes     GetTOTPRecoveryCodes
 	GetDEKfn     GetDEKtoEncrypt
 	StoreTOTPfn  StoreTOTP

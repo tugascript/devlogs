@@ -21,13 +21,13 @@ type UserDTO struct {
 	Username string    `json:"username"`
 	DataDTO
 
-	id            int32
+	id            int64
 	version       int32
 	emailVerified bool
 	password      string
 }
 
-func (u *UserDTO) ID() int32 {
+func (u *UserDTO) ID() int64 {
 	return u.id
 }
 

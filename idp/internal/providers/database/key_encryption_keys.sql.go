@@ -36,9 +36,9 @@ type CreateKeyEncryptionKeyParams struct {
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) CreateKeyEncryptionKey(ctx context.Context, arg CreateKeyEncryptionKeyParams) (int32, error) {
+func (q *Queries) CreateKeyEncryptionKey(ctx context.Context, arg CreateKeyEncryptionKeyParams) (int64, error) {
 	row := q.db.QueryRow(ctx, createKeyEncryptionKey, arg.Kid, arg.Usage, arg.NextRotationAt)
-	var id int32
+	var id int64
 	err := row.Scan(&id)
 	return id, err
 }
@@ -71,7 +71,7 @@ WHERE "id" = $1
 LIMIT 1
 `
 
-func (q *Queries) FindKeyEncryptionKeyByID(ctx context.Context, id int32) (KeyEncryptionKey, error) {
+func (q *Queries) FindKeyEncryptionKeyByID(ctx context.Context, id int64) (KeyEncryptionKey, error) {
 	row := q.db.QueryRow(ctx, findKeyEncryptionKeyByID, id)
 	var i KeyEncryptionKey
 	err := row.Scan(
@@ -124,13 +124,13 @@ RETURNING "id"
 `
 
 type RotateKeyEncryptionKeyParams struct {
-	ID             int32
+	ID             int64
 	NextRotationAt time.Time
 }
 
-func (q *Queries) RotateKeyEncryptionKey(ctx context.Context, arg RotateKeyEncryptionKeyParams) (int32, error) {
+func (q *Queries) RotateKeyEncryptionKey(ctx context.Context, arg RotateKeyEncryptionKeyParams) (int64, error) {
 	row := q.db.QueryRow(ctx, rotateKeyEncryptionKey, arg.ID, arg.NextRotationAt)
-	var id int32
+	var id int64
 	err := row.Scan(&id)
 	return id, err
 }

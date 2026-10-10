@@ -21,8 +21,8 @@ INSERT INTO "account_key_encryption_keys" (
 `
 
 type CreateAccountKeyEncryptionKeyParams struct {
-	AccountID          int32
-	KeyEncryptionKeyID int32
+	AccountID          int64
+	KeyEncryptionKeyID int64
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -42,7 +42,7 @@ WHERE "akek"."account_id" = $1
 LIMIT 1
 `
 
-func (q *Queries) FindAccountKeyEncryptionKeyByAccountID(ctx context.Context, accountID int32) (KeyEncryptionKey, error) {
+func (q *Queries) FindAccountKeyEncryptionKeyByAccountID(ctx context.Context, accountID int64) (KeyEncryptionKey, error) {
 	row := q.db.QueryRow(ctx, findAccountKeyEncryptionKeyByAccountID, accountID)
 	var i KeyEncryptionKey
 	err := row.Scan(

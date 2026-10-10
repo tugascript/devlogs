@@ -37,8 +37,8 @@ INSERT INTO "sessions" (
 `
 
 type CreateSessionParams struct {
-	AccountID       int32
-	GrantID         int32
+	AccountID       int64
+	GrantID         int64
 	SessionID       uuid.UUID
 	SessionType     SessionType
 	SessionClientID string
@@ -52,7 +52,7 @@ type CreateSessionParams struct {
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (int32, error) {
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (int64, error) {
 	row := q.db.QueryRow(ctx, createSession,
 		arg.AccountID,
 		arg.GrantID,
@@ -63,7 +63,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (i
 		arg.UserAgent,
 		arg.ExpiresAt,
 	)
-	var id int32
+	var id int64
 	err := row.Scan(&id)
 	return id, err
 }
@@ -72,7 +72,7 @@ const deleteSessionByID = `-- name: DeleteSessionByID :exec
 DELETE FROM "sessions" WHERE "id" = $1
 `
 
-func (q *Queries) DeleteSessionByID(ctx context.Context, id int32) error {
+func (q *Queries) DeleteSessionByID(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteSessionByID, id)
 	return err
 }
@@ -83,7 +83,7 @@ UPDATE "sessions" SET "expires_at" = $1 WHERE "id" = $2
 
 type UpdateSessionExpiresAtParams struct {
 	ExpiresAt time.Time
-	ID        int32
+	ID        int64
 }
 
 func (q *Queries) UpdateSessionExpiresAt(ctx context.Context, arg UpdateSessionExpiresAtParams) error {

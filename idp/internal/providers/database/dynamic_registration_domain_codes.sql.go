@@ -32,8 +32,8 @@ INSERT INTO "dynamic_registration_domain_codes" (
 `
 
 type CreateDynamicRegistrationDomainCodeParams struct {
-	AccountID                   int32
-	DynamicRegistrationDomainID int32
+	AccountID                   int64
+	DynamicRegistrationDomainID int64
 	VerificationHost            string
 	VerificationCode            string
 	VerificationPrefix          string
@@ -64,7 +64,7 @@ DELETE FROM "dynamic_registration_domain_codes"
 WHERE "id" = $1
 `
 
-func (q *Queries) DeleteDynamicRegistrationDomainCode(ctx context.Context, id int32) error {
+func (q *Queries) DeleteDynamicRegistrationDomainCode(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteDynamicRegistrationDomainCode, id)
 	return err
 }
@@ -74,7 +74,7 @@ SELECT id, account_id, dynamic_registration_domain_id, verification_host, verifi
 WHERE "dynamic_registration_domain_id" = $1
 `
 
-func (q *Queries) FindDynamicRegistrationDomainCodeByDynamicRegistrationDomainID(ctx context.Context, dynamicRegistrationDomainID int32) (DynamicRegistrationDomainCode, error) {
+func (q *Queries) FindDynamicRegistrationDomainCodeByDynamicRegistrationDomainID(ctx context.Context, dynamicRegistrationDomainID int64) (DynamicRegistrationDomainCode, error) {
 	row := q.db.QueryRow(ctx, findDynamicRegistrationDomainCodeByDynamicRegistrationDomainID, dynamicRegistrationDomainID)
 	var i DynamicRegistrationDomainCode
 	err := row.Scan(
@@ -103,7 +103,7 @@ WHERE "id" = $1
 `
 
 type UpdateDynamicRegistrationDomainCodeParams struct {
-	ID                 int32
+	ID                 int64
 	VerificationHost   string
 	VerificationCode   string
 	VerificationPrefix string

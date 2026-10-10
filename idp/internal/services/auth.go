@@ -247,7 +247,7 @@ func validateScopes(
 
 type upsertAccountGrantSessionAndTokenOptions struct {
 	requestID       string
-	accountID       int32
+	accountID       int64
 	accountVersion  int32
 	accountPublicID uuid.UUID
 	scopes          []tokens.AccountScope
@@ -344,7 +344,7 @@ func (s *Services) createAccountGrantSessionAndToken(
 	}
 
 	if accountCredentialsDTO.ID() > 0 {
-		var accountCredentialsID pgtype.Int4
+		var accountCredentialsID pgtype.Int8
 		if err = accountCredentialsID.Scan(accountCredentialsDTO.ID()); err != nil {
 			logger.ErrorContext(ctx, "Failed to scan account credentials ID", "error", err)
 			return exceptions.NewInternalServerError()
@@ -393,7 +393,7 @@ func (s *Services) createAccountGrantSessionAndToken(
 
 type createAccountSessionAndTokenOptions struct {
 	requestID       string
-	accountID       int32
+	accountID       int64
 	accountVersion  int32
 	accountPublicID uuid.UUID
 	scopes          []tokens.AccountScope
@@ -402,7 +402,7 @@ type createAccountSessionAndTokenOptions struct {
 	clientID        utils.Base62UUIDStr
 	ipAddress       string
 	userAgent       string
-	grantID         int32
+	grantID         int64
 }
 
 func (s *Services) createAccountSessionAndToken(
@@ -471,7 +471,7 @@ func (s *Services) createAccountSessionAndToken(
 	}
 
 	if accountCredentialsDTO.ID() > 0 {
-		var accountCredentialsID pgtype.Int4
+		var accountCredentialsID pgtype.Int8
 		if err = accountCredentialsID.Scan(accountCredentialsDTO.ID()); err != nil {
 			logger.ErrorContext(ctx, "Failed to scan account credentials ID", "error", err)
 			return exceptions.NewInternalServerError()
@@ -611,7 +611,7 @@ func (s *Services) upsertAccountGrantSessionAndToken(
 
 type generateFullAuthDTOOptions struct {
 	requestID       string
-	accountID       int32
+	accountID       int64
 	accountPublicID uuid.UUID
 	accountVersion  int32
 	sessionID       uuid.UUID
@@ -973,7 +973,7 @@ func (s *Services) buildGetAccountTOTPFn(
 	logger := s.buildLogger(requestID, authLocation, "buildGetAccountTOTPFn")
 	logger.InfoContext(ctx, "Building GetAccountTOTP function...")
 
-	return func(ownerID int32) (crypto.DEKCiphertext, *exceptions.ServiceError) {
+	return func(ownerID int64) (crypto.DEKCiphertext, *exceptions.ServiceError) {
 		logger.InfoContext(ctx, "Getting TOTP secret...")
 		accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, ownerID)
 		if err != nil {
@@ -1005,13 +1005,13 @@ func (s *Services) buildUpdateAccountTOTPDEKFn(
 		secret crypto.DEKCiphertext,
 	) *exceptions.ServiceError {
 		logger.InfoContext(ctx, "Updating TOTP secret...")
-		intID, err := strconv.ParseInt(accountID, 10, 32)
+		intID, err := strconv.ParseInt(accountID, 10, 64)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to parse account ID", "error", err)
 			return exceptions.NewInternalServerError()
 		}
 
-		accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, int32(intID))
+		accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, intID)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to find account TOTP", "error", err)
 			return exceptions.FromDBError(err)
@@ -1033,7 +1033,7 @@ func (s *Services) buildUpdateAccountTOTPDEKFn(
 
 type VerifyAccountTotpOptions struct {
 	RequestID string
-	ID        int32
+	ID        int64
 	Code      string
 }
 
@@ -1082,7 +1082,7 @@ func mapTokens2FAType(twoFAType tokens.TwoFAType) (database.TwoFactorType, *exce
 
 type verifyAccount2FAInternalOptions struct {
 	requestID       string
-	accountID       int32
+	accountID       int64
 	accountPublicID uuid.UUID
 	accountVersion  int32
 	twoFAType       tokens.TwoFAType
@@ -1534,7 +1534,7 @@ func (s *Services) buildGetAccountRecoveryCodesFn(
 	logger := s.buildLogger(requestID, authLocation, "buildGetAccountRecoveryCodesFn")
 	logger.InfoContext(ctx, "Building GetAccountRecoveryCodes function...")
 
-	return func(ownerID int32) ([]byte, *exceptions.ServiceError) {
+	return func(ownerID int64) ([]byte, *exceptions.ServiceError) {
 		logger.InfoContext(ctx, "Getting recovery codes...")
 		accountTOTP, err := s.database.FindAccountTotpByAccountID(ctx, ownerID)
 		if err != nil {
@@ -1555,7 +1555,7 @@ func (s *Services) buildGetAccountRecoveryCodesFn(
 
 type buildUpdateAccountTOTPFnOptions struct {
 	requestID string
-	accountID int32
+	accountID int64
 }
 
 func (s *Services) buildUpdateAccountTOTPFn(

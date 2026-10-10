@@ -121,7 +121,7 @@ UPDATE "data_encryption_keys" SET
 WHERE "id" = $1
 `
 
-func (q *Queries) RevokeDataEncryptionKey(ctx context.Context, id int32) error {
+func (q *Queries) RevokeDataEncryptionKey(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, revokeDataEncryptionKey, id)
 	return err
 }

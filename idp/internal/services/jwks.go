@@ -103,7 +103,7 @@ func (s *Services) buildStoreGlobalJWKfn(
 ) crypto.StorePrivateKey {
 	logger := s.buildLogger(opts.requestID, jwkLocation, "buildStoreGlobalJWKfn")
 	logger.InfoContext(ctx, "Building store global JWK function...")
-	return func(dekKid string, cryptoSuite utils.SupportedCryptoSuite, kid, encryptedKey string, pubKey utils.JWK) (int32, *exceptions.ServiceError) {
+	return func(dekKid string, cryptoSuite utils.SupportedCryptoSuite, kid, encryptedKey string, pubKey utils.JWK) (int64, *exceptions.ServiceError) {
 		dbCryptoSuite, err := mapCryptoSuite(cryptoSuite)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
@@ -403,7 +403,7 @@ func (s *Services) GetAndCacheGlobalDistributedJWK(
 
 type buildStoreAccountJWKfnOptions struct {
 	requestID string
-	accountID int32
+	accountID int64
 	keyType   database.TokenKeyType
 	data      map[string]string
 }
@@ -420,7 +420,7 @@ func (s *Services) buildStoreAccountJWKfn(
 		cryptoSuite utils.SupportedCryptoSuite,
 		kid, encryptedKey string,
 		pubKey utils.JWK,
-	) (int32, *exceptions.ServiceError) {
+	) (int64, *exceptions.ServiceError) {
 		dbCryptoSuite, err := mapCryptoSuite(cryptoSuite)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to map crypto suite", "error", err)
@@ -491,7 +491,7 @@ func (s *Services) buildStoreAccountJWKfn(
 type BuildGetEncryptedAccountJWKFnOptions struct {
 	RequestID string
 	KeyType   database.TokenKeyType
-	AccountID int32
+	AccountID int64
 }
 
 func (s *Services) BuildGetEncryptedAccountJWKFn(
@@ -615,7 +615,7 @@ func (s *Services) BuildGetEncryptedAccountJWKFn(
 
 type BuildGetAccountPublicKeyFnOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 	KeyType   database.TokenKeyType
 }
 
@@ -698,7 +698,7 @@ func (s *Services) BuildGetAccountPublicKeyFn(
 
 type GetAndCacheAccountDistributedJWKOptions struct {
 	RequestID string
-	AccountID int32
+	AccountID int64
 }
 
 func (s *Services) GetAndCacheAccountDistributedJWK(

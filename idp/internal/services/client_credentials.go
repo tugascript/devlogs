@@ -41,7 +41,7 @@ const (
 
 type clientCredentialsSecretOptions struct {
 	requestID string
-	accountID int32
+	accountID int64
 	expiresIn time.Duration
 	usage     database.CredentialsUsage
 	dekFN     crypto.GetDEKtoEncrypt
@@ -51,7 +51,7 @@ func (s *Services) clientCredentialsSecret(
 	ctx context.Context,
 	qrs *database.Queries,
 	opts clientCredentialsSecretOptions,
-) (int32, string, string, time.Time, *exceptions.ServiceError) {
+) (int64, string, string, time.Time, *exceptions.ServiceError) {
 	logger := s.buildLogger(opts.requestID, clientCredentialsLocation, "clientCredentialsSecret").With(
 		"accountId", opts.accountID,
 		"usage", opts.usage,
@@ -105,7 +105,7 @@ func mapAlgorithmToTokenCryptoSuite(algorithm string) utils.SupportedCryptoSuite
 
 type clientCredentialsKeyOptions struct {
 	requestID       string
-	accountID       int32
+	accountID       int64
 	accountPublicID uuid.UUID
 	expiresIn       time.Duration
 	usage           database.CredentialsUsage

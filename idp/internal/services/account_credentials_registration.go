@@ -49,7 +49,7 @@ var accountCredentialsRegistrationUsages []database.DynamicRegistrationUsage = [
 type mapAccountCredentialsRegistrationDataToDBParamsOptions struct {
 	applicationType         database.AccountCredentialsType
 	accountPublicID         uuid.UUID
-	accountID               int32
+	accountID               int64
 	domain                  string
 	requestID               string
 	tokenEndpointAuthMethod database.AuthMethod
@@ -534,7 +534,7 @@ func (s *Services) createAccountCredentialsRegistration(
 
 		return s.finalizeAccountCredentialsRegistration(ctx, qrs, opts, &accountCredentials, "", dbPrms.ExpiresAt, jwk)
 	case database.AuthMethodClientSecretBasic, database.AuthMethodClientSecretPost, database.AuthMethodClientSecretJwt:
-		var ccID int32
+		var ccID int64
 		var secretID, secret string
 		var exp time.Time
 		ccID, secretID, secret, exp, serviceErr = s.clientCredentialsSecret(ctx, qrs, clientCredentialsSecretOptions{

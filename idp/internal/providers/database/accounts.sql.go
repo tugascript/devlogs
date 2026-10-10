@@ -21,7 +21,7 @@ WHERE "id" = $1
 RETURNING id, public_id, given_name, family_name, username, email, organization, password, version, email_verified, activity_status, created_at, updated_at
 `
 
-func (q *Queries) ConfirmAccount(ctx context.Context, id int32) (Account, error) {
+func (q *Queries) ConfirmAccount(ctx context.Context, id int64) (Account, error) {
 	row := q.db.QueryRow(ctx, confirmAccount, id)
 	var i Account
 	err := row.Scan(
@@ -187,7 +187,7 @@ DELETE FROM "accounts"
 WHERE "id" = $1
 `
 
-func (q *Queries) DeleteAccount(ctx context.Context, id int32) error {
+func (q *Queries) DeleteAccount(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteAccount, id)
 	return err
 }
@@ -232,7 +232,7 @@ SELECT id, public_id, given_name, family_name, username, email, organization, pa
 WHERE "id" = $1 LIMIT 1
 `
 
-func (q *Queries) FindAccountById(ctx context.Context, id int32) (Account, error) {
+func (q *Queries) FindAccountById(ctx context.Context, id int64) (Account, error) {
 	row := q.db.QueryRow(ctx, findAccountById, id)
 	var i Account
 	err := row.Scan(
@@ -320,9 +320,9 @@ type FindAccountIDByPublicIDAndVersionParams struct {
 	Version  int32
 }
 
-func (q *Queries) FindAccountIDByPublicIDAndVersion(ctx context.Context, arg FindAccountIDByPublicIDAndVersionParams) (int32, error) {
+func (q *Queries) FindAccountIDByPublicIDAndVersion(ctx context.Context, arg FindAccountIDByPublicIDAndVersionParams) (int64, error) {
 	row := q.db.QueryRow(ctx, findAccountIDByPublicIDAndVersion, arg.PublicID, arg.Version)
-	var id int32
+	var id int64
 	err := row.Scan(&id)
 	return id, err
 }
@@ -332,9 +332,9 @@ SELECT "id" FROM "accounts"
 WHERE "username" = $1 LIMIT 1
 `
 
-func (q *Queries) FindAccountIDByUsername(ctx context.Context, username string) (int32, error) {
+func (q *Queries) FindAccountIDByUsername(ctx context.Context, username string) (int64, error) {
 	row := q.db.QueryRow(ctx, findAccountIDByUsername, username)
-	var id int32
+	var id int64
 	err := row.Scan(&id)
 	return id, err
 }
@@ -351,7 +351,7 @@ RETURNING id, public_id, given_name, family_name, username, email, organization,
 type UpdateAccountParams struct {
 	GivenName  string
 	FamilyName string
-	ID         int32
+	ID         int64
 }
 
 func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error) {
@@ -386,7 +386,7 @@ RETURNING id, public_id, given_name, family_name, username, email, organization,
 
 type UpdateAccountEmailParams struct {
 	Email string
-	ID    int32
+	ID    int64
 }
 
 func (q *Queries) UpdateAccountEmail(ctx context.Context, arg UpdateAccountEmailParams) (Account, error) {
@@ -421,7 +421,7 @@ RETURNING id, public_id, given_name, family_name, username, email, organization,
 
 type UpdateAccountPasswordParams struct {
 	Password pgtype.Text
-	ID       int32
+	ID       int64
 }
 
 func (q *Queries) UpdateAccountPassword(ctx context.Context, arg UpdateAccountPasswordParams) (Account, error) {
@@ -456,7 +456,7 @@ RETURNING id, public_id, given_name, family_name, username, email, organization,
 
 type UpdateAccountUsernameParams struct {
 	Username string
-	ID       int32
+	ID       int64
 }
 
 func (q *Queries) UpdateAccountUsername(ctx context.Context, arg UpdateAccountUsernameParams) (Account, error) {
@@ -488,7 +488,7 @@ WHERE "id" = $1
 RETURNING id, public_id, given_name, family_name, username, email, organization, password, version, email_verified, activity_status, created_at, updated_at
 `
 
-func (q *Queries) UpdateAccountVersion(ctx context.Context, id int32) (Account, error) {
+func (q *Queries) UpdateAccountVersion(ctx context.Context, id int64) (Account, error) {
 	row := q.db.QueryRow(ctx, updateAccountVersion, id)
 	var i Account
 	err := row.Scan(

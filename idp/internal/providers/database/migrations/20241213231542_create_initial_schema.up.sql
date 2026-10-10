@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2026-10-09T19:10:27.473Z
+-- Generated at: 2026-10-10T12:55:15.004Z
 
 CREATE TYPE "kek_usage" AS ENUM (
   'global',
@@ -216,7 +216,7 @@ CREATE TYPE "token_owner" AS ENUM (
 );
 
 CREATE TABLE "key_encryption_keys" (
-  "id" serial PRIMARY KEY,
+  "id" bigserial PRIMARY KEY,
   "kid" uuid NOT NULL,
   "usage" kek_usage NOT NULL,
   "version" integer NOT NULL DEFAULT 1,
@@ -227,7 +227,7 @@ CREATE TABLE "key_encryption_keys" (
 );
 
 CREATE TABLE "data_encryption_keys" (
-  "id" serial PRIMARY KEY,
+  "id" bigserial PRIMARY KEY,
   "kid" varchar(22) NOT NULL,
   "dek" text NOT NULL,
   "kek_kid" uuid NOT NULL,
@@ -239,7 +239,7 @@ CREATE TABLE "data_encryption_keys" (
 );
 
 CREATE TABLE "token_signing_keys" (
-  "id" serial PRIMARY KEY,
+  "id" bigserial PRIMARY KEY,
   "kid" varchar(22) NOT NULL,
   "key_type" token_key_type NOT NULL,
   "public_key" jsonb NOT NULL,
@@ -255,7 +255,7 @@ CREATE TABLE "token_signing_keys" (
 );
 
 CREATE TABLE "accounts" (
-  "id" serial PRIMARY KEY,
+  "id" bigserial PRIMARY KEY,
   "public_id" uuid NOT NULL,
   "given_name" varchar(100) NOT NULL,
   "family_name" varchar(100) NOT NULL,
@@ -271,8 +271,8 @@ CREATE TABLE "accounts" (
 );
 
 CREATE TABLE "account_2fa_configs" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
   "account_public_id" uuid NOT NULL,
   "two_factor_type" two_factor_type NOT NULL,
   "is_default" boolean NOT NULL DEFAULT false,
@@ -282,32 +282,32 @@ CREATE TABLE "account_2fa_configs" (
 );
 
 CREATE TABLE "totps" (
-  "id" serial PRIMARY KEY,
+  "id" bigserial PRIMARY KEY,
   "dek_kid" varchar(22) NOT NULL,
   "url" varchar(512) NOT NULL,
   "secret" text NOT NULL,
   "recovery_codes" jsonb NOT NULL,
   "usage" totp_usage NOT NULL,
-  "account_id" integer NOT NULL,
+  "account_id" bigint NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "credentials_secrets" (
-  "id" serial PRIMARY KEY,
+  "id" bigserial PRIMARY KEY,
   "secret_id" varchar(22) NOT NULL,
   "client_secret" text NOT NULL,
   "dek_kid" varchar(22) NOT NULL,
   "is_revoked" boolean NOT NULL DEFAULT false,
   "usage" credentials_usage NOT NULL,
-  "account_id" integer NOT NULL,
+  "account_id" bigint NOT NULL,
   "expires_at" timestamptz NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "credentials_keys" (
-  "id" serial PRIMARY KEY,
+  "id" bigserial PRIMARY KEY,
   "public_kid" varchar(22) NOT NULL,
   "public_key" jsonb NOT NULL,
   "private_key" text NOT NULL,
@@ -316,29 +316,29 @@ CREATE TABLE "credentials_keys" (
   "is_revoked" boolean NOT NULL DEFAULT false,
   "is_external" boolean NOT NULL DEFAULT false,
   "usage" credentials_usage NOT NULL,
-  "account_id" integer NOT NULL,
+  "account_id" bigint NOT NULL,
   "expires_at" timestamptz NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "account_key_encryption_keys" (
-  "account_id" integer NOT NULL,
-  "key_encryption_key_id" integer NOT NULL,
+  "account_id" bigint NOT NULL,
+  "key_encryption_key_id" bigint NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("account_id", "key_encryption_key_id")
 );
 
 CREATE TABLE "account_data_encryption_keys" (
-  "account_id" integer NOT NULL,
-  "data_encryption_key_id" integer NOT NULL,
+  "account_id" bigint NOT NULL,
+  "data_encryption_key_id" bigint NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("account_id", "data_encryption_key_id")
 );
 
 CREATE TABLE "account_hmac_secrets" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
   "secret_id" varchar(22) NOT NULL,
   "secret" text NOT NULL,
   "dek_kid" varchar(22) NOT NULL,
@@ -348,8 +348,8 @@ CREATE TABLE "account_hmac_secrets" (
 );
 
 CREATE TABLE "account_totps" (
-  "account_id" integer NOT NULL,
-  "totp_id" integer NOT NULL,
+  "account_id" bigint NOT NULL,
+  "totp_id" bigint NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("account_id", "totp_id")
 );
@@ -357,8 +357,8 @@ CREATE TABLE "account_totps" (
 CREATE TABLE "account_credentials" (
   "registration_token_jti" uuid UNIQUE,
   "software_statement" text NOT NULL DEFAULT '',
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
   "account_public_id" uuid NOT NULL,
   "domain" varchar(250) NOT NULL,
   "creation_method" creation_method NOT NULL,
@@ -403,9 +403,9 @@ CREATE TABLE "account_credentials" (
 );
 
 CREATE TABLE "account_credentials_secrets" (
-  "account_id" integer NOT NULL,
-  "credentials_secret_id" integer NOT NULL,
-  "account_credentials_id" integer NOT NULL,
+  "account_id" bigint NOT NULL,
+  "credentials_secret_id" bigint NOT NULL,
+  "account_credentials_id" bigint NOT NULL,
   "account_public_id" uuid NOT NULL,
   "secret_id" varchar(22) NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
@@ -413,9 +413,9 @@ CREATE TABLE "account_credentials_secrets" (
 );
 
 CREATE TABLE "account_credentials_keys" (
-  "account_id" integer NOT NULL,
-  "credentials_key_id" integer NOT NULL,
-  "account_credentials_id" integer NOT NULL,
+  "account_id" bigint NOT NULL,
+  "credentials_key_id" bigint NOT NULL,
+  "account_credentials_id" bigint NOT NULL,
   "account_public_id" uuid NOT NULL,
   "jwk_kid" varchar(22) NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
@@ -423,7 +423,7 @@ CREATE TABLE "account_credentials_keys" (
 );
 
 CREATE TABLE "account_auth_providers" (
-  "id" serial PRIMARY KEY,
+  "id" bigserial PRIMARY KEY,
   "email" varchar(250) NOT NULL,
   "provider" auth_provider NOT NULL,
   "account_public_id" uuid NOT NULL,
@@ -432,8 +432,8 @@ CREATE TABLE "account_auth_providers" (
 );
 
 CREATE TABLE "oidc_configs" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
   "claims_supported" claims[] NOT NULL DEFAULT '{ "sub", "email", "email_verified", "given_name", "family_name" }',
   "scopes_supported" scopes[] NOT NULL DEFAULT '{ "openid", "email", "profile" }',
   "custom_claims" varchar(512)[] NOT NULL DEFAULT '{}',
@@ -443,16 +443,16 @@ CREATE TABLE "oidc_configs" (
 );
 
 CREATE TABLE "account_token_signing_keys" (
-  "account_id" integer NOT NULL,
-  "token_signing_key_id" integer NOT NULL,
+  "account_id" bigint NOT NULL,
+  "token_signing_key_id" bigint NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("account_id", "token_signing_key_id")
 );
 
 CREATE TABLE "users" (
-  "id" serial PRIMARY KEY,
+  "id" bigserial PRIMARY KEY,
   "public_id" uuid NOT NULL,
-  "account_id" integer NOT NULL,
+  "account_id" bigint NOT NULL,
   "email" varchar(250) NOT NULL,
   "username" varchar(63) NOT NULL,
   "password" text,
@@ -465,9 +465,9 @@ CREATE TABLE "users" (
 );
 
 CREATE TABLE "user_2fa_configs" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "user_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
+  "user_id" bigint NOT NULL,
   "two_factor_type" two_factor_type NOT NULL,
   "is_default" boolean NOT NULL DEFAULT false,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
@@ -475,35 +475,35 @@ CREATE TABLE "user_2fa_configs" (
 );
 
 CREATE TABLE "user_data_encryption_keys" (
-  "user_id" integer NOT NULL,
-  "data_encryption_key_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
+  "user_id" bigint NOT NULL,
+  "data_encryption_key_id" bigint NOT NULL,
+  "account_id" bigint NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("user_id", "data_encryption_key_id")
 );
 
 CREATE TABLE "user_totps" (
-  "user_id" integer NOT NULL,
-  "totp_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
+  "user_id" bigint NOT NULL,
+  "totp_id" bigint NOT NULL,
+  "account_id" bigint NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("user_id", "totp_id")
 );
 
 CREATE TABLE "user_auth_providers" (
-  "id" serial PRIMARY KEY,
-  "user_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "user_id" bigint NOT NULL,
+  "account_id" bigint NOT NULL,
   "provider" auth_provider NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "user_credentials" (
-  "id" serial PRIMARY KEY,
-  "user_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
-  "app_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "user_id" bigint NOT NULL,
+  "account_id" bigint NOT NULL,
+  "app_id" bigint NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "auth_methods" auth_method[] NOT NULL,
   "issuers" varchar(512)[] NOT NULL,
@@ -512,20 +512,20 @@ CREATE TABLE "user_credentials" (
 );
 
 CREATE TABLE "user_credentials_secrets" (
-  "user_id" integer NOT NULL,
-  "credentials_secret_id" integer NOT NULL,
-  "user_credential_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
+  "user_id" bigint NOT NULL,
+  "credentials_secret_id" bigint NOT NULL,
+  "user_credential_id" bigint NOT NULL,
+  "account_id" bigint NOT NULL,
   "user_public_id" uuid NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("user_id", "credentials_secret_id")
 );
 
 CREATE TABLE "user_credentials_keys" (
-  "user_id" integer NOT NULL,
-  "credentials_key_id" integer NOT NULL,
-  "user_credential_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
+  "user_id" bigint NOT NULL,
+  "credentials_key_id" bigint NOT NULL,
+  "user_credential_id" bigint NOT NULL,
+  "account_id" bigint NOT NULL,
   "user_public_id" uuid NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("user_id", "credentials_key_id")
@@ -534,8 +534,8 @@ CREATE TABLE "user_credentials_keys" (
 CREATE TABLE "apps" (
   "registration_token_jti" uuid UNIQUE,
   "software_statement" text NOT NULL DEFAULT '',
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
   "account_public_id" uuid NOT NULL,
   "client_id" varchar(22) NOT NULL,
   "version" integer NOT NULL DEFAULT 1,
@@ -592,25 +592,25 @@ CREATE TABLE "apps" (
 );
 
 CREATE TABLE "app_secrets" (
-  "app_id" integer NOT NULL,
-  "credentials_secret_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
+  "app_id" bigint NOT NULL,
+  "credentials_secret_id" bigint NOT NULL,
+  "account_id" bigint NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("app_id", "credentials_secret_id")
 );
 
 CREATE TABLE "app_keys" (
-  "app_id" integer NOT NULL,
-  "credentials_key_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
+  "app_id" bigint NOT NULL,
+  "credentials_key_id" bigint NOT NULL,
+  "account_id" bigint NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("app_id", "credentials_key_id")
 );
 
 CREATE TABLE "app_designs" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "app_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
+  "app_id" bigint NOT NULL,
   "light_colors" jsonb NOT NULL,
   "dark_colors" jsonb,
   "logo_url" varchar(512),
@@ -620,8 +620,8 @@ CREATE TABLE "app_designs" (
 );
 
 CREATE TABLE "account_dynamic_registration_configs" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
   "account_public_id" uuid NOT NULL,
   "account_credentials_types" account_credentials_type[] NOT NULL,
   "require_software_statement_credential_types" account_credentials_type[] NOT NULL,
@@ -632,8 +632,8 @@ CREATE TABLE "account_dynamic_registration_configs" (
 );
 
 CREATE TABLE "app_dynamic_registration_configs" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
   "account_public_id" uuid NOT NULL,
   "allowed_app_types" app_type[] NOT NULL,
   "default_allow_user_registration" boolean NOT NULL,
@@ -657,8 +657,8 @@ CREATE TABLE "app_dynamic_registration_configs" (
 );
 
 CREATE TABLE "dynamic_registration_domains" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
   "account_public_id" uuid NOT NULL,
   "domain" varchar(250) NOT NULL,
   "verified_at" timestamptz,
@@ -669,9 +669,9 @@ CREATE TABLE "dynamic_registration_domains" (
 );
 
 CREATE TABLE "dynamic_registration_domain_codes" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "dynamic_registration_domain_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
+  "dynamic_registration_domain_id" bigint NOT NULL,
   "verification_host" varchar(50) NOT NULL,
   "verification_code" text NOT NULL,
   "hmac_secret_id" varchar(22) NOT NULL,
@@ -682,27 +682,27 @@ CREATE TABLE "dynamic_registration_domain_codes" (
 );
 
 CREATE TABLE "dynamic_registration_software_statement_keys" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
   "account_public_id" uuid NOT NULL,
-  "credentials_key_id" integer NOT NULL,
+  "credentials_key_id" bigint NOT NULL,
   "credentials_key_kid" varchar(22) NOT NULL,
   "root_domain" varchar(250) NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "app_profiles" (
-  "app_id" integer NOT NULL,
-  "user_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
+  "app_id" bigint NOT NULL,
+  "user_id" bigint NOT NULL,
+  "account_id" bigint NOT NULL,
   "profile_type" app_profile_type NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("app_id", "user_id")
 );
 
 CREATE TABLE "grants" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
   "grant_id" uuid NOT NULL,
   "granted_client_id" varchar(22) NOT NULL,
   "granted_scopes" scopes[] NOT NULL,
@@ -714,10 +714,10 @@ CREATE TABLE "grants" (
 );
 
 CREATE TABLE "account_grants" (
-  "account_id" integer NOT NULL,
+  "account_id" bigint NOT NULL,
   "account_version" integer NOT NULL,
-  "grant_id" integer NOT NULL,
-  "account_credentials_id" integer,
+  "grant_id" bigint NOT NULL,
+  "account_credentials_id" bigint,
   "granted_client_id" varchar(22) NOT NULL,
   "is_revoked" boolean NOT NULL DEFAULT false,
   "revoked_at" timestamptz,
@@ -727,11 +727,11 @@ CREATE TABLE "account_grants" (
 );
 
 CREATE TABLE "user_grants" (
-  "user_id" integer NOT NULL,
+  "user_id" bigint NOT NULL,
   "user_version" integer NOT NULL,
-  "grant_id" integer NOT NULL,
-  "app_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
+  "grant_id" bigint NOT NULL,
+  "app_id" bigint NOT NULL,
+  "account_id" bigint NOT NULL,
   "granted_client_id" varchar(22) NOT NULL,
   "is_revoked" boolean NOT NULL DEFAULT false,
   "revoked_at" timestamptz,
@@ -741,9 +741,9 @@ CREATE TABLE "user_grants" (
 );
 
 CREATE TABLE "sessions" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "grant_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
+  "grant_id" bigint NOT NULL,
   "session_id" uuid NOT NULL,
   "session_type" session_type NOT NULL,
   "session_client_id" varchar(22) NOT NULL,
@@ -756,31 +756,31 @@ CREATE TABLE "sessions" (
 );
 
 CREATE TABLE "account_sessions" (
-  "account_id" integer NOT NULL,
+  "account_id" bigint NOT NULL,
   "account_version" integer NOT NULL,
-  "session_id" integer NOT NULL,
-  "account_credentials_id" integer,
+  "session_id" bigint NOT NULL,
+  "account_credentials_id" bigint,
   "session_uuid" uuid NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("account_id", "session_id")
 );
 
 CREATE TABLE "user_sessions" (
-  "user_id" integer NOT NULL,
+  "user_id" bigint NOT NULL,
   "user_version" integer NOT NULL,
-  "session_id" integer NOT NULL,
-  "app_id" integer NOT NULL,
-  "account_id" integer NOT NULL,
+  "session_id" bigint NOT NULL,
+  "app_id" bigint NOT NULL,
+  "account_id" bigint NOT NULL,
   "session_uuid" uuid NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now()),
   PRIMARY KEY ("user_id", "session_id")
 );
 
 CREATE TABLE "session_tokens" (
-  "id" serial PRIMARY KEY,
-  "account_id" integer NOT NULL,
-  "session_id" integer NOT NULL,
-  "grant_id" integer NOT NULL,
+  "id" bigserial PRIMARY KEY,
+  "account_id" bigint NOT NULL,
+  "session_id" bigint NOT NULL,
+  "grant_id" bigint NOT NULL,
   "session_uuid" uuid NOT NULL,
   "token_id" uuid NOT NULL,
   "issued_at" timestamptz NOT NULL DEFAULT (now()),

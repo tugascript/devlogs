@@ -11,10 +11,10 @@ type OIDCConfigDTO struct {
 	CustomClaims    []string          `json:"custom_claims"`
 	CustomScopes    []string          `json:"custom_scopes"`
 
-	id int32
+	id int64
 }
 
-func (u *OIDCConfigDTO) ID() int32 {
+func (u *OIDCConfigDTO) ID() int64 {
 	return u.id
 }
 

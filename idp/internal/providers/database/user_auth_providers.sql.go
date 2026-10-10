@@ -23,8 +23,8 @@ INSERT INTO "user_auth_providers" (
 `
 
 type CreateUserAuthProviderParams struct {
-	AccountID int32
-	UserID    int32
+	AccountID int64
+	UserID    int64
 	Provider  AuthProvider
 }
 
@@ -47,7 +47,7 @@ LIMIT 1
 `
 
 type FindUserAuthProviderByUserIDAndProviderParams struct {
-	UserID   int32
+	UserID   int64
 	Provider AuthProvider
 }
 

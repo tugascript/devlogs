@@ -33,7 +33,7 @@ func decodeHMACSecret(secret string) ([]byte, error) {
 
 type SecretID = string
 
-type StoreHMACSecret = func(dekID string, secretID SecretID, encryptedSecret string) (int32, *exceptions.ServiceError)
+type StoreHMACSecret = func(dekID string, secretID SecretID, encryptedSecret string) (int64, *exceptions.ServiceError)
 
 type GenerateHMACSecretOptions struct {
 	RequestID string

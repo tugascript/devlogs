@@ -52,7 +52,7 @@ type CreateTokenSigningKeyParams struct {
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-func (q *Queries) CreateTokenSigningKey(ctx context.Context, arg CreateTokenSigningKeyParams) (int32, error) {
+func (q *Queries) CreateTokenSigningKey(ctx context.Context, arg CreateTokenSigningKeyParams) (int64, error) {
 	row := q.db.QueryRow(ctx, createTokenSigningKey,
 		arg.Kid,
 		arg.KeyType,
@@ -64,7 +64,7 @@ func (q *Queries) CreateTokenSigningKey(ctx context.Context, arg CreateTokenSign
 		arg.Usage,
 		arg.IsDistributed,
 	)
-	var id int32
+	var id int64
 	err := row.Scan(&id)
 	return id, err
 }
@@ -176,7 +176,7 @@ RETURNING id, kid, key_type, public_key, private_key, dek_kid, crypto_suite, exp
 `
 
 type UpdateTokenSigningKeyDEKAndPrivateKeyParams struct {
-	ID         int32
+	ID         int64
 	DekKid     string
 	PrivateKey string
 }

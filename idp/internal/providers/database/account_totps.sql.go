@@ -21,8 +21,8 @@ INSERT INTO "account_totps" (
 `
 
 type CreateAccountTotpParams struct {
-	AccountID int32
-	TotpID    int32
+	AccountID int64
+	TotpID    int64
 }
 
 // Copyright (c) 2025 Afonso Barracha
@@ -40,7 +40,7 @@ DELETE FROM "account_totps"
 WHERE "account_id" = $1
 `
 
-func (q *Queries) DeleteAccountRecoveryKeys(ctx context.Context, accountID int32) error {
+func (q *Queries) DeleteAccountRecoveryKeys(ctx context.Context, accountID int64) error {
 	_, err := q.db.Exec(ctx, deleteAccountRecoveryKeys, accountID)
 	return err
 }
@@ -53,7 +53,7 @@ WHERE
 LIMIT 1
 `
 
-func (q *Queries) FindAccountTotpByAccountID(ctx context.Context, accountID int32) (Totp, error) {
+func (q *Queries) FindAccountTotpByAccountID(ctx context.Context, accountID int64) (Totp, error) {
 	row := q.db.QueryRow(ctx, findAccountTotpByAccountID, accountID)
 	var i Totp
 	err := row.Scan(

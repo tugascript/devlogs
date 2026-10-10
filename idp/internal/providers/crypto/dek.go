@@ -24,7 +24,7 @@ const (
 	dekByteLen int = 32 // 256 bits
 )
 
-type StoreDEK = func(dekID, encryptedDEK string, kekID uuid.UUID) (int32, *exceptions.ServiceError)
+type StoreDEK = func(dekID, encryptedDEK string, kekID uuid.UUID) (int64, *exceptions.ServiceError)
 
 type GenerateDEKOptions struct {
 	RequestID string
