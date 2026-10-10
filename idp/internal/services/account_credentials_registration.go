@@ -479,7 +479,7 @@ func (s *Services) createAccountCredentialsRegistration(
 	}
 
 	if tokenEndpointAuthMethod == database.AuthMethodNone || (tokenEndpointAuthMethod == database.AuthMethodPrivateKeyJwt && (data.JWKs != nil || data.JWKsURI != "")) {
-		accountCredentials, err := s.database.CreateAccountCredentials(ctx, params)
+		accountCredentials, err := qrs.CreateAccountCredentials(ctx, params)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to create account credentials", "error", err)
 			return dtos.AccountCredentialsDTO{}, exceptions.FromDBError(err)
