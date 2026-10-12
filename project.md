@@ -25,14 +25,14 @@
 - Add OAuth Dynamic Registration for:
   - accounts
   - apps
+- Update serial to big serial for scalability support
 
 ### IDP On-Going
 
-- Update serial to big serial for scalability support
+- OAuth Client ID Metadata Document
 
 ### IDP Todo
 
-- OAuth Client ID Metadata Document
 - User authentication for each app type:
   - web (including public SPA clients and service clients using client_credentials or JWT bearer grants)
   - native
