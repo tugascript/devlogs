@@ -9,6 +9,7 @@ package paths
 const (
 	WellKnownBase string = "/.well-known"
 
-	WellKnownOIDC string = "/openid-configuration"
-	WellKnownJWKs string = "/jwks.json"
+	WellKnownOIDC                     string = "/openid-configuration"
+	WellKnownOAuthAuthorizationServer string = "/oauth-authorization-server"
+	WellKnownJWKs                     string = "/jwks.json"
 )

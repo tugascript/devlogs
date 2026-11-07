@@ -109,3 +109,18 @@ func (s *Services) WellKnownOIDCConfigurationWithCache(
 	logger.InfoContext(ctx, "Added well known OIDC configuration to cache successfully")
 	return wellKnownOIDCConfigDTO, etag, nil
 }
+
+func (s *Services) WellKnownOAuthAuthorizationServer(
+	ctx context.Context,
+	opts WellKnownOIDCConfigurationWithCacheOptions,
+) (dtos.WellKnownOAuthAuthorizationServerDTO, *exceptions.ServiceError) {
+	configDTO, serviceErr := s.wellKnownOIDCConfiguration(ctx, opts)
+	if serviceErr != nil {
+		return dtos.WellKnownOAuthAuthorizationServerDTO{}, serviceErr
+	}
+	return dtos.WellKnownOAuthAuthorizationServerDTO{
+		WellKnownOIDCConfigurationDTO:     configDTO,
+		TokenEndpointAuthMethodsSupported: append([]string{"none"}, dtos.AuthMethodsSupported...),
+		ClientIDMetadataDocumentSupported: true,
+	}, nil
+}

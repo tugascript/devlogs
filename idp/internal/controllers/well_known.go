@@ -47,3 +47,28 @@ func (c *Controllers) WellKnownOIDCConfiguration(ctx fiber.Ctx) error {
 	logResponse(logger, ctx, fiber.StatusOK)
 	return ctx.Status(fiber.StatusOK).JSON(&configDTO)
 }
+
+func (c *Controllers) WellKnownOAuthAuthorizationServer(ctx fiber.Ctx) error {
+	requestID := getRequestID(ctx)
+	logger := c.buildLogger(requestID, wellKnownLocation, "WellKnownOAuthAuthorizationServer")
+	logRequest(logger, ctx)
+
+	accountUsername, accountID, serviceErr := getHostAccount(ctx)
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	configDTO, serviceErr := c.services.WellKnownOAuthAuthorizationServer(ctx.Context(), services.WellKnownOIDCConfigurationWithCacheOptions{
+		RequestID:       requestID,
+		AccountID:       accountID,
+		BackendDomain:   c.backendDomain,
+		AccountUsername: accountUsername,
+	})
+	if serviceErr != nil {
+		return serviceErrorResponse(logger, ctx, serviceErr)
+	}
+
+	ctx.Set(fiber.HeaderCacheControl, wellKnownOIDCCacheControl)
+	logResponse(logger, ctx, fiber.StatusOK)
+	return ctx.Status(fiber.StatusOK).JSON(&configDTO)
+}
