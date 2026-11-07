@@ -20,4 +20,5 @@ func (r *Routes) WellKnownRoutes(app *fiber.App) {
 		r.controllers.AccountDistributedOAuthPublicJWKs,
 	))
 	router.Get(paths.WellKnownOIDC, r.controllers.WellKnownOIDCConfiguration)
+	router.Get(paths.WellKnownOAuthAuthorizationServer, r.controllers.WellKnownOAuthAuthorizationServer)
 }

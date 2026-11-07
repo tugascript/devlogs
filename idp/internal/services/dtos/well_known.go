@@ -54,6 +54,15 @@ type WellKnownOIDCConfigurationDTO struct {
 	GrantTypesSupported []string `json:"grant_types_supported,omitempty"`
 }
 
+// WellKnownOAuthAuthorizationServerDTO is the RFC 8414 authorization-server
+// metadata document. It intentionally shares the endpoint/capability values
+// with the account's OpenID Connect discovery document.
+type WellKnownOAuthAuthorizationServerDTO struct {
+	WellKnownOIDCConfigurationDTO
+	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+	ClientIDMetadataDocumentSupported bool     `json:"client_id_metadata_document_supported"`
+}
+
 var AuthMethodsSupported = []string{"client_secret_basic", "client_secret_post", "private_key_jwt"}
 var ResponseTypesSupported = []string{"code", "id_token", "code id_token"}
 var SubjectTypesSupported = []string{"public", "pairwise"}
@@ -88,5 +97,13 @@ func MapOIDCConfigDTOToWellKnownOIDCConfigurationDTO(configDTO *OIDCConfigDTO, b
 		ClaimsSupported:                   configDTO.ClaimsSupported,
 		CodeChallengeMethodsSupported:     CodeChallengeMethodsSupported,
 		GrantTypesSupported:               GrantTypesSupported,
+	}
+}
+
+func MapOIDCConfigDTOToWellKnownOAuthAuthorizationServerDTO(configDTO *OIDCConfigDTO, backendDomain, username string) WellKnownOAuthAuthorizationServerDTO {
+	return WellKnownOAuthAuthorizationServerDTO{
+		WellKnownOIDCConfigurationDTO:     MapOIDCConfigDTOToWellKnownOIDCConfigurationDTO(configDTO, backendDomain, username),
+		TokenEndpointAuthMethodsSupported: append([]string{"none"}, AuthMethodsSupported...),
+		ClientIDMetadataDocumentSupported: true,
 	}
 }
